@@ -182,25 +182,18 @@ def login():
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         
         # Cari user berdasarkan email atau username
-        find_user_query = """
-            SELECT id_user, username, email, password, name, no_badge, department, status 
+        login_query = """
+            SELECT id_user, name, username, email, password, no_badge, department, status 
             FROM karyawan 
-            WHERE email = %s OR username = %s
+            WHERE (email = %s OR username = %s) AND status = 'active'
         """
-        cursor.execute(find_user_query, (data['email'], data['email']))
+        cursor.execute(login_query, (data['email'], data['email']))
         user = cursor.fetchone()
         
         if not user:
             return jsonify({
                 'success': False,
                 'message': 'Invalid email/username or password'
-            }), 401
-        
-        # Cek status user
-        if user['status'] != 'active':
-            return jsonify({
-                'success': False,
-                'message': 'Your account is not active. Please contact administrator.'
             }), 401
         
         # Verifikasi password
@@ -210,17 +203,21 @@ def login():
                 'message': 'Invalid email/username or password'
             }), 401
         
-        # Generate JWT token
-        token_payload = {
-            'user_id': user['id_user'],
-            'username': user['username'],
-            'email': user['email'],
-            'exp': datetime.utcnow() + timedelta(days=7)  
-        }
+        # Generate token (sederhana, bisa diganti dengan JWT)
+        import hashlib
+        import secrets
+        token = secrets.token_hex(32)
         
-        token = jwt.encode(token_payload, app.config['SECRET_KEY'], algorithm='HS256')
+        # Update last login (jika ada kolom last_login)
+        try:
+            update_query = "UPDATE karyawan SET last_login = %s WHERE id_user = %s"
+            cursor.execute(update_query, (datetime.now(), user['id_user']))
+            conn.commit()
+        except Exception as e:
+            print(f"Note: last_login update failed: {e}")
+            conn.rollback()
         
-        print(f" User logged in successfully: {user['username']}")
+        print(f"✅ User logged in successfully: {user['name']}")
         
         return jsonify({
             'success': True,
@@ -228,9 +225,9 @@ def login():
             'token': token,
             'user': {
                 'id': user['id_user'],
+                'name': user['name'],
                 'username': user['username'],
                 'email': user['email'],
-                'name': user['name'],
                 'no_badge': user['no_badge'],
                 'department': user['department'],
                 'status': user['status']
@@ -238,7 +235,7 @@ def login():
         }), 200
         
     except Exception as e:
-        print(f" Login error: {e}")
+        print(f"❌ Login error: {e}")
         return jsonify({
             'success': False,
             'message': f'Internal server error: {str(e)}'
@@ -249,8 +246,6 @@ def login():
             cursor.close()
         if conn:
             conn.close()
-            
-            
             
 # Endpoint untuk health check API
 @app.route('/api/health', methods=['GET'])
