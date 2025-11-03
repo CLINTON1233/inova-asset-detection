@@ -44,7 +44,7 @@ def register():
     
     try:
         data = request.get_json()
-        print(f"📥 Received registration data: {data}")
+        print(f" Received registration data: {data}")
         
         # Validasi data yang diperlukan
         required_fields = ['name', 'username', 'email', 'password', 'no_badge', 'department']
