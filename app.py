@@ -168,7 +168,7 @@ def predict():
     error_count = 0
 
     for file in uploaded_files:
-        if file.filename == '':
+        if file.filename == '':``
             continue
 
         try:
