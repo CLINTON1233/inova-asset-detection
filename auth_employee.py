@@ -8,31 +8,22 @@ from datetime import datetime
 import jwt
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
+from config import DB_CONFIG, SECRET_KEY
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app) 
-
-# Konfigurasi database
-DB_CONFIG = {
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'database': os.getenv('DB_NAME', 'inova'),
-    'user': os.getenv('DB_USER', 'postgres'),
-    'password': os.getenv('DB_PASSWORD', '123'),
-    'port': os.getenv('DB_PORT', '5432')
-}
-
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '27cdc60e29397b35b746d68e8c55b703267367cf2d084aa9')
-
+app.config['SECRET_KEY'] = SECRET_KEY
+ 
 def get_db_connection():
     """Membuat koneksi ke database"""
     try:
         conn = psycopg2.connect(**DB_CONFIG)
-        print(" Database connected successfully")
+        print("✅ Database connected successfully")
         return conn
     except Exception as e:
-        print(f" Database connection error: {e}")
+        print(f"❌ Database connection error: {e}")
         return None
 
 # Endpoint untuk registrasi user baru
@@ -44,10 +35,10 @@ def register():
     
     try:
         data = request.get_json()
-        print(f" Received registration data: {data}")
+        print(f"📥 Received registration data: {data}")
         
-        # Validasi data yang diperlukan
-        required_fields = ['name', 'username', 'email', 'password', 'no_badge', 'department']
+        # Validasi data yang diperlukan - HANYA field yang ada di database
+        required_fields = ['username', 'email', 'password', 'no_badge', 'department']
         for field in required_fields:
             if field not in data or not data[field]:
                 return jsonify({
@@ -78,6 +69,7 @@ def register():
         
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         
+        # Cek duplikat username, email, atau no_badge
         check_query = """
             SELECT username, email, no_badge 
             FROM karyawan 
@@ -103,26 +95,26 @@ def register():
         # Hash password
         hashed_password = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
-        # Insert user baru
+        # Insert user baru - HANYA dengan field yang ada di database
         insert_query = """
-            INSERT INTO karyawan (name, username, email, password, no_badge, department, status)
-            VALUES (%s, %s, %s, %s, %s, %s, 'active')
-            RETURNING id_user, username, email, name, no_badge, department, status, created_at
+            INSERT INTO karyawan (username, email, password, no_badge, department, status, created_at)
+            VALUES (%s, %s, %s, %s, %s, 'active', %s)
+            RETURNING id_user, username, email, no_badge, department, status, created_at
         """
         
         cursor.execute(insert_query, (
-            data['name'],
             data['username'],
             data['email'],
             hashed_password,
             data['no_badge'],
-            data['department']
+            data['department'],
+            datetime.now()
         ))
         
         new_user = cursor.fetchone()
         conn.commit()
         
-        print(f" User registered successfully: {new_user['username']}")
+        print(f"✅ User registered successfully: {new_user['username']}")
         
         return jsonify({
             'success': True,
@@ -131,15 +123,15 @@ def register():
                 'id': new_user['id_user'],
                 'username': new_user['username'],
                 'email': new_user['email'],
-                'name': new_user['name'],
                 'no_badge': new_user['no_badge'],
                 'department': new_user['department'],
-                'status': new_user['status']
+                'status': new_user['status'],
+                'created_at': new_user['created_at'].isoformat() if new_user['created_at'] else None
             }
         }), 201
         
     except Exception as e:
-        print(f" Registration error: {e}")
+        print(f"❌ Registration error: {e}")
         return jsonify({
             'success': False,
             'message': f'Internal server error: {str(e)}'
@@ -149,10 +141,10 @@ def register():
         # Pastikan koneksi ditutup dengan benar
         if cursor:
             cursor.close()
-            print(" Cursor closed")
+            print("🔒 Cursor closed")
         if conn:
             conn.close()
-            print(" Database connection closed")
+            print("🔒 Database connection closed")
             
 # Endpoint untuk login user            
 @app.route('/api/login', methods=['POST'])
@@ -183,7 +175,7 @@ def login():
         
         # Cari user berdasarkan email atau username
         login_query = """
-            SELECT id_user, name, username, email, password, no_badge, department, status 
+            SELECT id_user, username, email, password, no_badge, department, status 
             FROM karyawan 
             WHERE (email = %s OR username = %s) AND status = 'active'
         """
@@ -203,21 +195,20 @@ def login():
                 'message': 'Invalid email/username or password'
             }), 401
         
-        # Generate token (sederhana, bisa diganti dengan JWT)
-        import hashlib
+        # Generate token
         import secrets
         token = secrets.token_hex(32)
         
         # Update last login (jika ada kolom last_login)
         try:
-            update_query = "UPDATE karyawan SET last_login = %s WHERE id_user = %s"
+            update_query = "UPDATE karyawan SET updated_at = %s WHERE id_user = %s"
             cursor.execute(update_query, (datetime.now(), user['id_user']))
             conn.commit()
         except Exception as e:
-            print(f"Note: last_login update failed: {e}")
+            print(f"ℹ️ Note: updated_at update failed: {e}")
             conn.rollback()
         
-        print(f"✅ User logged in successfully: {user['name']}")
+        print(f"✅ User logged in successfully: {user['username']}")
         
         return jsonify({
             'success': True,
@@ -225,7 +216,6 @@ def login():
             'token': token,
             'user': {
                 'id': user['id_user'],
-                'name': user['name'],
                 'username': user['username'],
                 'email': user['email'],
                 'no_badge': user['no_badge'],
@@ -314,6 +304,6 @@ def test_db():
 
 # Jalankan server 
 if __name__ == '__main__':
-    print(" Starting Flask server...")
-    print(f" Database config: {DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}")
+    print("🚀 Starting Flask server...")
+    print(f"🗄️ Database config: {DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}")
     app.run(debug=True, host='0.0.0.0', port=5000)
