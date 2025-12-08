@@ -9,7 +9,11 @@ DB_CONFIG = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'database': os.getenv('DB_NAME', 'inova'),
     'user': os.getenv('DB_USER', 'postgres'),
+<<<<<<< HEAD
     'password': os.getenv('DB_PASSWORD', '123'),
+=======
+    'password': os.getenv('DB_PASSWORD', 'Sukses12345'),
+>>>>>>> d603377c3649efff82476a492b191763134f19f8
     'port': os.getenv('DB_PORT', '5432')
 }
 
