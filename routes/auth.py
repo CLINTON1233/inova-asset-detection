@@ -1,43 +1,22 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import psycopg2
-from psycopg2.extras import RealDictCursor
+# routes/auth.py
+from flask import Blueprint, request, jsonify
 import bcrypt
-import os
 from datetime import datetime
-import jwt
-from dotenv import load_dotenv
-from datetime import datetime, timedelta
-from config import DB_CONFIG, SECRET_KEY
+from utils.database import get_db_connection
+import secrets
 
-load_dotenv()
+# Buat Blueprint untuk auth routes
+auth_bp = Blueprint('auth', __name__, url_prefix='/api')
 
-app = Flask(__name__)
-CORS(app) 
-app.config['SECRET_KEY'] = SECRET_KEY
- 
-def get_db_connection():
-    """Membuat koneksi ke database"""
-    try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        print("✅ Database connected successfully")
-        return conn
-    except Exception as e:
-        print(f"❌ Database connection error: {e}")
-        return None
-
-# Endpoint untuk registrasi user baru
-@app.route('/api/register', methods=['POST'])
+@auth_bp.route('/register', methods=['POST'])
 def register():
-    """Endpoint untuk registrasi user baru"""
     conn = None
     cursor = None
     
     try:
         data = request.get_json()
-        print(f"📥 Received registration data: {data}")
+        print(f" Received registration data: {data}")
         
-        # Validasi data yang diperlukan - HANYA field yang ada di database
         required_fields = ['username', 'email', 'password', 'no_badge', 'department']
         for field in required_fields:
             if field not in data or not data[field]:
@@ -46,14 +25,12 @@ def register():
                     'message': f'Field {field} is required'
                 }), 400
         
-        # Validasi email
         if '@' not in data['email']:
             return jsonify({
                 'success': False,
                 'message': 'Invalid email format'
             }), 400
         
-        # Validasi password
         if len(data['password']) < 6:
             return jsonify({
                 'success': False,
@@ -64,12 +41,11 @@ def register():
         if not conn:
             return jsonify({
                 'success': False,
-                'message': 'Database connection failed. Please check database configuration.'
+                'message': 'Database connection failed'
             }), 500
         
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor = conn.cursor()
         
-        # Cek duplikat username, email, atau no_badge
         check_query = """
             SELECT username, email, no_badge 
             FROM karyawan 
@@ -80,11 +56,11 @@ def register():
         
         if existing_user:
             conflict_fields = []
-            if existing_user['username'] == data['username']:
+            if existing_user[0] == data['username']:
                 conflict_fields.append('username')
-            if existing_user['email'] == data['email']:
+            if existing_user[1] == data['email']:
                 conflict_fields.append('email')
-            if existing_user['no_badge'] == data['no_badge']:
+            if existing_user[2] == data['no_badge']:
                 conflict_fields.append('badge number')
             
             return jsonify({
@@ -92,10 +68,8 @@ def register():
                 'message': f'{", ".join(conflict_fields)} already exists'
             }), 409
         
-        # Hash password
         hashed_password = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
-        # Insert user baru - HANYA dengan field yang ada di database
         insert_query = """
             INSERT INTO karyawan (username, email, password, no_badge, department, status, created_at)
             VALUES (%s, %s, %s, %s, %s, 'active', %s)
@@ -114,50 +88,41 @@ def register():
         new_user = cursor.fetchone()
         conn.commit()
         
-        print(f"✅ User registered successfully: {new_user['username']}")
-        
         return jsonify({
             'success': True,
             'message': 'Registration successful',
             'user': {
-                'id': new_user['id_user'],
-                'username': new_user['username'],
-                'email': new_user['email'],
-                'no_badge': new_user['no_badge'],
-                'department': new_user['department'],
-                'status': new_user['status'],
-                'created_at': new_user['created_at'].isoformat() if new_user['created_at'] else None
+                'id': new_user[0],
+                'username': new_user[1],
+                'email': new_user[2],
+                'no_badge': new_user[3],
+                'department': new_user[4],
+                'status': new_user[5]
             }
         }), 201
         
     except Exception as e:
-        print(f"❌ Registration error: {e}")
+        print(f" Registration error: {e}")
         return jsonify({
             'success': False,
             'message': f'Internal server error: {str(e)}'
         }), 500
         
     finally:
-        # Pastikan koneksi ditutup dengan benar
         if cursor:
             cursor.close()
-            print("🔒 Cursor closed")
         if conn:
             conn.close()
-            print("🔒 Database connection closed")
-            
-# Endpoint untuk login user            
-@app.route('/api/login', methods=['POST'])
+
+@auth_bp.route('/login', methods=['POST'])
 def login():
-    """Endpoint untuk login user"""
     conn = None
     cursor = None
     
     try:
         data = request.get_json()
-        print(f"📥 Received login data: {data}")
+        print(f" Received login data: {data}")
         
-        # Validasi data yang diperlukan
         if not data.get('email') or not data.get('password'):
             return jsonify({
                 'success': False,
@@ -171,9 +136,8 @@ def login():
                 'message': 'Database connection failed'
             }), 500
         
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor = conn.cursor()
         
-        # Cari user berdasarkan email atau username
         login_query = """
             SELECT id_user, username, email, password, no_badge, department, status 
             FROM karyawan 
@@ -188,44 +152,41 @@ def login():
                 'message': 'Invalid email/username or password'
             }), 401
         
-        # Verifikasi password
-        if not bcrypt.checkpw(data['password'].encode('utf-8'), user['password'].encode('utf-8')):
+        if not bcrypt.checkpw(data['password'].encode('utf-8'), user[3].encode('utf-8')):
             return jsonify({
                 'success': False,
                 'message': 'Invalid email/username or password'
             }), 401
         
-        # Generate token
-        import secrets
         token = secrets.token_hex(32)
         
-        # Update last login (jika ada kolom last_login)
         try:
             update_query = "UPDATE karyawan SET updated_at = %s WHERE id_user = %s"
-            cursor.execute(update_query, (datetime.now(), user['id_user']))
+            cursor.execute(update_query, (datetime.now(), user[0]))
             conn.commit()
         except Exception as e:
-            print(f"ℹ️ Note: updated_at update failed: {e}")
+            print(f"ℹ Note: updated_at update failed: {e}")
             conn.rollback()
         
-        print(f"✅ User logged in successfully: {user['username']}")
+        print(f" User logged in successfully: {user[1]}")
         
         return jsonify({
             'success': True,
             'message': 'Login successful',
             'token': token,
             'user': {
-                'id': user['id_user'],
-                'username': user['username'],
-                'email': user['email'],
-                'no_badge': user['no_badge'],
-                'department': user['department'],
-                'status': user['status']
+                'id': user[0],
+                'name': user[1],  # Tambahkan ini
+                'username': user[1],
+                'email': user[2],
+                'no_badge': user[4],
+                'department': user[5],
+                'status': user[6]
             }
         }), 200
         
     except Exception as e:
-        print(f"❌ Login error: {e}")
+        print(f" Login error: {e}")
         return jsonify({
             'success': False,
             'message': f'Internal server error: {str(e)}'
@@ -236,49 +197,22 @@ def login():
             cursor.close()
         if conn:
             conn.close()
-            
-# Endpoint untuk health check API
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    """Endpoint untuk mengecek kesehatan API"""
-    conn = None
-    try:
-        conn = get_db_connection()
-        if conn:
-            # Test query sederhana
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1 as test")
-            result = cursor.fetchone()
-            cursor.close()
-            conn.close()
-            
-            return jsonify({
-                'status': 'healthy',
-                'database': 'connected',
-                'timestamp': datetime.now().isoformat()
-            }), 200
-        else:
-            return jsonify({
-                'status': 'unhealthy',
-                'database': 'disconnected'
-            }), 500
-    except Exception as e:
-        if conn:
-            conn.close()
-        return jsonify({
-            'status': 'unhealthy',
-            'error': str(e)
-        }), 500
 
-# Endpoint untuk test koneksi database
-@app.route('/api/test-db', methods=['GET'])
+@auth_bp.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({
+        'status': 'healthy',
+        'service': 'auth-api',
+        'timestamp': datetime.now().isoformat()
+    }), 200
+
+@auth_bp.route('/test-db', methods=['GET'])
 def test_db():
-    """Endpoint untuk test koneksi database"""
     conn = None
     try:
         conn = get_db_connection()
         if conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor = conn.cursor()
             cursor.execute("SELECT version()")
             db_version = cursor.fetchone()
             cursor.close()
@@ -287,7 +221,7 @@ def test_db():
             return jsonify({
                 'success': True,
                 'message': 'Database connected successfully',
-                'database_version': db_version['version']
+                'database_version': db_version[0]
             }), 200
         else:
             return jsonify({
@@ -302,8 +236,20 @@ def test_db():
             'message': f'Database connection failed: {str(e)}'
         }), 500
 
-# Jalankan server 
-if __name__ == '__main__':
-    print("🚀 Starting Flask server...")
-    print(f"🗄️ Database config: {DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+@auth_bp.route('/protected', methods=['GET'])
+def protected():
+    auth_header = request.headers.get('Authorization')
+    
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({
+            'success': False,
+            'message': 'No token provided'
+        }), 401
+    
+    token = auth_header.split(' ')[1]
+    
+    return jsonify({
+        'success': True,
+        'message': 'Access granted',
+        'data': 'Protected resource'
+    }), 200
