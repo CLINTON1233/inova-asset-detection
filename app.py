@@ -1,32 +1,54 @@
-# app.py - FILE UTAMA ENTRY POINT
 from flask import Flask
 from flask_cors import CORS
-from config import API_PORT, SECRET_KEY
-
-# Import Blueprints dari routes
-from routes.auth import auth_bp
+import os
 
 # Inisialisasi Flask app
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:3000"], supports_credentials=True)
-app.config['SECRET_KEY'] = SECRET_KEY
+
+# Konfigurasi CORS untuk frontend port 3004
+CORS(app, 
+     origins=["http://localhost:3004"], 
+     supports_credentials=True,
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     allow_headers=["Content-Type", "Authorization"])
+
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
 
 # Register Blueprints
-app.register_blueprint(auth_bp)          # URL: /api/*
+from routes.auth import auth_bp
+from routes.detection import detection_bp
+
+app.register_blueprint(auth_bp)          
+app.register_blueprint(detection_bp)     
 
 @app.route('/')
 def root():
     return {"message": "Welcome to INOVA API", "status": "running"}
 
+@app.route('/api')
+def api_info():
+    return {
+        "api_name": "INOVA Backend API",
+        "version": "1.0.0",
+        "endpoints": {
+            "auth": {
+                "/api/login": "POST - User login",
+                "/api/register": "POST - User registration",
+                "/api/health": "GET - Health check",
+                "/api/test-db": "GET - Database test"
+            },
+            "detection": {
+                "/api/detect": "POST - Upload image for device detection",
+                "/api/detect/camera": "POST - Send base64 image for detection",
+                "/api/detect/test": "GET - Test detection endpoint"
+            }
+        }
+    }
+
 if __name__ == '__main__':
-    print(f"🚀 Starting Flask server on port {API_PORT}...")
-    print("🔗 Available routes:")
-    print("   - /api/login (POST) - Login user")
-    print("   - /api/register (POST) - Register user")
-    print("   - /api/health (GET) - Health check")
-    print("   - /api/test-db (GET) - Test database")
-    print("   - /api/protected (GET) - Protected route")
-    # print("   - / (GET) - YOLO Detection UI")
-    # print("   - /predict (POST) - YOLO Detection")
+    PORT = 5001  # Ganti port ke 6000
+    print(f"🚀 Starting Flask server on port {PORT}...")
+    print(f"🔗 Frontend URL: http://localhost:3004")
+    print(f"🔗 Backend URL: http://localhost:{PORT}")
     
-    app.run(debug=True, host='0.0.0.0', port=API_PORT)
+    app.run(debug=True, host='0.0.0.0', port=PORT)

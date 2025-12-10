@@ -13,4 +13,31 @@ DB_CONFIG = {
 }
 
 SECRET_KEY = os.getenv('SECRET_KEY', '27cdc60e29397b35b746d68e8c55b703267367cf2d084aa9')
-API_PORT = int(os.getenv('API_PORT', '5000'))
+API_PORT = int(os.getenv('API_PORT', '5001'))
+
+# Konfigurasi YOLO
+YOLO_MODEL_PATH = os.getenv('YOLO_MODEL_PATH', 'runs/detect/inventaris_yolo_v8/weights/best.pt')
+UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
+RESULT_FOLDER = os.getenv('RESULT_FOLDER', 'static/results')
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+# Device categories mapping
+DEVICE_CATEGORIES = {
+    'monitor': 'Perangkat',
+    'laptop': 'Perangkat', 
+    'pc': 'Perangkat',
+    'keyboard': 'Perangkat',
+    'mouse': 'Perangkat',
+    'printer': 'Perangkat',
+    'router': 'Perangkat',
+    'switch': 'Perangkat',
+    'server': 'Perangkat',
+    'cctv': 'Perangkat',
+    'ups': 'Perangkat',
+    'projector': 'Perangkat',
+    'cable': 'Material',
+    'connector': 'Material',
+    'adapter': 'Material',
+    'rack': 'Material',
+    'trunking': 'Material'
+}
