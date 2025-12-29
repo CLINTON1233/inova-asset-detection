@@ -41,7 +41,6 @@ def detect_devices():
                 "message": f"File type not allowed. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}"
             }), 400
         
-        # Buat upload folder jika belum ada
         os.makedirs(UPLOAD_FOLDER, exist_ok=True)
         
         # Generate unique filename
@@ -60,14 +59,12 @@ def detect_devices():
         
         # Tambahkan URL untuk result image jika ada
         if detection_result["success"] and detection_result.get("result_image_path"):
-            # Konversi path ke URL relatif
             result_path = detection_result["result_image_path"]
             if result_path.startswith('static/'):
                 detection_result["result_image_url"] = f"/{result_path}"
             else:
                 detection_result["result_image_url"] = f"/static/results/{os.path.basename(os.path.dirname(result_path))}/{os.path.basename(result_path)}"
-        
-        # Tambahkan URL untuk original image
+                
         detection_result["original_image_url"] = f"/{UPLOAD_FOLDER}/{unique_filename}"
         
         return jsonify(detection_result)
@@ -127,8 +124,7 @@ def detect_from_camera():
         
         # Tambahkan URL untuk original image
         detection_result["original_image_url"] = f"/{UPLOAD_FOLDER}/{temp_filename}"
-        
-        # Hapus file temporary setelah diproses
+
         try:
             os.remove(temp_filepath)
         except:

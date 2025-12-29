@@ -5,7 +5,7 @@ import os
 # Inisialisasi Flask app
 app = Flask(__name__)
 
-# Konfigurasi CORS untuk frontend port 3004
+# Konfigurasi CORS frontend port 3004
 CORS(app, 
      origins=["http://localhost:3004"], 
      supports_credentials=True,
@@ -46,7 +46,7 @@ def api_info():
     }
 
 if __name__ == '__main__':
-    PORT = 5001  # Ganti port ke 6000
+    PORT = 5001  
     print(f"🚀 Starting Flask server on port {PORT}...")
     print(f"🔗 Frontend URL: http://localhost:3004")
     print(f"🔗 Backend URL: http://localhost:{PORT}")

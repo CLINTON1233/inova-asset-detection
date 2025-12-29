@@ -16,7 +16,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', '27cdc60e29397b35b746d68e8c55b703267367cf2d
 API_PORT = int(os.getenv('API_PORT', '5001'))
 
 # Konfigurasi YOLO
-YOLO_MODEL_PATH = os.getenv('YOLO_MODEL_PATH', 'runs/detect/inventaris_yolo_v8/weights/best.pt')
+YOLO_MODEL_PATH = os.getenv('YOLO_MODEL_PATH', 'runs/detect/inventory-it-yolo/weights/best.pt')
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
 RESULT_FOLDER = os.getenv('RESULT_FOLDER', 'static/results')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
