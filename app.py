@@ -1,12 +1,11 @@
-# app.py
-from flask import Flask, jsonify
+from flask import Flask
 from flask_cors import CORS
 import os
 
 # Inisialisasi Flask app
 app = Flask(__name__)
 
-# Konfigurasi CORS frontend port 3004
+# Konfigurasi CORS
 CORS(app, 
      origins=["http://localhost:3004"], 
      supports_credentials=True,
@@ -19,10 +18,12 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '27cdc60e29397b35b746d68e8c55
 from routes.auth import auth_bp
 from routes.detection import detection_bp
 from routes.location import location_bp
+from routes.serial_detection import serial_bp 
 
 app.register_blueprint(auth_bp)          
 app.register_blueprint(detection_bp)     
 app.register_blueprint(location_bp)
+app.register_blueprint(serial_bp)        
 
 @app.route('/')
 def root():
@@ -41,9 +42,12 @@ def api_info():
             },
             "detection": {
                 "/api/detect": "POST - Upload image for device detection",
-                "/api/detect/camera": "POST - Send base64 image for device detection",
-                "/api/detect/serial": "POST - Upload image for serial number detection",
-                "/api/detect/serial/camera": "POST - Send base64 for serial number detection"
+                "/api/detect/camera": "POST - Send base64 image for device detection"
+            },
+            "serial": {
+                "/api/serial/detect": "POST - Upload image for serial number detection",
+                "/api/serial/detect/camera": "POST - Send base64 image for serial detection",
+                "/api/serial/assign/<device_id>": "POST - Assign serial to device"
             },
             "location": {
                 "/api/location/all": "GET - Get all active locations",

@@ -6,7 +6,7 @@ import base64
 import time
 from datetime import datetime
 from werkzeug.utils import secure_filename
-from config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS, YOLO_MODEL_PATH
+from config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS, DEVICE_MODEL_PATH
 from utils.detector import detect_devices_from_image
 
 detection_bp = Blueprint('detection', __name__, url_prefix='/api')
@@ -144,5 +144,5 @@ def test_detection():
             "POST /api/detect/camera": "Send base64 image data for detection",
             "GET /api/detect/test": "Test endpoint"
         },
-        "model_status": "Ready" if os.path.exists(YOLO_MODEL_PATH) else "Model not found"
+        "model_status": "Ready" if os.path.exists(DEVICE_MODEL_PATH) else "Model not found"
     })
