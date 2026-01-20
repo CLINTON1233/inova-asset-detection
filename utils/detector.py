@@ -12,12 +12,13 @@ import easyocr
 model = None
 reader = easyocr.Reader(["en"], gpu=False)
 
-# Device brands untuk OCR
+# Device brands untuk OCR (diperbarui)
 BRANDS = [
     "hp", "dell", "lenovo", "asus", "acer", "samsung", "lg", 
     "philips", "viewsonic", "sony", "benq", "huawei", "msi",
     "logitech", "microsoft", "apple", "cisco", "tp-link",
-    "d-link", "canon", "epson", "brother"
+    "d-link", "canon", "epson", "brother", "toshiba", "fujitsu",
+    "ibm", "hitachi", "panasonic", "sharp", "nec", "compaq"
 ]
 
 def init_detector():
@@ -36,81 +37,131 @@ def init_detector():
 # ==== OCR Preprocessing ====
 def preprocess_for_ocr(img):
     """Preprocess image untuk OCR"""
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    if len(img.shape) == 3:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = img
+    
     # tingkatkan kontras
     gray = cv2.equalizeHist(gray)
+    
     # sharpen biar teks jelas
     kernel = np.array([[0, -1, 0],
                        [-1, 5, -1],
                        [0, -1, 0]])
     sharp = cv2.filter2D(gray, -1, kernel)
-    # threshold ringan
-    _, th = cv2.threshold(sharp, 150, 255, cv2.THRESH_BINARY)
+    
+    # threshold adaptive
+    th = cv2.adaptiveThreshold(sharp, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                cv2.THRESH_BINARY, 11, 2)
+    
+    # noise reduction
+    th = cv2.medianBlur(th, 3)
+    
     return th
 
 # ==== Deteksi brand dari logo HP ====
 def detect_hp_circle(crop):
     """Deteksi logo HP (lingkaran)"""
-    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+    if crop is None or crop.size == 0:
+        return False
+    
+    try:
+        if len(crop.shape) == 3:
+            gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = crop
+        
+        blur = cv2.GaussianBlur(gray, (5, 5), 0)
 
-    # deteksi lingkaran via Hough
-    circles = cv2.HoughCircles(
-        blur,
-        cv2.HOUGH_GRADIENT,
-        dp=1.2,
-        minDist=30,
-        param1=50,
-        param2=22,
-        minRadius=10,
-        maxRadius=40
-    )
+        # deteksi lingkaran via Hough
+        circles = cv2.HoughCircles(
+            blur,
+            cv2.HOUGH_GRADIENT,
+            dp=1.2,
+            minDist=30,
+            param1=50,
+            param2=22,
+            minRadius=10,
+            maxRadius=40
+        )
 
-    return circles is not None
+        return circles is not None
+    except:
+        return False
 
 # ==== Deteksi brand dari teks ====
 def detect_brand_from_image(image_path, bbox, cls_name=""):
     """Deteksi brand dari gambar"""
-    x1, y1, x2, y2 = map(int, bbox)
-    img = cv2.imread(image_path)
+    try:
+        x1, y1, x2, y2 = map(int, bbox)
+        img = cv2.imread(image_path)
 
-    if img is None:
+        if img is None:
+            return "Unknown"
+
+        # Pastikan koordinat valid
+        height, width = img.shape[:2]
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(width, x2)
+        y2 = min(height, y2)
+        
+        if x2 <= x1 or y2 <= y1:
+            return "Unknown"
+
+        crop = img[y1:y2, x1:x2]
+        
+        if crop.size == 0:
+            return "Unknown"
+
+        # ==== SPECIAL HANDLING UNTUK MONITOR ====
+        if cls_name.lower() == "monitor":
+            h, w = crop.shape[:2]
+            if h > 0 and w > 0:
+                # ambil 50% area bawah (bezelnya)
+                crop = crop[int(h * 0.50):h, :]
+                # tambahkan padding agar logo tidak terpotong
+                crop = cv2.copyMakeBorder(
+                    crop,
+                    10, 10, 20, 20,
+                    cv2.BORDER_CONSTANT,
+                    value=[0, 0, 0]
+                )
+
+        # ==== Preprocess sebelum OCR ====
+        processed = preprocess_for_ocr(crop)
+
+        # ==== OCR ====
+        result = reader.readtext(processed, detail=0)
+
+        text = " ".join(result).lower()
+        text = text.replace(" ", "")
+        
+        if not text:
+            # Jika OCR tidak mendapatkan teks, coba deteksi logo HP
+            if detect_hp_circle(crop):
+                return "HP"
+            return "Unknown"
+
+        # ==== cek brand berdasarkan teks ====
+        for b in BRANDS:
+            if b in text:
+                return b.capitalize()
+
+        # ==== fallback khusus HP (logo bulat) ====
+        if detect_hp_circle(crop):
+            return "HP"
+
+        # Coba cari substring dari brand
+        for b in BRANDS:
+            if any(b.startswith(t[:3]) for t in text.split() if len(t) >= 3):
+                return b.capitalize()
+
         return "Unknown"
-
-    crop = img[y1:y2, x1:x2]
-
-    # ==== SPECIAL HANDLING UNTUK MONITOR ====
-    if cls_name.lower() == "monitor":
-        h, w = crop.shape[:2]
-        # ambil 50% area bawah (bezelnya)
-        crop = crop[int(h * 0.50):h, :]
-        # tambahkan padding 20px agar logo tidak terpotong
-        crop = cv2.copyMakeBorder(
-            crop,
-            10, 10, 20, 20,
-            cv2.BORDER_CONSTANT,
-            value=[0, 0, 0]
-        )
-
-    # ==== Preprocess sebelum OCR ====
-    processed = preprocess_for_ocr(crop)
-
-    # ==== OCR ====
-    result = reader.readtext(processed)
-
-    text = " ".join([r[1] for r in result]).lower()
-    text = text.replace(" ", "")
-
-    # ==== cek brand berdasarkan teks ====
-    for b in BRANDS:
-        if b in text:
-            return b.capitalize()
-
-    # ==== fallback khusus HP (logo bulat) ====
-    if detect_hp_circle(crop):
-        return "HP"
-
-    return "Unknown"
+    except Exception as e:
+        print(f"Error in brand detection: {e}")
+        return "Unknown"
 
 # ==== Fungsi utama deteksi ====
 def detect_devices_from_image(image_path):
@@ -163,16 +214,17 @@ def detect_devices_from_image(image_path):
                 # Tentukan kategori berdasarkan mapping
                 category = DEVICE_CATEGORIES.get(cls_name.lower(), "Other")
                 
-                # Deteksi brand untuk monitor dan laptop
+                # Deteksi brand untuk semua device
                 brand = "N/A"
-                if cls_name.lower() in ["monitor", "laptop", "pc", "printer"]:
-                    brand = detect_brand_from_image(image_path_for_brand, bbox, cls_name)
+                # Deteksi brand untuk semua jenis perangkat
+                brand = detect_brand_from_image(image_path_for_brand, bbox, cls_name)
                 
                 # Generate unique ID untuk device
                 device_id = f"{cls_name.upper()[:3]}-{unique_id}-{len(detected_items)+1:03d}"
                 
                 # Format nomor seri berdasarkan brand dan timestamp
-                serial_number = f"SN-{brand.upper()[:3] if brand != 'Unknown' else 'UNK'}-{timestamp}_{unique_id}_{len(detected_items)+1}"
+                brand_prefix = brand.upper()[:3] if brand != "Unknown" and brand != "N/A" else "UNK"
+                serial_number = f"SN-{brand_prefix}-{timestamp}_{unique_id}_{len(detected_items)+1}"
                 
                 detected_items.append({
                     "id": device_id,
@@ -191,11 +243,13 @@ def detect_devices_from_image(image_path):
             "success": True,
             "detected_items": detected_items,
             "result_image_path": result_image_path,
+            "original_image_path": image_path,
             "total_detected": len(detected_items),
             "message": f"Berhasil mendeteksi {len(detected_items)} perangkat/material"
         }
         
     except Exception as e:
+        print(f"Detection error: {e}")
         return {
             "success": False,
             "detected_items": [],

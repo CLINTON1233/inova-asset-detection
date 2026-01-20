@@ -1,4 +1,5 @@
-from flask import Flask
+# app.py
+from flask import Flask, jsonify
 from flask_cors import CORS
 import os
 
@@ -12,14 +13,16 @@ CORS(app,
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
      allow_headers=["Content-Type", "Authorization"])
 
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '27cdc60e29397b35b746d68e8c55b703267367cf2d084aa9')
 
 # Register Blueprints
 from routes.auth import auth_bp
 from routes.detection import detection_bp
+from routes.location import location_bp
 
 app.register_blueprint(auth_bp)          
 app.register_blueprint(detection_bp)     
+app.register_blueprint(location_bp)
 
 @app.route('/')
 def root():
@@ -34,13 +37,20 @@ def api_info():
             "auth": {
                 "/api/login": "POST - User login",
                 "/api/register": "POST - User registration",
-                "/api/health": "GET - Health check",
-                "/api/test-db": "GET - Database test"
+                "/api/health": "GET - Health check"
             },
             "detection": {
                 "/api/detect": "POST - Upload image for device detection",
-                "/api/detect/camera": "POST - Send base64 image for detection",
-                "/api/detect/test": "GET - Test detection endpoint"
+                "/api/detect/camera": "POST - Send base64 image for device detection",
+                "/api/detect/serial": "POST - Upload image for serial number detection",
+                "/api/detect/serial/camera": "POST - Send base64 for serial number detection"
+            },
+            "location": {
+                "/api/location/all": "GET - Get all active locations",
+                "/api/location/search": "GET - Search locations",
+                "/api/location/assign-multiple": "POST - Assign location to multiple assets",
+                "/api/location/asset/<asset_id>": "GET - Get asset location",
+                "/api/location/<location_code>": "GET - Get location by code"
             }
         }
     }
