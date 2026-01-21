@@ -211,4 +211,4 @@ def detect_devices_from_image(image_path):
             "detected_items": [],
             "error": str(e),
             "message": "Gagal melakukan deteksi perangkat"
-        }
+        }   

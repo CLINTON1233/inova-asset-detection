@@ -12,3 +12,5 @@ torch==2.0.1
 torchvision==0.15.2
 Pillow==10.0.0
 werkzeug==2.3.7
+paddleocr>=2.7.0
+paddlepaddle>=2.5.0

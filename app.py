@@ -13,17 +13,20 @@ CORS(app,
      allow_headers=["Content-Type", "Authorization"])
 
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '27cdc60e29397b35b746d68e8c55b703267367cf2d084aa9')
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 # Register Blueprints
 from routes.auth import auth_bp
 from routes.detection import detection_bp
 from routes.location import location_bp
-from routes.serial_detection import serial_bp 
+from routes.serial_detection import serial_bp
+from routes.serial_ocr import ocr_bp 
 
-app.register_blueprint(auth_bp)          
-app.register_blueprint(detection_bp)     
+app.register_blueprint(auth_bp)
+app.register_blueprint(detection_bp)
 app.register_blueprint(location_bp)
-app.register_blueprint(serial_bp)        
+app.register_blueprint(serial_bp)
+app.register_blueprint(ocr_bp)
 
 @app.route('/')
 def root():
