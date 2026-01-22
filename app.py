@@ -1,7 +1,7 @@
 from flask import Flask
 from flask_cors import CORS
 import os
-
+from routes.serial_detection import serial_bp
 # Inisialisasi Flask app
 app = Flask(__name__)
 

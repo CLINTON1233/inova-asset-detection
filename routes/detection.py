@@ -1,23 +1,165 @@
-# routes/detection.py
+# routes/detection.py - FIXED VERSION
 from flask import Blueprint, request, jsonify
 import os
 import uuid
 import base64
 import time
 from datetime import datetime
-from werkzeug.utils import secure_filename
-from config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS, DEVICE_MODEL_PATH
-from utils.detector import detect_devices_from_image
+import cv2
+import numpy as np
+from utils.detector import detect_devices_fast
+from utils.serial_detector import detect_serial_numbers_fast
 
 detection_bp = Blueprint('detection', __name__, url_prefix='/api')
 
-def allowed_file(filename):
-    """Cek apakah file diperbolehkan"""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+# Cache untuk request yang sama 
+request_cache = {}
+CACHE_TIMEOUT = 5  # detik
+
+def cleanup_old_cache():
+    """Bersihkan cache yang sudah expired"""
+    global request_cache
+    current_time = time.time()
+    expired_keys = []
+    
+    for key, value in request_cache.items():
+        cache_time, _ = value
+        if current_time - cache_time > CACHE_TIMEOUT:
+            expired_keys.append(key)
+    
+    for key in expired_keys:
+        del request_cache[key]
+        
+# routes/detection.py - TAMBAHKAN FALLBACK
+@detection_bp.route('/detect/camera/simple', methods=['POST'])
+def detect_from_camera_simple():
+    """Endpoint sederhana untuk testing"""
+    try:
+        data = request.get_json()
+        
+        if not data or 'image_data' not in data:
+            return jsonify({
+                "success": False,
+                "message": "No image data provided"
+            }), 400
+        
+        # Decode base64
+        image_data = data['image_data']
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
+        
+        image_bytes = base64.b64decode(image_data)
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return jsonify({
+                "success": False,
+                "message": "Failed to decode image"
+            }), 400
+        
+        # Save temporary
+        temp_path = f"temp_simple_{int(time.time())}.jpg"
+        cv2.imwrite(temp_path, img, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        
+        # Coba deteksi normal dulu
+        try:
+            result = detect_devices_fast(temp_path)
+        except Exception as e:
+            print(f"Fast detection failed, using simple mode: {e}")
+            # Fallback ke simple mode
+            from utils.detector import detect_devices_simple
+            result = detect_devices_simple(temp_path)
+        
+        # Clean up
+        try:
+            os.remove(temp_path)
+        except:
+            pass
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"Simple camera detection error: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Error processing image: {str(e)}"
+        }), 500
+
+@detection_bp.route('/detect/camera', methods=['POST'])
+def detect_from_camera_fast():
+    """Endpoint cepat untuk deteksi dari kamera"""
+    try:
+        data = request.get_json()
+        
+        if not data or 'image_data' not in data:
+            return jsonify({
+                "success": False,
+                "message": "No image data provided"
+            }), 400
+        
+        # Generate cache key
+        cache_key = hash(data['image_data'][:100])  # Hash dari sebagian image
+        
+        # Cek cache
+        if cache_key in request_cache:
+            cache_time, cached_result = request_cache[cache_key]
+            if time.time() - cache_time < CACHE_TIMEOUT:
+                return jsonify(cached_result)
+        
+        # Decode base64
+        image_data = data['image_data']
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
+        
+        image_bytes = base64.b64decode(image_data)
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return jsonify({
+                "success": False,
+                "message": "Failed to decode image"
+            }), 400
+        
+        # Resize untuk kecepatan (max 720p)
+        h, w = img.shape[:2]
+        if h > 720 or w > 1280:
+            scale = min(720/h, 1280/w)
+            img = cv2.resize(img, (int(w * scale), int(h * scale)), 
+                           interpolation=cv2.INTER_AREA)
+        
+        # Save temporary dengan kualitas lebih rendah
+        temp_path = f"temp_camera_{int(time.time())}.jpg"
+        cv2.imwrite(temp_path, img, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        
+        # Deteksi cepat
+        result = detect_devices_fast(temp_path)
+        
+        # Clean up
+        try:
+            os.remove(temp_path)
+        except:
+            pass
+        
+        # Cache hasil
+        request_cache[cache_key] = (time.time(), result)
+        
+        # Clean old cache entries
+        cleanup_old_cache()
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"Fast camera detection error: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Error processing image: {str(e)}"
+        }), 500
 
 @detection_bp.route('/detect', methods=['POST'])
 def detect_devices():
-    """Endpoint untuk deteksi perangkat dari gambar (file upload)"""
+    """Endpoint untuk deteksi perangkat dari gambar (file upload) - Legacy"""
     try:
         # Cek apakah ada file yang diupload
         if 'image' not in request.files:
@@ -35,40 +177,22 @@ def detect_devices():
                 "message": "No selected file"
             }), 400
         
-        # Cek format file
-        if not allowed_file(file.filename):
-            return jsonify({
-                "success": False,
-                "message": f"File type not allowed. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}"
-            }), 400
+        # Simpan file temporary
+        temp_dir = 'temp'
+        os.makedirs(temp_dir, exist_ok=True)
+        temp_path = os.path.join(temp_dir, f'detect_{int(time.time())}.jpg')
+        file.save(temp_path)
         
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        # Deteksi cepat
+        result = detect_devices_fast(temp_path)
         
-        # Generate unique filename
-        original_filename = secure_filename(file.filename)
-        file_extension = os.path.splitext(original_filename)[1]
-        unique_id = str(uuid.uuid4())[:8]
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        unique_filename = f"{timestamp}_{unique_id}{file_extension}"
+        # Clean up
+        try:
+            os.remove(temp_path)
+        except:
+            pass
         
-        # Simpan file
-        filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
-        file.save(filepath)
-        
-        # Lakukan deteksi
-        detection_result = detect_devices_from_image(filepath)
-        
-        # Tambahkan URL untuk result image jika ada
-        if detection_result["success"] and detection_result.get("result_image_path"):
-            result_path = detection_result["result_image_path"]
-            if result_path.startswith('static/'):
-                detection_result["result_image_url"] = f"/{result_path}"
-            else:
-                detection_result["result_image_url"] = f"/static/results/{os.path.basename(os.path.dirname(result_path))}/{os.path.basename(result_path)}"
-                
-        detection_result["original_image_url"] = f"/uploads/{unique_filename}"
-        
-        return jsonify(detection_result)
+        return jsonify(result)
         
     except Exception as e:
         print(f"Detection error: {e}")
@@ -77,9 +201,9 @@ def detect_devices():
             "message": f"Error processing image: {str(e)}"
         }), 500
 
-@detection_bp.route('/detect/camera', methods=['POST'])
-def detect_from_camera():
-    """Endpoint untuk deteksi dari data kamera (base64)"""
+@detection_bp.route('/serial/detect/camera', methods=['POST'])
+def detect_serials_from_camera_fast():
+    """Endpoint cepat untuk deteksi serial dari kamera"""
     try:
         data = request.get_json()
         
@@ -89,36 +213,42 @@ def detect_from_camera():
                 "message": "No image data provided"
             }), 400
         
-        # Decode base64 image
+        # Decode base64
         image_data = data['image_data']
-        
-        # Hapus header jika ada
         if ',' in image_data:
             image_data = image_data.split(',')[1]
         
-        # Decode base64
         image_bytes = base64.b64decode(image_data)
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
-        # Simpan ke file temporary
-        temp_dir = 'temp'
-        os.makedirs(temp_dir, exist_ok=True)
-        temp_path = os.path.join(temp_dir, f'camera_{int(time.time())}.jpg')
+        if img is None:
+            return jsonify({
+                "success": False,
+                "message": "Failed to decode image"
+            }), 400
         
-        # Save image
-        with open(temp_path, 'wb') as f:
-            f.write(image_bytes)
+        # Crop jika ada crop parameters
+        if 'crop' in data:
+            crop = data['crop']
+            x, y, w, h = crop['x'], crop['y'], crop['width'], crop['height']
+            img = img[y:y+h, x:x+w]
         
-        # Lakukan deteksi
-        result = detect_devices_from_image(temp_path)
+        # Resize untuk kecepatan
+        h, w = img.shape[:2]
+        if max(h, w) > 800:
+            scale = 800 / max(h, w)
+            img = cv2.resize(img, (int(w * scale), int(h * scale)), 
+                           interpolation=cv2.INTER_AREA)
         
-        # Convert paths to URLs
-        if result['success']:
-            if result.get('result_image_path'):
-                result['result_image_url'] = '/detection_results/' + os.path.basename(result['result_image_path'])
-            if result.get('original_image_path'):
-                result['original_image_url'] = '/uploads/' + os.path.basename(result['original_image_path'])
+        # Save temporary
+        temp_path = f"temp_serial_{int(time.time())}.jpg"
+        cv2.imwrite(temp_path, img, [cv2.IMWRITE_JPEG_QUALITY, 90])
         
-        # Clean up temp file
+        # Deteksi serial cepat
+        result = detect_serial_numbers_fast(temp_path)
+        
+        # Clean up
         try:
             os.remove(temp_path)
         except:
@@ -127,10 +257,10 @@ def detect_from_camera():
         return jsonify(result)
         
     except Exception as e:
-        print(f"Camera detection error: {e}")
+        print(f"Fast serial detection error: {e}")
         return jsonify({
             "success": False,
-            "message": f"Error processing camera image: {str(e)}"
+            "message": f"Error processing serial image: {str(e)}"
         }), 500
 
 @detection_bp.route('/detect/test', methods=['GET'])
@@ -142,7 +272,8 @@ def test_detection():
         "endpoints": {
             "POST /api/detect": "Upload image file for detection",
             "POST /api/detect/camera": "Send base64 image data for detection",
+            "POST /api/serial/detect/camera": "Send base64 image for serial detection",
             "GET /api/detect/test": "Test endpoint"
         },
-        "model_status": "Ready" if os.path.exists(DEVICE_MODEL_PATH) else "Model not found"
+        "cache_status": f"{len(request_cache)} cached entries"
     })

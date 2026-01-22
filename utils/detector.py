@@ -1,4 +1,4 @@
-# utils/detector.py
+# utils/detector.py - VERSION OPTIMIZED
 import os
 import cv2
 import numpy as np
@@ -7,208 +7,259 @@ from datetime import datetime
 from ultralytics import YOLO
 from config import DEVICE_MODEL_PATH, UPLOAD_FOLDER, RESULT_FOLDER, DEVICE_CATEGORIES
 import easyocr
+import torch
 
-# Import serial detector
-from utils.serial_detector import detect_serial_numbers_from_image
-
-# Inisialisasi model YOLO untuk device
+# ==== GLOBAL VARIABLES DENGAN CACHING ====
 device_model = None
-reader = easyocr.Reader(["en"], gpu=False)
+serial_model = None
+ocr_reader = None
+device_brands_cache = {}
 
-# Device brands untuk OCR
-BRANDS = [
-    "hp", "dell", "lenovo", "asus", "acer", "samsung", "lg", 
-    "philips", "viewsonic", "sony", "benq", "huawei", "msi",
-    "logitech", "microsoft", "apple", "cisco", "tp-link",
-    "d-link", "canon", "epson", "brother", "toshiba", "fujitsu",
-    "ibm", "hitachi", "panasonic", "sharp", "nec", "compaq"
-]
-
-def init_device_detector():
-    """Inisialisasi model YOLO untuk device detection"""
-    global device_model
+# ==== INISIALISASI SEKALI SAJA ====
+# utils/detector.py - UPDATE init_models
+def init_models():
+    """Inisialisasi semua model sekali saja saat startup"""
+    global device_model, serial_model, ocr_reader
+    
+    # Device model
     if device_model is None:
         try:
             print(f"🔧 Loading Device YOLO model from: {DEVICE_MODEL_PATH}")
-            device_model = YOLO(DEVICE_MODEL_PATH)
-            print("✅ Device YOLO model loaded successfully")
+            if not os.path.exists(DEVICE_MODEL_PATH):
+                print(f" Model file not found at: {DEVICE_MODEL_PATH}")
+                # Fallback ke model YOLO bawaan untuk testing
+                device_model = YOLO('yolov8n.pt')  # Model kecil untuk testing
+                print("  Using fallback YOLOv8n model")
+            else:
+                device_model = YOLO(DEVICE_MODEL_PATH)
+                device_model.fuse()  # Optimasi model
+                print("✅ Device YOLO model loaded and optimized")
         except Exception as e:
-            print(f"❌ Failed to load Device YOLO model: {e}")
-            raise
-    return device_model
+            print(f" Failed to load Device YOLO model: {e}")
+            # Fallback untuk testing
+            try:
+                device_model = YOLO('yolov8n.pt')
+                print("  Using fallback YOLOv8n model for testing")
+            except:
+                print(" Cannot load any YOLO model")
+    
+    # OCR Reader
+    if ocr_reader is None:
+        try:
+            ocr_reader = easyocr.Reader(
+                ["en"], 
+                gpu=False,  # Nonaktifkan GPU dulu untuk troubleshooting
+                model_storage_directory='./easyocr_models',
+                download_enabled=True  # Izinkan download otomatis
+            )
+            print("✅ EasyOCR reader initialized")
+        except Exception as e:
+            print(f"  EasyOCR initialization error: {e}")
+            # Coba tanpa GPU
+            try:
+                ocr_reader = easyocr.Reader(["en"], gpu=False)
+                print("✅ EasyOCR reader initialized without GPU")
+            except:
+                print(" Cannot initialize EasyOCR")
+                ocr_reader = None
+    
+    return device_model, ocr_reader
 
-# ==== OCR Preprocessing untuk brand ====
-def preprocess_for_ocr(img):
-    """Preprocess image untuk OCR"""
+# ==== PREPROCESSING OPTIMIZED ====
+def preprocess_image_fast(img, target_size=640):
+    """Preprocessing cepat untuk inference"""
+    # Resize ke ukuran optimal untuk YOLO
+    h, w = img.shape[:2]
+    scale = target_size / max(h, w)
+    
+    if scale < 1:
+        new_w = int(w * scale)
+        new_h = int(h * scale)
+        img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+    
+    return img
+
+def preprocess_for_ocr_fast(img):
+    """Preprocessing OCR yang lebih cepat"""
     if len(img.shape) == 3:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     else:
         gray = img
     
-    # tingkatkan kontras
-    gray = cv2.equalizeHist(gray)
+    # CLAHE cepat untuk kontras
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
+    enhanced = clahe.apply(gray)
     
-    # sharpen
-    kernel = np.array([[0, -1, 0],
-                       [-1, 5, -1],
-                       [0, -1, 0]])
-    sharp = cv2.filter2D(gray, -1, kernel)
+    # Adaptive threshold cepat
+    thresh = cv2.adaptiveThreshold(enhanced, 255, 
+                                   cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                   cv2.THRESH_BINARY, 11, 2)
     
-    # threshold adaptive
-    th = cv2.adaptiveThreshold(sharp, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                cv2.THRESH_BINARY, 11, 2)
-    
-    # noise reduction
-    th = cv2.medianBlur(th, 3)
-    
-    return th
+    return thresh
 
-def detect_brand_from_image(image_path, bbox, cls_name=""):
-    """Deteksi brand dari gambar"""
+# ==== DETECTION OPTIMIZED ====
+# utils/detector.py - PERBAIKI BAGIAN DETECT_DEVICES_FAST
+def detect_devices_fast(image_path, conf_threshold=0.25):
+    """Deteksi perangkat dengan optimasi kecepatan"""
     try:
-        x1, y1, x2, y2 = map(int, bbox)
+        # Inisialisasi model (sekali saja)
+        model, _ = init_models()
+        
+        # Baca gambar
         img = cv2.imread(image_path)
-
         if img is None:
-            return "Unknown"
-
-        height, width = img.shape[:2]
-        x1 = max(0, x1)
-        y1 = max(0, y1)
-        x2 = min(width, x2)
-        y2 = min(height, y2)
+            return {"success": False, "message": "Failed to read image"}
         
-        if x2 <= x1 or y2 <= y1:
-            return "Unknown"
-
-        crop = img[y1:y2, x1:x2]
+        # Preprocess cepat
+        img_processed = preprocess_image_fast(img)
         
-        if crop.size == 0:
-            return "Unknown"
-
-        # ==== SPECIAL HANDLING UNTUK MONITOR ====
-        if cls_name.lower() == "monitor":
-            h, w = crop.shape[:2]
-            if h > 0 and w > 0:
-                crop = crop[int(h * 0.50):h, :]
-                crop = cv2.copyMakeBorder(
-                    crop,
-                    10, 10, 20, 20,
-                    cv2.BORDER_CONSTANT,
-                    value=[0, 0, 0]
-                )
-
-        # ==== Preprocess sebelum OCR ====
-        processed = preprocess_for_ocr(crop)
-
-        # ==== OCR ====
-        result = reader.readtext(processed, detail=0)
-
-        text = " ".join(result).lower()
-        text = text.replace(" ", "")
+        # Simpan temporary untuk inference - PERBAIKI DI SINI
+        uuid_str = str(uuid.uuid4())
+        temp_path = f"temp_detect_{uuid_str[:8]}.jpg"
+        cv2.imwrite(temp_path, img_processed)
         
-        if not text:
-            return "Unknown"
-
-        # ==== cek brand berdasarkan teks ====
-        for b in BRANDS:
-            if b in text:
-                return b.capitalize()
-
-        # Coba cari substring dari brand
-        for b in BRANDS:
-            if any(b.startswith(t[:3]) for t in text.split() if len(t) >= 3):
-                return b.capitalize()
-
-        return "Unknown"
-    except Exception as e:
-        print(f"Error in brand detection: {e}")
-        return "Unknown"
-
-# ==== Fungsi utama deteksi device ====
-def detect_devices_from_image(image_path):
-    """Deteksi perangkat dari gambar menggunakan YOLO"""
-    try:
-        # Pastikan model sudah diinisialisasi
-        model = init_device_detector()
+        # Inference dengan optimasi
+        start_time = datetime.now()
         
-        # Buat folder untuk hasil
-        os.makedirs(RESULT_FOLDER, exist_ok=True)
+        # Gunakan device yang tersedia
+        device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         
-        # Generate unique name untuk hasil
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        unique_id = str(uuid.uuid4())[:8]
-        result_name = f"device_{timestamp}_{unique_id}"
-        
-        # Lakukan prediksi
         results = model.predict(
-            source=image_path,
-            save=True,
-            project=RESULT_FOLDER,
-            name=result_name,
-            exist_ok=True,
-            conf=0.25,
-            imgsz=640
+            source=temp_path,
+            save=False,
+            conf=conf_threshold,
+            imgsz=640,
+            augment=False,
+            max_det=10,
+            verbose=False,
+            device=device  
         )
         
-        # Path hasil gambar
-        result_dir = os.path.join(RESULT_FOLDER, result_name)
-        result_image_path = None
+        # Hapus file temp
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
         
-        if os.path.exists(result_dir):
-            files = [f for f in os.listdir(result_dir) if f.endswith(('.jpg', '.jpeg', '.png'))]
-            if files:
-                result_image_path = os.path.join(result_dir, files[0])
+        inference_time = (datetime.now() - start_time).total_seconds()
+        print(f"⚡ Inference time: {inference_time:.3f}s")
         
-        # Parse hasil deteksi
+        # Parse results
         detected_items = []
         
         for r in results:
-            image_path_for_brand = r.path
-            
             for box in r.boxes:
                 cls_id = int(box.cls[0])
                 cls_name = model.names[cls_id]
                 confidence = float(box.conf[0])
+                
+                # Skip jika confidence rendah
+                if confidence < conf_threshold:
+                    continue
+                
                 bbox = box.xyxy[0].tolist()
                 
                 # Tentukan kategori
                 category = DEVICE_CATEGORIES.get(cls_name.lower(), "Other")
                 
-                # Deteksi brand
-                brand = detect_brand_from_image(image_path_for_brand, bbox, cls_name)
+                # Deteksi brand (simplified untuk kecepatan)
+                brand = detect_brand_fast(img, bbox, cls_name)
                 
-                # Generate unique ID untuk device
-                device_id = f"{cls_name.upper()[:3]}-{unique_id}-{len(detected_items)+1:03d}"
+                # Generate ID - PERBAIKI DI SINI JUGA
+                unique_str = str(uuid.uuid4())
+                device_id = f"{cls_name.upper()[:3]}-{unique_str[:6]}"
                 
                 detected_items.append({
                     "id": device_id,
                     "asset_type": cls_name.capitalize(),
                     "category": category,
-                    "brand": brand if brand != "Unknown" else "N/A",
+                    "brand": brand,
                     "confidence": round(confidence, 3),
-                    "serial_number": "",  # Akan diisi setelah serial detection
+                    "confidence_percent": round(confidence * 100, 1),
+                    "serial_number": "",
                     "bbox": bbox,
-                    "location": "",
-                    "timestamp": timestamp,
                     "status": "device_detected",
-                    "needs_serial_scan": True  # Flag untuk scanning serial
+                    "needs_serial_scan": True,
+                    "inference_time_ms": round(inference_time * 1000, 2)
                 })
+        
+        # Urutkan berdasarkan confidence
+        detected_items.sort(key=lambda x: x["confidence"], reverse=True)
         
         return {
             "success": True,
             "detected_items": detected_items,
-            "result_image_path": result_image_path,
-            "original_image_path": image_path,
             "total_detected": len(detected_items),
-            "message": f"Berhasil mendeteksi {len(detected_items)} perangkat/material"
+            "processing_time_ms": round(inference_time * 1000, 2),
+            "message": f"Detected {len(detected_items)} devices in {inference_time:.2f}s"
         }
         
     except Exception as e:
         print(f"Detection error: {e}")
+        import traceback
+        traceback.print_exc()  # Tambahkan ini untuk debugging detail
         return {
             "success": False,
             "detected_items": [],
             "error": str(e),
-            "message": "Gagal melakukan deteksi perangkat"
-        }   
+            "message": "Failed to detect devices"
+        }
+
+def detect_brand_fast(img, bbox, cls_name=""):
+    """Deteksi brand yang lebih cepat"""
+    try:
+        x1, y1, x2, y2 = map(int, bbox)
+        h, w = img.shape[:2]
+        
+        # Validasi bbox
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(w, x2), min(h, y2)
+        
+        if x2 <= x1 or y2 <= y1:
+            return "N/A"
+        
+        # Crop area kecil untuk brand
+        crop = img[y1:y2, x1:x2]
+        
+        if crop.size == 0:
+            return "N/A"
+        
+        # Gunakan cache untuk brand detection
+        cache_key = f"{cls_name}_{x1}_{y1}_{x2}_{y2}"
+        if cache_key in device_brands_cache:
+            return device_brands_cache[cache_key]
+        
+        # OCR hanya untuk area terbatas
+        processed = preprocess_for_ocr_fast(crop)
+        
+        # OCR dengan timeout
+        import threading
+        result_text = ""
+        
+        def ocr_thread():
+            nonlocal result_text
+            try:
+                results = ocr_reader.readtext(processed, detail=0, width_ths=1.0)
+                result_text = " ".join(results).lower()[:50]  # Batasi teks
+            except:
+                pass
+        
+        thread = threading.Thread(target=ocr_thread)
+        thread.start()
+        thread.join(timeout=1.0)  # Timeout 1 detik
+        
+        # Cek brand sederhana
+        brands = ["dell", "hp", "lenovo", "asus", "acer", "samsung", "anviz"]
+        detected = "N/A"
+        
+        for b in brands:
+            if b in result_text:
+                detected = b.upper()
+                break
+        
+        # Cache hasil
+        device_brands_cache[cache_key] = detected
+        
+        return detected
+        
+    except:
+        return "N/A"
+    
