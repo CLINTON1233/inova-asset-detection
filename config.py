@@ -19,16 +19,20 @@ API_PORT = int(os.getenv('API_PORT', '5001'))
 if torch.cuda.is_available():
     torch.backends.cudnn.benchmark = True
     torch.backends.cudnn.enabled = True
-    print(f"🚀 CUDA available: {torch.cuda.get_device_name(0)}")
+    print(f"CUDA available: {torch.cuda.get_device_name(0)}")
 else:
-    print("⚠️  CUDA not available, using CPU")
+    print("CUDA not available, using CPU")
 
 # Konfigurasi YOLO Models
 DEVICE_MODEL_PATH = os.getenv('DEVICE_MODEL_PATH', 'models/devices/best.pt')
 SERIAL_MODEL_PATH = os.getenv('SERIAL_MODEL_PATH', 'models/serial-number/best.pt')
 
+#konfigurasi model onnx
+DEVICE_ONNX_PATH = os.getenv('DEVICE_ONNX_PATH', 'models/devices/best.onnx')
+SERIAL_ONNX_PATH = os.getenv('SERIAL_ONNX_PATH', 'models/serial-number/best.onnx')
+
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
-RESULT_FOLDER = os.getenv('RESULT_FOLDER', 'static/results')
+RESULTS_FOLDER = os.getenv('RESULTS_FOLDER', 'static/results')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 # Device categories mapping
