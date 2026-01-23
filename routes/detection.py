@@ -81,14 +81,56 @@ def detect_from_camera_fast():
         result = detect_devices_fast(temp_path)
         
         # Simpan hasil jika berhasil dan ada deteksi
-        if result.get("success") and result.get("total_detected", 0) > 0:
-            save_device_result(img_original, result, "device")
+        if result.get("success"):
+            # Selalu simpan gambar dengan bounding box
+            save_result = save_device_result(img_original, result, "device")
+            if save_result:
+                result["saved_image"] = save_result["filename"]
+                result["has_bbox"] = save_result["has_bbox"]
         
         if os.path.exists(temp_path):
             os.remove(temp_path)
         
         request_cache[cache_key] = (time.time(), result)
         cleanup_old_cache()
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+@detection_bp.route('/serial/scan/smart', methods=['POST'])
+def scan_serial_smart():
+    """Smart serial scanning endpoint"""
+    try:
+        data = request.get_json()
+        if not data or 'image_data' not in data:
+            return jsonify({"success": False, "message": "No image data"}), 400
+        
+        img_data = data['image_data'].split(',')[1] if ',' in data['image_data'] else data['image_data']
+        nparr = np.frombuffer(base64.b64decode(img_data), np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return jsonify({"success": False, "message": "Failed to decode image"}), 400
+        
+        # Simpan original image untuk results
+        img_original = img.copy()
+        
+        temp_path = f"temp_smart_serial_{int(time.time())}.jpg"
+        cv2.imwrite(temp_path, img, [cv2.IMWRITE_JPEG_QUALITY, 90])
+        
+        # Gunakan smart detection
+        result = detect_serial_fast(temp_path)
+        
+        # Selalu simpan gambar (dengan atau tanpa bounding box)
+        save_result = save_serial_result(img_original, result, "serial")
+        if save_result:
+            result["saved_image"] = save_result["filename"]
+            result["has_bbox"] = save_result["has_bbox"]
+        
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
         
         return jsonify(result)
         
@@ -168,39 +210,3 @@ def test_detection():
         },
         "cache_status": f"{len(request_cache)} cached entries"
     })
-    
-@detection_bp.route('/serial/scan/smart', methods=['POST'])
-def scan_serial_smart():
-    """Smart serial scanning endpoint"""
-    try:
-        data = request.get_json()
-        if not data or 'image_data' not in data:
-            return jsonify({"success": False, "message": "No image data"}), 400
-        
-        img_data = data['image_data'].split(',')[1] if ',' in data['image_data'] else data['image_data']
-        nparr = np.frombuffer(base64.b64decode(img_data), np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
-        if img is None:
-            return jsonify({"success": False, "message": "Failed to decode image"}), 400
-        
-        # Simpan original image untuk results
-        img_original = img.copy()
-        
-        temp_path = f"temp_smart_serial_{int(time.time())}.jpg"
-        cv2.imwrite(temp_path, img, [cv2.IMWRITE_JPEG_QUALITY, 90])
-        
-        # Gunakan smart detection
-        result = detect_serial_fast(temp_path)
-        
-        # Simpan hasil jika berhasil dan ada serial terdeteksi
-        if result.get("success") and result.get("total_found", 0) > 0:
-            save_serial_result(img_original, result, "serial")
-        
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500

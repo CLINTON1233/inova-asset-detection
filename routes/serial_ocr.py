@@ -69,8 +69,7 @@ def scan_serial_smart():
         
         if img is None:
             return jsonify({"success": False, "message": "Failed to decode image"}), 400
-        
-        # Simpan original image untuk results
+
         img_original = img.copy()
         
         # Save temporary
@@ -80,27 +79,16 @@ def scan_serial_smart():
         # Gunakan deteksi cerdas
         result = detect_serial_fast(temp_path, conf_threshold=0.15)
         
-        # Simpan hasil jika berhasil dan ada serial terdeteksi
-        if result.get("success") and result.get("total_found", 0) > 0:
-            save_serial_result(img_original, result, "serial")
+        # Simpan hasil gambar dengan bounding box
+        save_result = save_serial_result(img_original, result, "serial")
+        if save_result:
+            result["saved_image"] = save_result["filename"]
+            result["has_bbox"] = save_result["has_bbox"]
         
         # Enhanced image untuk preview
         enhanced = enhance_image_for_ocr(img)
         _, enhanced_buffer = cv2.imencode('.jpg', enhanced)
         enhanced_base64 = base64.b64encode(enhanced_buffer).decode('utf-8')
-        
-        # Draw bounding boxes pada image asli untuk visualisasi
-        if result.get("detections"):
-            for detection in result["detections"][:3]:  # Ambil 3 terbaik
-                bbox = detection.get("bbox", [])
-                if bbox and len(bbox) >= 4:
-                    x1, y1, x2, y2 = map(int, bbox[:4])
-                    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    cv2.putText(img, f"SN: {detection.get('text', '')[:10]}...", 
-                              (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-        
-        _, result_buffer = cv2.imencode('.jpg', img)
-        result_base64 = base64.b64encode(result_buffer).decode('utf-8')
         
         # Clean up
         if os.path.exists(temp_path):
@@ -112,8 +100,8 @@ def scan_serial_smart():
             "detections": result.get("detections", []),
             "message": result.get("message", ""),
             "strategy": result.get("strategy", ""),
+            "saved_image": result.get("saved_image", ""),
             "enhanced_image": f"data:image/jpeg;base64,{enhanced_base64}",
-            "result_image": f"data:image/jpeg;base64,{result_base64}",
             "debug": {
                 "image_size": f"{img.shape[1]}x{img.shape[0]}",
                 "detection_count": len(result.get("detections", []))
