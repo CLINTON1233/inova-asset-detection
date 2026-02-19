@@ -30,3 +30,7 @@ Thumbs.db
 easyocr_models/
 *.pth
 
+runs/
+*.pt
+*.pth
+weights/
