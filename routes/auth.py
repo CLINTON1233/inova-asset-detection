@@ -47,7 +47,7 @@ def register():
         
         check_query = """
             SELECT username, email, no_badge 
-            FROM karyawan 
+            FROM users 
             WHERE username = %s OR email = %s OR no_badge = %s
         """
         cursor.execute(check_query, (data['username'], data['email'], data['no_badge']))
@@ -70,7 +70,7 @@ def register():
         hashed_password = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
         insert_query = """
-            INSERT INTO karyawan (username, email, password, no_badge, department, status, created_at)
+            INSERT INTO users (username, email, password, no_badge, department, status, created_at)
             VALUES (%s, %s, %s, %s, %s, 'active', %s)
             RETURNING id_user, username, email, no_badge, department, status, created_at
         """
@@ -164,7 +164,7 @@ def update_profile():
         # Check if username or email already exists for other users
         check_query = """
             SELECT id_user, username, email, no_badge 
-            FROM karyawan 
+            FROM users 
             WHERE (username = %s OR email = %s OR no_badge = %s)
             AND id_user != %s
         """
@@ -188,7 +188,7 @@ def update_profile():
         
         # Update user profile (tanpa phone karena tidak ada di database)
         update_query = """
-            UPDATE karyawan 
+            UPDATE users 
             SET username = %s, 
                 email = %s, 
                 no_badge = %s, 
@@ -288,7 +288,7 @@ def change_password():
         user_id = data['user_id']
         
         # Get current user's password
-        get_user_query = "SELECT password FROM karyawan WHERE id_user = %s"
+        get_user_query = "SELECT password FROM users WHERE id_user = %s"
         cursor.execute(get_user_query, (user_id,))
         user = cursor.fetchone()
         
@@ -310,7 +310,7 @@ def change_password():
         
         # Update password
         update_query = """
-            UPDATE karyawan 
+            UPDATE users 
             SET password = %s, 
                 updated_at = %s
             WHERE id_user = %s
@@ -365,7 +365,7 @@ def login():
         
         login_query = """
             SELECT id_user, username, email, password, no_badge, department, status 
-            FROM karyawan 
+            FROM users 
             WHERE (email = %s OR username = %s) AND status = 'active'
         """
         cursor.execute(login_query, (data['email'], data['email']))
@@ -386,7 +386,7 @@ def login():
         token = secrets.token_hex(32)
         
         try:
-            update_query = "UPDATE karyawan SET updated_at = %s WHERE id_user = %s"
+            update_query = "UPDATE users SET updated_at = %s WHERE id_user = %s"
             cursor.execute(update_query, (datetime.now(), user[0]))
             conn.commit()
         except Exception as e:

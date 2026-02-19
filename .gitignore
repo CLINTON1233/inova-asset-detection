@@ -29,8 +29,3 @@ Thumbs.db
 # YOLO training weight files
 easyocr_models/
 *.pth
-
-runs/
-*.pt
-*.pth
-weights/
