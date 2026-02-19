@@ -27,3 +27,6 @@ backend/yolov8n.pt
 Thumbs.db
 
 # YOLO training weight files
+easyocr_models/
+*.pth
+
