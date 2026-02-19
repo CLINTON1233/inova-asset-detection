@@ -1,4 +1,3 @@
-# routes/serial_detection.py
 from flask import Blueprint, request, jsonify
 import os
 import base64
@@ -9,7 +8,6 @@ serial_bp = Blueprint('serial', __name__, url_prefix='/api/serial')
 
 @serial_bp.route('/detect', methods=['POST'])
 def detect_serials():
-    """Endpoint untuk deteksi serial number dari gambar (file upload)"""
     try:
         if 'image' not in request.files:
             return jsonify({
@@ -25,16 +23,13 @@ def detect_serials():
                 "message": "No selected file"
             }), 400
         
-        # Simpan file temporary
         temp_dir = 'temp'
         os.makedirs(temp_dir, exist_ok=True)
         temp_path = os.path.join(temp_dir, f'serial_{int(time.time())}.jpg')
         file.save(temp_path)
         
-        # Lakukan deteksi serial
         result = detect_serial_numbers_from_image(temp_path)
         
-        # Clean up
         try:
             os.remove(temp_path)
         except:
@@ -51,7 +46,6 @@ def detect_serials():
 
 @serial_bp.route('/detect/camera', methods=['POST'])
 def detect_serials_from_camera():
-    """Endpoint untuk deteksi serial number dari data kamera (base64)"""
     try:
         data = request.get_json()
         
@@ -61,7 +55,6 @@ def detect_serials_from_camera():
                 "message": "No image data provided"
             }), 400
         
-        # Decode base64 image
         image_data = data['image_data']
         
         if ',' in image_data:
@@ -69,7 +62,6 @@ def detect_serials_from_camera():
         
         image_bytes = base64.b64decode(image_data)
         
-        # Simpan ke file temporary
         temp_dir = 'temp'
         os.makedirs(temp_dir, exist_ok=True)
         temp_path = os.path.join(temp_dir, f'serial_camera_{int(time.time())}.jpg')
@@ -77,10 +69,8 @@ def detect_serials_from_camera():
         with open(temp_path, 'wb') as f:
             f.write(image_bytes)
         
-        # Lakukan deteksi serial
         result = detect_serial_numbers_from_image(temp_path)
         
-        # Clean up
         try:
             os.remove(temp_path)
         except:
@@ -97,7 +87,6 @@ def detect_serials_from_camera():
 
 @serial_bp.route('/assign/<device_id>', methods=['POST'])
 def assign_serial_to_device():
-    """Assign serial number ke device tertentu"""
     try:
         data = request.get_json()
         
@@ -106,9 +95,6 @@ def assign_serial_to_device():
                 "success": False,
                 "message": "device_id and serial_number are required"
             }), 400
-        
-        # Di sini Anda bisa menyimpan ke database
-        # Contoh: update device dengan serial number
         
         return jsonify({
             "success": True,
