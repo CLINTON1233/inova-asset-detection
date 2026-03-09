@@ -383,7 +383,7 @@ export default function LoginPage() {
         {/* Footer */}
     <footer className="text-center py-3 sm:py-4 text-xs sm:text-sm text-gray-500 border-t">
   <div className="font-medium">
-    © 2025 IT Asset Management System
+    © 2026 IT Asset Management System
   </div>
   <div>
     <a

@@ -83,18 +83,18 @@ export default function LayoutDashboard({ children, activeMenu }) {
       hasDropdown: true,
       href: "/inventory-data",
     },
-    {
-      icon: Shield,
-      label: "Serial Scanning",
-      hasDropdown: true,
-      href: "/scanning",
-    },
-    {
-      icon: HelpCircle,
-      label: "Validation & Verification",
-      hasDropdown: true,
-      href: "/validation-verification",
-    },
+    // {
+    //   icon: Shield,
+    //   label: "Serial Scanning",
+    //   hasDropdown: true,
+    //   href: "/scanning",
+    // },
+    // {
+    //   icon: HelpCircle,
+    //   label: "Validation & Verification",
+    //   hasDropdown: true,
+    //   href: "/validation-verification",
+    // },
     {
       icon: Calendar,
       label: "History & Activity Log",

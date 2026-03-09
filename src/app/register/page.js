@@ -1,76 +1,82 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import Image from 'next/image'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import Swal from 'sweetalert2'
-import { API_ENDPOINTS } from '../../config/api'
+import { useState, useEffect } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import Swal from "sweetalert2";
+import { API_ENDPOINTS } from "../../config/api";
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    no_badge: '',
-    department: '',
-    username: '',
-    role: 'karyawan'
-  })
-  const [agree, setAgree] = useState(false)
-  const [currentImage, setCurrentImage] = useState(0)
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+    email: "",
+    password: "",
+    no_badge: "",
+    department: "",
+    username: "",
+    role: "karyawan",
+  });
+  const [agree, setAgree] = useState(false);
+  const [currentImage, setCurrentImage] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
-  const images = ['/bg_seatrium 3.png', '/smoe_images2.png', '/offshore.jpg']
+  const images = ["/bg_seatrium 3.png", "/smoe_images2.png", "/offshore.jpg"];
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentImage((prev) => (prev + 1) % images.length)
-    }, 4000)
-    return () => clearInterval(interval)
-  }, [images.length])
+      setCurrentImage((prev) => (prev + 1) % images.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [images.length]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target
-    setFormData(prev => ({
+    const { name, value } = e.target;
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
-    }))
-  }
+      [name]: value,
+    }));
+  };
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     if (!agree) {
       Swal.fire({
-        title: 'Perhatian',
-        text: 'Please agree to the terms & policy',
-        icon: 'warning',
-        confirmButtonColor: '#1e40af',
-      })
-      return
+        title: "Perhatian",
+        text: "Please agree to the terms & policy",
+        icon: "warning",
+        confirmButtonColor: "#1e40af",
+      });
+      return;
     }
 
     // Validasi form
-    if (!formData.no_badge || !formData.department || !formData.username || !formData.email || !formData.password) {
+    if (
+      !formData.no_badge ||
+      !formData.department ||
+      !formData.username ||
+      !formData.email ||
+      !formData.password
+    ) {
       Swal.fire({
-        title: 'Perhatian',
-        text: 'Please fill all required fields',
-        icon: 'warning',
-        confirmButtonColor: '#1e40af',
-      })
-      return
+        title: "Perhatian",
+        text: "Please fill all required fields",
+        icon: "warning",
+        confirmButtonColor: "#1e40af",
+      });
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
 
     try {
-      console.log('Sending registration data:', formData)
+      console.log("Sending registration data:", formData);
 
       const response = await fetch(API_ENDPOINTS.REGISTER, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           email: formData.email,
@@ -78,57 +84,61 @@ export default function RegisterPage() {
           no_badge: formData.no_badge,
           department: formData.department,
           username: formData.username,
-          role: formData.role
-        })
-      })
+          role: formData.role,
+        }),
+      });
 
-      console.log('Response status:', response.status)
+      console.log("Response status:", response.status);
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || `HTTP error! status: ${response.status}`,
+        );
       }
 
-      const data = await response.json()
-      console.log('Response data:', data)
+      const data = await response.json();
+      console.log("Response data:", data);
 
       // Tampilkan SweetAlert sukses
       await Swal.fire({
-        title: 'Registration Successful!',
-        text: 'Your account has been created successfully. Redirecting to login...',
-        icon: 'success',
-        confirmButtonColor: '#1e40af',
+        title: "Registration Successful!",
+        text: "Your account has been created successfully. Redirecting to login...",
+        icon: "success",
+        confirmButtonColor: "#1e40af",
         timer: 2000,
         timerProgressBar: true,
         showConfirmButton: false,
-      })
+      });
 
       // Redirect ke login setelah sukses
-      router.push('/login')
-
+      router.push("/login");
     } catch (error) {
-      console.error('Registration error:', error)
-      
+      console.error("Registration error:", error);
+
       // Periksa jika error karena backend tidak terhubung
-      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+      if (
+        error.message.includes("Failed to fetch") ||
+        error.message.includes("NetworkError")
+      ) {
         Swal.fire({
-          title: 'Connection Error',
-          text: 'Failed to connect to server. Please ensure the backend server is running.',
-          icon: 'error',
-          confirmButtonColor: '#1e40af',
-        })
+          title: "Connection Error",
+          text: "Failed to connect to server. Please ensure the backend server is running.",
+          icon: "error",
+          confirmButtonColor: "#1e40af",
+        });
       } else {
         Swal.fire({
-          title: 'Registration Failed',
-          text: error.message || 'Registration failed. Please try again.',
-          icon: 'error',
-          confirmButtonColor: '#1e40af',
-        })
+          title: "Registration Failed",
+          text: error.message || "Registration failed. Please try again.",
+          icon: "error",
+          confirmButtonColor: "#1e40af",
+        });
       }
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row relative">
@@ -153,7 +163,7 @@ export default function RegisterPage() {
             alt={`Carousel ${index}`}
             fill
             className={`object-cover transition-opacity duration-1000 ease-in-out ${
-              index === currentImage ? 'opacity-100' : 'opacity-0'
+              index === currentImage ? "opacity-100" : "opacity-0"
             }`}
             priority={index === 0}
           />
@@ -168,7 +178,7 @@ export default function RegisterPage() {
             <div
               key={index}
               className={`w-3 h-3 rounded-full transition-all ${
-                index === currentImage ? 'bg-white w-8' : 'bg-white/50'
+                index === currentImage ? "bg-white w-8" : "bg-white/50"
               }`}
             />
           ))}
@@ -190,7 +200,10 @@ export default function RegisterPage() {
             </div>
 
             {/* Form */}
-            <form className="mt-3 space-y-4 sm:mt-4 sm:space-y-5" onSubmit={handleSubmit}>
+            <form
+              className="mt-3 space-y-4 sm:mt-4 sm:space-y-5"
+              onSubmit={handleSubmit}
+            >
               <div className="space-y-3 sm:space-y-4">
                 {/* Username */}
                 <div>
@@ -253,7 +266,7 @@ export default function RegisterPage() {
                     placeholder="Enter your password"
                   />
                 </div>
-                
+
                 {/* Badge Number */}
                 <div>
                   <label
@@ -314,7 +327,6 @@ export default function RegisterPage() {
                     <option value="manager">Manager</option>
                   </select>
                 </div>
-
               </div>
 
               {/* Terms & Policy */}
@@ -327,8 +339,11 @@ export default function RegisterPage() {
                   onChange={(e) => setAgree(e.target.checked)}
                   className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1 sm:mt-0"
                 />
-                <label htmlFor="agree" className="ml-2 block text-xs sm:text-sm text-gray-700">
-                  I agree to the{' '}
+                <label
+                  htmlFor="agree"
+                  className="ml-2 block text-xs sm:text-sm text-gray-700"
+                >
+                  I agree to the{" "}
                   <a href="#" className="text-blue-600 hover:underline">
                     terms & policy
                   </a>
@@ -342,19 +357,22 @@ export default function RegisterPage() {
                   disabled={isLoading}
                   className={`w-full flex justify-center py-2 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm font-medium rounded-md text-white transition ${
                     isLoading
-                      ? 'bg-gray-400 cursor-not-allowed' 
-                      : 'bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   }`}
                 >
-                  {isLoading ? 'Registering...' : 'Signup'}
+                  {isLoading ? "Registering..." : "Signup"}
                 </button>
               </div>
 
               {/* Already have account */}
               <div className="text-center">
                 <span className="text-gray-600 text-sm">
-                  Have an account?{' '}
-                  <Link href="/login" className="text-blue-600 hover:text-blue-500 font-medium">
+                  Have an account?{" "}
+                  <Link
+                    href="/login"
+                    className="text-blue-600 hover:text-blue-500 font-medium"
+                  >
                     Sign in
                   </Link>
                 </span>
@@ -364,10 +382,21 @@ export default function RegisterPage() {
         </div>
 
         {/* Footer */}
-        <footer className="text-center py-4 text-gray-500 text-sm border-t">
-          IT Inventory System 2025 
+        <footer className="text-center py-3 sm:py-4 text-xs sm:text-sm text-gray-500 border-t">
+          <div className="font-medium">© 2026 IT Asset Management System</div>
+          <div>
+            <a
+              href="https://seatrium.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-500 hover:text-gray-700 font-medium"
+            >
+              Seatrium
+            </a>{" "}
+            <span className="text-gray-400">• All rights reserved.</span>
+          </div>
         </footer>
       </div>
     </div>
-  )
+  );
 }

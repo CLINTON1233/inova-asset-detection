@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle,
@@ -28,6 +28,14 @@ import {
   FileDown,
   Package,
   List,
+  Grid,
+  FileSpreadsheet,
+  RefreshCw,
+  ArrowUp,
+  ArrowDown,
+  AlertCircle,
+  QrCode,
+  ScanLine,
 } from "lucide-react";
 import LayoutDashboard from "../components/LayoutDashboard";
 import ProtectedPage from "../components/ProtectedPage";
@@ -36,21 +44,16 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 
 export default function ReportsAnalyticsPage() {
-  const [selectedPeriod, setSelectedPeriod] = useState("daily");
+  const [selectedPeriod, setSelectedPeriod] = useState("all");
   const [selectedItems, setSelectedItems] = useState([]);
-  const [isMobile, setIsMobile] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [viewMode, setViewMode] = useState("list");
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [sorting, setSorting] = useState({ id: "date", desc: true });
   const [expandedPeriod, setExpandedPeriod] = useState(null);
 
   const router = useRouter();
-
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   const periodReports = [
     {
@@ -75,10 +78,10 @@ export default function ReportsAnalyticsPage() {
           scanTime: "14:30:15",
           verifiedBy: "Clinton Alfaro",
           department: "IT Infrastructure & Networking",
-          validationTime: "2 seconds",
+          validationTime: "2s",
           uniqueCode: "V-901-XYZ-A",
           scanMethod: "QR Code Scan",
-          notes: "Device in good condition and functioning normally",
+          notes: "Device in good condition",
         },
         {
           id: "RPT-002",
@@ -92,7 +95,7 @@ export default function ReportsAnalyticsPage() {
           scanTime: "14:25:40",
           verifiedBy: "Wahyu Hidayat",
           department: "Facilities & Networking",
-          validationTime: "1.5 seconds",
+          validationTime: "1.5s",
           uniqueCode: "V-902-ABC-B",
           scanMethod: "Barcode Scan",
           notes: "Cable available in sufficient stock",
@@ -109,10 +112,10 @@ export default function ReportsAnalyticsPage() {
           scanTime: "14:18:22",
           verifiedBy: "Ikhsan Kurniawan",
           department: "System Operation",
-          validationTime: "3 seconds",
+          validationTime: "3s",
           uniqueCode: "V-903-DEF-C",
           scanMethod: "QR Code Scan",
-          notes: "Server experiencing overheating, requires immediate maintenance",
+          notes: "Server experiencing overheating",
         },
       ],
     },
@@ -138,10 +141,10 @@ export default function ReportsAnalyticsPage() {
           scanTime: "16:20:15",
           verifiedBy: "Yovan Sakti",
           department: "Facilities & Networking",
-          validationTime: "2.2 seconds",
+          validationTime: "2.2s",
           uniqueCode: "V-905-JKL-E",
           scanMethod: "QR Code Scan",
-          notes: "CCTV functioning optimally, recordings stored properly",
+          notes: "CCTV functioning optimally",
         },
         {
           id: "RPT-005",
@@ -155,10 +158,10 @@ export default function ReportsAnalyticsPage() {
           scanTime: "15:45:30",
           verifiedBy: "Clinton Alfaro",
           department: "IT Infrastructure & Networking",
-          validationTime: "2.5 seconds",
+          validationTime: "2.5s",
           uniqueCode: "V-906-MNO-F",
           scanMethod: "Manual Input",
-          notes: "Waiting for supervisor confirmation for rescanning",
+          notes: "Waiting for supervisor confirmation",
         },
       ],
     },
@@ -184,10 +187,10 @@ export default function ReportsAnalyticsPage() {
           scanTime: "13:10:05",
           verifiedBy: "Mahmud Amma Rizki",
           department: "Operations & End User Service",
-          validationTime: "1.8 seconds",
+          validationTime: "1.8s",
           uniqueCode: "V-904-GHI-D",
           scanMethod: "Barcode Scan",
-          notes: "Trunking installed neatly and securely",
+          notes: "Trunking installed neatly",
         },
         {
           id: "RPT-007",
@@ -201,10 +204,10 @@ export default function ReportsAnalyticsPage() {
           scanTime: "12:45:10",
           verifiedBy: "Wahyu Hidayat",
           department: "Facilities & Networking",
-          validationTime: "4 seconds",
+          validationTime: "4s",
           uniqueCode: "V-907-PQR-G",
           scanMethod: "Barcode Scan",
-          notes: "Pipe damaged at connection, requires replacement",
+          notes: "Pipe damaged at connection",
         },
       ],
     },
@@ -231,15 +234,16 @@ export default function ReportsAnalyticsPage() {
           scanTime: "11:20:15",
           verifiedBy: "Ikhsan Kurniawan",
           department: "System Operation",
-          validationTime: "1.7 seconds",
+          validationTime: "1.7s",
           uniqueCode: "V-908-STU-H",
           scanMethod: "QR Code Scan",
-          notes: "Switch operating normally, all ports active",
+          notes: "Switch operating normally",
         },
       ],
     },
   ];
 
+  // Statistics
   const stats = {
     total: periodReports.reduce((sum, period) => sum + period.totalScans, 0),
     valid: periodReports.reduce((sum, period) => sum + period.valid, 0),
@@ -250,15 +254,56 @@ export default function ReportsAnalyticsPage() {
   };
 
   const analyticsData = {
-    successRate: Math.round((stats.valid / stats.total) * 100),
+    successRate: Math.round((stats.valid / stats.total) * 100) || 0,
     avgValidationTime: "2.1s",
     mostActiveUser: "Clinton Alfaro",
     mostScannedLocation: "Infrastructure & Networking",
   };
 
-  const filteredPeriods = periodReports.filter((period) => {
-    return selectedPeriod === "all" || period.periodType === selectedPeriod;
-  });
+  // Filter and sort data
+  const filteredPeriods = useMemo(() => {
+    let filtered = periodReports.filter((period) => {
+      const matchesPeriod = selectedPeriod === "all" || period.periodType === selectedPeriod;
+      const matchesSearch = searchTerm === "" ||
+        period.displayDate.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        period.items.some(item => 
+          item.assetType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          item.scanId.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      return matchesPeriod && matchesSearch;
+    });
+
+    // Sorting
+    if (sorting.id) {
+      filtered.sort((a, b) => {
+        let aVal = a[sorting.id] || a.date;
+        let bVal = b[sorting.id] || b.date;
+        if (aVal < bVal) return sorting.desc ? 1 : -1;
+        if (aVal > bVal) return sorting.desc ? -1 : 1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [periodReports, selectedPeriod, searchTerm, sorting]);
+
+  const handleSort = (columnId) => {
+    setSorting((prev) => ({
+      id: columnId,
+      desc: prev.id === columnId ? !prev.desc : false,
+    }));
+  };
+
+  const getSortIcon = (columnId) => {
+    if (sorting.id !== columnId) {
+      return (
+        <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+        </svg>
+      );
+    }
+    return sorting.desc ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />;
+  };
 
   const toggleSelectPeriod = (periodId) => {
     setSelectedItems((prev) =>
@@ -276,7 +321,7 @@ export default function ReportsAnalyticsPage() {
     }
   };
 
-  const getStatusColor = (status) => {
+  const getStatusStyle = (status) => {
     switch (status) {
       case "Valid":
         return "bg-green-100 text-green-700 border-green-200";
@@ -286,19 +331,6 @@ export default function ReportsAnalyticsPage() {
         return "bg-yellow-100 text-yellow-700 border-yellow-200";
       default:
         return "bg-gray-100 text-gray-700 border-gray-200";
-    }
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case "Valid":
-        return <CheckCircle className="w-4 h-4" />;
-      case "Error":
-        return <XCircle className="w-4 h-4" />;
-      case "Pending":
-        return <Clock className="w-4 h-4" />;
-      default:
-        return <Clock className="w-4 h-4" />;
     }
   };
 
@@ -313,1029 +345,724 @@ export default function ReportsAnalyticsPage() {
     }
   };
 
-  const getActiveTabColor = (color) => {
-    switch (color) {
-      case "blue":
-        return "bg-blue-600 text-white shadow-md";
-      default:
-        return "bg-blue-600 text-white shadow-md";
-    }
-  };
-
-  const getActiveBadgeColor = (color) => {
-    switch (color) {
-      case "blue":
-        return "bg-blue-500 text-white";
-      default:
-        return "bg-blue-500 text-white";
-    }
-  };
-
   const togglePeriodExpansion = (periodId) => {
     setExpandedPeriod(expandedPeriod === periodId ? null : periodId);
   };
 
   const showPeriodDetail = (period) => {
     Swal.fire({
-      title: `<div class="font-poppins text-lg font-semibold text-black">${period.displayDate} - Inspection Report</div>`,
+      title: `<div class="font-dm-sans text-lg font-semibold text-gray-900">${period.displayDate}</div>`,
       html: `
-        <div class="font-poppins text-left space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-          <div class="bg-white rounded-lg p-4 border border-gray-200">
-            <div class="grid grid-cols-4 gap-3 text-center">
-              <div class="bg-gray-100 p-3 rounded-lg">
-                <div class="text-xl font-bold text-gray-800">${period.totalScans}</div>
-                <div class="text-xs text-gray-600">Total Scans</div>
-              </div>
-              <div class="bg-gray-100 p-3 rounded-lg">
-                <div class="text-xl font-bold text-gray-800">${period.valid}</div>
-                <div class="text-xs text-gray-600">Valid</div>
-              </div>
-              <div class="bg-gray-100 p-3 rounded-lg">
-                <div class="text-xl font-bold text-gray-800">${period.error}</div>
-                <div class="text-xs text-gray-600">Error</div>
-              </div>
-              <div class="bg-gray-100 p-3 rounded-lg">
-                <div class="text-xl font-bold text-gray-800">${period.pending}</div>
-                <div class="text-xs text-gray-600">Pending</div>
-              </div>
+        <div class="font-dm-sans text-left space-y-4 max-h-[70vh] overflow-y-auto">
+          <div class="grid grid-cols-4 gap-2">
+            <div class="bg-gray-100 p-2 rounded-lg text-center">
+              <div class="text-lg font-bold text-gray-800">${period.totalScans}</div>
+              <div class="text-xs text-gray-600">Total</div>
+            </div>
+            <div class="bg-green-100 p-2 rounded-lg text-center">
+              <div class="text-lg font-bold text-green-700">${period.valid}</div>
+              <div class="text-xs text-green-600">Valid</div>
+            </div>
+            <div class="bg-red-100 p-2 rounded-lg text-center">
+              <div class="text-lg font-bold text-red-700">${period.error}</div>
+              <div class="text-xs text-red-600">Error</div>
+            </div>
+            <div class="bg-yellow-100 p-2 rounded-lg text-center">
+              <div class="text-lg font-bold text-yellow-700">${period.pending}</div>
+              <div class="text-xs text-yellow-600">Pending</div>
             </div>
           </div>
 
           <div>
-            <h5 class="text-sm font-semibold text-gray-700 mb-3">SCANNED ITEMS (${period.items.length})</h5>
-            <div class="space-y-3">
-              ${period.items
-                .map(
-                  (item) => `
-                <div class="bg-white rounded-lg border border-gray-200 p-3">
+            <h5 class="text-sm font-medium text-gray-700 mb-2 uppercase tracking-wide">SCANNED ITEMS (${period.items.length})</h5>
+            <div class="space-y-2">
+              ${period.items.map(item => `
+                <div class="border border-gray-200 rounded-lg p-3">
                   <div class="flex justify-between items-start mb-2">
-                    <div class="flex items-center space-x-2">
-                      <span class="font-medium text-gray-900">${item.assetType}</span>
-                      <span class="text-xs px-2 py-1 rounded-full ${getStatusColor(item.status)}">
-                        ${item.status}
-                      </span>
-                    </div>
-                    <div class="text-xs text-gray-500 font-mono">${item.scanId}</div>
+                    <span class="font-medium text-gray-900">${item.assetType}</span>
+                    <span class="text-xs px-2 py-1 rounded-full ${getStatusStyle(item.status)}">${item.status}</span>
                   </div>
-                  
-                  <div class="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                    <div><strong>Location:</strong> ${item.location}</div>
-                    <div><strong>Verified By:</strong> ${item.verifiedBy}</div>
-                    <div><strong>Scan Time:</strong> ${item.scanTime}</div>
-                    <div><strong>Validation:</strong> ${item.validationTime}</div>
+                  <div class="grid grid-cols-2 gap-1 text-xs text-gray-600">
+                    <div><span class="text-gray-400">ID:</span> ${item.scanId}</div>
+                    <div><span class="text-gray-400">Loc:</span> ${item.location}</div>
+                    <div><span class="text-gray-400">By:</span> ${item.verifiedBy}</div>
+                    <div><span class="text-gray-400">Time:</span> ${item.scanTime}</div>
                   </div>
-
-                  ${item.notes
-                    ? `
-                    <div class="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                      <strong>Notes:</strong> ${item.notes}
-                    </div>
-                  `
-                    : ""}
+                  ${item.notes ? `<div class="mt-2 text-xs text-gray-500">${item.notes}</div>` : ''}
                 </div>
-              `
-                )
-                .join("")}
+              `).join('')}
             </div>
           </div>
         </div>
       `,
-      width: "550px",
-      padding: "15px",
+      width: "500px",
+      padding: "16px",
       showCloseButton: true,
       showConfirmButton: true,
       confirmButtonText: "Close",
       confirmButtonColor: "#2563eb",
       customClass: {
-        popup: "rounded-xl font-poppins bg-white",
-        closeButton: "text-gray-400 hover:text-gray-600",
-        confirmButton: "font-poppins font-medium text-sm px-8 py-2",
+        popup: "rounded-xl font-dm-sans",
+        closeButton: "text-gray-400 hover:text-gray-600 text-lg -mt-1 -mr-1",
+        confirmButton: "font-dm-sans font-medium text-sm px-10 py-2",
       },
     });
   };
 
-  const getExportData = (selectedOnly = false) => {
-    return selectedOnly && selectedItems.length > 0
-      ? periodReports.filter((period) => selectedItems.includes(period.periodId))
-      : filteredPeriods;
-  };
-
-  const exportToExcel = (selectedOnly = false) => {
-    const dataToExport = getExportData(selectedOnly);
-    
-    if (dataToExport.length === 0) {
-      Swal.fire({
-        title: "No Data",
-        text: "There is no data to export.",
-        icon: "warning",
-        confirmButtonColor: "#1e40af",
-      });
-      return;
-    }
-
-    try {
-      const excelData = [];
-      const summaryData = [
-        ["PERIODIC REPORTS SUMMARY"],
-        [""],
-        ["Export Date", new Date().toLocaleDateString()],
-        ["Total Periods", dataToExport.length],
-        ["Total Scans", dataToExport.reduce((sum, p) => sum + p.totalScans, 0)],
-        ["Valid Scans", dataToExport.reduce((sum, p) => sum + p.valid, 0)],
-        ["Error Scans", dataToExport.reduce((sum, p) => sum + p.error, 0)],
-        ["Pending Scans", dataToExport.reduce((sum, p) => sum + p.pending, 0)],
-        [""],
-        ["PERIOD LIST"],
-        ["Period", "Type", "Date", "Total Scans", "Valid", "Error", "Pending", "Success Rate"]
-      ];
-
-      dataToExport.forEach(period => {
-        summaryData.push([
-          period.displayDate,
-          period.periodType === "daily" ? "Daily" : "Weekly",
-          period.date,
-          period.totalScans,
-          period.valid,
-          period.error,
-          period.pending,
-          `${Math.round((period.valid / period.totalScans) * 100)}%`
-        ]);
-      });
-
-      const detailData = [
-        ["DETAILED SCAN REPORT"],
-        [""],
-        ["Period", "Scan ID", "Asset Type", "Category", "Location", "Serial/Barcode", "Status", 
-         "Scan Date", "Scan Time", "Verified By", "Department", "Validation Time", "Unique Code", "Scan Method", "Notes"]
-      ];
-
-      dataToExport.forEach(period => {
-        period.items.forEach(item => {
-          detailData.push([
-            period.displayDate,
-            item.scanId,
-            item.assetType,
-            item.category,
-            item.location,
-            item.serialNumber || item.barcode,
-            item.status,
-            item.scanDate,
-            item.scanTime,
-            item.verifiedBy,
-            item.department,
-            item.validationTime,
-            item.uniqueCode,
-            item.scanMethod,
-            item.notes || ""
-          ]);
-        });
-      });
-
-      const workbook = XLSX.utils.book_new();
-      const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-      const detailSheet = XLSX.utils.aoa_to_sheet(detailData);
-      
-      XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
-      XLSX.utils.book_append_sheet(workbook, detailSheet, "Detailed Report");
-
-      const summaryColWidths = [
-        { wch: 30 }, { wch: 10 }, { wch: 15 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 12 }
-      ];
-      summarySheet['!cols'] = summaryColWidths;
-
-      const detailColWidths = [
-        { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 12 }, { wch: 25 }, { wch: 20 }, 
-        { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 20 }, { wch: 25 }, { wch: 15 }, 
-        { wch: 15 }, { wch: 15 }, { wch: 40 }
-      ];
-      detailSheet['!cols'] = detailColWidths;
-
-      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
-      const filename = `Periodic_Reports_${timestamp}.xlsx`;
-
-      XLSX.writeFile(workbook, filename);
-
-      Swal.fire({
-        title: "Success!",
-        text: `Data has been exported to ${filename}`,
-        icon: "success",
-        confirmButtonColor: "#1e40af",
-      });
-
-    } catch (error) {
-      console.error("Error exporting to Excel:", error);
-      Swal.fire({
-        title: "Export Failed",
-        text: "Failed to export data to Excel. Please try again.",
-        icon: "error",
-        confirmButtonColor: "#1e40af",
-      });
-    }
-  };
-
-  const exportToPDF = async (selectedOnly = false) => {
-    const dataToExport = getExportData(selectedOnly);
-    
-    if (dataToExport.length === 0) {
-      Swal.fire({
-        title: "No Data",
-        text: "There is no data to export.",
-        icon: "warning",
-        confirmButtonColor: "#1e40af",
-      });
-      return;
-    }
-
-    try {
-      Swal.fire({
-        title: 'Generating PDF...',
-        text: 'Please wait while we generate your PDF report.',
-        icon: 'info',
-        showConfirmButton: false,
-        allowOutsideClick: false,
-        didOpen: () => {
-          Swal.showLoading();
-        }
-      });
-
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      let yPosition = 20;
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const margin = 15;
-
-      pdf.setFontSize(20);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(40, 40, 40);
-      pdf.text('PERIODIC INSPECTION REPORTS', pageWidth / 2, yPosition, { align: 'center' });
-      
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(100, 100, 100);
-      yPosition += 8;
-      pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, yPosition, { align: 'center' });
-      yPosition += 15;
-
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(40, 40, 40);
-      pdf.text('SUMMARY OVERVIEW', margin, yPosition);
-      yPosition += 8;
-
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(`Total Periods: ${dataToExport.length}`, margin, yPosition);
-      yPosition += 5;
-      pdf.text(`Total Scans: ${dataToExport.reduce((sum, p) => sum + p.totalScans, 0)}`, margin, yPosition);
-      yPosition += 5;
-      pdf.text(`Valid: ${dataToExport.reduce((sum, p) => sum + p.valid, 0)}`, margin, yPosition);
-      yPosition += 5;
-      pdf.text(`Error: ${dataToExport.reduce((sum, p) => sum + p.error, 0)}`, margin, yPosition);
-      yPosition += 5;
-      pdf.text(`Pending: ${dataToExport.reduce((sum, p) => sum + p.pending, 0)}`, margin, yPosition);
-      yPosition += 15;
-
-      dataToExport.forEach((period, index) => {
-        if (yPosition > 250) {
-          pdf.addPage();
-          yPosition = 20;
-        }
-
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(30, 64, 175);
-        pdf.text(`${period.displayDate} (${period.periodType === 'daily' ? 'Daily' : 'Weekly'})`, margin, yPosition);
-        yPosition += 7;
-
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(100, 100, 100);
-        pdf.text(`Scans: ${period.totalScans} | Valid: ${period.valid} | Error: ${period.error} | Pending: ${period.pending} | Success Rate: ${Math.round((period.valid / period.totalScans) * 100)}%`, margin, yPosition);
-        yPosition += 10;
-
-        pdf.setFontSize(8);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(40, 40, 40);
-        pdf.text('Scan ID', margin, yPosition);
-        pdf.text('Asset Type', margin + 30, yPosition);
-        pdf.text('Status', margin + 70, yPosition);
-        pdf.text('Location', margin + 95, yPosition);
-        pdf.text('Verified By', margin + 140, yPosition);
-        yPosition += 4;
-
-        pdf.setDrawColor(200, 200, 200);
-        pdf.line(margin, yPosition, pageWidth - margin, yPosition);
-        yPosition += 6;
-
-        pdf.setFont('helvetica', 'normal');
-        period.items.forEach(item => {
-          if (yPosition > 270) {
-            pdf.addPage();
-            yPosition = 20;
-            pdf.setFontSize(8);
-            pdf.setFont('helvetica', 'bold');
-            pdf.text('Scan ID', margin, yPosition);
-            pdf.text('Asset Type', margin + 30, yPosition);
-            pdf.text('Status', margin + 70, yPosition);
-            pdf.text('Location', margin + 95, yPosition);
-            pdf.text('Verified By', margin + 140, yPosition);
-            yPosition += 10;
-          }
-
-          pdf.setFontSize(7);
-          pdf.text(item.scanId, margin, yPosition);
-          pdf.text(item.assetType, margin + 30, yPosition);
-          
-          pdf.setTextColor(
-            item.status === 'Valid' ? 34 : item.status === 'Error' ? 239 : 245,
-            item.status === 'Valid' ? 197 : item.status === 'Error' ? 68 : 158,
-            item.status === 'Valid' ? 94 : item.status === 'Error' ? 68 : 11
-          );
-          pdf.text(item.status, margin + 70, yPosition);
-          
-          pdf.setTextColor(40, 40, 40);
-          pdf.text(item.location.length > 20 ? item.location.substring(0, 20) + '...' : item.location, margin + 95, yPosition);
-          pdf.text(item.verifiedBy, margin + 140, yPosition);
-          
-          yPosition += 5;
-        });
-
-        yPosition += 10;
-      });
-
-      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
-      const filename = `Periodic_Reports_${timestamp}.pdf`;
-
-      pdf.save(filename);
-
-      Swal.close();
-      Swal.fire({
-        title: "Success!",
-        text: `PDF report has been generated as ${filename}`,
-        icon: "success",
-        confirmButtonColor: "#1e40af",
-      });
-
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-      Swal.close();
-      Swal.fire({
-        title: "PDF Generation Failed",
-        text: "Failed to generate PDF report. Please try again.",
-        icon: "error",
-        confirmButtonColor: "#1e40af",
-      });
-    }
-  };
-
-  const printReport = (selectedOnly = false) => {
-    const dataToPrint = getExportData(selectedOnly);
-    
-    if (dataToPrint.length === 0) {
-      Swal.fire({
-        title: "No Data",
-        text: "There is no data to print.",
-        icon: "warning",
-        confirmButtonColor: "#1e40af",
-      });
-      return;
-    }
-
-    const printWindow = window.open('', '_blank');
-    const timestamp = new Date().toLocaleDateString();
-    
-    const printContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Periodic Reports - ${timestamp}</title>
-        <style>
-          body { 
-            font-family: Arial, sans-serif; 
-            margin: 20px; 
-            color: #333;
-          }
-          .header { 
-            text-align: center; 
-            margin-bottom: 30px;
-            border-bottom: 2px solid #2563eb;
-            padding-bottom: 10px;
-          }
-          .header h1 { 
-            color: #2563eb; 
-            margin: 0;
-            font-size: 24px;
-          }
-          .summary { 
-            background: #f8fafc; 
-            padding: 15px; 
-            border-radius: 5px; 
-            margin-bottom: 20px;
-            border-left: 4px solid #2563eb;
-          }
-          .period { 
-            margin-bottom: 25px; 
-            page-break-inside: avoid;
-          }
-          .period-header { 
-            background: #1e40af; 
-            color: white; 
-            padding: 10px; 
-            border-radius: 5px 5px 0 0;
-            font-weight: bold;
-          }
-          .period-summary {
-            background: #dbeafe;
-            padding: 8px 10px;
-            font-size: 14px;
-          }
-          table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            margin-top: 10px;
-          }
-          th { 
-            background: #e2e8f0; 
-            padding: 8px; 
-            text-align: left;
-            border: 1px solid #cbd5e1;
-          }
-          td { 
-            padding: 8px; 
-            border: 1px solid #cbd5e1;
-            font-size: 12px;
-          }
-          .valid { color: #16a34a; font-weight: bold; }
-          .error { color: #dc2626; font-weight: bold; }
-          .pending { color: #d97706; font-weight: bold; }
-          .footer { 
-            text-align: center; 
-            margin-top: 30px; 
-            color: #6b7280; 
-            font-size: 12px;
-          }
-          @media print {
-            body { margin: 0.5in; }
-            .period { page-break-inside: avoid; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>PERIODIC INSPECTION REPORTS</h1>
-          <p>Generated on: ${timestamp}</p>
-        </div>
-
-        <div class="summary">
-          <strong>SUMMARY:</strong> 
-          ${dataToPrint.length} Periods | 
-          ${dataToPrint.reduce((sum, p) => sum + p.totalScans, 0)} Total Scans |
-          ${dataToPrint.reduce((sum, p) => sum + p.valid, 0)} Valid |
-          ${dataToPrint.reduce((sum, p) => sum + p.error, 0)} Error |
-          ${dataToPrint.reduce((sum, p) => sum + p.pending, 0)} Pending
-        </div>
-
-        ${dataToPrint.map(period => `
-          <div class="period">
-            <div class="period-header">
-              ${period.displayDate} - ${period.periodType === 'daily' ? 'Daily Report' : 'Weekly Report'}
-            </div>
-            <div class="period-summary">
-              Total Scans: ${period.totalScans} | 
-              Valid: ${period.valid} | 
-              Error: ${period.error} | 
-              Pending: ${period.pending} | 
-              Success Rate: ${Math.round((period.valid / period.totalScans) * 100)}%
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Scan ID</th>
-                  <th>Asset Type</th>
-                  <th>Category</th>
-                  <th>Location</th>
-                  <th>Status</th>
-                  <th>Verified By</th>
-                  <th>Scan Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${period.items.map(item => `
-                  <tr>
-                    <td>${item.scanId}</td>
-                    <td>${item.assetType}</td>
-                    <td>${item.category}</td>
-                    <td>${item.location}</td>
-                    <td class="${item.status.toLowerCase()}">${item.status}</td>
-                    <td>${item.verifiedBy}</td>
-                    <td>${item.scanTime}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-        `).join('')}
-
-        <div class="footer">
-          Generated by IT Inventory System - Seatrium &copy; ${new Date().getFullYear()}
-        </div>
-
-        <script>
-          window.onload = function() {
-            window.print();
-            setTimeout(() => {
-              window.close();
-            }, 500);
-          }
-        </script>
-      </body>
-      </html>
-    `;
-
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-  };
-
   const handleBulkExport = (type, selectedOnly = false) => {
     if (selectedOnly && selectedItems.length === 0) {
-      Swal.fire({
-        title: "No Selection",
-        text: "Please select periods to export.",
-        icon: "warning",
-        confirmButtonColor: "#1e40af",
-      });
+      Swal.fire("No Selection", "Please select periods to export.", "warning");
       return;
     }
 
-    switch (type) {
-      case 'excel':
-        exportToExcel(selectedOnly);
-        break;
-      case 'pdf':
-        exportToPDF(selectedOnly);
-        break;
-      case 'print':
-        printReport(selectedOnly);
-        break;
-      default:
-        break;
+    if (type === 'excel') {
+      try {
+        const dataToExport = selectedOnly
+          ? periodReports.filter(p => selectedItems.includes(p.periodId))
+          : filteredPeriods;
+
+        const ws = XLSX.utils.json_to_sheet(
+          dataToExport.flatMap(p => 
+            p.items.map(item => ({
+              "Period": p.displayDate,
+              "Scan ID": item.scanId,
+              "Asset Type": item.assetType,
+              "Category": item.category,
+              "Location": item.location,
+              "Status": item.status,
+              "Verified By": item.verifiedBy,
+              "Date": item.scanDate,
+              "Time": item.scanTime,
+            }))
+          )
+        );
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Reports");
+        XLSX.writeFile(wb, `reports_${new Date().toISOString().slice(0,10)}.xlsx`);
+        setShowExportDropdown(false);
+      } catch (error) {
+        Swal.fire("Error", "Failed to export data", "error");
+      }
     }
   };
 
-  const MobilePeriodCard = ({ period }) => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-3">
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center">
-          <button
-            onClick={() => toggleSelectPeriod(period.periodId)}
-            className="mr-3 mt-1"
-          >
-            {selectedItems.includes(period.periodId) ? (
-              <CheckSquare className="w-5 h-5 text-blue-600" />
-            ) : (
-              <Square className="w-5 h-5 text-gray-400" />
-            )}
-          </button>
-          <div>
-            <div className="font-bold text-blue-700 text-sm flex items-center">
-              <Calendar className="w-4 h-4 mr-2" />
-              {period.displayDate}
-            </div>
-            <div className="text-xs text-gray-500 mt-1 flex items-center">
-              <Package className="w-3 h-3 mr-1" />
-              {period.totalScans} items scanned
+  return (
+    <ProtectedPage>
+      <LayoutDashboard activeMenu={5}>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+          .bm-root { font-family: 'DM Sans', sans-serif; }
+          .bm-root .mono { font-family: 'DM Mono', monospace; }
+          .card { 
+            background: #ffffff; 
+            border-radius: 16px; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: box-shadow 0.2s ease;
+          }
+          .card:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+          }
+          .section-title { font-size: 13px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; }
+          .period-badge { background: #1e3a5f; color: #fff; padding: 4px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+          .stat-box-grey {
+            background-color: #f9fafb;
+            border: 1px solid #f3f4f6;
+            border-radius: 12px;
+            padding: 12px;
+          }
+          .stat-box-grey .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1f2937;
+          }
+          .stat-box-grey .stat-label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #6b7280;
+            margin-top: 4px;
+          }
+
+          /* Custom SweetAlert styles */
+          .swal2-popup {
+            font-family: 'DM Sans', sans-serif !important;
+            border-radius: 16px !important;
+          }
+          .swal2-title {
+            color: #111827 !important;
+            font-size: 1.1rem !important;
+            font-weight: 600 !important;
+          }
+        `}</style>
+
+        <div className="bm-root space-y-5 p-3 md:p-6 bg-gray-50 min-h-screen">
+          {/* HEADER SECTION */}
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <h1 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
+                  Reports & Analytics
+                </h1>
+              </div>
+              <p className="text-gray-500 text-sm">
+                Periodic inspection reports and analytics for asset validation
+              </p>
             </div>
           </div>
-        </div>
-        <button
-          onClick={() => togglePeriodExpansion(period.periodId)}
-          className="text-gray-400"
-        >
-          {expandedPeriod === period.periodId ? (
-            <ChevronUp className="w-5 h-5" />
-          ) : (
-            <ChevronDown className="w-5 h-5" />
-          )}
-        </button>
-      </div>
 
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex space-x-2">
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
-            <CheckCircle className="w-3 h-3 mr-1" />
-            {period.valid}
-          </span>
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 text-red-700">
-            <XCircle className="w-3 h-3 mr-1" />
-            {period.error}
-          </span>
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-700">
-            <Clock className="w-3 h-3 mr-1" />
-            {period.pending}
-          </span>
-        </div>
-        <div className="text-xs text-gray-500">
-          {period.periodType === "daily" ? "Daily" : "Weekly"} Report
-        </div>
-      </div>
-
-      {expandedPeriod === period.periodId && (
-        <div className="border-t border-gray-200 pt-3 mt-3 space-y-3">
-          <div>
-            <div className="text-xs font-semibold text-gray-500 mb-2">
-              RECENT SCANS ({period.items.length} items)
-            </div>
-            <div className="space-y-2">
-              {period.items.slice(0, 3).map((item, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between text-xs"
-                >
-                  <div className="flex items-center">
-                    {getCategoryIcon(item.category)}
-                    <span className="ml-2 font-medium">{item.assetType}</span>
-                  </div>
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs ${getStatusColor(
-                      item.status
-                    )}`}
-                  >
-                    {item.status}
-                  </span>
+          {/* STATS CARDS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {/* TOTAL SCANS CARD */}
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-center">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <ScanLine className="w-5 h-5 md:w-6 md:h-6" />
                 </div>
-              ))}
-              {period.items.length > 3 && (
-                <div className="text-xs text-gray-500 text-center">
-                  + {period.items.length - 3} more items...
+                <span className="text-2xl md:text-3xl font-bold">{stats.total}</span>
+              </div>
+              <p className="mt-2 text-sm font-medium uppercase opacity-90">Total Scans</p>
+              <div className="text-xs opacity-80 mt-1 flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-white"></div>
+                <span className="truncate">All scanning activities</span>
+              </div>
+            </div>
+
+            {/* VALID SCANS CARD */}
+            <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-center">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <CheckCircle className="w-5 h-5 md:w-6 md:h-6" />
+                </div>
+                <span className="text-2xl md:text-3xl font-bold">{stats.valid}</span>
+              </div>
+              <p className="mt-2 text-sm font-medium uppercase opacity-90">Valid</p>
+              <div className="text-xs opacity-80 mt-1 flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-white"></div>
+                <span className="truncate">Successfully verified</span>
+              </div>
+            </div>
+
+            {/* ERROR SCANS CARD */}
+            <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-center">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <XCircle className="w-5 h-5 md:w-6 md:h-6" />
+                </div>
+                <span className="text-2xl md:text-3xl font-bold">{stats.error}</span>
+              </div>
+              <p className="mt-2 text-sm font-medium uppercase opacity-90">Error</p>
+              <div className="text-xs opacity-80 mt-1 flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-white"></div>
+                <span className="truncate">Need attention</span>
+              </div>
+            </div>
+
+            {/* PENDING SCANS CARD */}
+            <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-center">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <Clock className="w-5 h-5 md:w-6 md:h-6" />
+                </div>
+                <span className="text-2xl md:text-3xl font-bold">{stats.pending}</span>
+              </div>
+              <p className="mt-2 text-sm font-medium uppercase opacity-90">Pending</p>
+              <div className="text-xs opacity-80 mt-1 flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-white"></div>
+                <span className="truncate">Awaiting verification</span>
+              </div>
+            </div>
+
+            {/* REPORTS COUNT CARD */}
+            <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-center">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <FileText className="w-5 h-5 md:w-6 md:h-6" />
+                </div>
+                <span className="text-2xl md:text-3xl font-bold">{periodReports.length}</span>
+              </div>
+              <p className="mt-2 text-sm font-medium uppercase opacity-90">Reports</p>
+              <div className="text-xs opacity-80 mt-1 flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-white"></div>
+                <span className="truncate">{stats.daily} Daily • {stats.weekly} Weekly</span>
+              </div>
+            </div>
+          </div>
+
+          {/* ANALYTICS CARDS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="card p-5">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="section-title">Success Rate</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-2">{analyticsData.successRate}%</p>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <TrendingUp className="w-5 h-5 text-blue-600" />
+                </div>
+              </div>
+            </div>
+
+            <div className="card p-5">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="section-title">Avg Validation Time</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-2">{analyticsData.avgValidationTime}</p>
+                </div>
+                <div className="p-3 bg-green-50 rounded-lg">
+                  <Clock className="w-5 h-5 text-green-600" />
+                </div>
+              </div>
+            </div>
+
+            <div className="card p-5">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="section-title">Most Active User</p>
+                  <p className="text-xl font-semibold text-gray-900 mt-2 truncate">{analyticsData.mostActiveUser}</p>
+                </div>
+                <div className="p-3 bg-purple-50 rounded-lg">
+                  <User className="w-5 h-5 text-purple-600" />
+                </div>
+              </div>
+            </div>
+
+            <div className="card p-5">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="section-title">Top Location</p>
+                  <p className="text-xl font-semibold text-gray-900 mt-2 truncate">{analyticsData.mostScannedLocation}</p>
+                </div>
+                <div className="p-3 bg-orange-50 rounded-lg">
+                  <MapPin className="w-5 h-5 text-orange-600" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* REPORTS TABLE SECTION */}
+          <div className="card overflow-hidden">
+            {/* Card Header with Action Buttons */}
+            <div className="p-4 md:p-6 border-b border-gray-200">
+              <div className="flex flex-col gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-blue-600" />
+                    Periodic Reports
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    View and export inspection reports by period
+                  </p>
+                </div>
+
+                {/* Action Buttons Group */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Period Filter */}
+                  <select
+                    value={selectedPeriod}
+                    onChange={(e) => setSelectedPeriod(e.target.value)}
+                    className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-full md:w-auto"
+                  >
+                    <option value="all">All Periods</option>
+                    <option value="daily">Daily Reports</option>
+                    <option value="weekly">Weekly Reports</option>
+                  </select>
+
+                  {/* Export Dropdown */}
+                  <div className="relative w-full md:w-auto">
+                    <button
+                      onClick={() => setShowExportDropdown(!showExportDropdown)}
+                      className="flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm transition-all w-full md:w-auto"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      <span>Export Excel</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+
+                    {showExportDropdown && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setShowExportDropdown(false)}
+                        />
+                        <div className="absolute right-0 mt-2 w-full md:w-64 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
+                          <div className="p-2">
+                            <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b">
+                              Export Options
+                            </div>
+                            <button
+                              onClick={() => handleBulkExport('excel', false)}
+                              className="w-full flex items-center gap-3 px-3 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                              <div className="text-left">
+                                <div className="font-medium">Export Current View</div>
+                                <div className="text-xs text-gray-500">{filteredPeriods.length} reports</div>
+                              </div>
+                            </button>
+                            {selectedItems.length > 0 && (
+                              <button
+                                onClick={() => handleBulkExport('excel', true)}
+                                className="w-full flex items-center gap-3 px-3 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                              >
+                                <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+                                <div className="text-left">
+                                  <div className="font-medium">Export Selected</div>
+                                  <div className="text-xs text-gray-500">{selectedItems.length} reports</div>
+                                </div>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Refresh Button */}
+                  <button
+                    onClick={() => window.location.reload()}
+                    disabled={loading}
+                    className="flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition-all disabled:opacity-50 w-full md:w-auto"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                    {loading ? "Refreshing..." : "Refresh"}
+                  </button>
+
+                  {/* Start New Scan Button */}
+                  <button
+                    onClick={() => router.push("/scanning")}
+                    className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-600 hover:from-blue-600 hover:to-blue-600 text-white px-4 py-2.5 rounded-lg text-sm transition-all w-full md:w-auto"
+                  >
+                    <ScanLine className="w-4 h-4" />
+                    <span>New Scan</span>
+                  </button>
+
+                  {/* View Toggle */}
+                  <div className="flex border border-gray-300 rounded-lg overflow-hidden w-full md:w-auto">
+                    <button
+                      onClick={() => setViewMode("list")}
+                      className={`flex-1 md:flex-none p-2.5 text-center ${viewMode === "list" ? "bg-gray-100 text-gray-900" : "bg-white text-gray-700 hover:bg-gray-50"}`}
+                    >
+                      <List className="w-4 h-4 inline" />
+                      <span className="ml-2 text-sm md:hidden">List</span>
+                    </button>
+                    <button
+                      onClick={() => setViewMode("grid")}
+                      className={`flex-1 md:flex-none p-2.5 text-center ${viewMode === "grid" ? "bg-gray-100 text-gray-900" : "bg-white text-gray-700 hover:bg-gray-50"}`}
+                    >
+                      <Grid className="w-4 h-4 inline" />
+                      <span className="ml-2 text-sm md:hidden">Grid</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Search and Filter Controls */}
+            <div className="p-4 md:p-6 border-b border-gray-200 bg-gray-50">
+              <div className="flex flex-col gap-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-800" />
+                  <input
+                    type="text"
+                    placeholder="Search by date or asset type..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bulk Actions */}
+            {selectedItems.length > 0 && (
+              <div className="mx-4 md:mx-6 mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CheckSquare className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm text-blue-800">{selectedItems.length} reports selected</span>
+                  </div>
+                  <button
+                    onClick={() => setSelectedItems([])}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    Clear Selection
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Content */}
+            <div className="p-3 md:p-6">
+              {/* Loading State */}
+              {loading ? (
+                <div className="py-8 md:py-12 text-center">
+                  <div className="inline-flex items-center justify-center gap-3">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                    <span className="text-gray-600">Loading reports...</span>
+                  </div>
+                </div>
+              ) : /* Empty State */
+              periodReports.length === 0 ? (
+                <div className="py-8 md:py-12 text-center">
+                  <div className="max-w-md mx-auto">
+                    <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl inline-block mb-4">
+                      <FileText className="w-10 h-10 md:w-12 md:h-12 text-blue-400" />
+                    </div>
+                    <h3 className="text-gray-900 font-semibold text-base md:text-lg mb-2">
+                      No reports available
+                    </h3>
+                    <p className="text-gray-500 text-sm mb-6">
+                      Start scanning assets to generate inspection reports
+                    </p>
+                    <button
+                      onClick={() => router.push("/scanning")}
+                      className="px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl hover:from-blue-700 hover:to-indigo-800 inline-flex items-center gap-2 text-sm"
+                    >
+                      <ScanLine className="w-4 h-4" />
+                      Start New Scan
+                    </button>
+                  </div>
+                </div>
+              ) : /* No Results State */
+              filteredPeriods.length === 0 ? (
+                <div className="py-8 md:py-12 text-center">
+                  <Search className="w-10 h-10 md:w-12 md:h-12 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-gray-900 font-semibold text-base mb-2">
+                    No matching reports
+                  </h3>
+                  <p className="text-gray-500 text-sm mb-6">
+                    Try adjusting your search or filter criteria
+                  </p>
+                  <button
+                    onClick={() => {
+                      setSearchTerm("");
+                      setSelectedPeriod("all");
+                    }}
+                    className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 inline-flex items-center gap-2 text-sm"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Clear Filters
+                  </button>
+                </div>
+              ) : /* Grid View */
+              viewMode === "grid" ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+                  {filteredPeriods.map((period) => (
+                    <div
+                      key={period.periodId}
+                      className="bg-white border border-gray-200 rounded-xl p-3 md:p-4 hover:shadow-lg transition-all cursor-pointer group"
+                      onClick={() => showPeriodDetail(period)}
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSelectPeriod(period.periodId);
+                            }}
+                            className="mr-1"
+                          >
+                            {selectedItems.includes(period.periodId) ? (
+                              <CheckSquare className="w-5 h-5 text-blue-600" />
+                            ) : (
+                              <Square className="w-5 h-5 text-gray-300" />
+                            )}
+                          </button>
+                          <div className={`p-1.5 md:p-2 rounded-lg ${period.periodType === "daily" ? "bg-blue-100" : "bg-purple-100"}`}>
+                            {period.periodType === "daily" ? (
+                              <Calendar className="w-4 h-4 text-blue-600" />
+                            ) : (
+                              <Activity className="w-4 h-4 text-purple-600" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-semibold text-gray-900 text-sm group-hover:text-blue-600 truncate">
+                              {period.periodType === "daily" ? "Daily Report" : "Weekly Report"}
+                            </h4>
+                            <p className="text-xs text-gray-500 truncate">
+                              {period.displayDate}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-1 mb-3">
+                        <div className="bg-gray-100 p-1 rounded text-center">
+                          <div className="text-xs font-bold text-gray-800">{period.totalScans}</div>
+                          <div className="text-[10px] text-gray-500">Total</div>
+                        </div>
+                        <div className="bg-green-100 p-1 rounded text-center">
+                          <div className="text-xs font-bold text-green-700">{period.valid}</div>
+                          <div className="text-[10px] text-green-600">Valid</div>
+                        </div>
+                        <div className="bg-red-100 p-1 rounded text-center">
+                          <div className="text-xs font-bold text-red-700">{period.error}</div>
+                          <div className="text-[10px] text-red-600">Error</div>
+                        </div>
+                        <div className="bg-yellow-100 p-1 rounded text-center">
+                          <div className="text-xs font-bold text-yellow-700">{period.pending}</div>
+                          <div className="text-[10px] text-yellow-600">Pending</div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-gray-500">
+                          {period.items.length} scanned items
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            showPeriodDetail(period);
+                          }}
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                        >
+                          <Eye className="w-3 h-3" />
+                          View Details
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                /* List View */
+                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="py-3 px-3 text-left">
+                          <button
+                            onClick={toggleSelectAll}
+                            className="flex items-center text-xs font-semibold text-gray-700 uppercase tracking-wider"
+                          >
+                            {selectedItems.length === filteredPeriods.length && filteredPeriods.length > 0 ? (
+                              <CheckSquare className="w-4 h-4 mr-2 text-blue-600" />
+                            ) : (
+                              <Square className="w-4 h-4 mr-2 text-gray-400" />
+                            )}
+                            Period
+                          </button>
+                        </th>
+                        <th
+                          className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer"
+                          onClick={() => handleSort("date")}
+                        >
+                          <div className="flex items-center">
+                            Date
+                            <div className="ml-1">{getSortIcon("date")}</div>
+                          </div>
+                        </th>
+                        <th className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">
+                          Summary
+                        </th>
+                        <th className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">
+                          Status Breakdown
+                        </th>
+                        <th className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">
+                          Type
+                        </th>
+                        <th className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredPeriods.map((period) => (
+                        <tr
+                          key={period.periodId}
+                          className="hover:bg-gray-50 transition-colors cursor-pointer group"
+                          onClick={() => showPeriodDetail(period)}
+                        >
+                          <td className="py-3 px-3">
+                            <div className="flex items-center">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleSelectPeriod(period.periodId);
+                                }}
+                                className="mr-3"
+                              >
+                                {selectedItems.includes(period.periodId) ? (
+                                  <CheckSquare className="w-4 h-4 text-blue-600" />
+                                ) : (
+                                  <Square className="w-4 h-4 text-gray-400" />
+                                )}
+                              </button>
+                              <div className="flex items-center gap-2">
+                                <div className={`p-1.5 rounded-lg ${period.periodType === "daily" ? "bg-blue-100" : "bg-purple-100"}`}>
+                                  {period.periodType === "daily" ? (
+                                    <Calendar className="w-4 h-4 text-blue-600" />
+                                  ) : (
+                                    <Activity className="w-4 h-4 text-purple-600" />
+                                  )}
+                                </div>
+                                <span className="font-semibold text-gray-900 text-sm">
+                                  {period.displayDate}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 text-sm text-gray-600">
+                            {period.date}
+                            {period.endDate && ` - ${period.endDate}`}
+                          </td>
+                          <td className="py-3 px-3 hidden md:table-cell">
+                            <div className="text-sm text-gray-900">{period.totalScans} scans</div>
+                            <div className="text-xs text-gray-500 mt-0.5">
+                              {period.items.length} items
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 hidden lg:table-cell">
+                            <div className="flex gap-1">
+                              <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">{period.valid}</span>
+                              <span className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full">{period.error}</span>
+                              <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full">{period.pending}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 hidden lg:table-cell">
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              period.periodType === "daily" 
+                                ? "bg-blue-100 text-blue-700" 
+                                : "bg-purple-100 text-purple-700"
+                            }`}>
+                              {period.periodType === "daily" ? "Daily" : "Weekly"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  showPeriodDetail(period);
+                                }}
+                                className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="View Details"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
-          </div>
 
-          <div className="flex gap-2 pt-2">
-            <button
-              onClick={() => showPeriodDetail(period)}
-              className="flex-1 flex items-center justify-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs"
-            >
-              <Eye className="w-3 h-3 mr-1" />
-              View Full Report
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  return (
-    <ProtectedPage> {
-    <LayoutDashboard activeMenu={5}>
-      <div className="max-w-7xl mx-auto px-3 md:px-4 py-2 md:py-2 space-y-6">
-        <div className="bg-gradient-to-r from-blue-600 to-blue-600 rounded-xl shadow-lg p-6 text-white">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold flex items-center">
-                <BarChart3 className="w-6 h-6 mr-3" />
-                PERIODIC REPORTS & ANALYTICS
-              </h1>
-              <p className="text-blue-100 text-sm mt-2">
-                Complete inspection reports and analytics organized by period
-                (Daily/Weekly)
-              </p>
-            </div>
-            <div className="mt-4 lg:mt-0 flex items-center space-x-4 text-blue-100 text-sm">
-              <div className="flex items-center">
-                <Database className="w-4 h-4 mr-2" />
-                <span>Total Periods: {periodReports.length}</span>
-              </div>
-              <div className="flex items-center">
-                <Activity className="w-4 h-4 mr-2" />
-                <span>Period-based Analytics</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl shadow-lg p-4 text-center border-l-4 border-blue-500">
-            <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
-            <div className="text-sm text-gray-500">Total Scans</div>
-            <div className="text-xs text-blue-600 font-medium mt-1">All Periods</div>
-          </div>
-          <div className="bg-white rounded-xl shadow-lg p-4 text-center border-l-4 border-green-500">
-            <div className="text-2xl font-bold text-gray-900">{stats.valid}</div>
-            <div className="text-sm text-gray-500">Valid</div>
-            <div className="text-xs text-green-600 font-medium mt-1">Successfully Validated</div>
-          </div>
-          <div className="bg-white rounded-xl shadow-lg p-4 text-center border-l-4 border-red-500">
-            <div className="text-2xl font-bold text-gray-900">{stats.error}</div>
-            <div className="text-sm text-gray-500">Error</div>
-            <div className="text-xs text-red-600 font-medium mt-1">Requires Action</div>
-          </div>
-          <div className="bg-white rounded-xl shadow-lg p-4 text-center border-l-4 border-yellow-500">
-            <div className="text-2xl font-bold text-gray-900">{stats.pending}</div>
-            <div className="text-sm text-gray-500">Pending</div>
-            <div className="text-xs text-yellow-600 font-medium mt-1">Waiting Verification</div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl shadow-lg p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Success Rate</p>
-                <p className="text-2xl font-semibold text-gray-900">{analyticsData.successRate}%</p>
-              </div>
-              <div className="p-2 bg-green-100 rounded-lg">
-                <TrendingUp className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-lg p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Avg. Validation Time</p>
-                <p className="text-2xl font-semibold text-gray-900">{analyticsData.avgValidationTime}</p>
-              </div>
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Clock className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-lg p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Most Active User</p>
-                <p className="text-lg font-semibold text-gray-900">{analyticsData.mostActiveUser}</p>
-              </div>
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <User className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-lg p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Most Scanned Location</p>
-                <p className="text-lg font-semibold text-gray-900">{analyticsData.mostScannedLocation}</p>
-              </div>
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <MapPin className="w-6 h-6 text-orange-600" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="p-4 md:p-6 space-y-4 border-b border-gray-200">
-            <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-3 md:mb-4 flex items-center">
-              <List className="w-4 h-4 md:w-5 md:h-5 mr-2 text-blue-600" />
-              Period-Based Reports Overview
-            </h3>
-
-            <div className="border-t border-gray-200 pt-4">
-              <div className="flex space-x-1 overflow-x-auto">
-                {[
-                  {
-                    id: "all",
-                    label: "All Periods",
-                    count: periodReports.length,
-                    color: "blue",
-                  },
-                  {
-                    id: "daily",
-                    label: "Daily Reports",
-                    count: stats.daily,
-                    color: "blue",
-                  },
-                  {
-                    id: "weekly",
-                    label: "Weekly Reports",
-                    count: stats.weekly,
-                    color: "blue",
-                  },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setSelectedPeriod(tab.id)}
-                    className={`flex-shrink-0 py-2 md:py-3 px-3 md:px-4 rounded-lg text-xs md:text-sm font-medium transition-all ${
-                      selectedPeriod === tab.id
-                        ? getActiveTabColor(tab.color)
-                        : "text-gray-600 hover:bg-gray-100"
-                    }`}
-                  >
-                    <div className="flex items-center space-x-1 md:space-x-2">
-                      <span>{tab.label}</span>
-                      <span
-                        className={`px-1.5 md:px-2 py-0.5 md:py-1 rounded-full text-xs ${
-                          selectedPeriod === tab.id
-                            ? getActiveBadgeColor(tab.color)
-                            : "bg-gray-200 text-gray-600"
-                        }`}
-                      >
-                        {tab.count}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {selectedItems.length > 0 && (
-              <div className="mt-4 p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 md:gap-3">
-                  <div className="text-blue-800 text-sm font-medium flex items-center">
-                    <CheckSquare className="w-4 h-4 mr-2" />
-                    {selectedItems.length} periods selected for bulk export
-                  </div>
-                  <div className="flex gap-1 md:gap-2 flex-wrap">
-                    <button
-                      onClick={() => handleBulkExport('pdf', true)}
-                      className="flex items-center px-3 py-1.5 md:px-4 md:py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-xs"
-                    >
-                      <FileDown className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
-                      Export PDF
-                    </button>
-                    <button
-                      onClick={() => handleBulkExport('excel', true)}
-                      className="flex items-center px-3 py-1.5 md:px-4 md:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-xs"
-                    >
-                      <Download className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
-                      Export Excel
-                    </button>
-                    <button
-                      onClick={() => handleBulkExport('print', true)}
-                      className="flex items-center px-3 py-1.5 md:px-4 md:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs"
-                    >
-                      <Printer className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
-                      Print
-                    </button>
+            {/* Footer Stats */}
+            {!loading && filteredPeriods.length > 0 && (
+              <div className="px-4 md:px-6 py-3 md:py-4 border-t bg-gray-50">
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-2">
+                  <div className="text-xs md:text-sm text-gray-500 text-center sm:text-left">
+                    Showing {filteredPeriods.length} of {periodReports.length} reports
+                    {selectedPeriod !== "all" && ` • ${selectedPeriod === "daily" ? "Daily" : "Weekly"} only`}
                   </div>
                 </div>
               </div>
             )}
           </div>
-
-          {!isMobile ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left">
-                      <button
-                        onClick={toggleSelectAll}
-                        className="flex items-center text-gray-700 font-medium"
-                      >
-                        {selectedItems.length === filteredPeriods.length &&
-                        filteredPeriods.length > 0 ? (
-                          <CheckSquare className="w-4 h-4 mr-2 text-blue-600" />
-                        ) : (
-                          <Square className="w-4 h-4 mr-2 text-gray-400" />
-                        )}
-                        Period Date
-                      </button>
-                    </th>
-                    <th className="px-4 py-3 text-left text-gray-700 font-medium">
-                      Scan Summary
-                    </th>
-                    <th className="px-4 py-3 text-left text-gray-700 font-medium">
-                      Status Overview
-                    </th>
-                    <th className="px-4 py-3 text-left text-gray-700 font-medium">
-                      Report Type
-                    </th>
-                    <th className="px-4 py-3 text-left text-gray-700 font-medium">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredPeriods.map((period) => (
-                    <tr
-                      key={period.periodId}
-                      className="hover:bg-gray-50 transition-colors"
-                    >
-                      <td className="px-4 py-4">
-                        <div className="flex items-center">
-                          <button
-                            onClick={() => toggleSelectPeriod(period.periodId)}
-                            className="mr-3"
-                          >
-                            {selectedItems.includes(period.periodId) ? (
-                              <CheckSquare className="w-4 h-4 text-blue-600" />
-                            ) : (
-                              <Square className="w-4 h-4 text-gray-400" />
-                            )}
-                          </button>
-                          <div>
-                            <div className="font-medium text-blue-700 flex items-center">
-                              <Calendar className="w-4 h-4 mr-2" />
-                              {period.displayDate}
-                            </div>
-                            <div className="text-xs text-gray-500 mt-1">
-                              {period.periodType === "daily"
-                                ? "Daily Inspection Report"
-                                : "Weekly Summary Report"}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="font-medium text-gray-900">
-                          {period.totalScans} Items Scanned
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          <div className="flex items-center space-x-4">
-                            <span className="flex items-center">
-                              <Package className="w-3 h-3 mr-1" />
-                              {period.items.length} detailed records
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex space-x-2 mb-2">
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            {period.valid} Valid
-                          </span>
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 text-red-700">
-                            <XCircle className="w-3 h-3 mr-1" />
-                            {period.error} Error
-                          </span>
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-700">
-                            <Clock className="w-3 h-3 mr-1" />
-                            {period.pending} Pending
-                          </span>
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Success Rate:{" "}
-                          {Math.round((period.valid / period.totalScans) * 100)}%
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                            period.periodType === "daily"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-purple-100 text-purple-700"
-                          }`}
-                        >
-                          {period.periodType === "daily" ? "Daily" : "Weekly"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => showPeriodDetail(period)}
-                            className="flex items-center px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs"
-                          >
-                            <Eye className="w-3 h-3 mr-1" />
-                            View Report
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="p-3 md:p-4">
-              {filteredPeriods.map((period) => (
-                <MobilePeriodCard key={period.periodId} period={period} />
-              ))}
-            </div>
-          )}
-
-          {filteredPeriods.length === 0 && (
-            <div className="text-center py-8 md:py-12">
-              <FileText className="w-10 h-10 md:w-12 md:h-12 text-gray-400 mx-auto mb-3 md:mb-4" />
-              <p className="text-gray-500 text-base md:text-lg">
-                No period reports found
-              </p>
-              <p className="text-gray-400 text-sm mt-1 md:mt-2">
-                Try adjusting your period filter criteria
-              </p>
-            </div>
-          )}
-
-          <div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-sm text-gray-600">
-              <div>
-                Showing {filteredPeriods.length} of {periodReports.length} period reports
-              </div>
-              <div className="flex gap-4 mt-2 sm:mt-0">
-                <span>Daily: {stats.daily}</span>
-                <span>Weekly: {stats.weekly}</span>
-                <span>Total Scans: {stats.total}</span>
-              </div>
-            </div>
-          </div>
         </div>
-      </div>
-    </LayoutDashboard>
-    }</ProtectedPage>
+      </LayoutDashboard>
+    </ProtectedPage>
   );
 }

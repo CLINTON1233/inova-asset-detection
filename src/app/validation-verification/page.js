@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle,
@@ -30,35 +30,32 @@ import {
   ScanLine,
   ChevronDown,
   ChevronUp,
+  FileSpreadsheet,
+  RefreshCw,
+  Grid,
+  List,
+  ArrowUp,
+  ArrowDown,
+  ExternalLink,
 } from "lucide-react";
 import LayoutDashboard from "../components/LayoutDashboard";
 import ProtectedPage from "../components/ProtectedPage";
 import Swal from "sweetalert2";
+import * as XLSX from "xlsx";
 
 export default function ValidationVerificationPage() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [selectedItems, setSelectedItems] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [scanData, setScanData] = useState(null);
-  const [activeTab, setActiveTab] = useState("pending");
-  const [isMobile, setIsMobile] = useState(false);
-  const [expandedItem, setExpandedItem] = useState(null);
-  const [showFilters, setShowFilters] = useState(false);
+  const [viewMode, setViewMode] = useState("list");
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [sorting, setSorting] = useState({ id: "id", desc: false });
 
   const router = useRouter();
-
-  // Detect mobile screen
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   // Get data from localStorage when component mounts
   useEffect(() => {
@@ -68,7 +65,7 @@ export default function ValidationVerificationPage() {
     }
   }, []);
 
-  // Data according to proposal - IT Perangkats and Materials
+  // Data according to proposal - IT Devices and Materials
   const validationItems = [
     {
       id: 1,
@@ -191,25 +188,66 @@ export default function ValidationVerificationPage() {
     },
   ];
 
-  // Filter data based on search, status, and active tab
-  const filteredItems = validationItems.filter((item) => {
-    const matchesSearch =
-      item.serialNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.assetType.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.idValue.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus =
-      selectedStatus === "all" || item.status === selectedStatus;
-    const matchesTab = activeTab === "all" || item.status === activeTab;
-    return matchesSearch && matchesStatus && matchesTab;
-  });
-
   // Calculate statistics
   const stats = {
     total: validationItems.length,
     valid: validationItems.filter((item) => item.status === "valid").length,
     pending: validationItems.filter((item) => item.status === "pending").length,
     error: validationItems.filter((item) => item.status === "error").length,
+    perangkat: validationItems.filter((item) => item.category === "Perangkat").length,
+    material: validationItems.filter((item) => item.category === "Material").length,
+  };
+
+  // Filter data
+  const filteredItems = useMemo(() => {
+    let filtered = validationItems.filter((item) => {
+      const matchesSearch =
+        searchTerm === "" ||
+        item.serialNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.assetType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.idValue.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesStatus =
+        statusFilter === "all" || item.status === statusFilter;
+
+      const matchesCategory =
+        categoryFilter === "all" || item.category === categoryFilter;
+
+      return matchesSearch && matchesStatus && matchesCategory;
+    });
+
+    // Sorting
+    if (sorting.id) {
+      filtered.sort((a, b) => {
+        let aVal = a[sorting.id];
+        let bVal = b[sorting.id];
+        
+        if (aVal < bVal) return sorting.desc ? 1 : -1;
+        if (aVal > bVal) return sorting.desc ? -1 : 1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [validationItems, searchTerm, statusFilter, categoryFilter, sorting]);
+
+  const handleSort = (columnId) => {
+    setSorting((prev) => ({
+      id: columnId,
+      desc: prev.id === columnId ? !prev.desc : false,
+    }));
+  };
+
+  const getSortIcon = (columnId) => {
+    if (sorting.id !== columnId) {
+      return (
+        <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+        </svg>
+      );
+    }
+    return sorting.desc ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />;
   };
 
   // Toggle select item
@@ -236,15 +274,14 @@ export default function ValidationVerificationPage() {
 
     // Simulate API call
     setTimeout(() => {
-      console.log(`Performing ${action} on items:`, selectedItems);
-      alert(`${action} successfully performed on ${selectedItems.length} items`);
+      Swal.fire({
+        title: "Success!",
+        text: `${action} successfully performed on ${selectedItems.length} items`,
+        icon: "success",
+        confirmButtonColor: "#2563eb",
+      });
       setSelectedItems([]);
       setIsSubmitting(false);
-
-      // Redirect to reports after bulk verification
-      if (action === "approve") {
-        router.push("/reports-analytics");
-      }
     }, 2000);
   };
 
@@ -254,8 +291,12 @@ export default function ValidationVerificationPage() {
 
     // Simulate API call
     setTimeout(() => {
-      console.log(`Verifying item ${itemId} as ${status}`);
-      alert(`Item successfully verified as ${status}`);
+      Swal.fire({
+        title: "Success!",
+        text: `Item successfully verified as ${status}`,
+        icon: "success",
+        confirmButtonColor: "#2563eb",
+      });
       setIsSubmitting(false);
     }, 1500);
   };
@@ -297,68 +338,34 @@ export default function ValidationVerificationPage() {
     }
   };
 
-  const getCategoryColor = (category) => {
-    switch (category) {
-      case "Perangkat":
-        return "bg-blue-100 text-blue-700";
-      case "Material":
-        return "bg-green-100 text-green-700";
-      default:
-        return "bg-gray-100 text-gray-700";
-    }
-  };
+  const formatLastCheck = (timestamp) => {
+    if (!timestamp) return "Never checked";
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
 
-  // Helper function for active tab colors
-  const getActiveTabColor = (color) => {
-    switch (color) {
-      case "blue":
-        return "bg-blue-600 text-white shadow-md";
-      case "yellow":
-        return "bg-yellow-500 text-white shadow-md";
-      case "green":
-        return "bg-green-600 text-white shadow-md";
-      case "red":
-        return "bg-red-600 text-white shadow-md";
-      default:
-        return "bg-blue-600 text-white shadow-md";
-    }
-  };
-
-  // Helper function for active badge colors
-  const getActiveBadgeColor = (color) => {
-    switch (color) {
-      case "blue":
-        return "bg-blue-500 text-white";
-      case "yellow":
-        return "bg-yellow-400 text-white";
-      case "green":
-        return "bg-green-500 text-white";
-      case "red":
-        return "bg-red-500 text-white";
-      default:
-        return "bg-blue-500 text-white";
-    }
-  };
-
-  const toggleItemExpansion = (id) => {
-    setExpandedItem(expandedItem === id ? null : id);
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
   };
 
   // Function to show details with SweetAlert
   const handleShowDetail = (item) => {
     Swal.fire({
-      title: `<div class="font-poppins text-lg font-semibold text-black">Scanning Result Details</div>`,
+      title: `<div class="font-dm-sans text-lg font-semibold text-gray-900">Scanning Result Details</div>`,
       html: `
-      <div class="font-poppins text-left space-y-3 max-h-[50vh] overflow-y-auto pr-2">
-        <!-- Header Info -->
+      <div class="font-dm-sans text-left space-y-3 max-h-[50vh] overflow-y-auto pr-2">
         <div>
           <h4 class="text-base font-semibold text-gray-900">${item.assetType}</h4>
           <p class="text-xs text-gray-500 mt-1">${item.category} • ${item.idType}</p>
         </div>
 
-        <!-- Asset Information -->
         <div>
-          <h5 class="text-xs font-medium text-gray-700 mb-2">ASSET INFORMATION</h5>
+          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">ASSET INFORMATION</h5>
           <div class="bg-gray-50 rounded-lg p-3 space-y-2">
             <div class="flex justify-between items-center">
               <span class="text-xs text-gray-600">Asset ID</span>
@@ -375,9 +382,8 @@ export default function ValidationVerificationPage() {
           </div>
         </div>
 
-        <!-- Location & Department -->
         <div>
-          <h5 class="text-xs font-medium text-gray-700 mb-2">LOCATION & DEPARTMENT</h5>
+          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">LOCATION & DEPARTMENT</h5>
           <div class="bg-gray-50 rounded-lg p-3 space-y-2">
             <div class="flex justify-between items-center">
               <span class="text-xs text-gray-600">Location</span>
@@ -390,9 +396,8 @@ export default function ValidationVerificationPage() {
           </div>
         </div>
 
-        <!-- Inspection Time -->
         <div>
-          <h5 class="text-xs font-medium text-gray-700 mb-2">INSPECTION TIME</h5>
+          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">INSPECTION TIME</h5>
           <div class="bg-gray-50 rounded-lg p-3 space-y-2">
             <div class="flex justify-between items-center">
               <span class="text-xs text-gray-600">Date</span>
@@ -409,9 +414,8 @@ export default function ValidationVerificationPage() {
           </div>
         </div>
 
-        <!-- Validation Status -->
         <div>
-          <h5 class="text-xs font-medium text-gray-700 mb-2">VALIDATION STATUS</h5>
+          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">VALIDATION STATUS</h5>
           <div class="bg-gray-50 rounded-lg p-3">
             <div class="flex justify-between items-center">
               <span class="text-xs text-gray-600">Status</span>
@@ -438,9 +442,8 @@ export default function ValidationVerificationPage() {
           </div>
         </div>
 
-        <!-- Photo Evidence -->
         <div>
-          <h5 class="text-xs font-medium text-gray-700 mb-2">PHOTO EVIDENCE</h5>
+          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">PHOTO EVIDENCE</h5>
           <div class="bg-gray-50 rounded-lg p-3 text-center">
             <div class="w-20 h-16 bg-gray-200 rounded mx-auto flex items-center justify-center">
               <Camera class="w-6 h-6 text-gray-400" />
@@ -454,434 +457,471 @@ export default function ValidationVerificationPage() {
       </div>
     `,
       width: "500px",
-      padding: "8px",
+      padding: "16px",
       showCloseButton: true,
       showConfirmButton: true,
       confirmButtonText: "Close",
       confirmButtonColor: "#2563eb",
       customClass: {
-        popup: "rounded-xl font-poppins",
-        closeButton: "text-gray-400 hover:text-gray-600 text-lg -mt-1 mb-2 -mr-1",
-        confirmButton: "font-poppins font-medium text-sm px-8 py-2",
+        popup: "rounded-xl font-dm-sans",
+        closeButton: "text-gray-400 hover:text-gray-600 text-lg -mt-1 -mr-1",
+        confirmButton: "font-dm-sans font-medium text-sm px-10 py-2",
       },
     });
   };
 
-  // Mobile Card View
-  const MobileItemCard = ({ item }) => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-3">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center">
-          <button
-            onClick={() => toggleSelectItem(item.id)}
-            className="mr-3 mt-1"
-          >
-            {selectedItems.includes(item.id) ? (
-              <CheckSquare className="w-5 h-5 text-blue-600" />
-            ) : (
-              <Square className="w-5 h-5 text-gray-400" />
-            )}
-          </button>
-          <div>
-            <div className="font-bold text-blue-700 text-sm">
-              {item.serialNumber}
-            </div>
-            <div className="text-xs text-gray-500 mt-1 flex items-center">
-              {getCategoryIcon(item.category)}
-              <span className="ml-1">{item.category}</span>
-            </div>
-          </div>
-        </div>
-        <button
-          onClick={() => toggleItemExpansion(item.id)}
-          className="text-gray-400"
-        >
-          {expandedItem === item.id ? (
-            <ChevronUp className="w-5 h-5" />
-          ) : (
-            <ChevronDown className="w-5 h-5" />
-          )}
-        </button>
-      </div>
+  // Export to Excel
+  const exportToExcel = (exportType = "current") => {
+    try {
+      let dataToExport = [];
 
-      {/* Basic Info */}
-      <div className="mb-3">
-        <div className="font-semibold text-gray-900 text-base">
-          {item.assetType}
-        </div>
-        <div className="text-xs text-gray-400 font-mono mt-1">
-          {item.idType}: {item.idValue}
-        </div>
-      </div>
+      if (exportType === "current") {
+        dataToExport = filteredItems.map((item) => ({
+          "Asset ID": item.serialNumber,
+          "Asset Type": item.assetType,
+          "Category": item.category,
+          "ID Type": item.idType,
+          "ID Value": item.idValue,
+          "Location": item.location,
+          "Department": item.department,
+          "Status": item.status === "valid" ? "Valid" : item.status === "pending" ? "Pending" : "Error",
+          "Scan Date": item.scanDate,
+          "Scan Time": item.scanTime,
+          "Verified By": item.verifiedBy,
+          "Unique Code": item.uniqueCode,
+        }));
+      } else if (exportType === "all") {
+        dataToExport = validationItems.map((item) => ({
+          "Asset ID": item.serialNumber,
+          "Asset Type": item.assetType,
+          "Category": item.category,
+          "ID Type": item.idType,
+          "ID Value": item.idValue,
+          "Location": item.location,
+          "Department": item.department,
+          "Status": item.status === "valid" ? "Valid" : item.status === "pending" ? "Pending" : "Error",
+          "Scan Date": item.scanDate,
+          "Scan Time": item.scanTime,
+          "Verified By": item.verifiedBy,
+          "Unique Code": item.uniqueCode,
+        }));
+      } else if (exportType === "pending") {
+        dataToExport = validationItems
+          .filter((item) => item.status === "pending")
+          .map((item) => ({
+            "Asset ID": item.serialNumber,
+            "Asset Type": item.assetType,
+            "Category": item.category,
+            "ID Type": item.idType,
+            "ID Value": item.idValue,
+            "Location": item.location,
+            "Department": item.department,
+            "Status": "Pending",
+            "Scan Date": item.scanDate,
+            "Scan Time": item.scanTime,
+            "Verified By": item.verifiedBy,
+            "Unique Code": item.uniqueCode,
+          }));
+      } else if (exportType === "valid") {
+        dataToExport = validationItems
+          .filter((item) => item.status === "valid")
+          .map((item) => ({
+            "Asset ID": item.serialNumber,
+            "Asset Type": item.assetType,
+            "Category": item.category,
+            "ID Type": item.idType,
+            "ID Value": item.idValue,
+            "Location": item.location,
+            "Department": item.department,
+            "Status": "Valid",
+            "Scan Date": item.scanDate,
+            "Scan Time": item.scanTime,
+            "Verified By": item.verifiedBy,
+            "Unique Code": item.uniqueCode,
+          }));
+      } else if (exportType === "error") {
+        dataToExport = validationItems
+          .filter((item) => item.status === "error")
+          .map((item) => ({
+            "Asset ID": item.serialNumber,
+            "Asset Type": item.assetType,
+            "Category": item.category,
+            "ID Type": item.idType,
+            "ID Value": item.idValue,
+            "Location": item.location,
+            "Department": item.department,
+            "Status": "Error",
+            "Scan Date": item.scanDate,
+            "Scan Time": item.scanTime,
+            "Verified By": item.verifiedBy,
+            "Unique Code": item.uniqueCode,
+          }));
+      }
 
-      {/* Status & Location */}
-      <div className="flex items-center justify-between mb-3">
-        <span
-          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-            item.status
-          )}`}
-        >
-          {getStatusIcon(item.status)}
-          <span className="ml-1 capitalize">
-            {item.status === "valid"
-              ? "Validated"
-              : item.status === "pending"
-              ? "Pending"
-              : "Serial Number or Barcode Error"}
-          </span>
-        </span>
-        <div className="text-xs text-gray-500 text-right">
-          <div className="flex items-center">
-            <MapPin className="w-3 h-3 mr-1" />
-            {item.location}
-          </div>
-        </div>
-      </div>
+      if (dataToExport.length === 0) {
+        Swal.fire("No Data", "No data to export", "info");
+        return;
+      }
 
-      {/* Expanded Details */}
-      {expandedItem === item.id && (
-        <div className="border-t border-gray-200 pt-3 mt-3 space-y-3">
-          {/* Department & Verification */}
-          <div>
-            <div className="text-xs font-semibold text-gray-500 mb-1">
-              DEPARTMENT & VERIFICATION
-            </div>
-            <div className="text-sm text-gray-700">{item.department}</div>
-            <div className="text-xs text-gray-600 mt-1 flex items-center">
-              <User className="w-3 h-3 mr-1" />
-              {item.verifiedBy}
-            </div>
-            <div className="text-xs text-gray-600 mt-1 flex items-center">
-              <Calendar className="w-3 h-3 mr-1" />
-              {item.scanDate} - {item.scanTime}
-            </div>
-          </div>
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wscols = [
+        { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 15 },
+        { wch: 20 }, { wch: 20 }, { wch: 25 }, { wch: 10 },
+        { wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 15 }
+      ];
+      ws["!cols"] = wscols;
 
-          {/* Unique Code */}
-          <div>
-            <div className="text-xs font-semibold text-gray-500 mb-1">
-              UNIQUE CODE
-            </div>
-            <div className="text-sm font-mono text-blue-600">
-              {item.uniqueCode}
-            </div>
-          </div>
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Validation");
 
-          {/* Photo Evidence */}
-          <div>
-            <div className="text-xs font-semibold text-gray-500 mb-1">
-              EVIDENCE
-            </div>
-            <button className="flex items-center text-blue-600 text-xs">
-              <Camera className="w-3 h-3 mr-1" />
-              View Photo Evidence
-            </button>
-          </div>
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      let filename = `validation_${exportType}_${timestamp}.xlsx`;
 
-          {/* Actions */}
-          <div className="flex gap-2 pt-2">
-            {item.status === "pending" && (
-              <>
-                <button
-                  onClick={() => handleVerifyItem(item.id, "valid")}
-                  disabled={isSubmitting}
-                  className="flex-1 flex items-center justify-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 text-xs"
-                >
-                  <CheckCircle className="w-3 h-3 mr-1" />
-                  Approve
-                </button>
-                <button
-                  onClick={() => handleVerifyItem(item.id, "error")}
-                  disabled={isSubmitting}
-                  className="flex-1 flex items-center justify-center px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50 text-xs"
-                >
-                  <XCircle className="w-3 h-3 mr-1" />
-                  Reject
-                </button>
-              </>
-            )}
-            <button
-              onClick={() => handleShowDetail(item)}
-              className="flex items-center px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs"
-            >
-              <Eye className="w-3 h-3 mr-1" />
-              Details
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+      XLSX.writeFile(wb, filename);
+      setShowExportDropdown(false);
+    } catch (error) {
+      console.error("Error exporting to Excel:", error);
+      Swal.fire("Error", "Failed to export data", "error");
+    }
+  };
 
   return (
-       <ProtectedPage> {
-    <LayoutDashboard activeMenu={3}>
-      <div className="max-w-7xl mx-auto px-3 md:px-4 py-2 md:py-2 space-y-4 md:space-y-6">
-        {/* Header with gradient - Mobile Optimized */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-600 rounded-xl shadow-lg p-4 md:p-6 text-white">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center">
-              <CheckCircle className="w-6 h-6 md:w-6 md:h-6 mr-2 md:mr-3" />
-              <div>
-                <h1 className="text-xl md:text-2xl font-semibold">
-                  IT ASSET VALIDATION & VERIFICATION
+    <ProtectedPage>
+      <LayoutDashboard activeMenu={3}>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+          .bm-root { font-family: 'DM Sans', sans-serif; }
+          .bm-root .mono { font-family: 'DM Mono', monospace; }
+          .card { 
+            background: #ffffff; 
+            border-radius: 16px; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: box-shadow 0.2s ease;
+          }
+          .card:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+          }
+          .section-title { font-size: 13px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; }
+          .period-badge { background: #1e3a5f; color: #fff; padding: 4px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+          .stat-box-grey {
+            background-color: #f9fafb;
+            border: 1px solid #f3f4f6;
+            border-radius: 12px;
+            padding: 12px;
+          }
+          .stat-box-grey .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1f2937;
+          }
+          .stat-box-grey .stat-label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #6b7280;
+            margin-top: 4px;
+          }
+
+          /* Custom SweetAlert styles */
+          .swal2-popup {
+            font-family: 'DM Sans', sans-serif !important;
+            border-radius: 16px !important;
+          }
+          .swal2-title {
+            color: #111827 !important;
+            font-size: 1.1rem !important;
+            font-weight: 600 !important;
+          }
+        `}</style>
+
+        <div className="bm-root space-y-5 p-3 md:p-6 bg-gray-50 min-h-screen">
+          {/* HEADER SECTION */}
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <h1 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
+                  IT Asset Validation & Verification
                 </h1>
-                <p className="text-blue-100 mt-1 text-xs md:text-sm">
-                  Automated validation system using AI technology
-                </p>
+              </div>
+              <p className="text-gray-500 text-sm">
+                Automated validation system using AI technology for serial numbers and barcodes
+              </p>
+            </div>
+          </div>
+
+          {/* STATS CARDS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+            {/* TOTAL ASSETS CARD */}
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-center">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <QrCode className="w-5 h-5 md:w-6 md:h-6" />
+                </div>
+                <span className="text-2xl md:text-3xl font-bold">{stats.total}</span>
+              </div>
+              <p className="mt-2 text-sm font-medium uppercase opacity-90">Total Scans</p>
+              <div className="text-xs opacity-80 mt-1 flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-white"></div>
+                <span className="truncate">All validation items</span>
               </div>
             </div>
 
-            {scanData && (
-              <div className="mt-4 lg:mt-0 p-3 md:p-4 bg-blue-500/30 backdrop-blur-sm rounded-lg border border-blue-400">
-                <div className="flex items-center text-blue-100 text-xs md:text-sm">
-                  <ScanLine className="w-4 h-4 mr-2" />
-                  <span>
-                    Last Scan: <strong>{scanData.serial}</strong>
-                  </span>
+            {/* DEVICES CARD */}
+            <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-center">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <Cpu className="w-5 h-5 md:w-6 md:h-6" />
+                </div>
+                <span className="text-2xl md:text-3xl font-bold">{stats.perangkat}</span>
+              </div>
+              <p className="mt-2 text-sm font-medium uppercase opacity-90">Devices</p>
+              <div className="text-xs opacity-80 mt-1 flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-white"></div>
+                <span className="truncate">Computers, Servers, CCTV</span>
+              </div>
+            </div>
+
+            {/* MATERIALS CARD */}
+            <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-center">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <Cable className="w-5 h-5 md:w-6 md:h-6" />
+                </div>
+                <span className="text-2xl md:text-3xl font-bold">{stats.material}</span>
+              </div>
+              <p className="mt-2 text-sm font-medium uppercase opacity-90">Materials</p>
+              <div className="text-xs opacity-80 mt-1 flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-white"></div>
+                <span className="truncate">Cables, Trunking, Pipes</span>
+              </div>
+            </div>
+
+            {/* VALID CARD */}
+            <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-center">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <CheckCircle className="w-5 h-5 md:w-6 md:h-6" />
+                </div>
+                <span className="text-2xl md:text-3xl font-bold">{stats.valid}</span>
+              </div>
+              <p className="mt-2 text-sm font-medium uppercase opacity-90">Validated</p>
+              <div className="text-xs opacity-80 mt-1 flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-white"></div>
+                <span className="truncate">Successfully verified</span>
+              </div>
+            </div>
+
+            {/* PENDING CARD */}
+            <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-center">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <Clock className="w-5 h-5 md:w-6 md:h-6" />
+                </div>
+                <span className="text-2xl md:text-3xl font-bold">{stats.pending}</span>
+              </div>
+              <p className="mt-2 text-sm font-medium uppercase opacity-90">Pending</p>
+              <div className="text-xs opacity-80 mt-1 flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-white"></div>
+                <span className="truncate">Awaiting verification</span>
+              </div>
+            </div>
+
+            {/* ERROR CARD */}
+            <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-center">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <XCircle className="w-5 h-5 md:w-6 md:h-6" />
+                </div>
+                <span className="text-2xl md:text-3xl font-bold">{stats.error}</span>
+              </div>
+              <p className="mt-2 text-sm font-medium uppercase opacity-90">Error</p>
+              <div className="text-xs opacity-80 mt-1 flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-white"></div>
+                <span className="truncate">Need attention</span>
+              </div>
+            </div>
+          </div>
+
+          {/* VALIDATION TABLE SECTION */}
+          <div className="card overflow-hidden">
+            {/* Card Header with Action Buttons */}
+            <div className="p-4 md:p-6 border-b border-gray-200">
+              <div className="flex flex-col gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <ScanLine className="w-5 h-5 text-blue-600" />
+                    Asset Validation Results
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Review and validate scanned assets from serial numbers and barcodes
+                  </p>
+                </div>
+
+                {/* Action Buttons Group */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Export Dropdown */}
+                  <div className="relative w-full md:w-auto">
+                    <button
+                      onClick={() => setShowExportDropdown(!showExportDropdown)}
+                      className="flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm transition-all w-full md:w-auto"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      <span>Export Excel</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+
+                    {showExportDropdown && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setShowExportDropdown(false)}
+                        />
+                        <div className="absolute right-0 mt-2 w-full md:w-64 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
+                          <div className="p-2">
+                            <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b">
+                              Export Options
+                            </div>
+                            <button
+                              onClick={() => exportToExcel("current")}
+                              className="w-full flex items-center gap-3 px-3 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                              <div className="text-left">
+                                <div className="font-medium">Export Current View</div>
+                                <div className="text-xs text-gray-500">{filteredItems.length} items</div>
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => exportToExcel("all")}
+                              className="w-full flex items-center gap-3 px-3 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                              <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+                              <div className="text-left">
+                                <div className="font-medium">Export All Items</div>
+                                <div className="text-xs text-gray-500">{validationItems.length} total items</div>
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => exportToExcel("pending")}
+                              className="w-full flex items-center gap-3 px-3 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                              <FileSpreadsheet className="w-4 h-4 text-yellow-600" />
+                              <div className="text-left">
+                                <div className="font-medium">Export Pending Only</div>
+                                <div className="text-xs text-gray-500">{stats.pending} pending items</div>
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => exportToExcel("valid")}
+                              className="w-full flex items-center gap-3 px-3 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                              <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                              <div className="text-left">
+                                <div className="font-medium">Export Valid Only</div>
+                                <div className="text-xs text-gray-500">{stats.valid} valid items</div>
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => exportToExcel("error")}
+                              className="w-full flex items-center gap-3 px-3 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                              <FileSpreadsheet className="w-4 h-4 text-red-600" />
+                              <div className="text-left">
+                                <div className="font-medium">Export Error Only</div>
+                                <div className="text-xs text-gray-500">{stats.error} error items</div>
+                              </div>
+                            </button>
+                          </div>
+                          <div className="px-3 py-2 text-xs text-gray-500 border-t">
+                            Files are downloaded in Excel (.xlsx) format
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Refresh Button */}
+                  <button
+                    onClick={() => window.location.reload()}
+                    disabled={loading}
+                    className="flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition-all disabled:opacity-50 w-full md:w-auto"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                    {loading ? "Refreshing..." : "Refresh"}
+                  </button>
+
+                  {/* Start New Scan Button */}
+                  <button
+                    onClick={() => router.push("/scanning")}
+                    className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-600 hover:from-blue-600 hover:to-blue-600 text-white px-4 py-2.5 rounded-lg text-sm transition-all w-full md:w-auto"
+                  >
+                    <ScanLine className="w-4 h-4" />
+                    <span>Start New Scan</span>
+                  </button>
+
+                  {/* View Toggle */}
+                  <div className="flex border border-gray-300 rounded-lg overflow-hidden w-full md:w-auto">
+                    <button
+                      onClick={() => setViewMode("list")}
+                      className={`flex-1 md:flex-none p-2.5 text-center ${viewMode === "list" ? "bg-gray-100 text-gray-900" : "bg-white text-gray-700 hover:bg-gray-50"}`}
+                    >
+                      <List className="w-4 h-4 inline" />
+                      <span className="ml-2 text-sm md:hidden">List</span>
+                    </button>
+                    <button
+                      onClick={() => setViewMode("grid")}
+                      className={`flex-1 md:flex-none p-2.5 text-center ${viewMode === "grid" ? "bg-gray-100 text-gray-900" : "bg-white text-gray-700 hover:bg-gray-50"}`}
+                    >
+                      <Grid className="w-4 h-4 inline" />
+                      <span className="ml-2 text-sm md:hidden">Grid</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
-
-          {/* AI System Status - Mobile Optimized */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mt-4">
-            <div className="flex items-center space-x-1 md:space-x-2 text-xs md:text-sm">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span>AI Detection Active</span>
             </div>
-            <div className="flex items-center space-x-1 md:space-x-2 text-xs md:text-sm">
-              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-              <span>OCR Running</span>
-            </div>
-            <div className="flex items-center space-x-1 md:space-x-2 text-xs md:text-sm">
-              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-              <span>Database Online</span>
-            </div>
-            <div className="flex items-center space-x-1 md:space-x-2 text-xs md:text-sm">
-              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-              <span>Real-time Validation</span>
-            </div>
-          </div>
-        </div>
 
-        {/* Quick Stats - Mobile Optimized */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
-          {[
-            {
-              label: "Validated",
-              value: stats.valid,
-              sub: "Accurate Data",
-              color: "text-green-600",
-              border: "border-green-500",
-            },
-            {
-              label: "Pending",
-              value: stats.pending,
-              sub: "Needs Verification",
-              color: "text-yellow-600",
-              border: "border-yellow-500",
-            },
-            {
-              label: "Error",
-              value: stats.error,
-              sub: "Needs Action",
-              color: "text-red-600",
-              border: "border-red-500",
-            },
-            {
-              label: "Total Assets",
-              value: stats.total,
-              sub: "All Categories",
-              color: "text-blue-600",
-              border: "border-blue-500",
-            },
-          ].map((stat, index) => (
-            <div
-              key={index}
-              className={`bg-white rounded-lg md:rounded-xl shadow-sm md:shadow-lg p-3 md:p-4 text-center border-l-4 ${stat.border}`}
-            >
-              <div className="text-lg md:text-2xl font-bold text-gray-900">
-                {stat.value}
-              </div>
-              <div className="text-xs md:text-sm text-gray-500">
-                {stat.label}
-              </div>
-              <div className={`text-xs ${stat.color} font-medium mt-1`}>
-                {stat.sub}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Quick Actions Footer - Mobile Optimized */}
-        <div className="bg-white rounded-xl shadow-lg p-4 md:p-6">
-          <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-3 md:mb-4 flex items-center">
-            <ScanLine className="w-4 h-4 md:w-5 md:h-5 mr-2 text-black-600" />
-            Perform Asset Re-Check
-          </h3>
-          <div className="space-y-3">
-            {/* Full Width Button with original colors */}
-            <button
-              onClick={() => router.push("/scanning")}
-              className="w-full flex flex-col items-center justify-center p-4 md:p-6 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all duration-200 text-gray-800 hover:text-blue-700 shadow-sm hover:shadow-md"
-            >
-              <ScanLine className="w-6 h-6 md:w-8 md:h-8 mb-2 md:mb-3 text-blue-600" />
-              <span className="text-sm md:text-lg font-semibold">
-                Start New Scan
-              </span>
-              <span className="text-xs md:text-sm text-gray-600 mt-1 md:mt-2">
-                Scan Perangkats or materials for checking process
-              </span>
-            </button>
-
-            {/* Additional Information */}
-            <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
-              <span>Last scanned: October 28, 2025, 14:30</span>
-              <span className="text-green-600 font-medium">✓ System Ready</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Combined Control Panel and Table */}
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          {/* Search, Filter, Tabs, and Bulk Actions Section */}
-          <div className="p-4 md:p-6 space-y-4 border-b border-gray-200">
-            <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-3 md:mb-4 flex items-center">
-              <QrCode className="w-4 h-4 md:w-5 md:h-5 mr-2 text-black-600" />
-              Asset Data from Serial Number & Barcode Scanning Results
-            </h3>
-
-            {/* Search and Filter Row */}
-            <div className="flex flex-col space-y-3 md:space-y-0 md:flex-row gap-3 md:gap-4">
-              {/* Search Input */}
-              <div className="flex-1">
+            {/* Search and Filter Controls */}
+            <div className="p-4 md:p-6 border-b border-gray-200 bg-gray-50">
+              <div className="flex flex-col gap-3">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-800" />
                   <input
                     type="text"
-                    placeholder="Search serial number, barcode, asset type, or location..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-sm"
+                    placeholder="Search by serial number, barcode, asset type, or location..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
-              </div>
 
-              {/* Filters - Mobile Collapsible */}
-              <div className="flex flex-col md:flex-row gap-2">
-                {!isMobile ? (
-                  <>
-                    <select
-                      value={selectedStatus}
-                      onChange={(e) => setSelectedStatus(e.target.value)}
-                      className="px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-sm"
-                    >
-                      <option value="all">All Status</option>
-                      <option value="pending">Pending</option>
-                      <option value="valid">Validated</option>
-                      <option value="error">Error</option>
-                    </select>
-
-                    <button className="flex items-center px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm">
-                      <Filter className="w-4 h-4 mr-2" />
-                      <span className="hidden md:inline">More Filters</span>
-                      <span className="md:hidden">Filter</span>
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => setShowFilters(!showFilters)}
-                      className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm"
-                    >
-                      <Filter className="w-4 h-4 mr-2" />
-                      Filter
-                      {showFilters ? (
-                        <ChevronUp className="w-4 h-4 ml-2" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4 ml-2" />
-                      )}
-                    </button>
-
-                    {showFilters && (
-                      <div className="flex gap-2 mt-2">
-                        <select
-                          value={selectedStatus}
-                          onChange={(e) => setSelectedStatus(e.target.value)}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-sm"
-                        >
-                          <option value="all">All Status</option>
-                          <option value="pending">Pending</option>
-                          <option value="valid">Validated</option>
-                          <option value="error">Error</option>
-                        </select>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Tab Navigation - Integrated with colored tabs */}
-            <div className="border-t border-gray-200 pt-4">
-              <div className="flex space-x-1 overflow-x-auto">
-                {[
-                  {
-                    id: "all",
-                    label: "All",
-                    count: stats.total,
-                    color: "blue",
-                  },
-                  {
-                    id: "pending",
-                    label: "Pending",
-                    count: stats.pending,
-                    color: "blue",
-                  },
-                  {
-                    id: "valid",
-                    label: "Validated",
-                    count: stats.valid,
-                    color: "blue",
-                  },
-                  {
-                    id: "error",
-                    label: "Error",
-                    count: stats.error,
-                    color: "blue",
-                  },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex-shrink-0 py-2 md:py-3 px-3 md:px-4 rounded-lg text-xs md:text-sm font-medium transition-all ${
-                      activeTab === tab.id
-                        ? getActiveTabColor(tab.color)
-                        : "text-gray-600 hover:bg-gray-100"
-                    }`}
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="border border-gray-300 text-gray-700 rounded-lg px-3 py-2 text-sm bg-white"
                   >
-                    <div className="flex items-center space-x-1 md:space-x-2">
-                      <span>{tab.label}</span>
-                      <span
-                        className={`px-1.5 md:px-2 py-0.5 md:py-1 rounded-full text-xs ${
-                          activeTab === tab.id
-                            ? getActiveBadgeColor(tab.color)
-                            : "bg-gray-200 text-gray-600"
-                        }`}
-                      >
-                        {tab.count}
-                      </span>
-                    </div>
-                  </button>
-                ))}
+                    <option value="all">All Categories</option>
+                    <option value="Perangkat">Devices</option>
+                    <option value="Material">Materials</option>
+                  </select>
+
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="border border-gray-300 text-gray-700 rounded-lg px-3 py-2 text-sm bg-white"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="valid">Valid</option>
+                    <option value="error">Error</option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            {/* Bulk Actions - Integrated for validation page */}
+            {/* Bulk Actions */}
             {selectedItems.length > 0 && (
-              <div className="mt-4 p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="mx-4 md:mx-6 mt-4 p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 md:gap-3">
                   <div className="text-blue-800 text-sm font-medium flex items-center">
                     <CheckSquare className="w-4 h-4 mr-2" />
@@ -894,7 +934,7 @@ export default function ValidationVerificationPage() {
                       className="flex items-center px-3 py-1.5 md:px-4 md:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 text-xs"
                     >
                       <CheckCircle className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
-                      Approve
+                      Approve All
                     </button>
                     <button
                       onClick={() => handleBulkAction("reject")}
@@ -902,204 +942,365 @@ export default function ValidationVerificationPage() {
                       className="flex items-center px-3 py-1.5 md:px-4 md:py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50 text-xs"
                     >
                       <XCircle className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
-                      Reject
+                      Reject All
                     </button>
-               
+                    <button
+                      onClick={() => setSelectedItems([])}
+                      className="flex items-center px-3 py-1.5 md:px-4 md:py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-xs"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Content */}
+            <div className="p-3 md:p-6">
+              {/* Loading State */}
+              {loading ? (
+                <div className="py-8 md:py-12 text-center">
+                  <div className="inline-flex items-center justify-center gap-3">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                    <span className="text-gray-600">Loading validation data...</span>
+                  </div>
+                </div>
+              ) : /* Empty State */
+              validationItems.length === 0 ? (
+                <div className="py-8 md:py-12 text-center">
+                  <div className="max-w-md mx-auto">
+                    <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl inline-block mb-4">
+                      <ScanLine className="w-10 h-10 md:w-12 md:h-12 text-blue-400" />
+                    </div>
+                    <h3 className="text-gray-900 font-semibold text-base md:text-lg mb-2">
+                      No validation data available
+                    </h3>
+                    <p className="text-gray-500 text-sm mb-6">
+                      Start by scanning a new asset to begin validation
+                    </p>
+                    <button
+                      onClick={() => router.push("/scanning")}
+                      className="px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl hover:from-blue-700 hover:to-indigo-800 inline-flex items-center gap-2 text-sm"
+                    >
+                      <ScanLine className="w-4 h-4" />
+                      Start New Scan
+                    </button>
+                  </div>
+                </div>
+              ) : /* No Results State */
+              filteredItems.length === 0 ? (
+                <div className="py-8 md:py-12 text-center">
+                  <Search className="w-10 h-10 md:w-12 md:h-12 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-gray-900 font-semibold text-base mb-2">
+                    No matching items
+                  </h3>
+                  <p className="text-gray-500 text-sm mb-6">
+                    Try adjusting your search or filter criteria
+                  </p>
+                  <button
+                    onClick={() => {
+                      setSearchTerm("");
+                      setCategoryFilter("all");
+                      setStatusFilter("all");
+                    }}
+                    className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 inline-flex items-center gap-2 text-sm"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Clear Filters
+                  </button>
+                </div>
+              ) : /* Grid View */
+              viewMode === "grid" ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+                  {filteredItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="bg-white border border-gray-200 rounded-xl p-3 md:p-4 hover:shadow-lg transition-all cursor-pointer group"
+                      onClick={() => handleShowDetail(item)}
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSelectItem(item.id);
+                            }}
+                            className="mr-1"
+                          >
+                            {selectedItems.includes(item.id) ? (
+                              <CheckSquare className="w-5 h-5 text-blue-600" />
+                            ) : (
+                              <Square className="w-5 h-5 text-gray-400" />
+                            )}
+                          </button>
+                          <div className={`p-1.5 md:p-2 rounded-lg ${item.category === "Perangkat" ? "bg-blue-100" : "bg-green-100"}`}>
+                            {getCategoryIcon(item.category)}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-semibold text-gray-900 text-sm group-hover:text-blue-600 truncate">
+                              {item.assetType}
+                            </h4>
+                            <p className="text-xs text-gray-500 font-mono truncate">
+                              {item.serialNumber}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500">ID Type</span>
+                          <span className="text-xs font-medium text-gray-700">
+                            {item.idType}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500">Status</span>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}>
+                            {getStatusIcon(item.status)}
+                            <span className="ml-1 capitalize">
+                              {item.status === "valid" ? "Valid" : item.status === "pending" ? "Pending" : "Error"}
+                            </span>
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500">Location</span>
+                          <span className="text-xs text-gray-700 truncate ml-2">
+                            {item.location}
+                          </span>
+                        </div>
+
+                        <div className="pt-2 border-t mt-2">
+                          <div className="flex justify-between">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleShowDetail(item);
+                              }}
+                              className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                            >
+                              <Eye className="w-3 h-3" />
+                              View Details
+                            </button>
+                            {item.status === "pending" && (
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleVerifyItem(item.id, "valid");
+                                  }}
+                                  className="text-xs text-green-600 hover:text-green-700 font-medium"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleVerifyItem(item.id, "error");
+                                  }}
+                                  className="text-xs text-red-600 hover:text-red-700 font-medium"
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                /* List View */
+                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="py-3 px-3 text-left">
+                          <button
+                            onClick={toggleSelectAll}
+                            className="flex items-center text-xs font-semibold text-gray-700 uppercase tracking-wider"
+                          >
+                            {selectedItems.length === filteredItems.length && filteredItems.length > 0 ? (
+                              <CheckSquare className="w-4 h-4 mr-2 text-blue-600" />
+                            ) : (
+                              <Square className="w-4 h-4 mr-2 text-gray-400" />
+                            )}
+                            Asset ID
+                          </button>
+                        </th>
+                        <th
+                          className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer"
+                          onClick={() => handleSort("assetType")}
+                        >
+                          <div className="flex items-center">
+                            Type & Category
+                            <div className="ml-1">{getSortIcon("assetType")}</div>
+                          </div>
+                        </th>
+                        <th className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">
+                          ID Details
+                        </th>
+                        <th
+                          className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hidden lg:table-cell"
+                          onClick={() => handleSort("location")}
+                        >
+                          <div className="flex items-center">
+                            Location
+                            <div className="ml-1">{getSortIcon("location")}</div>
+                          </div>
+                        </th>
+                        <th
+                          className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hidden lg:table-cell"
+                          onClick={() => handleSort("status")}
+                        >
+                          <div className="flex items-center">
+                            Status
+                            <div className="ml-1">{getSortIcon("status")}</div>
+                          </div>
+                        </th>
+                        <th className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden xl:table-cell">
+                          Scan Details
+                        </th>
+                        <th className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredItems.map((item) => (
+                        <tr
+                          key={item.id}
+                          className="hover:bg-gray-50 transition-colors cursor-pointer group"
+                          onClick={() => handleShowDetail(item)}
+                        >
+                          <td className="py-3 px-3">
+                            <div className="flex items-center">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleSelectItem(item.id);
+                                }}
+                                className="mr-2"
+                              >
+                                {selectedItems.includes(item.id) ? (
+                                  <CheckSquare className="w-4 h-4 text-blue-600" />
+                                ) : (
+                                  <Square className="w-4 h-4 text-gray-400" />
+                                )}
+                              </button>
+                              <div>
+                                <div className="font-semibold text-blue-700 text-sm">{item.serialNumber}</div>
+                                <div className="text-xs text-gray-500 mt-0.5 flex items-center">
+                                  {getCategoryIcon(item.category)}
+                                  <span className="ml-1">{item.category}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="font-semibold text-gray-900 text-sm">{item.assetType}</div>
+                            <div className="text-xs text-gray-500 mt-0.5">
+                              <span className={`px-2 py-0.5 rounded-full text-xs ${item.category === "Perangkat" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}>
+                                {item.category}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 hidden md:table-cell">
+                            <div className="space-y-1">
+                              <div className="text-xs text-gray-600">
+                                <span className="font-medium">{item.idType}:</span>{" "}
+                                <span className="font-mono">{item.idValue}</span>
+                              </div>
+                              <div className="text-xs text-gray-400 font-mono">
+                                {item.uniqueCode}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 hidden lg:table-cell">
+                            <div className="text-sm text-gray-700">{item.location}</div>
+                            <div className="text-xs text-gray-500 mt-0.5 truncate max-w-[150px]">
+                              {item.department}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 hidden lg:table-cell">
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}>
+                              {getStatusIcon(item.status)}
+                              <span className="ml-1 capitalize">
+                                {item.status === "valid" ? "Valid" : item.status === "pending" ? "Pending" : "Error"}
+                              </span>
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 hidden xl:table-cell">
+                            <div className="text-xs text-gray-600">
+                              <div>{item.scanDate}</div>
+                              <div className="text-gray-400 mt-0.5">{item.scanTime}</div>
+                              <div className="text-gray-400 mt-0.5">{item.verifiedBy}</div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleShowDetail(item);
+                                }}
+                                className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="View Details"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              {item.status === "pending" && (
+                                <>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleVerifyItem(item.id, "valid");
+                                    }}
+                                    className="p-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                                    title="Approve"
+                                  >
+                                    <CheckCircle className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleVerifyItem(item.id, "error");
+                                    }}
+                                    className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Reject"
+                                  >
+                                    <XCircle className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Stats */}
+            {!loading && filteredItems.length > 0 && (
+              <div className="px-4 md:px-6 py-3 md:py-4 border-t bg-gray-50">
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-2">
+                  <div className="text-xs md:text-sm text-gray-500 text-center sm:text-left">
+                    Showing {filteredItems.length} of {validationItems.length} items
+                    {categoryFilter !== "all" && ` • ${categoryFilter === "Perangkat" ? "Devices" : "Materials"} only`}
+                    {statusFilter !== "all" && ` • ${statusFilter} status`}
                   </div>
                 </div>
               </div>
             )}
           </div>
-
-          {/* Table/Cards Section */}
-          {!isMobile ? (
-            /* Desktop Table View */
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left">
-                      <button
-                        onClick={toggleSelectAll}
-                        className="flex items-center text-gray-700 font-medium"
-                      >
-                        {selectedItems.length === filteredItems.length &&
-                        filteredItems.length > 0 ? (
-                          <CheckSquare className="w-4 h-4 mr-2 text-blue-600" />
-                        ) : (
-                          <Square className="w-4 h-4 mr-2 text-gray-400" />
-                        )}
-                        Asset ID
-                      </button>
-                    </th>
-                    <th className="px-4 py-3 text-left text-gray-700 font-medium">
-                      Type & Category
-                    </th>
-                    <th className="px-4 py-3 text-left text-gray-700 font-medium">
-                      Location & Department
-                    </th>
-                    <th className="px-4 py-3 text-left text-gray-700 font-medium">
-                      Scan Details
-                    </th>
-                    <th className="px-4 py-3 text-left text-gray-700 font-medium">
-                      Validation Status
-                    </th>
-                    <th className="px-4 py-3 text-left text-gray-700 font-medium">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredItems.map((item) => (
-                    <tr
-                      key={item.id}
-                      className="hover:bg-gray-50 transition-colors"
-                    >
-                      <td className="px-4 py-4">
-                        <div className="flex items-center">
-                          <button
-                            onClick={() => toggleSelectItem(item.id)}
-                            className="mr-3"
-                          >
-                            {selectedItems.includes(item.id) ? (
-                              <CheckSquare className="w-4 h-4 text-blue-600" />
-                            ) : (
-                              <Square className="w-4 h-4 text-gray-400" />
-                            )}
-                          </button>
-                          <div>
-                            <div className="font-medium text-blue-700">
-                              {item.serialNumber}
-                            </div>
-                            <div className="text-xs text-gray-500 mt-1 flex items-center">
-                              {getCategoryIcon(item.category)}
-                              <span className="ml-1">{item.category}</span>
-                            </div>
-                            <div className="text-xs text-gray-400 font-mono mt-1">
-                              {item.idType}: {item.idValue}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="font-medium text-gray-900">
-                          {item.assetType}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          <span
-                            className={`px-2 py-1 rounded-full ${getCategoryColor(
-                              item.category
-                            )}`}
-                          >
-                            {item.category}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center text-gray-700">
-                          <MapPin className="w-4 h-4 mr-1 text-gray-400" />
-                          {item.location}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {item.department}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="text-xs text-gray-600 space-y-1">
-                          <div className="flex items-center">
-                            <Calendar className="w-3 h-3 mr-1" />
-                            {item.scanDate} - {item.scanTime}
-                          </div>
-                          <div className="flex items-center">
-                            <User className="w-3 h-3 mr-1" />
-                            {item.verifiedBy}
-                          </div>
-                          <div className="flex items-center text-blue-600">
-                            <Camera className="w-3 h-3 mr-1" />
-                           <span className="text-xs">View Photo Evidence</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                            item.status
-                          )}`}
-                        >
-                          {getStatusIcon(item.status)}
-                          <span className="ml-1 capitalize">
-                            {item.status === "valid"
-                              ? "Validated"
-                              : item.status === "pending"
-                              ? "Pending"
-                              : "Error"}
-                          </span>
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex gap-2">
-                          {item.status === "pending" && (
-                            <>
-                              <button
-                                onClick={() =>
-                                  handleVerifyItem(item.id, "valid")
-                                }
-                                disabled={isSubmitting}
-                                className="flex items-center px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 text-xs"
-                              >
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                Approve
-                              </button>
-                              <button
-                                onClick={() =>
-                                  handleVerifyItem(item.id, "error")
-                                }
-                                disabled={isSubmitting}
-                                className="flex items-center px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50 text-xs"
-                              >
-                                <XCircle className="w-3 h-3 mr-1" />
-                                Reject
-                              </button>
-                            </>
-                          )}
-                          <button
-                            onClick={() => handleShowDetail(item)}
-                            className="flex items-center px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs"
-                          >
-                            <Eye className="w-3 h-3 mr-1" />
-                            Details
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            /* Mobile Card View */
-            <div className="p-3 md:p-4">
-              {filteredItems.map((item) => (
-                <MobileItemCard key={item.id} item={item} />
-              ))}
-            </div>
-          )}
-
-          {/* Empty State */}
-          {filteredItems.length === 0 && (
-            <div className="text-center py-8 md:py-12">
-              <AlertTriangle className="w-10 h-10 md:w-12 md:h-12 text-gray-400 mx-auto mb-3 md:mb-4" />
-              <p className="text-gray-500 text-base md:text-lg">
-                No validation data found
-              </p>
-              <p className="text-gray-400 text-sm mt-1 md:mt-2">
-                Try adjusting your search or filter criteria
-              </p>
-            </div>
-          )}
         </div>
-      </div>
-    </LayoutDashboard>
-        }</ProtectedPage>
+      </LayoutDashboard>
+    </ProtectedPage>
   );
 }
