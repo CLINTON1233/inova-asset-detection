@@ -1,0 +1,31 @@
+# =====================
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtualenv
+venv/
+backend/venv/
+env/
+
+# =====================
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+
+# =====================
+# YOLO Model Files
+backend/yolov8n.pt
+
+# =====================
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# YOLO training weight files
+easyocr_models/
+*.pth
