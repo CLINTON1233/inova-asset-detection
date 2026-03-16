@@ -229,23 +229,22 @@ const fetchLocations = async () => {
       const data = await response.json();
 
       if (data.success) {
-        await Swal.fire({
-          title: "Success!",
-          html: `
-            <div class="text-center">
-              <p>Scanning preparation created successfully!</p>
-              <p class="font-mono text-sm bg-gray-100 p-2 rounded mt-2">${data.checking_number}</p>
-            </div>
-          `,
-          icon: "success",
-          timer: 2000,
-          confirmButtonColor: "#1e40af",
-        });
+    await Swal.fire({
+      title: "Success!",
+      html: `
+        <div class="text-center">
+          <p>Scanning preparation created successfully!</p>
+          <p class="font-mono text-sm bg-gray-100 p-2 rounded mt-2">${data.checking_number}</p>
+        </div>
+      `,
+      icon: "success",
+      timer: 2000,
+      showConfirmButton: false,
+    });
 
-        router.push("/scanning");
-      } else {
-        throw new Error(data.error || "Failed to create preparation");
-      }
+    // Redirect ke halaman scanning dengan parameter prep_id
+    router.push(`/scanning?prep_id=${data.preparation_id}`);
+  }
     } catch (error) {
       Swal.fire({
         title: "Error!",
@@ -342,47 +341,44 @@ const fetchLocations = async () => {
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
 
-      <div className="bm-root min-h-screen bg-gray-50">
-        {/* Breadcrumb */}
-        <div className="bg-white border-b border-gray-200 px-6 py-3">
-          <div className="flex items-center gap-1.5 text-sm">
-            <button
-              onClick={() => router.push("/scanning")}
-              className="flex items-center gap-1 text-gray-500 hover:text-blue-600 transition"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Back to Scanning
-            </button>
-            <span className="text-gray-300">/</span>
-            <span className="text-gray-800 font-semibold">Scanning Preparation</span>
+     <div className="bm-root min-h-screen bg-gray-50">
+  {/* Breadcrumb */}
+<div className="bg-white px-6 py-3">
+    <div className="flex items-center gap-1.5 text-sm">
+      <button
+        onClick={() => router.push("/scanning_sessions")}
+        className="flex items-center gap-1 text-gray-500 hover:text-blue-600 transition"
+      >
+        <ArrowLeft className="w-3.5 h-3.5" />
+        Back to Scanning Session
+      </button>
+      <span className="text-gray-300">/</span>
+      <span className="text-gray-800 font-semibold">Scanning Preparation</span>
+    </div>
+  </div>
+  
+<div className="bg-white shadow-sm overflow-hidden">
+    {/* Card Header */}
+    <div className="px-6 py-5 border-b border-gray-100">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
+            <Package className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <h1 className="text-base font-bold text-gray-800 leading-tight">
+              Scanning Preparation
+            </h1>
+            <p className="text-xs text-gray-400 leading-tight">
+              Prepare your scanning session before starting
+            </p>
           </div>
         </div>
-
-        <div className="px-6 py-5 pb-10">
-          {/* Main Card */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            {/* Card Header */}
-            <div className="px-6 py-5 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
-                    <Package className="w-4 h-4 text-white" />
-                  </div>
-                  <div>
-                    <h1 className="text-base font-bold text-gray-800 leading-tight">
-                      Scanning Preparation
-                    </h1>
-                    <p className="text-xs text-gray-400 leading-tight">
-                      Prepare your scanning session before starting
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                    {checkingNumber}
-                  </span>
-                </div>
-              </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+            {checkingNumber}
+          </span>
+        </div>
             </div>
 
             {/* Form Content */}

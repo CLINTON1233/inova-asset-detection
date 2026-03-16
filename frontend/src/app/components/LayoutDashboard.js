@@ -15,6 +15,7 @@ import {
   X,
   User,
   LogOut,
+  Package,
   User as UserIcon,
   Key,
   CheckCircle,
@@ -95,6 +96,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
     //   hasDropdown: true,
     //   href: "/validation-verification",
     // },
+    { icon: Package, label: "Scan Sessions", hasDropdown:true, href: "/scanning_sessions" }, 
     {
       icon: Calendar,
       label: "History & Activity Log",
