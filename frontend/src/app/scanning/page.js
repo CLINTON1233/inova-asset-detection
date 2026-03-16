@@ -23,6 +23,7 @@ import {
   Loader2,
   Hash,
   Info,
+  Plus,
   Barcode,
   Eye,
   Filter,
@@ -36,15 +37,13 @@ import { debounce, throttle } from "lodash";
 import {
   SerialScanningModal,
   showDeviceSelectionModal,
-  showSetLocationForAllModal,
-  showSetLocationForItemModal,
   showDeleteItemModal,
   showDeleteAllModal,
   showSubmitSingleModal,
   showSubmitAllModal,
   showSuccessDetectionModal,
   showSerialDetectedModal,
-  showManualProcessingSuccessModal
+  showManualProcessingSuccessModal,
 } from "../components/ScanningModal";
 
 export default function SerialScanningPage() {
@@ -66,6 +65,8 @@ export default function SerialScanningPage() {
   const [selectedDeviceForSerial, setSelectedDeviceForSerial] = useState(null);
   const [serialScanResult, setSerialScanResult] = useState(null);
   const [isDetectingSerial, setIsDetectingSerial] = useState(false);
+  const [currentPreparation, setCurrentPreparation] = useState(null);
+  const [scanningProgress, setScanningProgress] = useState({});
 
   const videoRef = useRef(null);
   const serialVideoRef = useRef(null);
@@ -141,6 +142,28 @@ export default function SerialScanningPage() {
     }
   }, [checkHistory]);
 
+  const loadPreparation = async (prepId) => {
+    try {
+      const response = await fetch(API_ENDPOINTS.SCANNING_PREP_DETAIL(prepId));
+      const data = await response.json();
+      if (data.success) {
+        setCurrentPreparation(data.data);
+
+        const progress = {};
+        data.data.items.forEach((item) => {
+          progress[item.id_item] = {
+            total: item.quantity,
+            scanned: item.scanned_count || 0,
+            items: [],
+          };
+        });
+        setScanningProgress(progress);
+      }
+    } catch (error) {
+      console.error("Error loading preparation:", error);
+    }
+  };
+
   const fetchLocations = async (searchTerm = "") => {
     try {
       setIsLoadingLocations(true);
@@ -153,8 +176,8 @@ export default function SerialScanningPage() {
 
       if (data.success) {
         const formattedLocations = data.locations.map((loc) => ({
-          value: loc.location_code,
-          label: `${loc.area} - ${loc.location_name}`,
+          value: loc.id_location,
+          label: loc.location_name,
           fullData: loc,
         }));
 
@@ -251,273 +274,291 @@ export default function SerialScanningPage() {
     });
   };
 
-const handleCameraCapture = async () => {
-  if (!videoRef.current) {
-    console.error("Video ref is null");
-    Swal.fire({
-      title: "Camera Error",
-      text: "Camera not available.",
-      icon: "error",
-      confirmButtonText: "OK",
-      customClass: {
-        popup: "bm-root rounded-xl",
-        confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-      },
-    });
-    return;
-  }
-
-  setIsDetecting(true);
-  setScanResult("loading");
-
-  try {
-    // Capture gambar
-    const canvas = document.createElement("canvas");
-    const video = videoRef.current;
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    const imageData = canvas.toDataURL("image/jpeg", 0.8);
-
-    console.log("Sending image to backend...");
-
-    const response = await fetch(API_ENDPOINTS.DETECT_CAMERA, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image_data: imageData }),
-    });
-
-    const result = await response.json();
-    console.log("Detection result:", result);
-
-    if (result.success && result.detected_items?.length > 0) {
-      const detectedItems = result.detected_items.map((item, index) => ({
-        id: item.id || `DEV-${Date.now()}-${index}`,
-        jenisAset: item.asset_type || "Unknown",
-        kategori: item.category || "Perangkat",
-        brand: item.brand || "N/A",
-        confidencePercent: item.confidence_percent || "0",
-        status: "device_detected",
-        timestamp: new Date().toISOString(),
-        message: `Detected: ${item.asset_type} (${item.brand})`,
-        needsSerialScan: true,
-      }));
-
-      detectedItems.forEach((item) => updateCheckHistory(item));
-
-      if (detectedItems.length > 0) {
-        setScanResult(detectedItems[0]);
-        
-        // Gunakan modal yang sudah dipisah
-        showSuccessDetectionModal(result, detectedItems, (items) => {
-          showDeviceSelectionForSerial(items);
-        });
-      }
-    } else {
-      setScanResult({
-        status: "error",
-        message: result.message || "No devices detected",
-      });
-
+  const handleCameraCapture = async () => {
+    if (!currentPreparation) {
       Swal.fire({
-        title: "Detection Result",
-        text: result.message || "No devices found",
+        title: "No Preparation",
+        text: "Please select a scanning preparation first",
+        icon: "warning",
+        confirmButtonText: "OK",
+      });
+      return;
+    }
+
+    const totalScanned = Object.values(scanningProgress).reduce(
+      (sum, p) => sum + p.scanned,
+      0,
+    );
+    const totalTarget = currentPreparation.items.reduce(
+      (sum, item) => sum + item.quantity,
+      0,
+    );
+
+    if (totalScanned >= totalTarget) {
+      Swal.fire({
+        title: "Scanning Complete",
+        text: "All items have been scanned. Please create a new preparation.",
         icon: "info",
         confirmButtonText: "OK",
-        customClass: {
-          popup: "bm-root rounded-xl",
-          confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-        },
       });
+      return;
     }
-  } catch (error) {
-    console.error("Capture error:", error);
 
-    Swal.fire({
-      title: "Connection Error",
-      html: `
+    setIsDetecting(true);
+    setScanResult("loading");
+
+    try {
+      // Capture gambar
+      const canvas = document.createElement("canvas");
+      const video = videoRef.current;
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const imageData = canvas.toDataURL("image/jpeg", 0.8);
+
+      console.log("Sending image to backend...");
+
+      const response = await fetch(API_ENDPOINTS.DETECT_CAMERA, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_data: imageData }),
+      });
+
+      const result = await response.json();
+      console.log("Detection result:", result);
+
+      if (result.success && result.detected_items?.length > 0) {
+        const detectedItems = result.detected_items.map((item, index) => ({
+          id: item.id || `DEV-${Date.now()}-${index}`,
+          jenisAset: item.asset_type || "Unknown",
+          kategori: item.category || "Perangkat",
+          brand: item.brand || "N/A",
+          confidencePercent: item.confidence_percent || "0",
+          status: "device_detected",
+          timestamp: new Date().toISOString(),
+          message: `Detected: ${item.asset_type} (${item.brand})`,
+          needsSerialScan: true,
+        }));
+
+        detectedItems.forEach((item) => updateCheckHistory(item));
+
+        if (detectedItems.length > 0) {
+          setScanResult(detectedItems[0]);
+          showSuccessDetectionModal(result, detectedItems, (items) => {
+            showDeviceSelectionForSerial(items);
+          });
+        }
+      } else {
+        setScanResult({
+          status: "error",
+          message: result.message || "No devices detected",
+        });
+
+        Swal.fire({
+          title: "Detection Result",
+          text: result.message || "No devices found",
+          icon: "info",
+          confirmButtonText: "OK",
+          customClass: {
+            popup: "bm-root rounded-xl",
+            confirmButton:
+              "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Capture error:", error);
+
+      Swal.fire({
+        title: "Connection Error",
+        html: `
         <div class="text-center font-sans">
           <p class="mb-2">Failed to connect to backend</p>
           <p class="text-sm text-gray-600">Error: ${error.message}</p>
           <p class="text-xs text-gray-500 mt-2">Make sure backend is running on port 5001</p>
         </div>
       `,
-      icon: "error",
-      confirmButtonText: "OK",
-      customClass: {
-        popup: "bm-root rounded-xl",
-        confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-      },
-    });
-  } finally {
-    setIsDetecting(false);
-  }
-};
+        icon: "error",
+        confirmButtonText: "OK",
+        customClass: {
+          popup: "bm-root rounded-xl",
+          confirmButton:
+            "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+        },
+      });
+    } finally {
+      setIsDetecting(false);
+    }
+  };
 
-const handleSerialCapture = async () => {
-  if (!serialVideoRef.current) {
-    console.error("Serial video ref is null");
-    Swal.fire({
-      title: "Camera Error",
-      text: "Camera not available",
-      icon: "error",
-      confirmButtonText: "OK",
-      customClass: {
-        popup: "bm-root rounded-xl",
-        confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-      },
-    });
-    return;
-  }
+  const handleSerialCapture = async () => {
+    if (!serialVideoRef.current) {
+      console.error("Serial video ref is null");
+      Swal.fire({
+        title: "Camera Error",
+        text: "Camera not available",
+        icon: "error",
+        confirmButtonText: "OK",
+        customClass: {
+          popup: "bm-root rounded-xl",
+          confirmButton:
+            "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+        },
+      });
+      return;
+    }
 
-  setIsDetectingSerial(true);
-  setSerialScanResult("loading");
+    setIsDetectingSerial(true);
+    setSerialScanResult("loading");
 
-  try {
-    const canvas = document.createElement("canvas");
-    const video = serialVideoRef.current;
+    try {
+      const canvas = document.createElement("canvas");
+      const video = serialVideoRef.current;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
 
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const imageData = canvas.toDataURL("image/jpeg", 0.9);
+      const imageData = canvas.toDataURL("image/jpeg", 0.9);
 
-    console.log("📸 Captured serial image, sending to backend...");
+      console.log("📸 Captured serial image, sending to backend...");
 
-    const response = await fetch(API_ENDPOINTS.SERIAL_DETECT_CAMERA, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        image_data: imageData,
-      }),
-    });
+      const response = await fetch(API_ENDPOINTS.SERIAL_DETECT_CAMERA, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          image_data: imageData,
+        }),
+      });
 
-    const result = await response.json();
-    console.log("🔍 Serial detection result:", result);
+      const result = await response.json();
+      console.log("🔍 Serial detection result:", result);
 
-    if (
-      result.success &&
-      result.serial_detections &&
-      result.serial_detections.length > 0
-    ) {
-      const validSerials = result.serial_detections.filter((s) => s.is_valid);
+      if (
+        result.success &&
+        result.serial_detections &&
+        result.serial_detections.length > 0
+      ) {
+        const validSerials = result.serial_detections.filter((s) => s.is_valid);
 
-      if (validSerials.length > 0) {
-        const bestSerial = validSerials[0];
+        if (validSerials.length > 0) {
+          const bestSerial = validSerials[0];
 
-        const updatedDevice = {
-          ...selectedDeviceForSerial,
-          nomorSeri: bestSerial.detected_text,
-          brand: bestSerial.brand_info || selectedDeviceForSerial.brand,
-          serial_confidence: bestSerial.confidence,
-          extraction_method: bestSerial.method,
-          status: "serial_scanned",
-          message: `Serial number detected: ${bestSerial.detected_text}`,
-          serial_detection_time: new Date().toISOString(),
-        };
+          const updatedDevice = {
+            ...selectedDeviceForSerial,
+            nomorSeri: bestSerial.detected_text,
+            brand: bestSerial.brand_info || selectedDeviceForSerial.brand,
+            serial_confidence: bestSerial.confidence,
+            extraction_method: bestSerial.method,
+            status: "serial_scanned",
+            message: `Serial number detected: ${bestSerial.detected_text}`,
+            serial_detection_time: new Date().toISOString(),
+          };
 
-        updateCheckHistory(updatedDevice);
+          updateCheckHistory(updatedDevice);
 
-        setSerialScanResult({
-          status: "success",
-          serialNumber: bestSerial.detected_text,
-          confidence: bestSerial.confidence,
-          brand: bestSerial.brand_info || selectedDeviceForSerial.brand,
-          method: bestSerial.method,
-          processing_time: result.processing_time_ms,
-          message: "Serial number detected successfully!",
-        });
+          setSerialScanResult({
+            status: "success",
+            serialNumber: bestSerial.detected_text,
+            confidence: bestSerial.confidence,
+            brand: bestSerial.brand_info || selectedDeviceForSerial.brand,
+            method: bestSerial.method,
+            processing_time: result.processing_time_ms,
+            message: "Serial number detected successfully!",
+          });
 
-        // Gunakan modal serial detected
-        showSerialDetectedModal(
-          bestSerial,
-          selectedDeviceForSerial,
-          result,
-          () => cancelSerialScanning(),
-          () => {
-            setSerialScanResult(null);
-            setIsDetectingSerial(false);
-          }
-        );
+          // Gunakan modal serial detected
+          showSerialDetectedModal(
+            bestSerial,
+            selectedDeviceForSerial,
+            result,
+            () => cancelSerialScanning(),
+            () => {
+              setSerialScanResult(null);
+              setIsDetectingSerial(false);
+            },
+          );
+        } else {
+          setSerialScanResult({
+            status: "error",
+            message: "No valid serial numbers detected",
+          });
+
+          Swal.fire({
+            title: "Invalid Serial",
+            text: "Detected serial number doesn't meet validation criteria",
+            icon: "warning",
+            confirmButtonText: "Try Again",
+            customClass: {
+              popup: "bm-root rounded-xl",
+              confirmButton:
+                "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+            },
+          });
+        }
       } else {
         setSerialScanResult({
           status: "error",
-          message: "No valid serial numbers detected",
+          message: result.message || "No serial numbers detected",
         });
 
         Swal.fire({
-          title: "Invalid Serial",
-          text: "Detected serial number doesn't meet validation criteria",
-          icon: "warning",
+          title: "No Serial Found",
+          text:
+            result.message ||
+            "Please ensure the serial number is clearly visible",
+          icon: "info",
           confirmButtonText: "Try Again",
           customClass: {
             popup: "bm-root rounded-xl",
-            confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+            confirmButton:
+              "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
           },
         });
       }
-    } else {
+    } catch (error) {
+      console.error("❌ Serial capture error:", error);
+
       setSerialScanResult({
         status: "error",
-        message: result.message || "No serial numbers detected",
+        message: "Failed to process image",
       });
 
       Swal.fire({
-        title: "No Serial Found",
-        text:
-          result.message ||
-          "Please ensure the serial number is clearly visible",
-        icon: "info",
-        confirmButtonText: "Try Again",
-        customClass: {
-          popup: "bm-root rounded-xl",
-          confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-        },
-      });
-    }
-  } catch (error) {
-    console.error("❌ Serial capture error:", error);
-
-    setSerialScanResult({
-      status: "error",
-      message: "Failed to process image",
-    });
-
-    Swal.fire({
-      title: "Network Error",
-      html: `
+        title: "Network Error",
+        html: `
         <div class="text-center font-sans">
           <p class="mb-2">Failed to connect to server</p>
           <p class="text-sm text-gray-600">Error: ${error.message}</p>
           <p class="text-xs text-gray-500 mt-2">Make sure backend is running on port 5001</p>
         </div>
       `,
-      icon: "error",
-      confirmButtonText: "OK",
-      customClass: {
-        popup: "bm-root rounded-xl",
-        confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-      },
-    });
-  } finally {
-    setIsDetectingSerial(false);
-  }
-};
+        icon: "error",
+        confirmButtonText: "OK",
+        customClass: {
+          popup: "bm-root rounded-xl",
+          confirmButton:
+            "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+        },
+      });
+    } finally {
+      setIsDetectingSerial(false);
+    }
+  };
 
-const showDeviceSelectionForSerial = (devices) => {
-  showDeviceSelectionModal(devices, (selectedDevice) => {
-    startSerialScanning(selectedDevice);
-  });
-};
+  const showDeviceSelectionForSerial = (devices) => {
+    showDeviceSelectionModal(devices, (selectedDevice) => {
+      startSerialScanning(selectedDevice);
+    });
+  };
 
   const startSerialScanning = (device) => {
     setSelectedDeviceForSerial(device);
@@ -547,7 +588,8 @@ const showDeviceSelectionForSerial = (devices) => {
         confirmButtonText: "OK",
         customClass: {
           popup: "bm-root rounded-xl",
-          confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+          confirmButton:
+            "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
         },
       });
       setIsScanningSerial(false);
@@ -610,7 +652,8 @@ const showDeviceSelectionForSerial = (devices) => {
           confirmButtonText: "OK",
           customClass: {
             popup: "bm-root rounded-xl",
-            confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+            confirmButton:
+              "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
           },
         }).then(() => {
           setIsScanningSerial(false);
@@ -623,7 +666,8 @@ const showDeviceSelectionForSerial = (devices) => {
           confirmButtonText: "OK",
           customClass: {
             popup: "bm-root rounded-xl",
-            confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+            confirmButton:
+              "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
           },
         });
       }
@@ -636,7 +680,8 @@ const showDeviceSelectionForSerial = (devices) => {
         confirmButtonText: "OK",
         customClass: {
           popup: "bm-root rounded-xl",
-          confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+          confirmButton:
+            "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
         },
       });
     } finally {
@@ -770,218 +815,225 @@ const showDeviceSelectionForSerial = (devices) => {
     }, 1500);
   };
 
-const handleSetLocationForAll = async () => {
-  if (validCheckHistory.length === 0) {
-    Swal.fire({
-      title: "No Data",
-      text: "No items to set location for.",
-      icon: "info",
-      confirmButtonText: "OK",
-      customClass: {
-        popup: "bm-root rounded-xl",
-        confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-      },
-    });
-    return;
-  }
+  // const handleSetLocationForAll = async () => {
+  //   if (validCheckHistory.length === 0) {
+  //     Swal.fire({
+  //       title: "No Data",
+  //       text: "No items to set location for.",
+  //       icon: "info",
+  //       confirmButtonText: "OK",
+  //       customClass: {
+  //         popup: "bm-root rounded-xl",
+  //         confirmButton:
+  //           "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+  //       },
+  //     });
+  //     return;
+  //   }
 
-  await showSetLocationForAllModal({
-    locations,
-    filteredLocations,
-    locationSearch,
-    validCheckHistory,
-    selectedLocation,
-    setLocationSearch,
-    setFilteredLocations,
-    onConfirm: (locationValue) => {
-      setCheckHistory((prev) =>
-        prev.map((item) => {
-          if (
-            item.id.includes("NO-DETECTION") ||
-            item.id.includes("ERROR") ||
-            item.id.includes("INVALID")
-          ) {
-            return item;
-          }
-          return {
-            ...item,
-            lokasi: locationValue.value,
-            lokasiLabel: locationValue.label,
-            status: "Checked",
-          };
-        }),
-      );
+  //   await showSetLocationForAllModal({
+  //     locations,
+  //     filteredLocations,
+  //     locationSearch,
+  //     validCheckHistory,
+  //     selectedLocation,
+  //     setLocationSearch,
+  //     setFilteredLocations,
+  //     onConfirm: (locationValue) => {
+  //       setCheckHistory((prev) =>
+  //         prev.map((item) => {
+  //           if (
+  //             item.id.includes("NO-DETECTION") ||
+  //             item.id.includes("ERROR") ||
+  //             item.id.includes("INVALID")
+  //           ) {
+  //             return item;
+  //           }
+  //           return {
+  //             ...item,
+  //             lokasi: locationValue.value,
+  //             lokasiLabel: locationValue.label,
+  //             status: "Checked",
+  //           };
+  //         }),
+  //       );
 
-      Swal.fire({
-        title: "Location Set!",
-        text: `Location set for ${validCheckHistory.length} items.`,
-        icon: "success",
-        confirmButtonText: "OK",
-        customClass: {
-          popup: "bm-root rounded-xl",
-          confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-        },
-      });
-    }
-  });
-};
+  //       Swal.fire({
+  //         title: "Location Set!",
+  //         text: `Location set for ${validCheckHistory.length} items.`,
+  //         icon: "success",
+  //         confirmButtonText: "OK",
+  //         customClass: {
+  //           popup: "bm-root rounded-xl",
+  //           confirmButton:
+  //             "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+  //         },
+  //       });
+  //     },
+  //   });
+  // };
 
-const handleSetLocationForItem = async (item) => {
-  await showSetLocationForItemModal({
-    item,
-    locations,
-    filteredLocations,
-    locationSearch,
-    setLocationSearch,
-    setFilteredLocations,
-    onConfirm: (locationValue) => {
-      setCheckHistory((prev) =>
-        prev.map((prevItem) =>
-          prevItem.id === item.id
-            ? {
-                ...prevItem,
-                lokasi: locationValue.value,
-                lokasiLabel: locationValue.label,
-                status: "Checked",
-              }
-            : prevItem,
-        ),
-      );
+  // const handleSetLocationForItem = async (item) => {
+  //   await showSetLocationForItemModal({
+  //     item,
+  //     locations,
+  //     filteredLocations,
+  //     locationSearch,
+  //     setLocationSearch,
+  //     setFilteredLocations,
+  //     onConfirm: (locationValue) => {
+  //       setCheckHistory((prev) =>
+  //         prev.map((prevItem) =>
+  //           prevItem.id === item.id
+  //             ? {
+  //                 ...prevItem,
+  //                 lokasi: locationValue.value,
+  //                 lokasiLabel: locationValue.label,
+  //                 status: "Checked",
+  //               }
+  //             : prevItem,
+  //         ),
+  //       );
 
-      Swal.fire({
-        title: "Location Set!",
-        text: `Location set for ${item.jenisAset} (${item.id}).`,
-        icon: "success",
-        confirmButtonText: "OK",
-        customClass: {
-          popup: "bm-root rounded-xl",
-          confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-        },
-      });
-    }
-  });
-};
+  //       Swal.fire({
+  //         title: "Location Set!",
+  //         text: `Location set for ${item.jenisAset} (${item.id}).`,
+  //         icon: "success",
+  //         confirmButtonText: "OK",
+  //         customClass: {
+  //           popup: "bm-root rounded-xl",
+  //           confirmButton:
+  //             "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+  //         },
+  //       });
+  //     },
+  //   });
+  // };
 
-const handleSubmitSingle = async (item) => {
-  showSubmitSingleModal(item, async () => {
-    setIsSubmitting(true);
+  const handleSubmitSingle = async (item) => {
+    showSubmitSingleModal(item, async () => {
+      setIsSubmitting(true);
 
-    try {
-      const response = await fetch(API_ENDPOINTS.LOCATION_ASSIGN_MULTIPLE, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          asset_ids: [item.id],
-          location_code: item.lokasi,
-          scanned_by: "Scanner User",
-          notes: `Scanned via scanning page - ${item.jenisAset} ${item.nomorSeri ? `SN: ${item.nomorSeri}` : ""}`,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        setCheckHistory((prev) =>
-          prev.map((prevItem) =>
-            prevItem.id === item.id
-              ? { ...prevItem, submitted: true, status: "Submitted" }
-              : prevItem,
-          ),
-        );
-
-        Swal.fire({
-          title: "Success!",
-          text: `Data for ${item.jenisAset} submitted successfully.`,
-          icon: "success",
-          confirmButtonText: "OK",
-          customClass: {
-            popup: "bm-root rounded-xl",
-            confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+      try {
+        const response = await fetch(API_ENDPOINTS.LOCATION_ASSIGN_MULTIPLE, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
           },
+          body: JSON.stringify({
+            asset_ids: [item.id],
+            location_code: item.lokasi,
+            scanned_by: "Scanner User",
+            notes: `Scanned via scanning page - ${item.jenisAset} ${item.nomorSeri ? `SN: ${item.nomorSeri}` : ""}`,
+          }),
         });
-      } else {
+
+        const result = await response.json();
+
+        if (result.success) {
+          setCheckHistory((prev) =>
+            prev.map((prevItem) =>
+              prevItem.id === item.id
+                ? { ...prevItem, submitted: true, status: "Submitted" }
+                : prevItem,
+            ),
+          );
+
+          Swal.fire({
+            title: "Success!",
+            text: `Data for ${item.jenisAset} submitted successfully.`,
+            icon: "success",
+            confirmButtonText: "OK",
+            customClass: {
+              popup: "bm-root rounded-xl",
+              confirmButton:
+                "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+            },
+          });
+        } else {
+          Swal.fire({
+            title: "Submission Failed",
+            text: result.message || "Failed to submit data.",
+            icon: "error",
+            confirmButtonText: "OK",
+            customClass: {
+              popup: "bm-root rounded-xl",
+              confirmButton:
+                "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+            },
+          });
+        }
+      } catch (error) {
+        console.error("Submission error:", error);
         Swal.fire({
-          title: "Submission Failed",
-          text: result.message || "Failed to submit data.",
+          title: "Error",
+          text: "Failed to connect to server.",
           icon: "error",
           confirmButtonText: "OK",
           customClass: {
             popup: "bm-root rounded-xl",
-            confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+            confirmButton:
+              "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
           },
         });
+      } finally {
+        setIsSubmitting(false);
       }
-    } catch (error) {
-      console.error("Submission error:", error);
+    });
+  };
+
+  const handleSubmitAll = async () => {
+    const itemsToSubmit = checkHistory.filter(
+      (item) => item.status === "Checked" && item.lokasi && !item.submitted,
+    );
+
+    if (itemsToSubmit.length === 0) {
       Swal.fire({
-        title: "Error",
-        text: "Failed to connect to server.",
-        icon: "error",
+        title: "No Items to Submit",
+        text: "All items have been submitted or no items with location.",
+        icon: "info",
         confirmButtonText: "OK",
         customClass: {
           popup: "bm-root rounded-xl",
-          confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+          confirmButton:
+            "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
         },
       });
-    } finally {
-      setIsSubmitting(false);
+      return;
     }
-  });
-};
 
-const handleSubmitAll = async () => {
-  const itemsToSubmit = checkHistory.filter(
-    (item) => item.status === "Checked" && item.lokasi && !item.submitted,
-  );
+    showSubmitAllModal(itemsToSubmit, async () => {
+      setIsSubmittingAll(true);
 
-  if (itemsToSubmit.length === 0) {
-    Swal.fire({
-      title: "No Items to Submit",
-      text: "All items have been submitted or no items with location.",
-      icon: "info",
-      confirmButtonText: "OK",
-      customClass: {
-        popup: "bm-root rounded-xl",
-        confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-      },
-    });
-    return;
-  }
-
-  showSubmitAllModal(itemsToSubmit, async () => {
-    setIsSubmittingAll(true);
-
-    try {
-      const response = await fetch(API_ENDPOINTS.LOCATION_ASSIGN_MULTIPLE, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          asset_ids: itemsToSubmit.map((item) => item.id),
-          location_code: itemsToSubmit[0].lokasi,
-          scanned_by: "Scanner User",
-          notes: `Batch submission from scanning page - ${itemsToSubmit.length} items`,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        setCheckHistory((prev) =>
-          prev.map((prevItem) => {
-            if (itemsToSubmit.some((item) => item.id === prevItem.id)) {
-              return { ...prevItem, submitted: true, status: "Submitted" };
-            }
-            return prevItem;
+      try {
+        const response = await fetch(API_ENDPOINTS.LOCATION_ASSIGN_MULTIPLE, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            asset_ids: itemsToSubmit.map((item) => item.id),
+            location_code: itemsToSubmit[0].lokasi,
+            scanned_by: "Scanner User",
+            notes: `Batch submission from scanning page - ${itemsToSubmit.length} items`,
           }),
-        );
+        });
 
-        Swal.fire({
-          title: "Success!",
-          html: `
+        const result = await response.json();
+
+        if (result.success) {
+          setCheckHistory((prev) =>
+            prev.map((prevItem) => {
+              if (itemsToSubmit.some((item) => item.id === prevItem.id)) {
+                return { ...prevItem, submitted: true, status: "Submitted" };
+              }
+              return prevItem;
+            }),
+          );
+
+          Swal.fire({
+            title: "Success!",
+            html: `
             <div class="text-center font-sans">
               <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
                 <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -996,83 +1048,88 @@ const handleSubmitAll = async () => {
               }
             </div>
           `,
-          icon: "success",
-          confirmButtonText: "OK",
-          customClass: {
-            popup: "bm-root rounded-xl",
-            confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-          },
-        });
-      } else {
+            icon: "success",
+            confirmButtonText: "OK",
+            customClass: {
+              popup: "bm-root rounded-xl",
+              confirmButton:
+                "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+            },
+          });
+        } else {
+          Swal.fire({
+            title: "Submission Failed",
+            text: result.message || "Failed to submit data.",
+            icon: "error",
+            confirmButtonText: "OK",
+            customClass: {
+              popup: "bm-root rounded-xl",
+              confirmButton:
+                "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+            },
+          });
+        }
+      } catch (error) {
+        console.error("Batch submission error:", error);
         Swal.fire({
-          title: "Submission Failed",
-          text: result.message || "Failed to submit data.",
+          title: "Error",
+          text: "Failed to connect to server.",
           icon: "error",
           confirmButtonText: "OK",
           customClass: {
             popup: "bm-root rounded-xl",
-            confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+            confirmButton:
+              "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
           },
         });
+      } finally {
+        setIsSubmittingAll(false);
       }
-    } catch (error) {
-      console.error("Batch submission error:", error);
+    });
+  };
+
+  const handleDeleteData = (item) => {
+    showDeleteItemModal(item, () => {
+      setCheckHistory((prev) =>
+        prev.filter((prevItem) => prevItem.id !== item.id),
+      );
+
       Swal.fire({
-        title: "Error",
-        text: "Failed to connect to server.",
-        icon: "error",
+        title: "Deleted!",
+        text: "Item has been deleted.",
+        icon: "success",
         confirmButtonText: "OK",
         customClass: {
           popup: "bm-root rounded-xl",
-          confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+          confirmButton:
+            "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
         },
       });
-    } finally {
-      setIsSubmittingAll(false);
+    });
+  };
+
+  const handleDeleteAll = () => {
+    if (validCheckHistory.length === 0) {
+      return;
     }
-  });
-};
 
-const handleDeleteData = (item) => {
-  showDeleteItemModal(item, () => {
-    setCheckHistory((prev) =>
-      prev.filter((prevItem) => prevItem.id !== item.id),
-    );
+    showDeleteAllModal(validCheckHistory.length, () => {
+      setCheckHistory([]);
+      localStorage.removeItem("scanCheckHistory");
 
-    Swal.fire({
-      title: "Deleted!",
-      text: "Item has been deleted.",
-      icon: "success",
-      confirmButtonText: "OK",
-      customClass: {
-        popup: "bm-root rounded-xl",
-        confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-      },
+      Swal.fire({
+        title: "Deleted!",
+        text: "All items have been deleted.",
+        icon: "success",
+        confirmButtonText: "OK",
+        customClass: {
+          popup: "bm-root rounded-xl",
+          confirmButton:
+            "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+        },
+      });
     });
-  });
-};
-
-const handleDeleteAll = () => {
-  if (validCheckHistory.length === 0) {
-    return;
-  }
-
-  showDeleteAllModal(validCheckHistory.length, () => {
-    setCheckHistory([]);
-    localStorage.removeItem("scanCheckHistory");
-
-    Swal.fire({
-      title: "Deleted!",
-      text: "All items have been deleted.",
-      icon: "success",
-      confirmButtonText: "OK",
-      customClass: {
-        popup: "bm-root rounded-xl",
-        confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-      },
-    });
-  });
-};
+  };
 
   // Helper functions
   const getStatusColor = (status) => {
@@ -1155,7 +1212,7 @@ const handleDeleteAll = () => {
     <ProtectedPage>
       <LayoutDashboard activeMenu={2}>
         <style>{styles}</style>
-        
+
         {/* Serial Scanning Modal */}
         <SerialScanningModal
           isOpen={isScanningSerial}
@@ -1178,16 +1235,128 @@ const handleDeleteAll = () => {
                 {/* <span className="period-badge">Real-time Detection</span> */}
               </div>
               <p className="text-sm text-gray-500 mt-1">
-                Scan IT devices or materials, then scan serial numbers or barcodes,
-                select locations, and submit for verification.
+                Scan IT devices or materials, then scan serial numbers or
+                barcodes, select locations, and submit for verification.
               </p>
             </div>
+            {/* Tombol untuk memilih preparation */}
+            <button
+              onClick={() => router.push("/scanning_preparation")}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              New Preparation
+            </button>
           </div>
+
+          {/* ACTIVE SCANNING SESSION CARD - TEMPATKAN DI SINI */}
+          {currentPreparation && (
+            <div className="card p-4 border-l-4 border-blue-500">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <Package className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-sm text-gray-800">
+                      Active Session: {currentPreparation.checking_name}
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      Checking #{currentPreparation.checking_number}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setCurrentPreparation(null);
+                    setScanningProgress({});
+                  }}
+                  className="text-gray-400 hover:text-gray-600 p-1"
+                  title="End Session"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Progress bars untuk setiap item */}
+              <div className="space-y-3">
+                {currentPreparation.items.map((item) => {
+                  const progress = scanningProgress[item.id_item] || {
+                    scanned: 0,
+                    total: item.quantity,
+                  };
+                  const percentage = (progress.scanned / progress.total) * 100;
+
+                  return (
+                    <div key={item.id_item} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-700">
+                            {item.item_name}
+                          </span>
+                          {item.brand && (
+                            <span className="text-gray-400">
+                              ({item.brand})
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-gray-600 font-mono">
+                          {progress.scanned}/{progress.total}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              percentage === 100
+                                ? "bg-green-500"
+                                : percentage > 50
+                                  ? "bg-blue-500"
+                                  : "bg-yellow-500"
+                            }`}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                        {percentage === 100 && (
+                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Summary */}
+              <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
+                <span className="text-gray-500">
+                  Total Progress:{" "}
+                  {Object.values(scanningProgress).reduce(
+                    (sum, p) => sum + p.scanned,
+                    0,
+                  )}{" "}
+                  /{" "}
+                  {currentPreparation.items.reduce(
+                    (sum, item) => sum + item.quantity,
+                    0,
+                  )}
+                </span>
+                {Object.values(scanningProgress).every(
+                  (p) => p.scanned === p.total,
+                ) && (
+                  <span className="text-green-600 font-medium flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" />
+                    Complete
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* 1. Camera / Scanner Area - Card style */}
           <div className="card p-3 sm:p-4 md:p-6">
             <p className="section-title flex items-center gap-2">
-              <ScanLine className="w-4 h-4" /> Camera Scanner – Detect Devices/Materials
+              <ScanLine className="w-4 h-4" /> Camera Scanner – Detect
+              Devices/Materials
             </p>
 
             <div className="relative w-full aspect-video bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center mb-4 sm:mb-6">
@@ -1234,12 +1403,14 @@ const handleDeleteAll = () => {
             </button>
 
             {checkHistory.some(
-              (item) => item.status === "device_detected" || item.needsSerialScan,
+              (item) =>
+                item.status === "device_detected" || item.needsSerialScan,
             ) && (
               <div className="mt-3 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-600">
                 <p className="text-sm text-blue-700 flex items-center">
                   <Info className="w-4 h-4 mr-2 flex-shrink-0" />
-                  Some devices need serial number scanning. Click "Capture & Detect" to start serial scan.
+                  Some devices need serial number scanning. Click "Capture &
+                  Detect" to start serial scan.
                 </p>
               </div>
             )}
@@ -1334,7 +1505,9 @@ const handleDeleteAll = () => {
 
                   <div className="space-y-1 sm:space-y-2 text-xs sm:text-sm">
                     <div className="flex justify-between">
-                      <span className="font-medium text-gray-600">Asset ID:</span>
+                      <span className="font-medium text-gray-600">
+                        Asset ID:
+                      </span>
                       <span className="font-bold text-gray-800 text-xs sm:text-sm">
                         {scanResult.id}
                       </span>
@@ -1346,7 +1519,9 @@ const handleDeleteAll = () => {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="font-medium text-gray-600">Category:</span>
+                      <span className="font-medium text-gray-600">
+                        Category:
+                      </span>
                       <span className="flex items-center">
                         {getCategoryIcon(scanResult.kategori)}
                         <span className="ml-1 text-gray-800">
@@ -1424,7 +1599,7 @@ const handleDeleteAll = () => {
                 </div>
                 <div className="flex gap-2">
                   {/* Tombol Set Location for All */}
-                  <button
+                  {/* <button
                     onClick={handleSetLocationForAll}
                     className="flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition"
                     title="Set Location for All Items"
@@ -1438,7 +1613,7 @@ const handleDeleteAll = () => {
                       <MapPin className="w-3 h-3 mr-1" />
                     )}
                     Set Location
-                  </button>
+                  </button> */}
 
                   {/* Tombol Delete All */}
                   {validCheckHistory.length > 0 && (
@@ -1521,7 +1696,9 @@ const handleDeleteAll = () => {
                                   : "bg-green-100 text-green-700"
                               }`}
                             >
-                              {item.kategori === "Perangkat" ? "Device" : "Material"}
+                              {item.kategori === "Perangkat"
+                                ? "Device"
+                                : "Material"}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-xs text-gray-600">
@@ -1549,7 +1726,9 @@ const handleDeleteAll = () => {
                               </span>
                             ) : (
                               <button
-                                onClick={() => handleScanSerialFromHistory(item)}
+                                onClick={() =>
+                                  handleScanSerialFromHistory(item)
+                                }
                                 className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center hover:underline cursor-pointer"
                                 title="Click to scan serial number"
                               >
@@ -1558,24 +1737,18 @@ const handleDeleteAll = () => {
                               </button>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-xs text-gray-600">
-                            {item.lokasiLabel || item.lokasi ? (
-                              <div
-                                className="max-w-[120px] truncate"
-                                title={item.lokasiLabel || item.lokasi}
-                              >
-                                {item.lokasiLabel || item.lokasi}
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => handleSetLocationForItem(item)}
-                                className="text-xs text-orange-600 hover:text-orange-700 font-medium flex items-center hover:underline"
-                              >
-                                <MapPin className="w-3 h-3 mr-1" />
-                                Set Location
-                              </button>
-                            )}
-                          </td>
+                         <td className="px-4 py-3 text-xs text-gray-600">
+  {item.lokasiLabel || item.lokasi ? (
+    <div
+      className="max-w-[120px] truncate"
+      title={item.lokasiLabel || item.lokasi}
+    >
+      {item.lokasiLabel || item.lokasi}
+    </div>
+  ) : (
+    <span className="text-gray-400 italic">From Preparation</span>
+  )}
+</td>
                           <td className="px-4 py-3">
                             <span
                               className={`px-2 py-1 text-xs rounded-full font-semibold border ${getStatusColor(
@@ -1652,8 +1825,12 @@ const handleDeleteAll = () => {
 
                       <div className="text-xs text-gray-600 space-y-1">
                         <div className="flex justify-between">
-                          <span className="font-medium text-gray-600">Type:</span>{" "}
-                          <span className="text-gray-500">{item.jenisAset}</span>
+                          <span className="font-medium text-gray-600">
+                            Type:
+                          </span>{" "}
+                          <span className="text-gray-500">
+                            {item.jenisAset}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium text-gray-600">
@@ -1666,7 +1843,9 @@ const handleDeleteAll = () => {
                                 : "bg-green-100 text-green-700"
                             }`}
                           >
-                            {item.kategori === "Perangkat" ? "Device" : "Material"}
+                            {item.kategori === "Perangkat"
+                              ? "Device"
+                              : "Material"}
                           </span>
                         </div>
                         <div className="flex justify-between">
@@ -1704,24 +1883,16 @@ const handleDeleteAll = () => {
                             </button>
                           )}
                         </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium text-gray-600">
-                            Location:
-                          </span>
-                          {item.lokasiLabel || item.lokasi ? (
-                            <span className="text-gray-500 text-right max-w-[120px] truncate">
-                              {item.lokasiLabel || item.lokasi}
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => handleSetLocationForItem(item)}
-                              className="text-xs text-orange-600 hover:text-orange-700 font-medium flex items-center hover:underline"
-                            >
-                              <MapPin className="w-3 h-3 mr-1" />
-                              Set
-                            </button>
-                          )}
-                        </div>
+                      <div className="flex justify-between">
+  <span className="font-medium text-gray-600">Location:</span>
+  {item.lokasiLabel || item.lokasi ? (
+    <span className="text-gray-500 text-right max-w-[120px] truncate">
+      {item.lokasiLabel || item.lokasi}
+    </span>
+  ) : (
+    <span className="text-gray-400 italic">From Preparation</span>
+  )}
+</div>
                         <div className="flex justify-between text-gray-500">
                           <span>{item.tanggal}</span>
                           <span>{item.waktu}</span>

@@ -2,10 +2,8 @@ from flask import Flask
 from flask_cors import CORS
 import os
 
-# Inisialisasi Flask app
 app = Flask(__name__)
 
-# Konfigurasi CORS
 CORS(app, 
      origins=["http://localhost:3004"], 
      supports_credentials=True,
@@ -15,18 +13,19 @@ CORS(app,
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '27cdc60e29397b35b746d68e8c55b703267367cf2d084aa9')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
-# Register Blueprints
 from routes.auth import auth_bp
 from routes.detection import detection_bp
 from routes.location import location_bp
 from routes.serial_detection import serial_bp
 from routes.serial_ocr import ocr_bp 
+from routes.scanning_preparation import scanning_prep_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(detection_bp)
 app.register_blueprint(location_bp)
 app.register_blueprint(serial_bp)
 app.register_blueprint(ocr_bp)
+app.register_blueprint(scanning_prep_bp)
 
 @app.route('/')
 def root():

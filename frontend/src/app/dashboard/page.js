@@ -372,7 +372,7 @@ export default function DashboardPage() {
                       icon: ScanLine,
                       label: "Start Scan",
                       desc: "Check Devices & Materials",
-                      href: "/scanning",
+                      href: "/scanning_preparation",
                     },
                     {
                       icon: CheckCircle,

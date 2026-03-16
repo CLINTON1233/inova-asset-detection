@@ -50,6 +50,73 @@ def create_users_table(conn):
     except Exception as e:
         conn.rollback()
         print(f"Error creating users table: {e}")
+        
+def create_scanning_preparations_table(conn):
+    """Membuat tabel scanning_preparations untuk menyiapkan sesi scanning"""
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS scanning_preparations (
+                id_preparation SERIAL PRIMARY KEY,
+                checking_number VARCHAR(50) UNIQUE NOT NULL,
+                checking_name VARCHAR(255) NOT NULL,
+                category_id INTEGER REFERENCES asset_categories(id_category) ON DELETE SET NULL,
+                item_name VARCHAR(255) NOT NULL,
+                brand VARCHAR(100),
+                model VARCHAR(100),
+                specifications TEXT,
+                quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
+                location_id INTEGER REFERENCES locations(id_location) ON DELETE SET NULL,
+                checking_date DATE NOT NULL,
+                remarks TEXT,
+                status VARCHAR(50) DEFAULT 'pending',
+                created_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Create indexes
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scanning_prep_checking_number ON scanning_preparations(checking_number)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scanning_prep_category ON scanning_preparations(category_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scanning_prep_location ON scanning_preparations(location_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scanning_prep_status ON scanning_preparations(status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scanning_prep_date ON scanning_preparations(checking_date)")
+        
+        conn.commit()
+        print("✓ Tabel scanning_preparations berhasil dibuat")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating scanning_preparations table: {e}")
+
+def create_scanning_items_table(conn):
+    """Membuat tabel scanning_items untuk multiple items dalam satu persiapan"""
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS scanning_items (
+                id_item SERIAL PRIMARY KEY,
+                preparation_id INTEGER REFERENCES scanning_preparations(id_preparation) ON DELETE CASCADE,
+                item_name VARCHAR(255) NOT NULL,
+                brand VARCHAR(100),
+                model VARCHAR(100),
+                specifications TEXT,
+                quantity INTEGER NOT NULL DEFAULT 1,
+                scanned_count INTEGER DEFAULT 0,
+                status VARCHAR(50) DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scanning_items_prep ON scanning_items(preparation_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scanning_items_status ON scanning_items(status)")
+        
+        conn.commit()
+        print("✓ Tabel scanning_items berhasil dibuat")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating scanning_items table: {e}")
 
 def create_asset_categories_table(conn):
     """Membuat tabel asset_categories"""
@@ -258,7 +325,6 @@ def create_all_tables():
         print("🚀 Memulai migrasi database...")
         print("-" * 50)
         
-        # Buat tabel dalam urutan yang benar (perhatikan foreign key dependencies)
         create_users_table(conn)
         create_asset_categories_table(conn)
         create_assets_table(conn)
@@ -268,11 +334,12 @@ def create_all_tables():
         create_report_details_table(conn)
         create_scan_results_table(conn)
         create_validations_table(conn)
+        create_scanning_preparations_table(conn) 
+        create_scanning_items_table(conn)         
         
         print("-" * 50)
         print("✅ Migrasi database selesai!")
-        
-        # Tampilkan daftar tabel yang sudah dibuat
+
         cur = conn.cursor()
         cur.execute("""
             SELECT table_name 

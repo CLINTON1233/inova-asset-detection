@@ -29,6 +29,11 @@ export const API_ENDPOINTS = {
   OCR_PROCESS_MANUAL: `${API_BASE_URL}/api/ocr/process-manual`,
 
   HEALTH_CHECK: `${API_BASE_URL}/api/health`,
+
+  // Scanning Preparation
+  SCANNING_PREP_CREATE: `${API_BASE_URL}/api/scanning-preparation/create`,
+  SCANNING_PREP_LIST: `${API_BASE_URL}/api/scanning-preparation/list`,
+  SCANNING_PREP_DETAIL: (id) => `${API_BASE_URL}/api/scanning-preparation/${id}`,
 };
 
 export default API_BASE_URL;

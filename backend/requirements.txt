@@ -43,9 +43,9 @@ networkx==3.4.2
 ninja==1.13.0
 numpy==1.24.3
 onnxruntime==1.23.2
-opencv-contrib-python==4.10.0.84
+opencv-contrib-python==4.10.0.84   
 opencv-python==4.8.1.78
-opencv-python-headless==4.11.0.86
+opencv-python-headless==4.11.0.86  
 opt-einsum==3.3.0
 packaging==25.0
 paddleocr==3.3.3
