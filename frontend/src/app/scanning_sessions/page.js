@@ -513,7 +513,7 @@ export default function ScanningSessionsPage() {
     <LayoutDashboard activeMenu={2}>
       <style>{styles}</style>
 
-      <div className="bm-root space-y-5 p-3 md:p-6 bg-gray-50 min-h-screen">
+    <div className="bm-root space-y-5 p-3 md:p-6 bg-gray-50">
         {/* HEADER SECTION */}
          <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
