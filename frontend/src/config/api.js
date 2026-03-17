@@ -13,12 +13,18 @@ export const API_ENDPOINTS = {
   LOCATION_SEARCH: (q) => `${API_BASE_URL}/api/location/search?q=${encodeURIComponent(q)}`,
   LOCATION_ASSIGN_MULTIPLE: `${API_BASE_URL}/api/location/assign-multiple`,
 
+  // Department
+  DEPARTMENTS_ALL: `${API_BASE_URL}/api/department/all`,
+  DEPARTMENTS_SEARCH: (q) => `${API_BASE_URL}/api/department/search?q=${encodeURIComponent(q)}`,
+  DEPARTMENT_BY_ID: (id) => `${API_BASE_URL}/api/department/${id}`,
+  DEPARTMENT_BY_CODE: (code) => `${API_BASE_URL}/api/department/code/${code}`,
+
   // Detection
   DETECT_CAMERA: `${API_BASE_URL}/api/detect/camera`,
   DETECT_CAMERA_SIMPLE: `${API_BASE_URL}/api/detect/camera/simple`,
   
   // Serial Detection
- SERIAL_DETECT_CAMERA: `${API_BASE_URL}/api/serial/detect/camera`,
+  SERIAL_DETECT_CAMERA: `${API_BASE_URL}/api/serial/detect/camera`,
   SERIAL_DETECT_COMPLETE: `${API_BASE_URL}/api/serial/detect/complete`,
   SERIAL_GET_SPECS: `${API_BASE_URL}/api/serial/specs`,
   

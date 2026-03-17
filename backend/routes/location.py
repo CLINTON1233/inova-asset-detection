@@ -1,4 +1,3 @@
-# routes/location.py
 from flask import Blueprint, request, jsonify
 from utils.location_model import LocationModel
 

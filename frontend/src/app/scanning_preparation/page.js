@@ -7,21 +7,17 @@ import {
   Save,
   Plus,
   Trash2,
-  ArrowLeft,
   Package,
-  Calendar,
-  Server,
   Info,
   RotateCcw,
-  X,
   MapPin,
-  Tag,
-  Hash,
   FileText,
   Box,
-  AlertCircle,
-  Check,
   Loader2,
+  Building2,
+  Users,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import API_BASE_URL, { API_ENDPOINTS } from "../../config/api";
@@ -31,15 +27,17 @@ export default function ScanningPreparationPage() {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [mounted, setMounted] = useState(false);
   const [checkingNumber, setCheckingNumber] = useState("");
+  const [expandedItems, setExpandedItems] = useState({});
 
   // Form state
   const [formData, setFormData] = useState({
     checking_name: "",
     category_id: "",
     location_id: "",
-    checking_date: new Date().toISOString().split('T')[0],
+    checking_date: new Date().toISOString().split("T")[0],
     remarks: "",
   });
 
@@ -52,6 +50,7 @@ export default function ScanningPreparationPage() {
       model: "",
       specifications: "",
       quantity: 1,
+      departments: [],
     },
   ]);
 
@@ -59,21 +58,21 @@ export default function ScanningPreparationPage() {
     setMounted(true);
     fetchCategories();
     fetchLocations();
+    fetchDepartments();
     generateCheckingNumber();
   }, []);
 
   const generateCheckingNumber = () => {
     const date = new Date();
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
     const random = Math.random().toString(36).substring(2, 8).toUpperCase();
     setCheckingNumber(`SCAN-${year}${month}${day}-${random}`);
   };
 
   const fetchCategories = async () => {
     try {
-      // Sementara gunakan dummy data, nanti ganti dengan API call
       setCategories([
         { id_category: 1, category_name: "Devices" },
         { id_category: 2, category_name: "Materials" },
@@ -83,32 +82,100 @@ export default function ScanningPreparationPage() {
     }
   };
 
-const fetchLocations = async () => {
-  try {
-    const response = await fetch(API_ENDPOINTS.LOCATION_ALL);
-    const data = await response.json();
-    console.log("Location data:", data);
-    
-    if (data.success) {
-      const locationData = data.locations || data.data || [];
-      setLocations(locationData);
-    } else {
-      console.error("Failed to fetch locations:", data.error);
+  const fetchLocations = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.LOCATION_ALL);
+      const data = await response.json();
+
+      if (data.success) {
+        const locationData = data.locations || data.data || [];
+        setLocations(locationData);
+      } else {
+        setLocations([
+          { id_location: 1, location_name: "Warehouse A" },
+          { id_location: 2, location_name: "Office B" },
+          { id_location: 3, location_name: "Data Center" },
+        ]);
+      }
+    } catch (error) {
+      console.error("Error fetching locations:", error);
       setLocations([
         { id_location: 1, location_name: "Warehouse A" },
         { id_location: 2, location_name: "Office B" },
         { id_location: 3, location_name: "Data Center" },
       ]);
     }
+  };
+
+const fetchDepartments = async () => {
+  try {
+    const response = await fetch(API_ENDPOINTS.DEPARTMENTS_ALL);
+    const data = await response.json();
+
+    if (data.success) {
+      // Filter departments UNIK berdasarkan ID
+      const uniqueDepts = data.departments.reduce((acc, current) => {
+        const exists = acc.find(item => item.id_department === current.id_department);
+        if (!exists) {
+          acc.push(current);
+        }
+        return acc;
+      }, []);
+      
+      console.log("Unique departments:", uniqueDepts); // Untuk debug
+      setDepartments(uniqueDepts);
+    } else {
+      // Data dummy dengan ID yang benar
+      setDepartments([
+        { id_department: 1, department_name: "IT" },
+        { id_department: 2, department_name: "HR" },
+        { id_department: 3, department_name: "Finance" },
+        { id_department: 4, department_name: "Contract" },
+        { id_department: 5, department_name: "Procurement" },
+        { id_department: 6, department_name: "Marketing" },
+        { id_department: 7, department_name: "Engineering" },
+        { id_department: 8, department_name: "HSE" },
+        { id_department: 9, department_name: "Security & IYM" },
+        { id_department: 10, department_name: "Planning" },
+        { id_department: 11, department_name: "Warehouse" },
+        { id_department: 12, department_name: "Work & Shipwright" },
+        { id_department: 13, department_name: "Structure" },
+        { id_department: 14, department_name: "Piping" },
+        { id_department: 15, department_name: "E & I" },
+        { id_department: 16, department_name: "Machinery" },
+        { id_department: 17, department_name: "QA/QC" },
+        { id_department: 18, department_name: "PMT GAMMA" },
+        { id_department: 19, department_name: "PMT NEDERWIEK2" },
+        { id_department: 20, department_name: "PMT FPSO PETROBRAS" },
+      ]);
+    }
   } catch (error) {
-    console.error("Error fetching locations:", error);
-    setLocations([
-      { id_location: 1, location_name: "Warehouse A" },
-      { id_location: 2, location_name: "Office B" },
-      { id_location: 3, location_name: "Data Center" },
-    ]);
-  }
-};
+    console.error("Error fetching departments:", error);
+    // Data dummy dengan ID benar
+    setDepartments([
+        { id_department: 1, department_name: "IT" },
+        { id_department: 2, department_name: "HR" },
+        { id_department: 3, department_name: "Finance" },
+        { id_department: 4, department_name: "Contract" },
+        { id_department: 5, department_name: "Procurement" },
+        { id_department: 6, department_name: "Marketing" },
+        { id_department: 7, department_name: "Engineering" },
+        { id_department: 8, department_name: "HSE" },
+        { id_department: 9, department_name: "Security & IYM" },
+        { id_department: 10, department_name: "Planning" },
+        { id_department: 11, department_name: "Warehouse" },
+        { id_department: 12, department_name: "Work & Shipwright" },
+        { id_department: 13, department_name: "Structure" },
+        { id_department: 14, department_name: "Piping" },
+        { id_department: 15, department_name: "E & I" },
+        { id_department: 16, department_name: "Machinery" },
+        { id_department: 17, department_name: "QA/QC" },
+        { id_department: 18, department_name: "PMT GAMMA" },
+        { id_department: 19, department_name: "PMT NEDERWIEK2" },
+        { id_department: 20, department_name: "PMT FPSO PETROBRAS" },
+      ]);
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -125,6 +192,7 @@ const fetchLocations = async () => {
         model: "",
         specifications: "",
         quantity: 1,
+        departments: [],
       },
     ]);
   };
@@ -144,10 +212,139 @@ const fetchLocations = async () => {
 
   const updateItem = (id, field, value) => {
     setItems((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, [field]: value } : item
-      )
+      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
     );
+  };
+
+  const toggleDepartmentSection = (itemId) => {
+    setExpandedItems((prev) => ({
+      ...prev,
+      [itemId]: !prev[itemId],
+    }));
+  };
+
+  const updateDepartmentQuantity = (itemId, departmentId, quantity) => {
+    const department = departments.find(
+      (d) => d.id_department === departmentId,
+    );
+    const item = items.find((i) => i.id === itemId);
+
+    if (!item) return;
+
+    const newQuantity = parseInt(quantity) || 0;
+    const currentTotal = item.departments.reduce(
+      (sum, d) => (d.department_id === departmentId ? sum : sum + d.quantity),
+      0,
+    );
+
+    // Cek apakah total akan melebihi quantity item
+    if (currentTotal + newQuantity > item.quantity) {
+      // Jika melebihi, set ke maksimum yang tersisa
+      const maxAllowed = item.quantity - currentTotal;
+      if (newQuantity > maxAllowed) {
+        // Update ke maksimum yang diijinkan
+        setItems((prev) =>
+          prev.map((i) => {
+            if (i.id === itemId) {
+              const existingDept = i.departments.find(
+                (d) => d.department_id === departmentId,
+              );
+
+              if (existingDept) {
+                return {
+                  ...i,
+                  departments: i.departments.map((d) =>
+                    d.department_id === departmentId
+                      ? { ...d, quantity: maxAllowed }
+                      : d,
+                  ),
+                };
+              } else if (maxAllowed > 0) {
+                return {
+                  ...i,
+                  departments: [
+                    ...i.departments,
+                    {
+                      department_id: departmentId,
+                      department_name: department.department_name,
+                      quantity: maxAllowed,
+                    },
+                  ],
+                };
+              }
+            }
+            return i;
+          }),
+        );
+        return;
+      }
+    }
+
+    // Normal update
+    if (newQuantity > 0) {
+      setItems((prev) =>
+        prev.map((i) => {
+          if (i.id === itemId) {
+            const existingDept = i.departments.find(
+              (d) => d.department_id === departmentId,
+            );
+
+            if (existingDept) {
+              return {
+                ...i,
+                departments: i.departments.map((d) =>
+                  d.department_id === departmentId
+                    ? { ...d, quantity: newQuantity }
+                    : d,
+                ),
+              };
+            } else {
+              return {
+                ...i,
+                departments: [
+                  ...i.departments,
+                  {
+                    department_id: departmentId,
+                    department_name: department.department_name,
+                    quantity: newQuantity,
+                  },
+                ],
+              };
+            }
+          }
+          return i;
+        }),
+      );
+    } else {
+      setItems((prev) =>
+        prev.map((i) => {
+          if (i.id === itemId) {
+            return {
+              ...i,
+              departments: i.departments.filter(
+                (d) => d.department_id !== departmentId,
+              ),
+            };
+          }
+          return i;
+        }),
+      );
+    }
+  };
+
+  // Helper untuk mengecek apakah input harus disabled
+  const isDepartmentInputDisabled = (item, departmentId) => {
+    const totalAssigned = item.departments.reduce(
+      (sum, d) => sum + d.quantity,
+      0,
+    );
+    const currentDept = item.departments.find(
+      (d) => d.department_id === departmentId,
+    );
+    const currentQty = currentDept?.quantity || 0;
+
+    // Jika total sudah mencapai quantity item DAN department ini belum diassign, disable
+    return totalAssigned >= item.quantity && !currentDept;
   };
 
   const validateForm = () => {
@@ -165,6 +362,19 @@ const fetchLocations = async () => {
       }
       if (!item.quantity || item.quantity < 1) {
         errors.push(`Item #${index + 1}: Quantity must be at least 1`);
+      }
+
+      // Validate department distribution
+      if (item.departments.length > 0) {
+        const totalDeptQty = item.departments.reduce(
+          (sum, d) => sum + d.quantity,
+          0,
+        );
+        if (totalDeptQty > item.quantity) {
+          errors.push(
+            `Item #${index + 1}: Total department quantity (${totalDeptQty}) exceeds item quantity (${item.quantity})`,
+          );
+        }
       }
     });
 
@@ -214,8 +424,12 @@ const fetchLocations = async () => {
         items: items.map(({ id, ...item }) => ({
           ...item,
           quantity: parseInt(item.quantity) || 1,
+          departments: item.departments.map((d) => ({
+            department_id: d.department_id,
+            quantity: d.quantity,
+          })),
         })),
-        user_id: 1, 
+        user_id: 1,
       };
 
       const response = await fetch(API_ENDPOINTS.SCANNING_PREP_CREATE, {
@@ -229,22 +443,21 @@ const fetchLocations = async () => {
       const data = await response.json();
 
       if (data.success) {
-    await Swal.fire({
-      title: "Success!",
-      html: `
+        await Swal.fire({
+          title: "Success!",
+          html: `
         <div class="text-center">
           <p>Scanning preparation created successfully!</p>
           <p class="font-mono text-sm bg-gray-100 p-2 rounded mt-2">${data.checking_number}</p>
         </div>
       `,
-      icon: "success",
-      timer: 2000,
-      showConfirmButton: false,
-    });
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
 
-    // Redirect ke halaman scanning dengan parameter prep_id
-    router.push(`/scanning?prep_id=${data.preparation_id}`);
-  }
+        router.push(`/scanning?prep_id=${data.preparation_id}`);
+      }
     } catch (error) {
       Swal.fire({
         title: "Error!",
@@ -273,7 +486,7 @@ const fetchLocations = async () => {
           checking_name: "",
           category_id: "",
           location_id: "",
-          checking_date: new Date().toISOString().split('T')[0],
+          checking_date: new Date().toISOString().split("T")[0],
           remarks: "",
         });
         setItems([
@@ -284,6 +497,7 @@ const fetchLocations = async () => {
             model: "",
             specifications: "",
             quantity: 1,
+            departments: [],
           },
         ]);
         generateCheckingNumber();
@@ -334,52 +548,37 @@ const fetchLocations = async () => {
         .card { 
           background: #ffffff; 
           border-radius: 16px; 
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          box-shadow: 0 35px 60px -15px rgba(0, 0, 0, 0.3);
         }
         .section-title { font-size: 13px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; }
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
 
-     <div className="bm-root min-h-screen bg-gray-50">
-  {/* Breadcrumb */}
-<div className="bg-white px-6 py-3">
-    <div className="flex items-center gap-1.5 text-sm">
-      <button
-        onClick={() => router.push("/scanning_sessions")}
-        className="flex items-center gap-1 text-gray-500 hover:text-blue-600 transition"
-      >
-        <ArrowLeft className="w-3.5 h-3.5" />
-        Back to Scanning Session
-      </button>
-      <span className="text-gray-300">/</span>
-      <span className="text-gray-800 font-semibold">Scanning Preparation</span>
+      <div className="bm-root min-h-screen bg-gray-50">
+        <div className="bg-white shadow-sm overflow-hidden">
+      {/* Card Header */}
+<div className="px-6 py-5 border-b border-gray-100">
+  <div className="flex items-center justify-between">
+    <div className="flex items-center gap-3">
+      <div className="flex items-center justify-center flex-shrink-0">
+        <Package className="w-6 h-6 text-blue-600" />
+      </div>
+      <div>
+        <h1 className="text-base font-bold text-gray-800 leading-tight">
+          Scanning Preparation
+        </h1>
+        <p className="text-xs text-gray-400 leading-tight">
+          Prepare your scanning session before starting
+        </p>
+      </div>
+    </div>
+    <div className="flex items-center gap-3">
+      <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+        {checkingNumber}
+      </span>
     </div>
   </div>
-  
-<div className="bg-white shadow-sm overflow-hidden">
-    {/* Card Header */}
-    <div className="px-6 py-5 border-b border-gray-100">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
-            <Package className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <h1 className="text-base font-bold text-gray-800 leading-tight">
-              Scanning Preparation
-            </h1>
-            <p className="text-xs text-gray-400 leading-tight">
-              Prepare your scanning session before starting
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-            {checkingNumber}
-          </span>
-        </div>
-            </div>
 
             {/* Form Content */}
             <div className="p-6">
@@ -395,7 +594,7 @@ const fetchLocations = async () => {
                     value={formData.checking_name}
                     onChange={handleInputChange}
                     className={inputCls}
-                    placeholder="e.g. LIST DATA ASET 16 MARET 2026"
+                    placeholder="e.g. IT Asset Inventory"
                     required
                   />
                   <Hint>Name for this scanning session</Hint>
@@ -427,7 +626,7 @@ const fetchLocations = async () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
-                  <Label required>Location</Label>
+                  <Label required>Location Check</Label>
                   <div className="relative">
                     <select
                       name="location_id"
@@ -464,93 +663,252 @@ const fetchLocations = async () => {
 
               {/* Items List */}
               <div className="space-y-4">
-                {items.map((item, index) => (
-                  <div
-                    key={item.id}
-                    className="border border-gray-200 rounded-lg p-4 bg-gray-50/30"
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                          Item #{index + 1}
-                        </span>
-                        {item.quantity > 1 && (
-                          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-                            Qty: {item.quantity}
+                {items.map((item, index) => {
+                  const totalDeptQty = item.departments.reduce(
+                    (sum, d) => sum + d.quantity,
+                    0,
+                  );
+                  const remainingQty = item.quantity - totalDeptQty;
+                  const isExpanded = expandedItems[item.id];
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="border border-gray-200 rounded-lg p-4 bg-white"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                            Item #{index + 1}
                           </span>
+                          {item.quantity > 1 && (
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                              Qty: {item.quantity}
+                            </span>
+                          )}
+                        </div>
+                        {items.length > 1 && (
+                          <button
+                            onClick={() => removeItem(item.id)}
+                            className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded-lg transition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         )}
                       </div>
-                      {items.length > 1 && (
-                        <button
-                          onClick={() => removeItem(item.id)}
-                          className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded-lg transition"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="col-span-1 md:col-span-2">
+                          <Label required>Item Name</Label>
+                          <input
+                            type="text"
+                            value={item.item_name}
+                            onChange={(e) =>
+                              updateItem(item.id, "item_name", e.target.value)
+                            }
+                            className={inputCls}
+                            placeholder="e.g. Laptop Dell, Ethernet Cable"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <Label>Brand</Label>
+                          <input
+                            type="text"
+                            value={item.brand}
+                            onChange={(e) =>
+                              updateItem(item.id, "brand", e.target.value)
+                            }
+                            className={inputCls}
+                            placeholder="e.g. Dell, Cisco"
+                          />
+                        </div>
+
+                        <div>
+                          <Label>Model</Label>
+                          <input
+                            type="text"
+                            value={item.model}
+                            onChange={(e) =>
+                              updateItem(item.id, "model", e.target.value)
+                            }
+                            className={inputCls}
+                            placeholder="e.g. Latitude 3420"
+                          />
+                        </div>
+
+                        <div className="col-span-1 md:col-span-2">
+                          <Label>Specifications</Label>
+                          <input
+                            type="text"
+                            value={item.specifications}
+                            onChange={(e) =>
+                              updateItem(
+                                item.id,
+                                "specifications",
+                                e.target.value,
+                              )
+                            }
+                            className={inputCls}
+                            placeholder="e.g. Intel i5, 8GB RAM, 256GB SSD"
+                          />
+                        </div>
+
+                        <div>
+                          <Label required>Quantity</Label>
+                          <input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) =>
+                              updateItem(
+                                item.id,
+                                "quantity",
+                                parseInt(e.target.value) || 1,
+                              )
+                            }
+                            className={inputCls}
+                            min="1"
+                            required
+                          />
+                          <Hint>Number of items to scan</Hint>
+                        </div>
+
+                        {/* Department Distribution Button */}
+                        <div className="col-span-1 md:col-span-2 lg:col-span-4">
+                          <div className="flex items-center justify-between mt-2">
+                            <Label>Department Distribution</Label>
+                            <button
+                              onClick={() => toggleDepartmentSection(item.id)}
+                              className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+                                isExpanded
+                                  ? "bg-gray-100 text-gray-700 border border-gray-300"
+                                  : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
+                              }`}
+                            >
+                              {/* <Building2 className="w-3 h-3" /> */}
+                              {isExpanded
+                                ? "Close Distribution"
+                                : "Distribute Items"}
+                              {isExpanded ? (
+                                <ChevronUp className="w-3 h-3" />
+                              ) : (
+                                <ChevronDown className="w-3 h-3" />
+                              )}
+                            </button>
+                          </div>
+
+                          {/* Department Input Grid - Muncul ketika tombol diklik */}
+                          {isExpanded && (
+                            <div className="mt-4 space-y-4">
+                              {/* Department Input Grid - Tanpa background biru */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {departments.map((dept) => {
+                                  const assignedDept = item.departments.find(
+                                    (d) =>
+                                      d.department_id === dept.id_department,
+                                  );
+                                  const assignedQty =
+                                    assignedDept?.quantity || 0;
+                                  const isDisabled = isDepartmentInputDisabled(
+                                    item,
+                                    dept.id_department,
+                                  );
+
+                                  return (
+                                    <div
+                                      key={dept.id_department}
+                                      className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-white"
+                                    >
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-gray-700 truncate">
+                                          {dept.department_name}
+                                        </p>
+                                        {assignedQty > 0 && (
+                                          <p className="text-xs text-blue-600 mt-0.5">
+                                            Assigned: {assignedQty}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <div className="w-24 ml-2">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max={item.quantity}
+                                          value={assignedQty}
+                                          onChange={(e) =>
+                                            updateDepartmentQuantity(
+                                              item.id,
+                                              dept.id_department,
+                                              e.target.value,
+                                            )
+                                          }
+                                          disabled={isDisabled}
+                                          className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${
+                                            isDisabled
+                                              ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
+                                              : "bg-white border-gray-200 text-gray-800"
+                                          }`}
+                                          placeholder="Qty"
+                                        />
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Distribution Summary - Tanpa background warna */}
+                              <div className="p-3 border-t border-gray-200">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium text-gray-700">
+                                    Distribution Summary:
+                                  </span>
+                                  <span
+                                    className={`text-sm font-semibold ${
+                                      totalDeptQty === item.quantity
+                                        ? "text-green-600"
+                                        : totalDeptQty > 0
+                                          ? "text-blue-600"
+                                          : "text-gray-500"
+                                    }`}
+                                  >
+                                    {totalDeptQty} of {item.quantity} assigned
+                                  </span>
+                                </div>
+                                {remainingQty > 0 && (
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {remainingQty} unassigned items will stay at
+                                    main location
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Jika tidak expanded, tampilkan ringkasan department yang sudah diassign */}
+                          {!isExpanded && item.departments.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {item.departments.map((dept) => (
+                                <div
+                                  key={dept.department_id}
+                                  className="inline-flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-full border border-gray-200"
+                                >
+                                  <Users className="w-3 h-3 text-gray-500" />
+                                  <span className="text-xs text-gray-700">
+                                    {dept.department_name}
+                                  </span>
+                                  <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded-full">
+                                    {dept.quantity}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="col-span-1 md:col-span-2">
-                        <Label required>Item Name</Label>
-                        <input
-                          type="text"
-                          value={item.item_name}
-                          onChange={(e) => updateItem(item.id, "item_name", e.target.value)}
-                          className={inputCls}
-                          placeholder="e.g. Laptop Dell, Ethernet Cable"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <Label>Brand</Label>
-                        <input
-                          type="text"
-                          value={item.brand}
-                          onChange={(e) => updateItem(item.id, "brand", e.target.value)}
-                          className={inputCls}
-                          placeholder="e.g. Dell, Cisco"
-                        />
-                      </div>
-
-                      <div>
-                        <Label>Model</Label>
-                        <input
-                          type="text"
-                          value={item.model}
-                          onChange={(e) => updateItem(item.id, "model", e.target.value)}
-                          className={inputCls}
-                          placeholder="e.g. Latitude 3420"
-                        />
-                      </div>
-
-                      <div className="col-span-1 md:col-span-2">
-                        <Label>Specifications</Label>
-                        <input
-                          type="text"
-                          value={item.specifications}
-                          onChange={(e) => updateItem(item.id, "specifications", e.target.value)}
-                          className={inputCls}
-                          placeholder="e.g. Intel i5, 8GB RAM, 256GB SSD"
-                        />
-                      </div>
-
-                      <div>
-                        <Label required>Quantity</Label>
-                        <input
-                          type="number"
-                          value={item.quantity}
-                          onChange={(e) => updateItem(item.id, "quantity", parseInt(e.target.value) || 1)}
-                          className={inputCls}
-                          min="1"
-                          required
-                        />
-                        <Hint>Number of items to scan</Hint>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Add Item Button */}
@@ -582,7 +940,9 @@ const fetchLocations = async () => {
                 <div className="flex items-start gap-3">
                   <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
                   <div className="text-xs text-blue-700">
-                    <p className="font-semibold mb-2">Scanning Session Summary:</p>
+                    <p className="font-semibold mb-2">
+                      Scanning Session Summary:
+                    </p>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <span className="text-blue-600">Total Items:</span>
@@ -591,12 +951,17 @@ const fetchLocations = async () => {
                       <div>
                         <span className="text-blue-600">Total Quantity:</span>
                         <span className="ml-2 font-bold">
-                          {items.reduce((sum, item) => sum + (item.quantity || 1), 0)}
+                          {items.reduce(
+                            (sum, item) => sum + (item.quantity || 1),
+                            0,
+                          )}
                         </span>
                       </div>
                       <div>
                         <span className="text-blue-600">Checking Number:</span>
-                        <span className="ml-2 font-mono font-bold">{checkingNumber}</span>
+                        <span className="ml-2 font-mono font-bold">
+                          {checkingNumber}
+                        </span>
                       </div>
                     </div>
                   </div>

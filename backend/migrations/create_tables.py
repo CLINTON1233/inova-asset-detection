@@ -1,3 +1,8 @@
+import sys
+import os
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import psycopg2
 from psycopg2 import sql
 from config import DB_CONFIG
@@ -52,7 +57,7 @@ def create_users_table(conn):
         print(f"Error creating users table: {e}")
         
 def create_scanning_preparations_table(conn):
-    """Membuat tabel scanning_preparations untuk menyiapkan sesi scanning"""
+    """Membuat tabel scanning_preparations (HEADER)"""
     try:
         cur = conn.cursor()
         cur.execute("""
@@ -61,11 +66,6 @@ def create_scanning_preparations_table(conn):
                 checking_number VARCHAR(50) UNIQUE NOT NULL,
                 checking_name VARCHAR(255) NOT NULL,
                 category_id INTEGER REFERENCES asset_categories(id_category) ON DELETE SET NULL,
-                item_name VARCHAR(255) NOT NULL,
-                brand VARCHAR(100),
-                model VARCHAR(100),
-                specifications TEXT,
-                quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
                 location_id INTEGER REFERENCES locations(id_location) ON DELETE SET NULL,
                 checking_date DATE NOT NULL,
                 remarks TEXT,
@@ -90,7 +90,7 @@ def create_scanning_preparations_table(conn):
         print(f"Error creating scanning_preparations table: {e}")
 
 def create_scanning_items_table(conn):
-    """Membuat tabel scanning_items untuk multiple items dalam satu persiapan"""
+    """Membuat tabel scanning_items (DETAIL)"""
     try:
         cur = conn.cursor()
         cur.execute("""
@@ -313,6 +313,50 @@ def create_validations_table(conn):
     except Exception as e:
         conn.rollback()
         print(f"Error creating validations table: {e}")
+        
+def create_departments_table(conn):
+    """Membuat tabel departments"""
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS departments (
+                id_department SERIAL PRIMARY KEY,
+                department_name VARCHAR(255) UNIQUE NOT NULL,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+        print("✓ Tabel departments berhasil dibuat")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating departments table: {e}")
+
+def create_item_departments_table(conn):
+    """Membuat tabel item_departments untuk distribusi item ke department"""
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS item_departments (
+                id_item_department SERIAL PRIMARY KEY,
+                item_id INTEGER REFERENCES scanning_items(id_item) ON DELETE CASCADE,
+                department_id INTEGER REFERENCES departments(id_department) ON DELETE CASCADE,
+                quantity INTEGER NOT NULL CHECK (quantity > 0),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(item_id, department_id)
+            )
+        """)
+        
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_item_dept_item ON item_departments(item_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_item_dept_dept ON item_departments(department_id)")
+        
+        conn.commit()
+        print("✓ Tabel item_departments berhasil dibuat")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating item_departments table: {e}")
 
 def create_all_tables():
     """Function utama untuk membuat semua tabel"""
@@ -329,6 +373,7 @@ def create_all_tables():
         create_asset_categories_table(conn)
         create_assets_table(conn)
         create_locations_table(conn)
+        create_departments_table(conn)
         create_history_logs_table(conn)
         create_reports_table(conn)
         create_report_details_table(conn)
@@ -336,6 +381,7 @@ def create_all_tables():
         create_validations_table(conn)
         create_scanning_preparations_table(conn) 
         create_scanning_items_table(conn)         
+        create_item_departments_table(conn)
         
         print("-" * 50)
         print("✅ Migrasi database selesai!")

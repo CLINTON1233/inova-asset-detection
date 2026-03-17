@@ -19,6 +19,7 @@ from routes.location import location_bp
 from routes.serial_detection import serial_bp
 from routes.serial_ocr import ocr_bp 
 from routes.scanning_preparation import scanning_prep_bp
+from routes.department import department_bp  
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(detection_bp)
@@ -26,6 +27,7 @@ app.register_blueprint(location_bp)
 app.register_blueprint(serial_bp)
 app.register_blueprint(ocr_bp)
 app.register_blueprint(scanning_prep_bp)
+app.register_blueprint(department_bp)  
 
 @app.route('/')
 def root():
@@ -57,6 +59,12 @@ def api_info():
                 "/api/location/assign-multiple": "POST - Assign location to multiple assets",
                 "/api/location/asset/<asset_id>": "GET - Get asset location",
                 "/api/location/<location_code>": "GET - Get location by code"
+            },
+            "department": {
+                "/api/department/all": "GET - Get all departments",
+                "/api/department/search": "GET - Search departments",
+                "/api/department/<id>": "GET - Get department by ID",
+                "/api/department/code/<code>": "GET - Get department by code"
             }
         }
     }
