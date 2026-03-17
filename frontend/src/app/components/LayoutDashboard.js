@@ -96,7 +96,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
     //   hasDropdown: true,
     //   href: "/validation-verification",
     // },
-    { icon: Package, label: "Scan Sessions", hasDropdown:true, href: "/scanning_sessions" }, 
+    { icon: Package, label: "Preparation Check", hasDropdown:true, href: "/scanning_preparation_list" }, 
     {
       icon: Calendar,
       label: "History & Activity Log",

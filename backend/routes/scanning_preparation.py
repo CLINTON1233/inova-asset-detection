@@ -208,44 +208,55 @@ def get_scanning_preparations():
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
         cur.execute("""
-            SELECT sp.*, 
-                   ac.category_name,
-                   l.location_name,
-                   u.username as created_by_name,
-                   COALESCE(
-                       (
-                           SELECT json_agg(
-                               json_build_object(
-                                   'id_item', si.id_item,
-                                   'item_name', si.item_name,
-                                   'brand', si.brand,
-                                   'model', si.model,
-                                   'specifications', si.specifications,
-                                   'quantity', si.quantity,
-                                   'scanned_count', si.scanned_count,
-                                   'status', si.status,
-                                   'departments', COALESCE(
-                                       (
-                                           SELECT json_agg(
-                                               json_build_object(
-                                                   'department_id', d.id_department,
-                                                   'department_name', d.department_name,
-                                                   'quantity', id.quantity
-                                               )
-                                           )
-                                           FROM item_departments id
-                                           JOIN departments d ON id.department_id = d.id_department
-                                           WHERE id.item_id = si.id_item
-                                       ),
-                                       '[]'::json
-                                   )
-                               )
-                           )
-                           FROM scanning_items si
-                           WHERE si.preparation_id = sp.id_preparation
-                       ),
-                       '[]'::json
-                   ) as items
+            SELECT 
+                sp.id_preparation,
+                sp.checking_number,
+                sp.checking_name,
+                sp.category_id,
+                sp.location_id,
+                sp.checking_date,
+                sp.remarks,
+                sp.status,
+                sp.created_by,
+                sp.created_at,
+                sp.updated_at,
+                ac.category_name,
+                l.location_name,
+                u.username as created_by_name,
+                COALESCE(
+                    (
+                        SELECT json_agg(
+                            json_build_object(
+                                'id_item', si.id_item,
+                                'item_name', si.item_name,
+                                'brand', si.brand,
+                                'model', si.model,
+                                'specifications', si.specifications,
+                                'quantity', si.quantity,
+                                'scanned_count', si.scanned_count,
+                                'status', si.status,
+                                'departments', COALESCE(
+                                    (
+                                        SELECT json_agg(
+                                            json_build_object(
+                                                'department_id', d.id_department,
+                                                'department_name', d.department_name,
+                                                'quantity', id.quantity
+                                            )
+                                        )
+                                        FROM item_departments id
+                                        JOIN departments d ON id.department_id = d.id_department
+                                        WHERE id.item_id = si.id_item
+                                    ),
+                                    '[]'::json
+                                )
+                            )
+                        )
+                        FROM scanning_items si
+                        WHERE si.preparation_id = sp.id_preparation
+                    ),
+                    '[]'::json
+                ) as items
             FROM scanning_preparations sp
             LEFT JOIN asset_categories ac ON sp.category_id = ac.id_category
             LEFT JOIN locations l ON sp.location_id = l.id_location
@@ -254,7 +265,11 @@ def get_scanning_preparations():
         """)
         
         preparations = cur.fetchall()
-        print(f"Found {len(preparations)} preparations")  # LOG
+        print(f"Found {len(preparations)} preparations")
+        
+        # Log sample data untuk debug
+        if preparations:
+            print("Sample data:", dict(preparations[0]))
         
         return jsonify({
             'success': True,
@@ -263,6 +278,7 @@ def get_scanning_preparations():
         
     except Exception as e:
         print("Error in get_scanning_preparations:", str(e))
+        print(traceback.format_exc())
         return jsonify({
             'success': False,
             'error': str(e)

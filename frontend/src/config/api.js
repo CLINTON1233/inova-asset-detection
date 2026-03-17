@@ -1,4 +1,3 @@
-// config/api.js
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
 export const API_ENDPOINTS = {
@@ -40,6 +39,7 @@ export const API_ENDPOINTS = {
   SCANNING_PREP_CREATE: `${API_BASE_URL}/api/scanning-preparation/create`,
   SCANNING_PREP_LIST: `${API_BASE_URL}/api/scanning-preparation/list`,
   SCANNING_PREP_DETAIL: (id) => `${API_BASE_URL}/api/scanning-preparation/${id}`,
+  SCANNING_PREP_DELETE: (id) => `${API_BASE_URL}/api/scanning-preparation/${id}`,
 };
 
 export default API_BASE_URL;
