@@ -1,4 +1,3 @@
-// app/scanning/page.js
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -27,10 +26,12 @@ import {
   Plus,
   Eye,
   Package,
+  Maximize2,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import LayoutDashboard from "../components/LayoutDashboard";
 import ProtectedPage from "../components/ProtectedPage";
+import FullscreenCamera from "../components/FullScreenCamera";
 import API_BASE_URL, { API_ENDPOINTS } from "../../config/api";
 import {
   SerialScanningModal,
@@ -51,27 +52,23 @@ export default function SerialScanningPage() {
   const [manualInput, setManualInput] = useState("");
   const [scanResult, setScanResult] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [cameraError, setCameraError] = useState(null);
   const [inputType, setInputType] = useState("");
   const [checkHistory, setCheckHistory] = useState([]);
   const [isSubmittingAll, setIsSubmittingAll] = useState(false);
-  const [isDetecting, setIsDetecting] = useState(false);
-  const [isLoadingLocations, setIsLoadingLocations] = useState(false);
-  const [locations, setLocations] = useState([]);
-  const [filteredLocations, setFilteredLocations] = useState([]);
-  const [locationSearch, setLocationSearch] = useState("");
-  const [isScanningSerial, setIsScanningSerial] = useState(false);
-  const [selectedDeviceForSerial, setSelectedDeviceForSerial] = useState(null);
-  const [serialScanResult, setSerialScanResult] = useState(null);
-  const [isDetectingSerial, setIsDetectingSerial] = useState(false);
-  const [pendingSerialScans, setPendingSerialScans] = useState([]);
+  
+  // Camera states
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraMode, setCameraMode] = useState("device");
+  const [pendingDevice, setPendingDevice] = useState(null);
   
   // State untuk menyimpan data preparation
   const [currentPreparation, setCurrentPreparation] = useState(null);
   const [scanningProgress, setScanningProgress] = useState({});
+  const [loading, setLoading] = useState(true);
 
+  // Camera error state
+  const [cameraError, setCameraError] = useState(null);
   const videoRef = useRef(null);
-  const serialVideoRef = useRef(null);
 
   // CSS Styles
   const styles = `
@@ -111,16 +108,13 @@ export default function SerialScanningPage() {
       setCheckHistory(JSON.parse(savedHistory));
     }
     
-    // Cek apakah ada preparation_id di URL
     const prepId = searchParams.get('prep_id');
     if (prepId) {
       loadPreparation(prepId);
     } else {
-      // Jika tidak ada prep_id, redirect ke halaman sessions
+      setLoading(false);
       router.push("/scanning_sessions");
     }
-    
-    fetchLocations();
   }, []);
 
   useEffect(() => {
@@ -129,66 +123,7 @@ export default function SerialScanningPage() {
     }
   }, [checkHistory]);
 
-  // Load detail preparation
-  const loadPreparation = async (prepId) => {
-    try {
-      const response = await fetch(API_ENDPOINTS.SCANNING_PREP_DETAIL(prepId));
-      const data = await response.json();
-      if (data.success) {
-        setCurrentPreparation(data.data);
-        
-        // Inisialisasi progress scanning
-        const progress = {};
-        data.data.items.forEach((item) => {
-          progress[item.id_item] = {
-            total: item.quantity,
-            scanned: 0, // Mulai dari 0
-            items: [],
-          };
-        });
-        setScanningProgress(progress);
-      }
-    } catch (error) {
-      console.error("Error loading preparation:", error);
-      Swal.fire({
-        title: "Error!",
-        text: "Failed to load scanning session",
-        icon: "error",
-        confirmButtonColor: "#1e40af",
-      }).then(() => {
-        router.push("/scanning_sessions");
-      });
-    }
-  };
-
-  const fetchLocations = async (searchTerm = "") => {
-    try {
-      setIsLoadingLocations(true);
-      let url = locationSearch
-        ? API_ENDPOINTS.LOCATION_SEARCH(locationSearch)
-        : API_ENDPOINTS.LOCATION_ALL;
-
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (data.success) {
-        const formattedLocations = data.locations.map((loc) => ({
-          value: loc.id_location,
-          label: loc.location_name,
-          fullData: loc,
-        }));
-
-        setLocations(formattedLocations);
-        setFilteredLocations(formattedLocations);
-      }
-    } catch (error) {
-      console.error("Error fetching locations:", error);
-    } finally {
-      setIsLoadingLocations(false);
-    }
-  };
-
-  // Inisialisasi kamera
+  // Inisialisasi kamera untuk preview
   useEffect(() => {
     const startCamera = async () => {
       try {
@@ -217,426 +152,272 @@ export default function SerialScanningPage() {
     };
   }, []);
 
-  // Update progress scanning
-  const updateScanningProgress = (detectedItems) => {
-    if (!currentPreparation) return;
-    
-    setScanningProgress(prev => {
-      const newProgress = { ...prev };
-      
-      // Update progress untuk item pertama (sementara)
-      const firstItemId = currentPreparation.items[0]?.id_item;
-      if (firstItemId && newProgress[firstItemId]) {
-        newProgress[firstItemId] = {
-          ...newProgress[firstItemId],
-          scanned: Math.min(
-            newProgress[firstItemId].scanned + detectedItems.length,
-            newProgress[firstItemId].total
-          )
-        };
+  // Load detail preparation
+  const loadPreparation = async (prepId) => {
+    setLoading(true);
+    try {
+      const response = await fetch(API_ENDPOINTS.SCANNING_PREP_DETAIL(prepId));
+      const data = await response.json();
+      if (data.success) {
+        setCurrentPreparation(data.data);
+        
+        const progress = {};
+        data.data.items.forEach((item) => {
+          progress[item.id_item] = {
+            total: item.quantity,
+            scanned: 0,
+            items: [],
+          };
+        });
+        setScanningProgress(progress);
       }
-      
-      return newProgress;
-    });
+    } catch (error) {
+      console.error("Error loading preparation:", error);
+      Swal.fire({
+        title: "Error!",
+        text: "Failed to load scanning session",
+        icon: "error",
+        confirmButtonColor: "#1e40af",
+      }).then(() => {
+        router.push("/scanning_sessions");
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const updateCheckHistory = (scanData) => {
-    if (
-      scanData.status === "error" ||
-      scanData.id.includes("NO-DETECTION") ||
-      scanData.id.includes("ERROR")
-    ) {
-      return null;
-    }
-
-    // Tambahkan informasi preparation ke scan data
-    if (currentPreparation) {
-      scanData.preparation_id = currentPreparation.id_preparation;
-      scanData.preparation_name = currentPreparation.checking_name;
-      scanData.lokasi = currentPreparation.location_name || "";
-      scanData.lokasiLabel = currentPreparation.location_name || "";
-    }
-
-    setCheckHistory((prev) => {
-      const existingIndex = prev.findIndex((item) => item.id === scanData.id);
-
-      if (existingIndex >= 0) {
-        const updated = [...prev];
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          ...scanData,
-          updatedAt: new Date().toISOString(),
-        };
-        return updated;
-      } else {
-        const newCheckItem = {
-          id: scanData.id || `CHK-${Date.now()}`,
-          timestamp: scanData.timestamp || new Date().toISOString(),
-          tanggal: scanData.tanggal || new Date().toLocaleDateString("id-ID"),
-          waktu: scanData.waktu || new Date().toLocaleTimeString("id-ID", {
+  // Handle deteksi dari kamera
+  const handleCameraDetection = (detection) => {
+    if (detection.type === "device") {
+      const deviceData = detection.data;
+      
+      if (currentPreparation) {
+        const detectedAssetType = deviceData.asset_type?.toLowerCase() || "";
+        const detectedCategory = deviceData.category || "";
+        
+        const matchingItems = currentPreparation.items.filter(item => {
+          const itemName = item.item_name?.toLowerCase() || "";
+          return itemName.includes(detectedAssetType) || 
+                 detectedAssetType.includes(itemName) ||
+                 (detectedCategory === "Perangkat" && itemName.includes("laptop")) ||
+                 (detectedCategory === "Perangkat" && itemName.includes("pc")) ||
+                 (detectedCategory === "Perangkat" && itemName.includes("komputer")) ||
+                 (detectedCategory === "Perangkat" && itemName.includes("monitor")) ||
+                 (detectedCategory === "Material" && itemName.includes("kabel"));
+        });
+        
+        if (matchingItems.length === 0) {
+          Swal.fire({
+            title: "Item Tidak Sesuai!",
+            html: `
+              <div class="text-center">
+                <AlertTriangle class="w-12 h-12 text-orange-500 mx-auto mb-3" />
+                <p class="text-lg font-semibold text-gray-800 mb-2">Detected: ${deviceData.asset_type}</p>
+                <p class="text-sm text-gray-600">Item yang discan tidak sesuai dengan session ini.</p>
+                <div class="mt-4 p-3 bg-gray-100 rounded-lg text-left">
+                  <p class="text-xs font-semibold text-gray-700 mb-2">Items in this session:</p>
+                  <ul class="text-xs text-gray-600 space-y-1">
+                    ${currentPreparation.items.map(item => `<li>• ${item.item_name} (${item.brand || 'No brand'})</li>`).join('')}
+                  </ul>
+                </div>
+              </div>
+            `,
+            icon: "warning",
+            confirmButtonText: "OK",
+          });
+          return;
+        }
+        
+        const targetItem = matchingItems[0];
+        
+        const progress = scanningProgress[targetItem.id_item];
+        if (progress && progress.scanned >= progress.total) {
+          Swal.fire({
+            title: "Kuota Penuh",
+            text: `Semua ${targetItem.item_name} sudah mencapai target (${progress.total})`,
+            icon: "warning",
+            confirmButtonText: "OK",
+          });
+          return;
+        }
+        
+        const scanItem = {
+          id: deviceData.id || `${targetItem.item_name.toUpperCase().replace(/\s/g, '')}-${Date.now()}`,
+          jenisAset: targetItem.item_name || deviceData.asset_type,
+          kategori: targetItem.kategori || deviceData.category || "Perangkat",
+          brand: targetItem.brand || deviceData.brand || "Unknown",
+          confidencePercent: Math.round((deviceData.confidence || 0.85) * 100),
+          status: "device_detected",
+          timestamp: new Date().toISOString(),
+          tanggal: new Date().toLocaleDateString("id-ID"),
+          waktu: new Date().toLocaleTimeString("id-ID", {
             hour: "2-digit",
             minute: "2-digit",
             second: "2-digit",
           }),
-          ...scanData,
-          status: scanData.status || "Checked",
-          submitted: scanData.submitted || false,
-          lokasi: scanData.lokasi || (currentPreparation?.location_name || ""),
-          lokasiLabel: scanData.lokasiLabel || (currentPreparation?.location_name || ""),
+          needsSerialScan: true,
+          item_id: targetItem.id_item,
+          preparation_id: currentPreparation?.id_preparation,
+          preparation_name: currentPreparation?.checking_name,
+          lokasi: currentPreparation?.location_name || "",
+          lokasiLabel: currentPreparation?.location_name || "",
         };
-        return [newCheckItem, ...prev];
-      }
-    });
-  };
-
-const handleCameraCapture = async () => {
-  if (!currentPreparation) {
-    Swal.fire({
-      title: "No Active Session",
-      text: "Please select a scanning session first",
-      icon: "warning",
-      confirmButtonText: "OK",
-    }).then(() => {
-      router.push("/scanning_sessions");
-    });
-    return;
-  }
-
-  const totalScanned = Object.values(scanningProgress).reduce(
-    (sum, p) => sum + p.scanned, 0
-  );
-  const totalTarget = currentPreparation.items.reduce(
-    (sum, item) => sum + item.quantity, 0
-  );
-
-  if (totalScanned >= totalTarget) {
-    Swal.fire({
-      title: "Scanning Complete!",
-      html: `
-        <div class="text-center">
-          <p>All items have been scanned for this session.</p>
-          <p class="font-semibold mt-2">${currentPreparation.checking_name}</p>
-          <p class="text-sm text-gray-600 mt-1">Total: ${totalTarget} items</p>
-        </div>
-      `,
-      icon: "success",
-      confirmButtonText: "View Sessions",
-      showCancelButton: true,
-      cancelButtonText: "Close",
-    }).then((result) => {
-      if (result.isConfirmed) {
-        router.push("/scanning_sessions");
-      }
-    });
-    return;
-  }
-
-  setIsDetecting(true);
-  setScanResult("loading");
-
-  try {
-    const canvas = document.createElement("canvas");
-    const video = videoRef.current;
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    const imageData = canvas.toDataURL("image/jpeg", 0.8);
-
-    const response = await fetch(API_ENDPOINTS.DETECT_CAMERA, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image_data: imageData }),
-    });
-
-    const result = await response.json();
-
-    if (result.success && result.detected_items?.length > 0) {
-      const availableItems = currentPreparation.items.filter(item => 
-        (scanningProgress[item.id_item]?.scanned || 0) < (scanningProgress[item.id_item]?.total || item.quantity)
-      );
-      
-      if (availableItems.length === 0) {
-        Swal.fire({
-          title: "No Available Items",
-          text: "All items have reached their target quantity",
-          icon: "info",
-          confirmButtonText: "OK",
-        });
-        setIsDetecting(false);
-        return;
-      }
-      
-      const detectedItem = result.detected_items[0];
-      const detectedAssetType = detectedItem.asset_type?.toLowerCase() || "";
-      const detectedCategory = detectedItem.category || "";
-      
-      const matchingItems = currentPreparation.items.filter(item => {
-        const itemName = item.item_name?.toLowerCase() || "";
-        return itemName.includes(detectedAssetType) || 
-               detectedAssetType.includes(itemName) ||
-               (detectedCategory === "Perangkat" && item.item_name?.toLowerCase().includes("laptop")) ||
-               (detectedCategory === "Perangkat" && item.item_name?.toLowerCase().includes("pc")) ||
-               (detectedCategory === "Perangkat" && item.item_name?.toLowerCase().includes("komputer")) ||
-               (detectedCategory === "Perangkat" && item.item_name?.toLowerCase().includes("monitor")) ||
-               (detectedCategory === "Material" && item.item_name?.toLowerCase().includes("kabel"));
-      });
-      
-      if (matchingItems.length === 0) {
-        Swal.fire({
-          title: "Item Tidak Sesuai!",
-          html: `
-            <div class="text-center">
-              <AlertTriangle class="w-12 h-12 text-orange-500 mx-auto mb-3" />
-              <p class="text-lg font-semibold text-gray-800 mb-2">Detected: ${detectedItem.asset_type}</p>
-              <p class="text-sm text-gray-600">Item yang discan tidak sesuai dengan yang ada di preparation session ini.</p>
-              <div class="mt-4 p-3 bg-gray-100 rounded-lg text-left">
-                <p class="text-xs font-semibold text-gray-700 mb-2">Items in this session:</p>
-                <ul class="text-xs text-gray-600 space-y-1">
-                  ${currentPreparation.items.map(item => `<li>• ${item.item_name} (${item.brand || 'No brand'})</li>`).join('')}
-                </ul>
-              </div>
-              <p class="text-xs text-gray-500 mt-3">Silakan scan item yang sesuai dengan preparation session.</p>
-            </div>
-          `,
-          icon: "warning",
-          confirmButtonText: "OK",
-          customClass: {
-            popup: "rounded-xl",
-            confirmButton: "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-          },
-        });
         
-        setScanResult({
-          status: "error",
-          message: `Detected ${detectedItem.asset_type} - Tidak sesuai dengan preparation`,
-        });
-        setIsDetecting(false);
-        return;
-      }
-      
-      const targetItem = matchingItems[0];
-      
-      const detectedItems = result.detected_items.map((item, index) => ({
-        id: item.id || `${targetItem.item_name.toUpperCase().replace(/\s/g, '')}-${Date.now()}-${index}`,
-        item_id: targetItem.id_item,
-        jenisAset: targetItem.item_name || item.asset_type || "Unknown",
-        kategori: targetItem.kategori || item.category || (currentPreparation.category_name === "Devices" ? "Perangkat" : "Material"),
-        brand: targetItem.brand || item.brand || "N/A",
-        confidencePercent: item.confidence_percent || (item.confidence ? Math.round(item.confidence * 100).toString() : Math.floor(Math.random() * 20 + 75).toString()),
-        status: "device_detected",
-        timestamp: new Date().toISOString(),
-        message: `Detected: ${targetItem.item_name}`,
-        needsSerialScan: true,
-      }));
-
-      setPendingSerialScans(prev => [...prev, ...detectedItems]);
-      updateScanningProgress(detectedItems, targetItem.id_item);
-    
-      detectedItems.forEach((item) => updateCheckHistory(item));
-
-      if (detectedItems.length > 0) {
-        setScanResult(detectedItems[0]);
+        setPendingDevice(scanItem);
+        setCheckHistory(prev => [scanItem, ...prev]);
         
-        showSuccessDetectionModal(result, detectedItems, (items) => {
-          showDeviceSelectionForSerial(items);
-        });
-      }
-    } else {
-      setScanResult({
-        status: "error",
-        message: result.message || "No devices detected",
-      });
-
-      Swal.fire({
-        title: "Detection Result",
-        text: result.message || "No devices found",
-        icon: "info",
-        confirmButtonText: "OK",
-      });
-    }
-  } catch (error) {
-    console.error("Capture error:", error);
-    Swal.fire({
-      title: "Connection Error",
-      text: "Failed to connect to backend. Make sure server is running.",
-      icon: "error",
-      confirmButtonText: "OK",
-    });
-  } finally {
-    setIsDetecting(false);
-  }
-};
-
-  const handleSerialCapture = async () => {
-    if (!serialVideoRef.current) {
-      Swal.fire({
-        title: "Camera Error",
-        text: "Camera not available",
-        icon: "error",
-        confirmButtonText: "OK",
-      });
-      return;
-    }
-
-    setIsDetectingSerial(true);
-    setSerialScanResult("loading");
-
-    try {
-      const canvas = document.createElement("canvas");
-      const video = serialVideoRef.current;
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      const imageData = canvas.toDataURL("image/jpeg", 0.9);
-
-      const response = await fetch(API_ENDPOINTS.SERIAL_DETECT_CAMERA, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_data: imageData }),
-      });
-
-      const result = await response.json();
-
-      if (result.success && result.serial_detections?.length > 0) {
-        const validSerials = result.serial_detections.filter((s) => s.is_valid);
-
-        if (validSerials.length > 0) {
-          const bestSerial = validSerials[0];
-
-          const updatedDevice = {
-            ...selectedDeviceForSerial,
-            nomorSeri: bestSerial.detected_text,
-            brand: bestSerial.brand_info || selectedDeviceForSerial.brand,
-            serial_confidence: bestSerial.confidence,
-            extraction_method: bestSerial.method,
-            status: "serial_scanned",
-            message: `Serial number detected: ${bestSerial.detected_text}`,
-            serial_detection_time: new Date().toISOString(),
-          };
-
-          updateCheckHistory(updatedDevice);
-
-          setSerialScanResult({
-            status: "success",
-            serialNumber: bestSerial.detected_text,
-            confidence: bestSerial.confidence,
-            brand: bestSerial.brand_info || selectedDeviceForSerial.brand,
-            method: bestSerial.method,
-            processing_time: result.processing_time_ms,
-            message: "Serial number detected successfully!",
-          });
-
-          showSerialDetectedModal(
-            bestSerial,
-            selectedDeviceForSerial,
-            result,
-            () => cancelSerialScanning(),
-            () => {
-              setSerialScanResult(null);
-              setIsDetectingSerial(false);
-            },
-          );
-        } else {
-          setSerialScanResult({
-            status: "error",
-            message: "No valid serial numbers detected",
-          });
-
-          Swal.fire({
-            title: "Invalid Serial",
-            text: "Detected serial number doesn't meet validation criteria",
-            icon: "warning",
-            confirmButtonText: "Try Again",
+        if (currentPreparation) {
+          setScanningProgress(prev => {
+            const newProgress = { ...prev };
+            if (newProgress[targetItem.id_item]) {
+              newProgress[targetItem.id_item] = {
+                ...newProgress[targetItem.id_item],
+                scanned: Math.min(newProgress[targetItem.id_item].scanned + 1, newProgress[targetItem.id_item].total),
+                items: [...(newProgress[targetItem.id_item].items || []), scanItem.id]
+              };
+            }
+            return newProgress;
           });
         }
-      } else {
-        setSerialScanResult({
-          status: "error",
-          message: result.message || "No serial numbers detected",
-        });
-
+        
         Swal.fire({
-          title: "No Serial Found",
-          text: result.message || "Please ensure the serial number is clearly visible",
-          icon: "info",
-          confirmButtonText: "Try Again",
+          title: "Device Detected!",
+          html: `
+            <div class="text-center">
+              <p class="text-lg font-semibold text-gray-900">${targetItem.item_name}</p>
+              <p class="text-sm text-gray-600">Brand: ${targetItem.brand || deviceData.brand || "Unknown"}</p>
+              <p class="text-sm text-gray-600">Confidence: ${Math.round((deviceData.confidence || 0.85) * 100)}%</p>
+              <p class="text-sm text-blue-600 mt-3">Do you want to scan the serial number?</p>
+            </div>
+          `,
+          icon: "success",
+          showCancelButton: true,
+          confirmButtonText: "Scan Serial",
+          cancelButtonText: "Skip",
+        }).then((result) => {
+          if (result.isConfirmed) {
+            setCameraMode("serial");
+            setIsCameraOpen(true);
+          } else {
+            setIsCameraOpen(false);
+          }
+        });
+        
+      } else {
+        const scanItem = {
+          id: deviceData.id || `DEV-${Date.now()}`,
+          jenisAset: deviceData.asset_type,
+          kategori: deviceData.category || "Perangkat",
+          brand: deviceData.brand || "Unknown",
+          confidencePercent: Math.round((deviceData.confidence || 0.85) * 100),
+          status: "device_detected",
+          timestamp: new Date().toISOString(),
+          tanggal: new Date().toLocaleDateString("id-ID"),
+          waktu: new Date().toLocaleTimeString("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          }),
+          needsSerialScan: true,
+        };
+        
+        setPendingDevice(scanItem);
+        setCheckHistory(prev => [scanItem, ...prev]);
+        
+        Swal.fire({
+          title: "Device Detected!",
+          html: `
+            <div class="text-center">
+              <p class="text-lg font-semibold text-gray-900">${deviceData.asset_type}</p>
+              <p class="text-sm text-gray-600">Brand: ${deviceData.brand || "Unknown"}</p>
+              <p class="text-sm text-gray-600">Confidence: ${Math.round((deviceData.confidence || 0.85) * 100)}%</p>
+              <p class="text-sm text-blue-600 mt-3">Do you want to scan the serial number?</p>
+            </div>
+          `,
+          icon: "success",
+          showCancelButton: true,
+          confirmButtonText: "Scan Serial",
+          cancelButtonText: "Skip",
+        }).then((result) => {
+          if (result.isConfirmed) {
+            setCameraMode("serial");
+            setIsCameraOpen(true);
+          } else {
+            setIsCameraOpen(false);
+          }
         });
       }
-    } catch (error) {
-      console.error("Serial capture error:", error);
-      setSerialScanResult({
-        status: "error",
-        message: "Failed to process image",
-      });
-
-      Swal.fire({
-        title: "Network Error",
-        text: "Failed to connect to server.",
-        icon: "error",
-        confirmButtonText: "OK",
-      });
-    } finally {
-      setIsDetectingSerial(false);
-    }
-  };
-
-  const showDeviceSelectionForSerial = (devices) => {
-    showDeviceSelectionModal(devices, (selectedDevice) => {
-      startSerialScanning(selectedDevice);
-    });
-  };
-
-  const startSerialScanning = (device) => {
-    setSelectedDeviceForSerial(device);
-    setIsScanningSerial(true);
-
-    setTimeout(() => {
-      initializeSerialCamera();
-    }, 100);
-  };
-
-  const initializeSerialCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-        audio: false,
-      });
-      if (serialVideoRef.current) {
-        serialVideoRef.current.srcObject = stream;
+      
+    } else if (detection.type === "serial") {
+      const serialData = detection.data;
+      
+      if (pendingDevice) {
+        setCheckHistory(prev => 
+          prev.map(item => 
+            item.id === pendingDevice.id 
+              ? { 
+                  ...item, 
+                  nomorSeri: serialData.detected_text,
+                  status: "serial_scanned",
+                  confidencePercent: Math.round((serialData.confidence || 0.9) * 100)
+                }
+              : item
+          )
+        );
+        
+        Swal.fire({
+          title: "Serial Number Detected!",
+          html: `
+            <div class="text-center">
+              <p class="text-xl font-mono text-blue-600 font-bold">${serialData.detected_text}</p>
+              <p class="text-sm text-gray-600 mt-2">Serial number saved to device</p>
+            </div>
+          `,
+          icon: "success",
+          confirmButtonText: "OK",
+        }).then(() => {
+          setPendingDevice(null);
+          setIsCameraOpen(false);
+        });
+        
+      } else {
+        const serialItem = {
+          id: `SERIAL-${Date.now()}`,
+          jenisAset: "Serial Number",
+          kategori: "Material",
+          nomorSeri: serialData.detected_text,
+          status: "serial_scanned",
+          confidencePercent: Math.round((serialData.confidence || 0.9) * 100),
+          timestamp: new Date().toISOString(),
+          tanggal: new Date().toLocaleDateString("id-ID"),
+          waktu: new Date().toLocaleTimeString("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          }),
+          preparation_id: currentPreparation?.id_preparation,
+          preparation_name: currentPreparation?.checking_name,
+          lokasi: currentPreparation?.location_name || "",
+          lokasiLabel: currentPreparation?.location_name || "",
+        };
+        
+        setCheckHistory(prev => [serialItem, ...prev]);
+        
+        Swal.fire({
+          title: "Serial Number Detected!",
+          html: `
+            <div class="text-center">
+              <p class="text-xl font-mono text-blue-600 font-bold">${serialData.detected_text}</p>
+              <p class="text-sm text-gray-600 mt-2">Serial number saved</p>
+            </div>
+          `,
+          icon: "success",
+          confirmButtonText: "OK",
+        }).then(() => {
+          setIsCameraOpen(false);
+        });
       }
-    } catch (err) {
-      console.error("Failed to access serial camera:", err);
-      Swal.fire({
-        title: "Camera Error",
-        text: "Unable to access the camera for serial scanning.",
-        icon: "error",
-        confirmButtonText: "OK",
-      });
-      setIsScanningSerial(false);
     }
-  };
-
-  const cancelSerialScanning = () => {
-    if (serialVideoRef.current && serialVideoRef.current.srcObject) {
-      const tracks = serialVideoRef.current.srcObject.getTracks();
-      tracks.forEach((track) => track.stop());
-    }
-
-    setIsScanningSerial(false);
-    setSelectedDeviceForSerial(null);
-    setSerialScanResult(null);
-  };
-
-  const handleScanSerialFromHistory = (item) => {
-    startSerialScanning(item);
   };
 
   const handleManualCheck = (e) => {
@@ -644,57 +425,67 @@ const handleCameraCapture = async () => {
     if (!manualInput) return;
 
     setScanResult("loading");
-    setIsSubmitting(false);
 
     setTimeout(() => {
-      if (manualInput.toUpperCase().includes("ERROR")) {
-        const errorData = {
-          status: "error",
-          id: "INVALID-INPUT",
-          jenisAset: "Invalid Input",
-          kategori: "Error",
-          lokasi: currentPreparation?.location_name || "",
-          brand: "N/A",
-          confidencePercent: "0",
-          message: "Format input tidak valid.",
-        };
-        setScanResult(errorData);
-      } else {
-        const isPerangkat = manualInput.toUpperCase().includes("NS-") || Math.random() < 0.5;
-        const successData = isPerangkat
-          ? {
-              id: `PC-MAN-${Date.now().toString().slice(-6)}`,
-              jenisAset: "Komputer",
-              kategori: "Perangkat",
-              lokasi: currentPreparation?.location_name || "",
-              lokasiLabel: currentPreparation?.location_name || "",
-              nomorSeri: manualInput,
-              brand: Math.random() > 0.5 ? "Dell" : "HP",
-              confidencePercent: "95.0",
-              status: "Checked",
-            }
-          : {
-              id: `MAT-MAN-${Date.now().toString().slice(-6)}`,
-              jenisAset: "Material",
-              kategori: "Material",
-              lokasi: currentPreparation?.location_name || "",
-              lokasiLabel: currentPreparation?.location_name || "",
-              barcode: manualInput,
-              brand: "N/A",
-              confidencePercent: "98.0",
-              status: "Checked",
-            };
-        const finalData = {
-          status: "success",
-          ...successData,
-          message: `Valid! Manual input detected.`,
-        };
+      const isSerial = manualInput.includes("NS-") || manualInput.includes("BC-");
+      
+      const scanItem = {
+        id: isSerial ? manualInput : `MAN-${Date.now()}`,
+        jenisAset: isSerial ? "Manual Input" : "Unknown",
+        kategori: isSerial ? "Material" : "Perangkat",
+        brand: "N/A",
+        confidencePercent: "100",
+        status: "Checked",
+        nomorSeri: isSerial ? manualInput : "",
+        timestamp: new Date().toISOString(),
+        tanggal: new Date().toLocaleDateString("id-ID"),
+        waktu: new Date().toLocaleTimeString("id-ID", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }),
+        preparation_id: currentPreparation?.id_preparation,
+        preparation_name: currentPreparation?.checking_name,
+        lokasi: currentPreparation?.location_name || "",
+        lokasiLabel: currentPreparation?.location_name || "",
+      };
 
-        setScanResult(finalData);
-        updateCheckHistory(finalData);
-        setManualInput("");
+      setCheckHistory(prev => [scanItem, ...prev]);
+      setScanResult(scanItem);
+      setManualInput("");
+      
+      if (currentPreparation) {
+        updateScanningProgress(scanItem);
       }
-    }, 1500);
+    }, 800);
+  };
+
+  const updateScanningProgress = (scanItem) => {
+    if (!currentPreparation) return;
+    
+    setScanningProgress(prev => {
+      const newProgress = { ...prev };
+      
+      const matchingItem = currentPreparation.items.find(item => 
+        item.item_name.toLowerCase().includes(scanItem.jenisAset.toLowerCase()) ||
+        scanItem.jenisAset.toLowerCase().includes(item.item_name.toLowerCase())
+      );
+      
+      if (matchingItem && newProgress[matchingItem.id_item]) {
+        const current = newProgress[matchingItem.id_item].scanned;
+        const total = newProgress[matchingItem.id_item].total;
+        
+        if (current < total) {
+          newProgress[matchingItem.id_item] = {
+            ...newProgress[matchingItem.id_item],
+            scanned: Math.min(current + 1, total),
+            items: [...(newProgress[matchingItem.id_item].items || []), scanItem.id]
+          };
+        }
+      }
+      
+      return newProgress;
+    });
   };
 
   const handleSubmitSingle = async (item) => {
@@ -754,7 +545,7 @@ const handleCameraCapture = async () => {
 
   const handleSubmitAll = async () => {
     const itemsToSubmit = checkHistory.filter(
-      (item) => item.status === "Checked" && item.lokasi && !item.submitted,
+      (item) => item.status !== "Submitted" && item.lokasi,
     );
 
     if (itemsToSubmit.length === 0) {
@@ -843,9 +634,9 @@ const handleCameraCapture = async () => {
   };
 
   const handleDeleteAll = () => {
-    if (validCheckHistory.length === 0) return;
+    if (checkHistory.length === 0) return;
 
-    showDeleteAllModal(validCheckHistory.length, () => {
+    showDeleteAllModal(checkHistory.length, () => {
       setCheckHistory([]);
       localStorage.removeItem("scanCheckHistory");
       Swal.fire({
@@ -897,29 +688,33 @@ const handleCameraCapture = async () => {
   };
 
   const readyToSubmitCount = checkHistory.filter(
-    (item) => item.status === "Checked" && item.lokasi && !item.submitted,
+    (item) => item.status !== "Submitted" && item.lokasi,
   ).length;
 
-  const validCheckHistory = checkHistory.filter(
-    (item) =>
-      !item.id.includes("NO-DETECTION") &&
-      !item.id.includes("ERROR") &&
-      !item.id.includes("INVALID"),
-  );
+  if (loading) {
+    return (
+      <ProtectedPage>
+        <LayoutDashboard activeMenu={2}>
+          <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          </div>
+        </LayoutDashboard>
+      </ProtectedPage>
+    );
+  }
 
   return (
     <ProtectedPage>
       <LayoutDashboard activeMenu={2}>
         <style>{styles}</style>
 
-        <SerialScanningModal
-          isOpen={isScanningSerial}
-          onClose={cancelSerialScanning}
-          selectedDeviceForSerial={selectedDeviceForSerial}
-          serialVideoRef={serialVideoRef}
-          isDetectingSerial={isDetectingSerial}
-          serialScanResult={serialScanResult}
-          onCapture={handleSerialCapture}
+        {/* Fullscreen Camera Component */}
+        <FullscreenCamera
+          isOpen={isCameraOpen}
+          onClose={() => setIsCameraOpen(false)}
+          onDetect={handleCameraDetection}
+          mode={cameraMode}
+          sessionData={currentPreparation}
         />
 
         <div className="bm-root max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-2 space-y-4 sm:space-y-6">
@@ -937,14 +732,14 @@ const handleCameraCapture = async () => {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => router.push("/scanning_preparation_list")}
+                onClick={() => router.push("/scanning_sessions")}
                 className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm"
               >
                 <Package className="w-4 h-4" />
                 View Sessions
               </button>
               <button
-                onClick={() => router.push("create_scanning_preparation")}
+                onClick={() => router.push("/create_scanning_preparation")}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
               >
                 <Plus className="w-4 h-4" />
@@ -953,7 +748,7 @@ const handleCameraCapture = async () => {
             </div>
           </div>
 
-          {/* Active Session Card - SELALU TAMPIL karena sudah ada prep_id */}
+          {/* Active Session Card */}
           {currentPreparation ? (
             <div className="card p-4 border-l-4 border-blue-500">
               <div className="flex items-center justify-between mb-3">
@@ -1047,15 +842,9 @@ const handleCameraCapture = async () => {
                 )}
               </div>
             </div>
-          ) : (
-            // Loading state saat mengambil data preparation
-            <div className="card p-6 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-              <span className="ml-2 text-gray-600">Loading session...</span>
-            </div>
-          )}
+          ) : null}
 
-          {/* Camera Section */}
+          {/* Camera Section - Desain Awal */}
           <div className="card p-3 sm:p-4 md:p-6">
             <p className="section-title flex items-center gap-2">
               <ScanLine className="w-4 h-4" /> Camera Scanner – Detect Devices/Materials
@@ -1085,26 +874,20 @@ const handleCameraCapture = async () => {
             </div>
 
             <button
-              onClick={handleCameraCapture}
-              className="w-full flex items-center justify-center px-4 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition shadow-lg disabled:opacity-50 text-sm"
-              disabled={isDetecting || scanResult === "loading"}
+              onClick={() => {
+                setCameraMode("device");
+                setIsCameraOpen(true);
+              }}
+              className="w-full flex items-center justify-center px-4 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition shadow-lg text-sm"
             >
-              {isDetecting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Detecting Devices...
-                </>
-              ) : (
-                <>
-                  <Camera className="w-4 h-4 mr-2" />
-                  Capture & Detect Devices
-                </>
-              )}
+              <Camera className="w-4 h-4 mr-2" />
+              Start Scanning
             </button>
           </div>
 
-          {/* Manual Input & Scan Results */}
+          {/* Manual Input & Scan Results - Grid 2 Kolom */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            {/* Manual Input Card */}
             <div className="card p-4 sm:p-6">
               <p className="section-title flex items-center gap-2">
                 <Clipboard className="w-4 h-4" /> Manual Input
@@ -1134,6 +917,7 @@ const handleCameraCapture = async () => {
               </form>
             </div>
 
+            {/* Latest Detection Result Card */}
             <div className="card p-4 sm:p-6">
               <p className="section-title flex items-center gap-2">
                 <Eye className="w-4 h-4" /> Latest Detection Result
@@ -1232,7 +1016,7 @@ const handleCameraCapture = async () => {
               <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-xs sm:text-sm text-gray-500">
-                    {validCheckHistory.length} items
+                    {checkHistory.length} items
                   </span>
                   {readyToSubmitCount > 0 && (
                     <span className="ml-2 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
@@ -1241,7 +1025,7 @@ const handleCameraCapture = async () => {
                   )}
                 </div>
                 <div className="flex gap-2">
-                  {validCheckHistory.length > 0 && (
+                  {checkHistory.length > 0 && (
                     <button
                       onClick={handleDeleteAll}
                       className="flex items-center px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition"
@@ -1255,7 +1039,7 @@ const handleCameraCapture = async () => {
               </div>
             </div>
 
-            {validCheckHistory.length === 0 ? (
+            {checkHistory.length === 0 ? (
               <div className="text-center py-6 sm:py-8 text-gray-500">
                 <Box className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-3 text-gray-400" />
                 <p className="font-medium text-sm sm:text-base">No detection history yet</p>
@@ -1276,7 +1060,7 @@ const handleCameraCapture = async () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {validCheckHistory.map((item) => (
+                      {checkHistory.map((item) => (
                         <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50 text-gray-800">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
@@ -1309,17 +1093,9 @@ const handleCameraCapture = async () => {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-xs text-gray-600">
-                            {item.nomorSeri ? (
-                              <span className="font-mono text-gray-500 text-xs">{item.nomorSeri}</span>
-                            ) : (
-                              <button
-                                onClick={() => handleScanSerialFromHistory(item)}
-                                className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center hover:underline"
-                              >
-                                <ScanLine className="w-3 h-3 mr-1" />
-                                <span>Scan Serial</span>
-                              </button>
-                            )}
+                            <span className="font-mono text-gray-500 text-xs">
+                              {item.nomorSeri || "-"}
+                            </span>
                           </td>
                           <td className="px-4 py-3 text-xs text-gray-600">
                             <div className="max-w-[120px] truncate" title={item.lokasiLabel || item.lokasi}>
@@ -1339,7 +1115,7 @@ const handleCameraCapture = async () => {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex space-x-1 sm:space-x-2">
-                              {item.status === "Checked" && item.lokasi && (
+                              {item.status !== "Submitted" && item.lokasi && (
                                 <button
                                   onClick={() => handleSubmitSingle(item)}
                                   disabled={isSubmitting}
@@ -1366,7 +1142,7 @@ const handleCameraCapture = async () => {
 
                 {/* Mobile View */}
                 <div className="md:hidden space-y-3">
-                  {validCheckHistory.map((item) => (
+                  {checkHistory.map((item) => (
                     <div key={item.id} className="border border-gray-200 rounded-lg p-3 bg-white hover:bg-gray-50 transition">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-center gap-2">
@@ -1403,17 +1179,7 @@ const handleCameraCapture = async () => {
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium">Serial:</span>
-                          {item.nomorSeri ? (
-                            <span className="font-mono">{item.nomorSeri}</span>
-                          ) : (
-                            <button
-                              onClick={() => handleScanSerialFromHistory(item)}
-                              className="text-blue-600 hover:text-blue-700 font-medium flex items-center"
-                            >
-                              <ScanLine className="w-3 h-3 mr-1" />
-                              <span>Scan</span>
-                            </button>
-                          )}
+                          <span className="font-mono">{item.nomorSeri || "-"}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="font-medium">Location:</span>
@@ -1428,7 +1194,7 @@ const handleCameraCapture = async () => {
                       </div>
 
                       <div className="flex space-x-2 mt-3 pt-2 border-t border-gray-100">
-                        {item.status === "Checked" && item.lokasi && (
+                        {item.status !== "Submitted" && item.lokasi && (
                           <button
                             onClick={() => handleSubmitSingle(item)}
                             disabled={isSubmitting}
