@@ -476,7 +476,7 @@ export default function ScanningPreparationPage() {
   }
 
   return (
-    <LayoutDashboard activeMenu={2}>
+    <LayoutDashboard activeMenu={1}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
         .bm-root { font-family: 'DM Sans', sans-serif; }
