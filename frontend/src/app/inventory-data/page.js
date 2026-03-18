@@ -17,7 +17,6 @@ import {
   Camera,
   Box,
   CheckCircle,
-  Trash,
   MapPin,
   ScanLine,
   Calendar,
@@ -29,13 +28,10 @@ import {
   RefreshCw,
   Grid,
   List,
-  Wifi,
-  WifiOff,
   AlertCircle,
-  ExternalLink,
   ArrowUp,
   ArrowDown,
-  MoreVertical,
+  Loader2,
 } from "lucide-react";
 import LayoutDashboard from "../components/LayoutDashboard";
 import ProtectedPage from "../components/ProtectedPage";
@@ -142,6 +138,15 @@ export default function InventoryDataPage() {
     error: inventoryData.filter((item) => item.status === "Error").length,
   };
 
+  // KPI data untuk card baru
+  const kpis = [
+    { title: "Total Assets", value: stats.total, sub: "All IT assets", accent: "#2563eb" },
+    { title: "Devices", value: stats.perangkat, sub: "Computers, Servers, CCTV", accent: "#6366f1" },
+    { title: "Materials", value: stats.material, sub: "Cables, Trunking, etc", accent: "#10b981" },
+    { title: "Valid", value: stats.valid, sub: "Verified assets", accent: "#059669" },
+    { title: "Error", value: stats.error, sub: "Need attention", accent: "#dc2626" },
+  ];
+
   // Filter data
   const filteredItems = useMemo(() => {
     let filtered = inventoryData.filter((item) => {
@@ -168,11 +173,6 @@ export default function InventoryDataPage() {
         let aVal = a[sorting.id];
         let bVal = b[sorting.id];
         
-        if (sorting.id === "jumlah") {
-          aVal = a.jumlah;
-          bVal = b.jumlah;
-        }
-        
         if (aVal < bVal) return sorting.desc ? 1 : -1;
         if (aVal > bVal) return sorting.desc ? -1 : 1;
         return 0;
@@ -191,32 +191,23 @@ export default function InventoryDataPage() {
 
   const getSortIcon = (columnId) => {
     if (sorting.id !== columnId) {
-      return (
-        <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
-        </svg>
-      );
+      return <span className="text-gray-300 ml-1 text-xs">⇅</span>;
     }
-    return sorting.desc ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />;
+    return sorting.desc
+      ? <ArrowDown className="w-3 h-3 ml-1 text-blue-500" />
+      : <ArrowUp className="w-3 h-3 ml-1 text-blue-500" />;
   };
 
-  const getCategoryIcon = (kategori, jenisAset) => {
-    if (kategori === "Material") {
-      return <Cable className="w-4 h-4 text-green-600" />;
-    }
-    return <Cpu className="w-4 h-4 text-blue-600" />;
-  };
-
-  const getStatusBadge = (status) => {
+  const getStatusColor = (status) => {
     switch (status) {
       case "Valid":
-        return { bg: "bg-green-100", text: "text-green-700", label: "Valid" };
+        return "text-emerald-600";
       case "Error":
-        return { bg: "bg-red-100", text: "text-red-700", label: "Error" };
+        return "text-red-600";
       case "Tertunda":
-        return { bg: "bg-blue-100", text: "text-blue-700", label: "Pending" };
+        return "text-amber-600";
       default:
-        return { bg: "bg-gray-100", text: "text-gray-700", label: status };
+        return "text-gray-600";
     }
   };
 
@@ -233,6 +224,11 @@ export default function InventoryDataPage() {
     if (diffHours < 24) return `${diffHours}h ago`;
     const diffDays = Math.floor(diffHours / 24);
     return `${diffDays}d ago`;
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "-";
+    return new Date(dateString).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
   };
 
   // Fungsi untuk menampilkan detail dengan SweetAlert
@@ -457,613 +453,450 @@ export default function InventoryDataPage() {
 
   return (
     <ProtectedPage>
-      <LayoutDashboard activeMenu={1}>
+      <LayoutDashboard activeMenu={2}>
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-          .bm-root { font-family: 'DM Sans', sans-serif; }
-          .bm-root .mono { font-family: 'DM Mono', monospace; }
-          .card { 
-            background: #ffffff; 
-            border-radius: 16px; 
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          .inv-root { font-family: 'DM Sans', sans-serif; }
+          .inv-root .mono { font-family: 'DM Mono', monospace; }
+
+          .inv-card {
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
             transition: box-shadow 0.2s ease;
           }
-          .card:hover {
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-          }
-          .section-title { font-size: 13px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; }
-          .period-badge { background: #1e3a5f; color: #fff; padding: 4px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; }
-          .stat-box-grey {
-            background-color: #f9fafb;
-            border: 1px solid #f3f4f6;
-            border-radius: 12px;
-            padding: 12px;
-          }
-          .stat-box-grey .stat-value {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #1f2937;
-          }
-          .stat-box-grey .stat-label {
-            font-size: 0.75rem;
-            font-weight: 500;
-            color: #6b7280;
-            margin-top: 4px;
+          .inv-card:hover {
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
           }
 
-          /* Custom SweetAlert styles */
-          .swal2-popup {
-            font-family: 'DM Sans', sans-serif !important;
-            border-radius: 16px !important;
+          /* KPI cell */
+          .kpi-cell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 16px;
+            text-align: center;
           }
-          .swal2-title {
-            color: #111827 !important;
-            font-size: 1.1rem !important;
-            font-weight: 600 !important;
+
+          /* Table */
+          .inv-th {
+            font-size: 11px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 10px 16px;
+            background: #f9fafb;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
           }
-          .swal2-confirm-btn, .swal2-cancel-btn {
-            padding: 0.625rem 1.25rem !important;
-            font-size: 0.875rem !important;
-            border-radius: 0.5rem !important;
-            margin: 0 0.25rem !important;
-            min-width: 120px !important;
+          .inv-th:hover { color: #374151; }
+          .inv-td {
+            padding: 13px 16px;
+            font-size: 13px;
+            color: #374151;
+            border-top: 1px solid #f3f4f6;
+            vertical-align: middle;
           }
+          .inv-row:hover { background: #f8faff; }
+
+          .action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #1e40af;
+            color: #fff;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            transition: background 0.15s;
+            border: none;
+            cursor: pointer;
+            white-space: nowrap;
+            box-shadow: 0 1px 3px rgba(30,64,175,0.3);
+          }
+          .action-btn:hover { background: #1d3a9e; }
         `}</style>
 
-        <div className="bm-root space-y-5 p-3 md:p-6 bg-gray-50 min-h-screen">
-          {/* HEADER SECTION */}
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <h1 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
-                  <Box className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
-                  IT Asset Inventory Management
-                </h1>
+        <div className="inv-root space-y-5">
+
+          {/* ── Header ── */}
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Box className="w-5 h-5 text-blue-600" />
+                <h1 className="text-xl font-bold text-gray-900">IT Asset Inventory</h1>
               </div>
-              <p className="text-gray-500 text-sm">
-                Monitor and manage all IT devices and materials in your system
-              </p>
+              <p className="text-sm text-gray-500">Monitor and manage all IT devices and materials</p>
             </div>
+            <button
+              onClick={() => router.push("/scanning")}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-sm"
+            >
+              <ScanLine className="w-4 h-4" />
+              Scan New Asset
+            </button>
           </div>
 
-          {/* STATS CARDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* TOTAL ASSETS CARD */}
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-center">
-                <div className="p-2 bg-white/20 rounded-lg">
-                  <Box className="w-5 h-5 md:w-6 md:h-6" />
-                </div>
-                <span className="text-2xl md:text-3xl font-bold">{stats.total}</span>
-              </div>
-              <p className="mt-2 text-sm font-medium uppercase opacity-90">Total Assets</p>
-              <div className="text-xs opacity-80 mt-1 flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-white"></div>
-                <span className="truncate">All IT assets</span>
-              </div>
-            </div>
-
-            {/* DEVICES CARD */}
-            <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-center">
-                <div className="p-2 bg-white/20 rounded-lg">
-                  <Cpu className="w-5 h-5 md:w-6 md:h-6" />
-                </div>
-                <span className="text-2xl md:text-3xl font-bold">{stats.perangkat}</span>
-              </div>
-              <p className="mt-2 text-sm font-medium uppercase opacity-90">Devices</p>
-              <div className="text-xs opacity-80 mt-1 flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-white"></div>
-                <span className="truncate">Computers, Servers, CCTV</span>
-              </div>
-            </div>
-
-            {/* MATERIALS CARD */}
-            <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-center">
-                <div className="p-2 bg-white/20 rounded-lg">
-                  <Cable className="w-5 h-5 md:w-6 md:h-6" />
-                </div>
-                <span className="text-2xl md:text-3xl font-bold">{stats.material}</span>
-              </div>
-              <p className="mt-2 text-sm font-medium uppercase opacity-90">Materials</p>
-              <div className="text-xs opacity-80 mt-1 flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-white"></div>
-                <span className="truncate">Cables, Trunking, etc</span>
-              </div>
-            </div>
-
-            {/* VALID CARD */}
-            <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-center">
-                <div className="p-2 bg-white/20 rounded-lg">
-                  <CheckCircle className="w-5 h-5 md:w-6 md:h-6" />
-                </div>
-                <span className="text-2xl md:text-3xl font-bold">{stats.valid}</span>
-              </div>
-              <p className="mt-2 text-sm font-medium uppercase opacity-90">Valid</p>
-              <div className="text-xs opacity-80 mt-1 flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-white"></div>
-                <span className="truncate">Verified assets</span>
-              </div>
-            </div>
-
-            {/* ERROR CARD */}
-            <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-center">
-                <div className="p-2 bg-white/20 rounded-lg">
-                  <AlertCircle className="w-5 h-5 md:w-6 md:h-6" />
-                </div>
-                <span className="text-2xl md:text-3xl font-bold">{stats.error}</span>
-              </div>
-              <p className="mt-2 text-sm font-medium uppercase opacity-90">Error</p>
-              <div className="text-xs opacity-80 mt-1 flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-white"></div>
-                <span className="truncate">Need attention</span>
-              </div>
-            </div>
-          </div>
-
-          {/* INVENTORY TABLE SECTION */}
-          <div className="card overflow-hidden">
-            {/* Card Header with Action Buttons */}
-            <div className="p-4 md:p-6 border-b border-gray-200">
-              <div className="flex flex-col gap-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <Box className="w-5 h-5 text-blue-600" />
-                    All Inventory Items
-                  </h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Manage and monitor all IT assets in your system
+          {/* ── KPI Card — 1 card, 5 columns ── */}
+          <div className="inv-card">
+            <div className="grid grid-cols-2 lg:grid-cols-5 divide-x divide-y lg:divide-y-0 divide-gray-100">
+              {kpis.map((d, i) => (
+                <div key={i} className="kpi-cell">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                    {d.title}
                   </p>
+                  <span className="text-4xl font-bold" style={{ color: d.accent }}>
+                    {d.value}
+                  </span>
+                  <p className="text-xs text-gray-400 mt-2">{d.sub}</p>
                 </div>
-
-                {/* Action Buttons Group */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* Export Dropdown */}
-                  <div className="relative w-full md:w-auto">
-                    <button
-                      onClick={() => setShowExportDropdown(!showExportDropdown)}
-                      className="flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm transition-all w-full md:w-auto"
-                    >
-                      <FileSpreadsheet className="w-4 h-4" />
-                      <span>Export Excel</span>
-                      <ChevronDown className="w-4 h-4" />
-                    </button>
-
-                    {showExportDropdown && (
-                      <>
-                        <div
-                          className="fixed inset-0 z-40"
-                          onClick={() => setShowExportDropdown(false)}
-                        />
-                        <div className="absolute right-0 mt-2 w-full md:w-64 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
-                          <div className="p-2">
-                            <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b">
-                              Export Options
-                            </div>
-                            <button
-                              onClick={() => exportToExcel("current")}
-                              className="w-full flex items-center gap-3 px-3 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                            >
-                              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                              <div className="text-left">
-                                <div className="font-medium">Export Current View</div>
-                                <div className="text-xs text-gray-500">{filteredItems.length} items</div>
-                              </div>
-                            </button>
-                            <button
-                              onClick={() => exportToExcel("all")}
-                              className="w-full flex items-center gap-3 px-3 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                            >
-                              <FileSpreadsheet className="w-4 h-4 text-blue-600" />
-                              <div className="text-left">
-                                <div className="font-medium">Export All Items</div>
-                                <div className="text-xs text-gray-500">{inventoryData.length} total items</div>
-                              </div>
-                            </button>
-                            <button
-                              onClick={() => exportToExcel("valid")}
-                              className="w-full flex items-center gap-3 px-3 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                            >
-                              <FileSpreadsheet className="w-4 h-4 text-green-600" />
-                              <div className="text-left">
-                                <div className="font-medium">Export Valid Only</div>
-                                <div className="text-xs text-gray-500">{stats.valid} valid items</div>
-                              </div>
-                            </button>
-                            <button
-                              onClick={() => exportToExcel("error")}
-                              className="w-full flex items-center gap-3 px-3 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                            >
-                              <FileSpreadsheet className="w-4 h-4 text-red-600" />
-                              <div className="text-left">
-                                <div className="font-medium">Export Error Only</div>
-                                <div className="text-xs text-gray-500">{stats.error} error items</div>
-                              </div>
-                            </button>
-                          </div>
-                          <div className="px-3 py-2 text-xs text-gray-500 border-t">
-                            Files are downloaded in Excel (.xlsx) format
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Refresh Button */}
-                  <button
-                    onClick={() => window.location.reload()}
-                    disabled={loading}
-                    className="flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition-all disabled:opacity-50 w-full md:w-auto"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                    {loading ? "Refreshing..." : "Refresh"}
-                  </button>
-
-                  {/* Scan New Asset Button */}
-                  <button
-                    onClick={() => router.push("/scanning")}
-                    className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-600 hover:from-blue-600 hover:to-blue-600 text-white px-4 py-2.5 rounded-lg text-sm transition-all w-full md:w-auto"
-                  >
-                    <ScanLine className="w-4 h-4" />
-                    <span>Scan New Asset</span>
-                  </button>
-
-                  {/* View Toggle */}
-                  <div className="flex border border-gray-300 rounded-lg overflow-hidden w-full md:w-auto">
-                    <button
-                      onClick={() => setViewMode("list")}
-                      className={`flex-1 md:flex-none p-2.5 text-center ${viewMode === "list" ? "bg-gray-100 text-gray-900" : "bg-white text-gray-700 hover:bg-gray-50"}`}
-                    >
-                      <List className="w-4 h-4 inline" />
-                      <span className="ml-2 text-sm md:hidden">List</span>
-                    </button>
-                    <button
-                      onClick={() => setViewMode("grid")}
-                      className={`flex-1 md:flex-none p-2.5 text-center ${viewMode === "grid" ? "bg-gray-100 text-gray-900" : "bg-white text-gray-700 hover:bg-gray-50"}`}
-                    >
-                      <Grid className="w-4 h-4 inline" />
-                      <span className="ml-2 text-sm md:hidden">Grid</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
+          </div>
 
-            {/* Search and Filter Controls */}
-            <div className="p-4 md:p-6 border-b border-gray-200 bg-gray-50">
-              <div className="flex flex-col gap-3">
+          {/* ── Main Table Card ── */}
+          <div className="inv-card overflow-hidden">
+
+            {/* Toolbar */}
+            <div className="flex flex-wrap items-center gap-3 p-4 md:p-5 border-b border-gray-100">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by ID, name, location, serial number..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
+                />
+                {searchTerm && (
+                  <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
+                >
+                  <option value="all">All Categories</option>
+                  <option value="Perangkat">Devices</option>
+                  <option value="Material">Materials</option>
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+              </div>
+
+              <div className="relative">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="pl-3 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
+                >
+                  <option value="all">All Status</option>
+                  <option value="Valid">Valid</option>
+                  <option value="Tertunda">Pending</option>
+                  <option value="Error">Error</option>
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+              </div>
+
+              {/* View Toggle */}
+              <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={`p-2 ${viewMode === "list" ? "bg-blue-50 text-blue-600" : "bg-white text-gray-600 hover:bg-gray-50"}`}
+                >
+                  <List className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode("grid")}
+                  className={`p-2 ${viewMode === "grid" ? "bg-blue-50 text-blue-600" : "bg-white text-gray-600 hover:bg-gray-50"}`}
+                >
+                  <Grid className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  onClick={() => window.location.reload()}
+                  disabled={loading}
+                  className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+                  Refresh
+                </button>
+
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-800" />
-                  <input
-                    type="text"
-                    placeholder="Search by ID, asset name, location, or identification number..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <select
-                    value={categoryFilter}
-                    onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="border border-gray-300 text-gray-700 rounded-lg px-3 py-2 text-sm bg-white"
+                  <button
+                    onClick={() => setShowExportDropdown(!showExportDropdown)}
+                    className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
                   >
-                    <option value="all">All Categories</option>
-                    <option value="Perangkat">Devices</option>
-                    <option value="Material">Materials</option>
-                  </select>
-
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="border border-gray-300 text-gray-700 rounded-lg px-3 py-2 text-sm bg-white"
-                  >
-                    <option value="all">All Status</option>
-                    <option value="Valid">Valid</option>
-                    <option value="Tertunda">Pending</option>
-                    <option value="Error">Error</option>
-                  </select>
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    Export
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+                  {showExportDropdown && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowExportDropdown(false)} />
+                      <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
+                        <button onClick={() => exportToExcel("current")} className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                          <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Current View ({filteredItems.length})
+                        </button>
+                        <button onClick={() => exportToExcel("all")} className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                          <FileSpreadsheet className="w-4 h-4 text-blue-600" /> All Items ({inventoryData.length})
+                        </button>
+                        <button onClick={() => exportToExcel("valid")} className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                          <FileSpreadsheet className="w-4 h-4 text-green-600" /> Valid Only ({stats.valid})
+                        </button>
+                        <button onClick={() => exportToExcel("error")} className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                          <FileSpreadsheet className="w-4 h-4 text-red-600" /> Error Only ({stats.error})
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* Content */}
-            <div className="p-3 md:p-6">
-              {/* Loading State */}
-              {loading ? (
-                <div className="py-8 md:py-12 text-center">
-                  <div className="inline-flex items-center justify-center gap-3">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                    <span className="text-gray-600">Loading assets...</span>
-                  </div>
-                </div>
-              ) : /* Empty State */
-              inventoryData.length === 0 ? (
-                <div className="py-8 md:py-12 text-center">
-                  <div className="max-w-md mx-auto">
-                    <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl inline-block mb-4">
-                      <Box className="w-10 h-10 md:w-12 md:h-12 text-blue-400" />
-                    </div>
-                    <h3 className="text-gray-900 font-semibold text-base md:text-lg mb-2">
-                      No assets configured
-                    </h3>
-                    <p className="text-gray-500 text-sm mb-6">
-                      Start by adding your first asset or scanning a new item
-                    </p>
-                    <button
-                      onClick={() => router.push("/scanning")}
-                      className="px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl hover:from-blue-700 hover:to-indigo-800 inline-flex items-center gap-2 text-sm"
-                    >
-                      <ScanLine className="w-4 h-4" />
-                      Scan Your First Asset
-                    </button>
-                  </div>
-                </div>
-              ) : /* No Results State */
-              filteredItems.length === 0 ? (
-                <div className="py-8 md:py-12 text-center">
-                  <Search className="w-10 h-10 md:w-12 md:h-12 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-gray-900 font-semibold text-base mb-2">
-                    No matching assets
-                  </h3>
-                  <p className="text-gray-500 text-sm mb-6">
-                    Try adjusting your search or filter criteria
-                  </p>
-                  <button
-                    onClick={() => {
-                      setSearchTerm("");
-                      setCategoryFilter("all");
-                      setStatusFilter("all");
-                    }}
-                    className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 inline-flex items-center gap-2 text-sm"
+            {loading ? (
+              <div className="py-20 text-center">
+                <Loader2 className="w-7 h-7 animate-spin text-blue-600 mx-auto mb-3" />
+                <p className="text-sm text-gray-500">Loading assets...</p>
+              </div>
+            ) : inventoryData.length === 0 ? (
+              <div className="py-20 text-center">
+                <Box className="w-14 h-14 text-gray-200 mx-auto mb-3" />
+                <h3 className="text-gray-800 font-semibold text-lg mb-1">No assets found</h3>
+                <p className="text-gray-400 text-sm mb-5">Start by scanning your first asset</p>
+                <button
+                  onClick={() => router.push("/scanning")}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700"
+                >
+                  <ScanLine className="w-4 h-4" /> Scan New Asset
+                </button>
+              </div>
+            ) : filteredItems.length === 0 ? (
+              <div className="py-16 text-center">
+                <Search className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+                <h3 className="text-gray-800 font-semibold mb-1">No matching assets</h3>
+                <p className="text-gray-400 text-sm mb-4">Try adjusting your filters</p>
+                <button onClick={() => { setSearchTerm(""); setCategoryFilter("all"); setStatusFilter("all"); }} className="text-sm text-blue-600 hover:underline">
+                  Clear filters
+                </button>
+              </div>
+            ) : viewMode === "grid" ? (
+              /* Grid View - Simplified */
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 p-4">
+                {filteredItems.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-all cursor-pointer"
+                    onClick={() => handleShowDetail(item)}
                   >
-                    <RefreshCw className="w-4 h-4" />
-                    Clear Filters
-                  </button>
-                </div>
-              ) : /* Grid View */
-              viewMode === "grid" ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
-                  {filteredItems.map((item) => {
-                    const statusBadge = getStatusBadge(item.status);
-                    return (
-                      <div
-                        key={item.id}
-                        className="bg-white border border-gray-200 rounded-xl p-3 md:p-4 hover:shadow-lg transition-all cursor-pointer group"
-                        onClick={() => handleShowDetail(item)}
-                      >
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex items-center gap-2">
-                            <div className={`p-1.5 md:p-2 rounded-lg ${item.kategori === "Perangkat" ? "bg-blue-100" : "bg-green-100"}`}>
-                              {getCategoryIcon(item.kategori, item.jenisAset)}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1 mb-1">
-                                <h4 className="font-semibold text-gray-900 text-sm group-hover:text-blue-600 truncate">
-                                  {item.nama}
-                                </h4>
-                              </div>
-                              <p className="text-xs text-gray-500 font-mono truncate">
-                                {item.id}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteItem(item);
-                            }}
-                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm flex-shrink-0">
+                          {idx + 1}
                         </div>
-
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-gray-500">Status</span>
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusBadge.bg} ${statusBadge.text}`}>
-                              {statusBadge.label}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-gray-500">Category</span>
-                            <span className="text-xs font-medium text-gray-700">
-                              {item.kategori === "Perangkat" ? "Device" : "Material"}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-gray-500">Location</span>
-                            <span className="text-xs text-gray-700 truncate ml-2">
-                              {item.lokasi}
-                            </span>
-                          </div>
-
-                          <div className="pt-2 border-t mt-2">
-                            <div className="flex justify-between">
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleShowDetail(item);
-                                }}
-                                className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
-                              >
-                                <Eye className="w-3 h-3" />
-                                View Details
-                              </button>
-                              <span className="text-xs text-gray-400">
-                                {formatLastCheck(item.tanggalPengecekan)}
-                              </span>
-                            </div>
-                          </div>
+                        <div className="min-w-0">
+                          <h4 className="font-semibold text-gray-900 text-sm truncate">
+                            {item.nama}
+                          </h4>
+                          <p className="text-xs text-gray-500 font-mono truncate mt-0.5">
+                            {item.id}
+                          </p>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                /* List View */
-                <div className="overflow-x-auto rounded-lg border border-gray-200">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th
-                          className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer"
-                          onClick={() => handleSort("id")}
-                        >
-                          <div className="flex items-center">
-                            Asset ID
-                            <div className="ml-1">{getSortIcon("id")}</div>
-                          </div>
-                        </th>
-                        <th
-                          className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer"
-                          onClick={() => handleSort("nama")}
-                        >
-                          <div className="flex items-center">
-                            Asset Details
-                            <div className="ml-1">{getSortIcon("nama")}</div>
-                          </div>
-                        </th>
-                        <th className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">
-                          Identification
-                        </th>
-                        <th
-                          className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hidden lg:table-cell"
-                          onClick={() => handleSort("lokasi")}
-                        >
-                          <div className="flex items-center">
-                            Location
-                            <div className="ml-1">{getSortIcon("lokasi")}</div>
-                          </div>
-                        </th>
-                        <th
-                          className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hidden lg:table-cell"
-                          onClick={() => handleSort("status")}
-                        >
-                          <div className="flex items-center">
-                            Status
-                            <div className="ml-1">{getSortIcon("status")}</div>
-                          </div>
-                        </th>
-                        <th className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden xl:table-cell">
-                          Last Updated
-                        </th>
-                        <th className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredItems.map((item) => {
-                        const statusBadge = getStatusBadge(item.status);
-                        return (
-                          <tr
-                            key={item.id}
-                            className="hover:bg-gray-50 transition-colors cursor-pointer group"
-                            onClick={() => handleShowDetail(item)}
-                          >
-                            <td className="py-3 px-3">
-                              <div className="flex items-center">
-                                <div className={`p-1.5 rounded-lg mr-2 ${item.kategori === "Perangkat" ? "bg-blue-100" : "bg-green-100"}`}>
-                                  {getCategoryIcon(item.kategori, item.jenisAset)}
-                                </div>
-                                <div>
-                                  <div className="font-semibold text-blue-700 text-sm">{item.id}</div>
-                                  <div className="text-xs text-gray-500 mt-0.5">
-                                    {item.kategori === "Perangkat" ? "Device" : "Material"}
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-3 px-3">
-                              <div className="font-semibold text-gray-900 text-sm">{item.nama}</div>
-                              <div className="text-xs text-gray-500 mt-0.5">{item.jenisAset}</div>
-                              <div className="text-xs text-gray-400 mt-0.5 truncate max-w-[200px]">
-                                {item.spesifikasi}
-                              </div>
-                            </td>
-                            <td className="py-3 px-3 hidden md:table-cell">
-                              <div className="space-y-1">
-                                <div className="text-xs">
-                                  <span className="text-blue-600 font-mono">{item.kodeUnik}</span>
-                                </div>
-                                {item.serialNumber && (
-                                  <div className="text-xs text-gray-600 font-mono">
-                                    {item.serialNumber}
-                                  </div>
-                                )}
-                                {item.barcode && (
-                                  <div className="text-xs text-gray-600 font-mono">
-                                    {item.barcode}
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-3 px-3 hidden lg:table-cell">
-                              <div className="text-sm text-gray-700">{item.lokasi}</div>
-                              <div className="text-xs text-gray-500 mt-0.5 truncate max-w-[150px]">
-                                {item.departemen}
-                              </div>
-                            </td>
-                            <td className="py-3 px-3 hidden lg:table-cell">
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusBadge.bg} ${statusBadge.text}`}>
-                                {statusBadge.label}
-                              </span>
-                            </td>
-                            <td className="py-3 px-3 hidden xl:table-cell">
-                              <div className="text-xs text-gray-600">{item.tanggalPengecekan}</div>
-                              <div className="text-xs text-gray-400 mt-0.5">{item.diperbaruiOleh}</div>
-                            </td>
-                            <td className="py-3 px-3">
-                              <div className="flex items-center gap-1">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleShowDetail(item);
-                                  }}
-                                  className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                  title="View Details"
-                                >
-                                  <Eye className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteItem(item);
-                                  }}
-                                  className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                  title="Delete Asset"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteItem(item);
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
 
-            {/* Footer Stats */}
-            {!loading && filteredItems.length > 0 && (
-              <div className="px-4 md:px-6 py-3 md:py-4 border-t bg-gray-50">
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-2">
-                  <div className="text-xs md:text-sm text-gray-500 text-center sm:text-left">
-                    Showing {filteredItems.length} of {inventoryData.length} items
-                    {categoryFilter !== "all" && ` • ${categoryFilter} only`}
-                    {statusFilter !== "all" && ` • ${statusFilter} status`}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Status</span>
+                        <span className={`text-xs font-medium ${getStatusColor(item.status)}`}>
+                          {item.status === "Tertunda" ? "Pending" : item.status}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Type</span>
+                        <span className="text-xs font-medium text-gray-700">
+                          {item.jenisAset}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Location</span>
+                        <span className="text-xs text-gray-700 truncate max-w-[120px]">
+                          {item.lokasi}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Last Check</span>
+                        <span className="text-xs text-gray-600">
+                          {formatDate(item.tanggalPengecekan)}
+                        </span>
+                      </div>
+
+                      <div className="pt-2 border-t mt-2">
+                        <div className="flex justify-between items-center">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleShowDetail(item);
+                            }}
+                            className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                          >
+                            <Eye className="w-3 h-3" />
+                            View Details
+                          </button>
+                          <span className="text-xs text-gray-400">
+                            {formatLastCheck(item.tanggalPengecekan)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ))}
+              </div>
+            ) : (
+              /* List View - Simplified, no icons, status just text color */
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr>
+                      <th className="inv-th text-left" onClick={() => handleSort("id")}>
+                        <span className="flex items-center"># {getSortIcon("id")}</span>
+                      </th>
+                      <th className="inv-th text-left" onClick={() => handleSort("nama")}>
+                        <span className="flex items-center">Asset Details {getSortIcon("nama")}</span>
+                      </th>
+                      <th className="inv-th text-left" onClick={() => handleSort("jenisAset")}>
+                        <span className="flex items-center">Type {getSortIcon("jenisAset")}</span>
+                      </th>
+                      <th className="inv-th text-left hidden lg:table-cell">Unique Code</th>
+                      <th className="inv-th text-left hidden lg:table-cell" onClick={() => handleSort("lokasi")}>
+                        <span className="flex items-center">Location {getSortIcon("lokasi")}</span>
+                      </th>
+                      <th className="inv-th text-left" onClick={() => handleSort("status")}>
+                        <span className="flex items-center">Status {getSortIcon("status")}</span>
+                      </th>
+                      <th className="inv-th text-left hidden xl:table-cell" onClick={() => handleSort("tanggalPengecekan")}>
+                        <span className="flex items-center">Last Check {getSortIcon("tanggalPengecekan")}</span>
+                      </th>
+                      <th className="inv-th text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredItems.map((item, idx) => (
+                      <tr
+                        key={item.id}
+                        className="inv-row transition-colors cursor-pointer"
+                        onClick={() => handleShowDetail(item)}
+                      >
+                        <td className="inv-td">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">
+                              {idx + 1}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-gray-900 text-sm">{item.id}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="inv-td">
+                          <div className="font-semibold text-gray-900 text-sm">{item.nama}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">{item.spesifikasi}</div>
+                        </td>
+                        <td className="inv-td">
+                          <span className="text-sm text-gray-700">{item.jenisAset}</span>
+                        </td>
+                        <td className="inv-td hidden lg:table-cell">
+                          <span className="text-xs font-mono text-gray-600">{item.kodeUnik}</span>
+                          {item.serialNumber && (
+                            <div className="text-xs text-gray-400 mt-0.5">SN: {item.serialNumber}</div>
+                          )}
+                          {item.barcode && (
+                            <div className="text-xs text-gray-400 mt-0.5">BC: {item.barcode}</div>
+                          )}
+                        </td>
+                        <td className="inv-td hidden lg:table-cell">
+                          <div className="text-sm text-gray-700">{item.lokasi}</div>
+                          <div className="text-xs text-gray-400 mt-0.5 truncate max-w-[140px]">
+                            {item.departemen}
+                          </div>
+                        </td>
+                        <td className="inv-td">
+                          <span className={`text-sm font-medium ${getStatusColor(item.status)}`}>
+                            {item.status === "Tertunda" ? "Pending" : item.status}
+                          </span>
+                        </td>
+                        <td className="inv-td hidden xl:table-cell">
+                          <div className="text-sm text-gray-700">{formatDate(item.tanggalPengecekan)}</div>
+                          <div className="text-xs text-gray-400 mt-0.5">{item.diperbaruiOleh}</div>
+                        </td>
+                        <td className="inv-td text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleShowDetail(item);
+                              }}
+                              className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="View Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteItem(item);
+                              }}
+                              className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Delete Asset"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Footer */}
+            {!loading && filteredItems.length > 0 && (
+              <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-2 rounded-b-2xl">
+                <p className="text-xs text-gray-500">
+                  Showing{" "}
+                  <span className="font-semibold text-gray-700">{filteredItems.length}</span>{" "}
+                  of{" "}
+                  <span className="font-semibold text-gray-700">{inventoryData.length}</span>{" "}
+                  assets
+                  {categoryFilter !== "all" && <span className="text-gray-400"> · {categoryFilter === "Perangkat" ? "Devices" : "Materials"}</span>}
+                  {statusFilter !== "all" && <span className="text-gray-400"> · {statusFilter === "Tertunda" ? "Pending" : statusFilter}</span>}
+                  {searchTerm && <span className="text-gray-400"> · "{searchTerm}"</span>}
+                </p>
+                <p className="text-xs text-gray-400">Updated {new Date().toLocaleTimeString("id-ID")}</p>
               </div>
             )}
           </div>

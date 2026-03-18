@@ -659,7 +659,7 @@ export default function HistoryPage() {
 
   return (
     <ProtectedPage>
-      <LayoutDashboard activeMenu={4}>
+      <LayoutDashboard activeMenu={3}>
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
           .bm-root { font-family: 'DM Sans', sans-serif; }
