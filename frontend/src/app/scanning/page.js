@@ -937,14 +937,14 @@ const handleCameraCapture = async () => {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => router.push("/scanning_sessions")}
+                onClick={() => router.push("/scanning_preparation_list")}
                 className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm"
               >
                 <Package className="w-4 h-4" />
                 View Sessions
               </button>
               <button
-                onClick={() => router.push("/scanning_preparation")}
+                onClick={() => router.push("create_scanning_preparation")}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
               >
                 <Plus className="w-4 h-4" />
