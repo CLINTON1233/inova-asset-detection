@@ -501,7 +501,7 @@ export default function SerialScanningPage() {
         border: "border-green-200",
         badge: "bg-green-100 text-green-700",
         dot: "bg-green-500",
-        label: "Serial Scanned",
+        label: "Serial Number Scanned",
       },
       error: {
         bg: "bg-red-50",
@@ -1153,7 +1153,7 @@ export default function SerialScanningPage() {
                     setIsCameraOpen(true);
                   }}
                 >
-                  <Hash className="w-4 h-4" /> Scan Serial
+                  <Hash className="w-4 h-4" /> Scan Serial Number
                 </button>
               </div>
             </div>
@@ -1307,7 +1307,7 @@ export default function SerialScanningPage() {
                       {checkHistory.length} items
                     </span>
                   )}
-                  {readyToSubmitCount > 0 && (
+                  {/* {readyToSubmitCount > 0 && (
                     <span
                       style={{
                         background: "#dcfce7",
@@ -1320,7 +1320,7 @@ export default function SerialScanningPage() {
                     >
                       {readyToSubmitCount} ready
                     </span>
-                  )}
+                  )} */}
                 </div>
               </div>
               {checkHistory.length > 0 && (
