@@ -409,23 +409,23 @@ export default function ScanningPreparationListPage() {
         }
         .delete-btn:hover { background: #b91c1c; }
 
-        .new-session-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          background: #2563eb;
-          color: #fff;
-          padding: 7px 16px;
-          border-radius: 8px;
-          font-size: 12px;
-          font-weight: 600;
-          transition: background 0.15s;
-          border: none;
-          cursor: pointer;
-          white-space: nowrap;
-          box-shadow: 0 1px 3px rgba(37,99,235,0.3);
-        }
-        .new-session-btn:hover { background: #1d4ed8; }
+      .new-session-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #1e40af;
+        color: #fff;
+        padding: 7px 16px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        transition: background 0.15s;
+        border: none;
+        cursor: pointer;
+        white-space: nowrap;
+        box-shadow: 0 1px 3px rgba(30,64,175,0.3);
+      }
+      .new-session-btn:hover { background: #1d3a9e; }
 
         .prog-track { background: #e5e7eb; border-radius: 99px; height: 5px; }
         .prog-fill  { background: #3b82f6; border-radius: 99px; height: 5px; transition: width 0.3s; }
@@ -728,7 +728,11 @@ export default function ScanningPreparationListPage() {
                         <td className="sp-td text-center">
                           <div className="flex items-center justify-center gap-2">
                             <button
-                              onClick={() => router.push(`/scanning?prep_id=${session.id_preparation}`)}
+                              onClick={() =>
+                                router.push(
+                                  `/scanning?prep_id=${session.id_preparation}`,
+                                )
+                              }
                               className="scan-btn"
                               title="Start Scanning"
                             >
@@ -736,7 +740,12 @@ export default function ScanningPreparationListPage() {
                               <span className="hidden sm:inline">Scan</span>
                             </button>
                             <button
-                              onClick={() => handleDelete(session.id_preparation, session.checking_name)}
+                              onClick={() =>
+                                handleDelete(
+                                  session.id_preparation,
+                                  session.checking_name,
+                                )
+                              }
                               className="delete-btn"
                               title="Delete Session"
                             >

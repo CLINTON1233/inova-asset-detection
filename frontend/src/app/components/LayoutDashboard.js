@@ -19,6 +19,7 @@ import {
   User as UserIcon,
   Key,
   CheckCircle,
+  ScanLine,
   Plus,
   List,
 } from "lucide-react";
@@ -31,12 +32,12 @@ export default function LayoutDashboard({ children, activeMenu }) {
   const [activeMenuIndex, setActiveMenuIndex] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  const [prepDropdownOpen, setPrepDropdownOpen] = useState(false);
+  const [scanDropdownOpen, setScanDropdownOpen] = useState(false); // Renamed from prepDropdownOpen
   const [currentDate, setCurrentDate] = useState("");
   const [showWelcome, setShowWelcome] = useState(false);
   const [hasShownWelcome, setHasShownWelcome] = useState(false);
   const userDropdownRef = useRef(null);
-  const prepDropdownRef = useRef(null);
+  const scanDropdownRef = useRef(null); // Renamed from prepDropdownRef
 
   const router = useRouter();
   const { user, logout } = useAuth();
@@ -83,13 +84,14 @@ export default function LayoutDashboard({ children, activeMenu }) {
   const menuItems = [
     { icon: Home, label: "Home", hasDropdown: false, href: "/dashboard" },
     { 
-      icon: Package, 
-      label: "Preparation Check", 
+      icon: ScanLine, 
+      label: "Assets Scanning",  // Perhatikan: "Assets Scanning" dengan "s"
       hasDropdown: true, 
       href: "#",
       submenu: [
         { icon: Plus, label: "Create Preparation", href: "/create_scanning_preparation" },
-        { icon: List, label: "List Preparation", href: "/scanning_preparation_list" }
+        { icon: List, label: "Preparation List", href: "/scanning_preparation_list" },
+        { icon: ScanLine, label: "Start Scanning", href: "/scanning" }
       ]
     },
     {
@@ -98,18 +100,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
       hasDropdown: true,
       href: "/inventory-data",
     },
-   // {
-    //   icon: Shield,
-    //   label: "Serial Scanning",
-    //   hasDropdown: true,
-    //   href: "/scanning",
-    // },
-    // {
-    //   icon: HelpCircle,
-    //   label: "Validation & Verification",
-    //   hasDropdown: true,
-    //   href: "/validation-verification",
-    // },
     {
       icon: Calendar,
       label: "History & Activity Log",
@@ -122,12 +112,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
       hasDropdown: true,
       href: "/reports-analytics",
     },
-    // {
-    //   icon: Settings,
-    //   label: "System Settings",
-    //   hasDropdown: true,
-    //   href: "/system-settings",
-    // },
   ];
 
   // Handle click outside untuk menutup dropdown
@@ -140,10 +124,10 @@ export default function LayoutDashboard({ children, activeMenu }) {
         setUserDropdownOpen(false);
       }
       if (
-        prepDropdownRef.current &&
-        !prepDropdownRef.current.contains(event.target)
+        scanDropdownRef.current &&
+        !scanDropdownRef.current.contains(event.target)
       ) {
-        setPrepDropdownOpen(false);
+        setScanDropdownOpen(false);
       }
     };
 
@@ -218,7 +202,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
   };
 
   const handleSubmenuClick = (href) => {
-    setPrepDropdownOpen(false);
+    setScanDropdownOpen(false);
     router.push(href);
   };
 
@@ -386,27 +370,27 @@ export default function LayoutDashboard({ children, activeMenu }) {
                   ? index === activeMenu
                   : index === activeMenuIndex;
 
-              // Special handling untuk Preparation Check dengan dropdown
-              if (item.label === "Preparation Check") {
+              // Special handling untuk Assets Scanning dengan dropdown
+              if (item.label === "Assets Scanning") {
                 return (
-                  <div key={index} className="relative" ref={prepDropdownRef}>
+                  <div key={index} className="relative" ref={scanDropdownRef}>
                     <button
                       className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition ${
                         isActive ? "bg-blue-700" : ""
                       }`}
-                      onClick={() => setPrepDropdownOpen(!prepDropdownOpen)}
+                      onClick={() => setScanDropdownOpen(!scanDropdownOpen)}
                     >
                       <item.icon className="w-4 h-4" />
                       <span>{item.label}</span>
                       <ChevronDown
                         className={`w-3 h-3 transition-transform ${
-                          prepDropdownOpen ? "rotate-180" : ""
+                          scanDropdownOpen ? "rotate-180" : ""
                         }`}
                       />
                     </button>
 
                     {/* Submenu Dropdown */}
-                    {prepDropdownOpen && (
+                    {scanDropdownOpen && (
                       <div className="absolute left-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
                         {item.submenu.map((subItem, subIndex) => (
                           <button
@@ -555,7 +539,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
                     ? index === activeMenu
                     : index === activeMenuIndex;
                 
-                // Untuk mobile, kita buat sederhana dulu (tanpa submenu dropdown)
                 return (
                   <div key={index}>
                     <button
@@ -563,9 +546,9 @@ export default function LayoutDashboard({ children, activeMenu }) {
                         isActive ? "bg-blue-700" : ""
                       }`}
                       onClick={() => {
-                        if (item.label === "Preparation Check") {
-                          // Untuk Preparation Check di mobile, kita toggle prepDropdownOpen
-                          setPrepDropdownOpen(!prepDropdownOpen);
+                        // Untuk mobile - Assets Scanning
+                        if (item.label === "Assets Scanning") {
+                          setScanDropdownOpen(!scanDropdownOpen);
                         } else if (item.href) {
                           router.push(item.href);
                           setMobileMenuOpen(false);
@@ -581,14 +564,14 @@ export default function LayoutDashboard({ children, activeMenu }) {
                       {item.hasDropdown && (
                         <ChevronDown
                           className={`w-3 h-3 ml-auto transition-transform ${
-                            prepDropdownOpen && item.label === "Preparation Check" ? "rotate-180" : ""
+                            scanDropdownOpen && item.label === "Assets Scanning" ? "rotate-180" : ""
                           }`}
                         />
                       )}
                     </button>
 
-                    {/* Submenu untuk mobile */}
-                    {item.label === "Preparation Check" && prepDropdownOpen && (
+                    {/* Submenu untuk mobile - Assets Scanning */}
+                    {item.label === "Assets Scanning" && scanDropdownOpen && (
                       <div className="bg-blue-500 pl-8 py-1">
                         {item.submenu.map((subItem, subIndex) => (
                           <button
@@ -597,7 +580,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
                             onClick={() => {
                               router.push(subItem.href);
                               setMobileMenuOpen(false);
-                              setPrepDropdownOpen(false);
+                              setScanDropdownOpen(false);
                             }}
                           >
                             <subItem.icon className="w-3.5 h-3.5 mr-2" />

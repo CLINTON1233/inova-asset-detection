@@ -17,16 +17,16 @@ import {
   Cable,
   Server,
   Box,
-  MapPin,
   X,
   Trash2,
   Loader2,
-  Hash,
-  Info,
   Plus,
   Eye,
   Package,
-  Maximize2,
+  Hash,
+  ChevronRight,
+  Zap,
+  Target,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import LayoutDashboard from "../components/LayoutDashboard";
@@ -48,82 +48,100 @@ import {
 export default function SerialScanningPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+
   const [manualInput, setManualInput] = useState("");
   const [scanResult, setScanResult] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [inputType, setInputType] = useState("");
   const [checkHistory, setCheckHistory] = useState([]);
   const [isSubmittingAll, setIsSubmittingAll] = useState(false);
-  
-  // Camera states
+
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [cameraMode, setCameraMode] = useState("device");
   const [pendingDevice, setPendingDevice] = useState(null);
-  
-  // State untuk menyimpan data preparation
+
   const [currentPreparation, setCurrentPreparation] = useState(null);
   const [scanningProgress, setScanningProgress] = useState({});
   const [loading, setLoading] = useState(true);
 
-  // Camera error state
+  const [availableSessions, setAvailableSessions] = useState([]);
+  const [showSessionSelector, setShowSessionSelector] = useState(false);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+
   const [cameraError, setCameraError] = useState(null);
   const videoRef = useRef(null);
 
-  // CSS Styles
-  const styles = `
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-    .bm-root { font-family: 'DM Sans', sans-serif; }
-    .bm-root .mono { font-family: 'DM Mono', monospace; }
-    .card { 
-      background: #ffffff; 
-      border-radius: 16px; 
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-      transition: box-shadow 0.2s ease;
-    }
-    .card:hover {
-      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    }
-    .section-title { 
-      font-size: 13px; 
-      font-weight: 600; 
-      color: #6b7280; 
-      text-transform: uppercase; 
-      letter-spacing: 0.05em; 
-      margin-bottom: 16px; 
-    }
-    .bullet-dot { 
-      width: 8px; 
-      height: 8px; 
-      border-radius: 50%; 
-      display: inline-block; 
-      margin-right: 6px; 
-    }
-  `;
+  const loadAvailableSessions = async () => {
+    setLoadingSessions(true);
+    try {
+      const response = await fetch(API_ENDPOINTS.SCANNING_PREP_LIST);
+      const result = await response.json();
+      if (result.success) {
+        // Filter hanya session yang statusnya pending atau in-progress
+        const activeSessions = result.data.filter(
+          (s) => s.status === "pending" || s.status === "in-progress",
+        );
+        setAvailableSessions(activeSessions);
 
-  // Load data saat komponen mount
+        if (activeSessions.length > 0) {
+          setShowSessionSelector(true);
+        } else {
+          Swal.fire({
+            title: "No Active Sessions",
+            text: "There are no active scanning sessions. Please create a new session or select from preparation list.",
+            icon: "info",
+            confirmButtonText: "Go to Preparation List",
+            showCancelButton: true,
+            cancelButtonText: "Create New",
+          }).then((result) => {
+            if (result.isConfirmed) {
+              router.push("/scanning_preparation_list");
+            } else {
+              router.push("/create_scanning_preparation");
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load sessions:", error);
+      Swal.fire({
+        title: "Error!",
+        text: "Failed to load scanning sessions",
+        icon: "error",
+        confirmButtonColor: "#1e40af",
+      });
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
+  // ─── Load data ────────────────────────────────────────────────────────────
   useEffect(() => {
     const savedHistory = localStorage.getItem("scanCheckHistory");
-    if (savedHistory) {
-      setCheckHistory(JSON.parse(savedHistory));
-    }
-    
-    const prepId = searchParams.get('prep_id');
+    if (savedHistory) setCheckHistory(JSON.parse(savedHistory));
+
+    const prepId = searchParams.get("prep_id");
     if (prepId) {
       loadPreparation(prepId);
     } else {
       setLoading(false);
-      router.push("/scanning_sessions");
+      loadAvailableSessions();
     }
   }, []);
 
+  // Deteksi perubahan prep_id di URL
   useEffect(() => {
-    if (checkHistory.length > 0) {
-      localStorage.setItem("scanCheckHistory", JSON.stringify(checkHistory));
+    const prepId = searchParams.get("prep_id");
+    if (prepId) {
+      loadPreparation(prepId);
     }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (checkHistory.length > 0)
+      localStorage.setItem("scanCheckHistory", JSON.stringify(checkHistory));
   }, [checkHistory]);
 
-  // Inisialisasi kamera untuk preview
   useEffect(() => {
     const startCamera = async () => {
       try {
@@ -131,28 +149,20 @@ export default function SerialScanningPage() {
           video: { facingMode: "environment" },
           audio: false,
         });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
+        if (videoRef.current) videoRef.current.srcObject = stream;
       } catch (err) {
-        console.error("Failed to access camera:", err);
         setCameraError(
-          "Unable to access the camera. Please make sure camera permissions are granted.",
+          "Unable to access camera. Please grant camera permissions.",
         );
       }
     };
-
     startCamera();
-
     return () => {
-      if (videoRef.current && videoRef.current.srcObject) {
-        const tracks = videoRef.current.srcObject.getTracks();
-        tracks.forEach((track) => track.stop());
-      }
+      if (videoRef.current?.srcObject)
+        videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
     };
   }, []);
 
-  // Load detail preparation
   const loadPreparation = async (prepId) => {
     setLoading(true);
     try {
@@ -160,7 +170,6 @@ export default function SerialScanningPage() {
       const data = await response.json();
       if (data.success) {
         setCurrentPreparation(data.data);
-        
         const progress = {};
         data.data.items.forEach((item) => {
           progress[item.id_item] = {
@@ -172,77 +181,59 @@ export default function SerialScanningPage() {
         setScanningProgress(progress);
       }
     } catch (error) {
-      console.error("Error loading preparation:", error);
       Swal.fire({
         title: "Error!",
         text: "Failed to load scanning session",
         icon: "error",
-        confirmButtonColor: "#1e40af",
-      }).then(() => {
-        router.push("/scanning_sessions");
-      });
+      }).then(() => router.push("/scanning_sessions"));
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle deteksi dari kamera
+  // ─── Camera detection handler (unchanged logic) ──────────────────────────
   const handleCameraDetection = (detection) => {
     if (detection.type === "device") {
       const deviceData = detection.data;
-      
       if (currentPreparation) {
         const detectedAssetType = deviceData.asset_type?.toLowerCase() || "";
         const detectedCategory = deviceData.category || "";
-        
-        const matchingItems = currentPreparation.items.filter(item => {
+        const matchingItems = currentPreparation.items.filter((item) => {
           const itemName = item.item_name?.toLowerCase() || "";
-          return itemName.includes(detectedAssetType) || 
-                 detectedAssetType.includes(itemName) ||
-                 (detectedCategory === "Perangkat" && itemName.includes("laptop")) ||
-                 (detectedCategory === "Perangkat" && itemName.includes("pc")) ||
-                 (detectedCategory === "Perangkat" && itemName.includes("komputer")) ||
-                 (detectedCategory === "Perangkat" && itemName.includes("monitor")) ||
-                 (detectedCategory === "Material" && itemName.includes("kabel"));
+          return (
+            itemName.includes(detectedAssetType) ||
+            detectedAssetType.includes(itemName) ||
+            (detectedCategory === "Perangkat" && itemName.includes("laptop")) ||
+            (detectedCategory === "Perangkat" && itemName.includes("pc")) ||
+            (detectedCategory === "Perangkat" &&
+              itemName.includes("komputer")) ||
+            (detectedCategory === "Perangkat" &&
+              itemName.includes("monitor")) ||
+            (detectedCategory === "Material" && itemName.includes("kabel"))
+          );
         });
-        
         if (matchingItems.length === 0) {
           Swal.fire({
             title: "Item Tidak Sesuai!",
-            html: `
-              <div class="text-center">
-                <AlertTriangle class="w-12 h-12 text-orange-500 mx-auto mb-3" />
-                <p class="text-lg font-semibold text-gray-800 mb-2">Detected: ${deviceData.asset_type}</p>
-                <p class="text-sm text-gray-600">Item yang discan tidak sesuai dengan session ini.</p>
-                <div class="mt-4 p-3 bg-gray-100 rounded-lg text-left">
-                  <p class="text-xs font-semibold text-gray-700 mb-2">Items in this session:</p>
-                  <ul class="text-xs text-gray-600 space-y-1">
-                    ${currentPreparation.items.map(item => `<li>• ${item.item_name} (${item.brand || 'No brand'})</li>`).join('')}
-                  </ul>
-                </div>
-              </div>
-            `,
+            text: `${deviceData.asset_type} tidak sesuai dengan session ini.`,
             icon: "warning",
-            confirmButtonText: "OK",
           });
           return;
         }
-        
         const targetItem = matchingItems[0];
-        
         const progress = scanningProgress[targetItem.id_item];
         if (progress && progress.scanned >= progress.total) {
           Swal.fire({
             title: "Kuota Penuh",
-            text: `Semua ${targetItem.item_name} sudah mencapai target (${progress.total})`,
+            text: `Target ${targetItem.item_name} sudah tercapai`,
             icon: "warning",
-            confirmButtonText: "OK",
           });
           return;
         }
-        
         const scanItem = {
-          id: deviceData.id || `${targetItem.item_name.toUpperCase().replace(/\s/g, '')}-${Date.now()}`,
+          id:
+            deviceData.id ||
+            `${targetItem.item_name.toUpperCase().replace(/\s/g, "")}-${Date.now()}`,
           jenisAset: targetItem.item_name || deviceData.asset_type,
           kategori: targetItem.kategori || deviceData.category || "Perangkat",
           brand: targetItem.brand || deviceData.brand || "Unknown",
@@ -262,78 +253,25 @@ export default function SerialScanningPage() {
           lokasi: currentPreparation?.location_name || "",
           lokasiLabel: currentPreparation?.location_name || "",
         };
-        
         setPendingDevice(scanItem);
-        setCheckHistory(prev => [scanItem, ...prev]);
-        
-        if (currentPreparation) {
-          setScanningProgress(prev => {
-            const newProgress = { ...prev };
-            if (newProgress[targetItem.id_item]) {
-              newProgress[targetItem.id_item] = {
-                ...newProgress[targetItem.id_item],
-                scanned: Math.min(newProgress[targetItem.id_item].scanned + 1, newProgress[targetItem.id_item].total),
-                items: [...(newProgress[targetItem.id_item].items || []), scanItem.id]
-              };
-            }
-            return newProgress;
-          });
-        }
-        
-        Swal.fire({
-          title: "Device Detected!",
-          html: `
-            <div class="text-center">
-              <p class="text-lg font-semibold text-gray-900">${targetItem.item_name}</p>
-              <p class="text-sm text-gray-600">Brand: ${targetItem.brand || deviceData.brand || "Unknown"}</p>
-              <p class="text-sm text-gray-600">Confidence: ${Math.round((deviceData.confidence || 0.85) * 100)}%</p>
-              <p class="text-sm text-blue-600 mt-3">Do you want to scan the serial number?</p>
-            </div>
-          `,
-          icon: "success",
-          showCancelButton: true,
-          confirmButtonText: "Scan Serial",
-          cancelButtonText: "Skip",
-        }).then((result) => {
-          if (result.isConfirmed) {
-            setCameraMode("serial");
-            setIsCameraOpen(true);
-          } else {
-            setIsCameraOpen(false);
+        setCheckHistory((prev) => [scanItem, ...prev]);
+        setScanningProgress((prev) => {
+          const np = { ...prev };
+          if (np[targetItem.id_item]) {
+            np[targetItem.id_item] = {
+              ...np[targetItem.id_item],
+              scanned: Math.min(
+                np[targetItem.id_item].scanned + 1,
+                np[targetItem.id_item].total,
+              ),
+              items: [...(np[targetItem.id_item].items || []), scanItem.id],
+            };
           }
+          return np;
         });
-        
-      } else {
-        const scanItem = {
-          id: deviceData.id || `DEV-${Date.now()}`,
-          jenisAset: deviceData.asset_type,
-          kategori: deviceData.category || "Perangkat",
-          brand: deviceData.brand || "Unknown",
-          confidencePercent: Math.round((deviceData.confidence || 0.85) * 100),
-          status: "device_detected",
-          timestamp: new Date().toISOString(),
-          tanggal: new Date().toLocaleDateString("id-ID"),
-          waktu: new Date().toLocaleTimeString("id-ID", {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          }),
-          needsSerialScan: true,
-        };
-        
-        setPendingDevice(scanItem);
-        setCheckHistory(prev => [scanItem, ...prev]);
-        
         Swal.fire({
           title: "Device Detected!",
-          html: `
-            <div class="text-center">
-              <p class="text-lg font-semibold text-gray-900">${deviceData.asset_type}</p>
-              <p class="text-sm text-gray-600">Brand: ${deviceData.brand || "Unknown"}</p>
-              <p class="text-sm text-gray-600">Confidence: ${Math.round((deviceData.confidence || 0.85) * 100)}%</p>
-              <p class="text-sm text-blue-600 mt-3">Do you want to scan the serial number?</p>
-            </div>
-          `,
+          html: `<p class="text-lg font-semibold">${targetItem.item_name}</p><p class="text-sm text-gray-600">Brand: ${targetItem.brand || "Unknown"} &nbsp;|&nbsp; Confidence: ${Math.round((deviceData.confidence || 0.85) * 100)}%</p><p class="text-sm text-blue-600 mt-2">Scan serial number?</p>`,
           icon: "success",
           showCancelButton: true,
           confirmButtonText: "Scan Serial",
@@ -342,78 +280,32 @@ export default function SerialScanningPage() {
           if (result.isConfirmed) {
             setCameraMode("serial");
             setIsCameraOpen(true);
-          } else {
-            setIsCameraOpen(false);
-          }
+          } else setIsCameraOpen(false);
         });
       }
-      
     } else if (detection.type === "serial") {
       const serialData = detection.data;
-      
       if (pendingDevice) {
-        setCheckHistory(prev => 
-          prev.map(item => 
-            item.id === pendingDevice.id 
-              ? { 
-                  ...item, 
+        setCheckHistory((prev) =>
+          prev.map((item) =>
+            item.id === pendingDevice.id
+              ? {
+                  ...item,
                   nomorSeri: serialData.detected_text,
                   status: "serial_scanned",
-                  confidencePercent: Math.round((serialData.confidence || 0.9) * 100)
+                  confidencePercent: Math.round(
+                    (serialData.confidence || 0.9) * 100,
+                  ),
                 }
-              : item
-          )
+              : item,
+          ),
         );
-        
         Swal.fire({
-          title: "Serial Number Detected!",
-          html: `
-            <div class="text-center">
-              <p class="text-xl font-mono text-blue-600 font-bold">${serialData.detected_text}</p>
-              <p class="text-sm text-gray-600 mt-2">Serial number saved to device</p>
-            </div>
-          `,
+          title: "Serial Detected!",
+          html: `<p class="text-xl font-mono text-blue-600 font-bold">${serialData.detected_text}</p>`,
           icon: "success",
-          confirmButtonText: "OK",
         }).then(() => {
           setPendingDevice(null);
-          setIsCameraOpen(false);
-        });
-        
-      } else {
-        const serialItem = {
-          id: `SERIAL-${Date.now()}`,
-          jenisAset: "Serial Number",
-          kategori: "Material",
-          nomorSeri: serialData.detected_text,
-          status: "serial_scanned",
-          confidencePercent: Math.round((serialData.confidence || 0.9) * 100),
-          timestamp: new Date().toISOString(),
-          tanggal: new Date().toLocaleDateString("id-ID"),
-          waktu: new Date().toLocaleTimeString("id-ID", {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          }),
-          preparation_id: currentPreparation?.id_preparation,
-          preparation_name: currentPreparation?.checking_name,
-          lokasi: currentPreparation?.location_name || "",
-          lokasiLabel: currentPreparation?.location_name || "",
-        };
-        
-        setCheckHistory(prev => [serialItem, ...prev]);
-        
-        Swal.fire({
-          title: "Serial Number Detected!",
-          html: `
-            <div class="text-center">
-              <p class="text-xl font-mono text-blue-600 font-bold">${serialData.detected_text}</p>
-              <p class="text-sm text-gray-600 mt-2">Serial number saved</p>
-            </div>
-          `,
-          icon: "success",
-          confirmButtonText: "OK",
-        }).then(() => {
           setIsCameraOpen(false);
         });
       }
@@ -423,12 +315,10 @@ export default function SerialScanningPage() {
   const handleManualCheck = (e) => {
     e.preventDefault();
     if (!manualInput) return;
-
     setScanResult("loading");
-
     setTimeout(() => {
-      const isSerial = manualInput.includes("NS-") || manualInput.includes("BC-");
-      
+      const isSerial =
+        manualInput.includes("NS-") || manualInput.includes("BC-");
       const scanItem = {
         id: isSerial ? manualInput : `MAN-${Date.now()}`,
         jenisAset: isSerial ? "Manual Input" : "Unknown",
@@ -449,49 +339,43 @@ export default function SerialScanningPage() {
         lokasi: currentPreparation?.location_name || "",
         lokasiLabel: currentPreparation?.location_name || "",
       };
-
-      setCheckHistory(prev => [scanItem, ...prev]);
+      setCheckHistory((prev) => [scanItem, ...prev]);
       setScanResult(scanItem);
       setManualInput("");
-      
-      if (currentPreparation) {
-        updateScanningProgress(scanItem);
-      }
+      if (currentPreparation) updateScanningProgress(scanItem);
     }, 800);
   };
 
   const updateScanningProgress = (scanItem) => {
     if (!currentPreparation) return;
-    
-    setScanningProgress(prev => {
-      const newProgress = { ...prev };
-      
-      const matchingItem = currentPreparation.items.find(item => 
-        item.item_name.toLowerCase().includes(scanItem.jenisAset.toLowerCase()) ||
-        scanItem.jenisAset.toLowerCase().includes(item.item_name.toLowerCase())
+    setScanningProgress((prev) => {
+      const np = { ...prev };
+      const matchingItem = currentPreparation.items.find(
+        (item) =>
+          item.item_name
+            .toLowerCase()
+            .includes(scanItem.jenisAset.toLowerCase()) ||
+          scanItem.jenisAset
+            .toLowerCase()
+            .includes(item.item_name.toLowerCase()),
       );
-      
-      if (matchingItem && newProgress[matchingItem.id_item]) {
-        const current = newProgress[matchingItem.id_item].scanned;
-        const total = newProgress[matchingItem.id_item].total;
-        
-        if (current < total) {
-          newProgress[matchingItem.id_item] = {
-            ...newProgress[matchingItem.id_item],
-            scanned: Math.min(current + 1, total),
-            items: [...(newProgress[matchingItem.id_item].items || []), scanItem.id]
+      if (matchingItem && np[matchingItem.id_item]) {
+        const { scanned, total } = np[matchingItem.id_item];
+        if (scanned < total) {
+          np[matchingItem.id_item] = {
+            ...np[matchingItem.id_item],
+            scanned: Math.min(scanned + 1, total),
+            items: [...(np[matchingItem.id_item].items || []), scanItem.id],
           };
         }
       }
-      
-      return newProgress;
+      return np;
     });
   };
 
   const handleSubmitSingle = async (item) => {
     showSubmitSingleModal(item, async () => {
       setIsSubmitting(true);
-
       try {
         const response = await fetch(API_ENDPOINTS.LOCATION_ASSIGN_MULTIPLE, {
           method: "POST",
@@ -500,42 +384,31 @@ export default function SerialScanningPage() {
             asset_ids: [item.id],
             location_code: item.lokasi,
             scanned_by: "Scanner User",
-            notes: `Scanned via scanning page - ${item.jenisAset} ${item.nomorSeri ? `SN: ${item.nomorSeri}` : ""}`,
+            notes: `Scanned via scanning page - ${item.jenisAset}`,
           }),
         });
-
         const result = await response.json();
-
         if (result.success) {
           setCheckHistory((prev) =>
-            prev.map((prevItem) =>
-              prevItem.id === item.id
-                ? { ...prevItem, submitted: true, status: "Submitted" }
-                : prevItem,
+            prev.map((p) =>
+              p.id === item.id
+                ? { ...p, submitted: true, status: "Submitted" }
+                : p,
             ),
           );
-
           Swal.fire({
             title: "Success!",
-            text: `Data for ${item.jenisAset} submitted successfully.`,
+            text: `${item.jenisAset} submitted.`,
             icon: "success",
-            confirmButtonText: "OK",
           });
         } else {
-          Swal.fire({
-            title: "Submission Failed",
-            text: result.message || "Failed to submit data.",
-            icon: "error",
-            confirmButtonText: "OK",
-          });
+          Swal.fire({ title: "Failed", text: result.message, icon: "error" });
         }
-      } catch (error) {
-        console.error("Submission error:", error);
+      } catch {
         Swal.fire({
           title: "Error",
           text: "Failed to connect to server.",
           icon: "error",
-          confirmButtonText: "OK",
         });
       } finally {
         setIsSubmitting(false);
@@ -547,70 +420,47 @@ export default function SerialScanningPage() {
     const itemsToSubmit = checkHistory.filter(
       (item) => item.status !== "Submitted" && item.lokasi,
     );
-
     if (itemsToSubmit.length === 0) {
       Swal.fire({
-        title: "No Items to Submit",
-        text: "All items have been submitted or no items with location.",
+        title: "No Items",
+        text: "All submitted or no location set.",
         icon: "info",
-        confirmButtonText: "OK",
       });
       return;
     }
-
     showSubmitAllModal(itemsToSubmit, async () => {
       setIsSubmittingAll(true);
-
       try {
         const response = await fetch(API_ENDPOINTS.LOCATION_ASSIGN_MULTIPLE, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            asset_ids: itemsToSubmit.map((item) => item.id),
+            asset_ids: itemsToSubmit.map((i) => i.id),
             location_code: itemsToSubmit[0].lokasi,
             scanned_by: "Scanner User",
-            notes: `Batch submission from scanning page - ${itemsToSubmit.length} items`,
+            notes: `Batch - ${itemsToSubmit.length} items`,
           }),
         });
-
         const result = await response.json();
-
         if (result.success) {
           setCheckHistory((prev) =>
-            prev.map((prevItem) => {
-              if (itemsToSubmit.some((item) => item.id === prevItem.id)) {
-                return { ...prevItem, submitted: true, status: "Submitted" };
-              }
-              return prevItem;
-            }),
+            prev.map((p) =>
+              itemsToSubmit.some((i) => i.id === p.id)
+                ? { ...p, submitted: true, status: "Submitted" }
+                : p,
+            ),
           );
-
           Swal.fire({
             title: "Success!",
-            html: `
-              <div class="text-center">
-                <p class="text-lg font-semibold">${result.success_count} items submitted successfully</p>
-                ${result.failed_count > 0 ? `<p class="text-sm text-red-600 mt-2">${result.failed_count} items failed</p>` : ""}
-              </div>
-            `,
+            text: `${result.success_count} items submitted.`,
             icon: "success",
-            confirmButtonText: "OK",
-          });
-        } else {
-          Swal.fire({
-            title: "Submission Failed",
-            text: result.message || "Failed to submit data.",
-            icon: "error",
-            confirmButtonText: "OK",
           });
         }
-      } catch (error) {
-        console.error("Batch submission error:", error);
+      } catch {
         Swal.fire({
           title: "Error",
-          text: "Failed to connect to server.",
+          text: "Failed to connect.",
           icon: "error",
-          confirmButtonText: "OK",
         });
       } finally {
         setIsSubmittingAll(false);
@@ -620,83 +470,274 @@ export default function SerialScanningPage() {
 
   const handleDeleteData = (item) => {
     showDeleteItemModal(item, () => {
-      setCheckHistory((prev) =>
-        prev.filter((prevItem) => prevItem.id !== item.id),
-      );
-
-      Swal.fire({
-        title: "Deleted!",
-        text: "Item has been deleted.",
-        icon: "success",
-        confirmButtonText: "OK",
-      });
+      setCheckHistory((prev) => prev.filter((p) => p.id !== item.id));
+      Swal.fire({ title: "Deleted!", icon: "success" });
     });
   };
 
   const handleDeleteAll = () => {
-    if (checkHistory.length === 0) return;
-
+    if (!checkHistory.length) return;
     showDeleteAllModal(checkHistory.length, () => {
       setCheckHistory([]);
       localStorage.removeItem("scanCheckHistory");
-      Swal.fire({
-        title: "Deleted!",
-        text: "All items have been deleted.",
-        icon: "success",
-        confirmButtonText: "OK",
-      });
+      Swal.fire({ title: "Deleted!", icon: "success" });
     });
   };
 
-  // Helper functions
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "success":
-      case "serial_scanned":
-        return "bg-green-100 text-green-700 border-green-200";
-      case "error":
-        return "bg-red-100 text-red-700 border-red-200";
-      case "device_detected":
-        return "bg-blue-100 text-blue-700 border-blue-200";
-      case "Checked":
-        return "bg-yellow-100 text-yellow-700 border-yellow-200";
-      case "Submitted":
-        return "bg-gray-100 text-gray-700 border-gray-200";
-      default:
-        return "bg-gray-100 text-gray-700 border-gray-200";
-    }
-  };
-
-  const getStatusText = (status) => {
-    switch (status) {
-      case "success": return "Success";
-      case "error": return "Error";
-      case "device_detected": return "Device Detected";
-      case "serial_scanned": return "Serial Scanned";
-      case "Checked": return "Checked";
-      case "Submitted": return "Submitted";
-      default: return status;
-    }
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+  const getStatusConfig = (status) => {
+    const map = {
+      success: {
+        bg: "bg-green-50",
+        text: "text-green-700",
+        border: "border-green-200",
+        badge: "bg-green-100 text-green-700",
+        dot: "bg-green-500",
+        label: "Success",
+      },
+      serial_scanned: {
+        bg: "bg-green-50",
+        text: "text-green-700",
+        border: "border-green-200",
+        badge: "bg-green-100 text-green-700",
+        dot: "bg-green-500",
+        label: "Serial Scanned",
+      },
+      error: {
+        bg: "bg-red-50",
+        text: "text-red-700",
+        border: "border-red-200",
+        badge: "bg-red-100 text-red-700",
+        dot: "bg-red-500",
+        label: "Error",
+      },
+      device_detected: {
+        bg: "bg-blue-50",
+        text: "text-blue-700",
+        border: "border-blue-200",
+        badge: "bg-blue-100 text-blue-700",
+        dot: "bg-blue-500",
+        label: "Detected",
+      },
+      Checked: {
+        bg: "bg-amber-50",
+        text: "text-amber-700",
+        border: "border-amber-200",
+        badge: "bg-amber-100 text-amber-700",
+        dot: "bg-amber-500",
+        label: "Checked",
+      },
+      Submitted: {
+        bg: "bg-gray-50",
+        text: "text-gray-500",
+        border: "border-gray-200",
+        badge: "bg-gray-100 text-gray-500",
+        dot: "bg-gray-400",
+        label: "Submitted",
+      },
+    };
+    return map[status] || map.Submitted;
   };
 
   const getCategoryIcon = (kategori) => {
-    switch (kategori) {
-      case "Perangkat": return <Cpu className="w-4 h-4 text-blue-600" />;
-      case "Material": return <Cable className="w-4 h-4 text-green-600" />;
-      default: return <Server className="w-4 h-4 text-gray-600" />;
-    }
+    if (kategori === "Perangkat")
+      return <Cpu className="w-4 h-4 text-blue-600" />;
+    if (kategori === "Material")
+      return <Cable className="w-4 h-4 text-green-600" />;
+    return <Server className="w-4 h-4 text-gray-500" />;
   };
 
   const readyToSubmitCount = checkHistory.filter(
-    (item) => item.status !== "Submitted" && item.lokasi,
+    (i) => i.status !== "Submitted" && i.lokasi,
   ).length;
+  const totalScanned = Object.values(scanningProgress).reduce(
+    (s, p) => s + p.scanned,
+    0,
+  );
+  const totalTarget =
+    currentPreparation?.items.reduce((s, i) => s + i.quantity, 0) || 0;
+  const overallPct =
+    totalTarget > 0 ? Math.round((totalScanned / totalTarget) * 100) : 0;
+
+  // Session Selector Modal Component
+  const SessionSelectorModal = () => {
+    if (!showSessionSelector) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-xl">
+          <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Select Scanning Session
+            </h2>
+            <button
+         onClick={() => {
+  setShowSessionSelector(false);
+  router.push(`/scanning?prep_id=${session.id_preparation}`);
+}}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="p-5 overflow-y-auto max-h-[60vh]">
+            {loadingSessions ? (
+              <div className="py-10 text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-3" />
+                <p className="text-sm text-gray-500">Loading sessions...</p>
+              </div>
+            ) : availableSessions.length === 0 ? (
+              <div className="py-10 text-center">
+                <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-600 font-medium mb-1">
+                  No active sessions
+                </p>
+                <p className="text-sm text-gray-400 mb-4">
+                  Create a new session or go to preparation list
+                </p>
+                <div className="flex gap-2 justify-center">
+                  <button
+                    onClick={() => router.push("/create_scanning_preparation")}
+                    className="btn-primary"
+                    style={{ width: "auto", padding: "8px 16px" }}
+                  >
+                    <Plus className="w-4 h-4" /> New Session
+                  </button>
+                  <button
+                    onClick={() => router.push("/scanning_preparation_list")}
+                    className="btn-secondary"
+                    style={{ width: "auto", padding: "8px 16px" }}
+                  >
+                    View All Sessions
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {availableSessions.map((session) => {
+                  const totalItems = session.items?.length || 0;
+                  const totalQty =
+                    session.items?.reduce(
+                      (sum, i) => sum + (i.quantity || 0),
+                      0,
+                    ) || 0;
+                  const scannedCount =
+                    session.items?.reduce(
+                      (sum, i) => sum + (i.scanned_count || 0),
+                      0,
+                    ) || 0;
+                  const progress =
+                    totalQty > 0
+                      ? Math.round((scannedCount / totalQty) * 100)
+                      : 0;
+
+                  return (
+                    <div
+                      key={session.id_preparation}
+                      className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition cursor-pointer"
+                      onClick={() => {
+                        setShowSessionSelector(false);
+                        router.push(
+                          `/scanning?prep_id=${session.id_preparation}`,
+                        );
+                      }}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <h3 className="font-semibold text-gray-900">
+                            {session.checking_name}
+                          </h3>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {session.checking_number} •{" "}
+                            {session.location_name || "No location"}
+                          </p>
+                        </div>
+                        <span
+                          className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            session.status === "pending"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}
+                        >
+                          {session.status === "pending"
+                            ? "Pending"
+                            : "In Progress"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
+                        <div>
+                          <span className="text-gray-400">Items:</span>
+                          <span className="ml-1 font-semibold text-gray-700">
+                            {totalItems} types
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-400">Quantity:</span>
+                          <span className="ml-1 font-semibold text-gray-700">
+                            {totalQty} total
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-3">
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-gray-500">Progress</span>
+                          <span className="font-semibold text-gray-700">
+                            {progress}%
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-600 rounded-full"
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex justify-end">
+                        <button className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                          Select Session <ChevronRight className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-between">
+            <button
+              onClick={() => router.push("/scanning_preparation_list")}
+              className="text-sm text-gray-600 hover:text-gray-900"
+            >
+              View All Sessions
+            </button>
+            <button
+              onClick={() => router.push("/create_scanning_preparation")}
+              className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+            >
+              <Plus className="w-3.5 h-3.5 inline mr-1" /> New Session
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   if (loading) {
     return (
       <ProtectedPage>
         <LayoutDashboard activeMenu={2}>
-          <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              <p className="text-sm text-gray-500 font-medium">
+                Loading session...
+              </p>
+            </div>
           </div>
         </LayoutDashboard>
       </ProtectedPage>
@@ -706,532 +747,855 @@ export default function SerialScanningPage() {
   return (
     <ProtectedPage>
       <LayoutDashboard activeMenu={1}>
-        <style>{styles}</style>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+          .scan-root { font-family: 'DM Sans', sans-serif; }
+          .scan-root .mono { font-family: 'DM Mono', monospace; }
+          .scan-card {
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: box-shadow 0.2s ease;
+          }
+          .scan-card:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+          }
+          .section-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
+          .scan-viewfinder {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #0f172a;
+            border-radius: 12px;
+            overflow: hidden;
+          }
+          .scan-corner {
+            position: absolute;
+            width: 24px; height: 24px;
+            border-color: rgba(255,255,255,.8);
+            border-style: solid;
+          }
+          .scan-corner.tl { top: 16px; left: 16px; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+          .scan-corner.tr { top: 16px; right: 16px; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+          .scan-corner.bl { bottom: 16px; left: 16px; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+          .scan-corner.br { bottom: 16px; right: 16px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+          .scan-line {
+            position: absolute;
+            left: 10%; right: 10%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(59,130,246,.9), transparent);
+            animation: scanmove 2.2s ease-in-out infinite;
+          }
+          @keyframes scanmove {
+            0%,100% { top: 20%; opacity: .7; }
+            50% { top: 78%; opacity: 1; }
+          }
+          .pulse-ring {
+            animation: pulse-ring 1.8s ease-out infinite;
+          }
+          @keyframes pulse-ring {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+          }
+          .progress-fill { transition: width .4s ease; }
+          .history-row { transition: background .15s ease; }
+          .history-row:hover { background: #f9fafb; }
+          .btn-primary {
+            background: #1e40af;
+            color: #fff;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            padding: 11px 20px;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            transition: background .2s, transform .1s;
+            border: none; cursor: pointer; width: 100%;
+          }
+          .btn-primary:hover { background: #1e3a8a; }
+          .btn-primary:active { transform: scale(.98); }
+          .btn-secondary {
+            background: #f1f5f9;
+            color: #334155;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            padding: 11px 20px;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            transition: background .2s, transform .1s;
+            border: none; cursor: pointer; width: 100%;
+          }
+          .btn-secondary:hover { background: #e2e8f0; }
+          .input-field {
+            width: 100%; padding: 11px 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            color: #1e293b;
+            background: #f8fafc;
+            transition: border .2s, box-shadow .2s;
+            outline: none;
+            font-family: 'DM Mono', monospace;
+          }
+          .input-field:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); background: #fff; }
+          .input-field::placeholder { color: #94a3b8; font-family: 'DM Sans', sans-serif; }
+          .btn-danger {
+            background: #ef4444;
+            color: #fff;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            padding: 11px 20px;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            transition: background .2s, transform .1s;
+            border: none; cursor: pointer;
+          }
+          .btn-danger:hover { background: #dc2626; }
+          .btn-danger:active { transform: scale(.98); }
+          .btn-outline-danger {
+            background: #fee2e2;
+            color: #dc2626;
+            border: 1.5px solid #fecaca;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            padding: 7px 14px;
+            display: flex; align-items: center; gap: 6px;
+            transition: all .15s;
+            cursor: pointer;
+          }
+          .btn-outline-danger:hover { background: #fecaca; border-color: #f87171; }
+          .stat-box {
+            background-color: #f9fafb;
+            border: 1px solid #f3f4f6;
+            border-radius: 12px;
+            padding: 12px;
+          }
+          .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1f2937;
+          }
+          .stat-label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #6b7280;
+            margin-top: 4px;
+          }
+        `}</style>
 
-        {/* Fullscreen Camera Component */}
-        <FullscreenCamera
-          isOpen={isCameraOpen}
-          onClose={() => setIsCameraOpen(false)}
-          onDetect={handleCameraDetection}
-          mode={cameraMode}
-          sessionData={currentPreparation}
-        />
-
-        <div className="bm-root max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-2 space-y-4 sm:space-y-6">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="scan-root max-w-7xl mx-auto px-4 py-4 space-y-5">
+          {/* ── Page Header (Updated) ─────────────────────────────────────── */}
+          <div className="flex items-start justify-between">
             <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-                  IT ASSET SCANNING
+              <div className="flex items-center gap-2 mb-1">
+                <ScanLine className="w-5 h-5 text-blue-600" />
+                <h1 className="text-xl font-bold text-gray-900">
+                  IT Asset Scanning
                 </h1>
               </div>
-              <p className="text-sm text-gray-500 mt-1">
-                Scan IT devices or materials based on your preparation session
+              <p className="text-sm text-gray-500">
+                Scan devices or materials from your active session
               </p>
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={() => router.push("/scanning_sessions")}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm"
-              >
-                <Package className="w-4 h-4" />
-                View Sessions
-              </button>
+              {!currentPreparation && (
+                <button
+                  onClick={() => {
+                    setShowSessionSelector(true);
+                    loadAvailableSessions();
+                  }}
+                  className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg px-3 py-2 text-sm font-medium flex items-center gap-1.5"
+                >
+                  <Package className="w-4 h-4" /> Select Session
+                </button>
+              )}
               <button
                 onClick={() => router.push("/create_scanning_preparation")}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                className="btn-primary"
+                style={{ width: "auto", padding: "10px 16px" }}
               >
                 <Plus className="w-4 h-4" />
-                New Session
+                <span className="hidden sm:inline">New Session</span>
+                <span className="sm:hidden">New</span>
               </button>
             </div>
           </div>
 
-          {/* Active Session Card */}
-          {currentPreparation ? (
-            <div className="card p-4 border-l-4 border-blue-500">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                    <Package className="w-4 h-4 text-blue-600" />
+          {/* ── Active Session Banner ────────────────────────────── */}
+          {currentPreparation && (
+            <div
+              className="scan-card p-4"
+              style={{ borderLeft: "4px solid #2563eb" }}
+            >
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+                    <Target className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-sm text-gray-800">
-                      Active Session: {currentPreparation.checking_name}
-                    </h3>
-                    <p className="text-xs text-gray-500">
-                      #{currentPreparation.checking_number} • Location: {currentPreparation.location_name}
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-gray-900 text-sm">
+                        {currentPreparation.checking_name}
+                      </h3>
+                      <span
+                        style={{
+                          background: "#dbeafe",
+                          color: "#1d4ed8",
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          padding: "2px 8px",
+                          borderRadius: "20px",
+                        }}
+                      >
+                        Active
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {currentPreparation.checking_number} &nbsp;·&nbsp;{" "}
+                      {currentPreparation.location_name}
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    setCurrentPreparation(null);
-                    setScanningProgress({});
-                    router.push("/scanning_sessions");
-                  }}
-                  className="text-gray-400 hover:text-gray-600 p-1"
-                  title="End Session"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-3">
+                  {/* Overall progress circle */}
+                  <div className="flex flex-col items-center">
+                    <div className="relative w-12 h-12">
+                      <svg viewBox="0 0 48 48" className="w-12 h-12 -rotate-90">
+                        <circle
+                          cx="24"
+                          cy="24"
+                          r="18"
+                          fill="none"
+                          stroke="#e5e7eb"
+                          strokeWidth="4"
+                        />
+                        <circle
+                          cx="24"
+                          cy="24"
+                          r="18"
+                          fill="none"
+                          stroke={overallPct === 100 ? "#22c55e" : "#2563eb"}
+                          strokeWidth="4"
+                          strokeDasharray={`${2 * Math.PI * 18}`}
+                          strokeDashoffset={`${2 * Math.PI * 18 * (1 - overallPct / 100)}`}
+                          strokeLinecap="round"
+                          style={{ transition: "stroke-dashoffset .5s ease" }}
+                        />
+                      </svg>
+                      <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-gray-800">
+                        {overallPct}%
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setCurrentPreparation(null);
+                      setScanningProgress({});
+                      router.push("/scanning_sessions");
+                    }}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
-              {/* Progress bars */}
-              <div className="space-y-3">
+              {/* Item progress list */}
+              <div className="space-y-2.5">
                 {currentPreparation.items.map((item) => {
-                  const progress = scanningProgress[item.id_item] || {
+                  const prog = scanningProgress[item.id_item] || {
                     scanned: 0,
                     total: item.quantity,
                   };
-                  const percentage = (progress.scanned / progress.total) * 100;
-
+                  const pct = Math.round((prog.scanned / prog.total) * 100);
+                  const done = pct === 100;
                   return (
-                    <div key={item.id_item} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
+                    <div key={item.id_item}>
+                      <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-700">
+                          <div
+                            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${done ? "bg-green-500" : "bg-blue-400"}`}
+                          />
+                          <span className="text-xs text-gray-700">
                             {item.item_name}
                           </span>
                           {item.brand && (
-                            <span className="text-gray-400">({item.brand})</span>
-                          )}
-                          {item.model && (
-                            <span className="text-gray-400">- {item.model}</span>
+                            <span className="text-xs text-gray-400">
+                              {item.brand}
+                            </span>
                           )}
                         </div>
-                        <span className="text-gray-600 font-mono">
-                          {progress.scanned}/{progress.total}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono text-gray-600">
+                            {prog.scanned}/{prog.total}
+                          </span>
+                          {done && (
+                            <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all duration-300 ${
-                              percentage === 100
-                                ? "bg-green-500"
-                                : percentage > 50
-                                  ? "bg-blue-500"
-                                  : "bg-yellow-500"
-                            }`}
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
-                        {percentage === 100 && (
-                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                        )}
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full progress-fill ${done ? "bg-green-500" : pct > 50 ? "bg-blue-500" : "bg-amber-400"}`}
+                          style={{ width: `${pct}%` }}
+                        />
                       </div>
                     </div>
                   );
                 })}
               </div>
 
-              {/* Summary */}
-              <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
-                <span className="text-gray-500">
-                  Total Progress:{" "}
-                  {Object.values(scanningProgress).reduce((sum, p) => sum + p.scanned, 0)} /{" "}
-                  {currentPreparation.items.reduce((sum, item) => sum + item.quantity, 0)}
-                </span>
-                {Object.values(scanningProgress).every((p) => p.scanned === p.total) && (
-                  <span className="text-green-600 font-medium flex items-center gap-1">
-                    <CheckCircle className="w-3 h-3" />
-                    Complete
-                  </span>
-                )}
-              </div>
-            </div>
-          ) : null}
-
-          {/* Camera Section - Desain Awal */}
-          <div className="card p-3 sm:p-4 md:p-6">
-            <p className="section-title flex items-center gap-2">
-              <ScanLine className="w-4 h-4" /> Camera Scanner – Detect Devices/Materials
-            </p>
-
-            <div className="relative w-full aspect-video bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center mb-4 sm:mb-6">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="absolute inset-0 w-full h-full object-cover"
-              ></video>
-
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-4/5 h-4/5 border-4 border-dashed border-white/50 rounded-lg"></div>
-              </div>
-
-              {cameraError && (
-                <div className="absolute inset-0 bg-black/70 text-white text-center flex items-center justify-center p-3 sm:p-4">
-                  <div>
-                    <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2" />
-                    <p className="text-xs sm:text-sm">{cameraError}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={() => {
-                setCameraMode("device");
-                setIsCameraOpen(true);
-              }}
-              className="w-full flex items-center justify-center px-4 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition shadow-lg text-sm"
-            >
-              <Camera className="w-4 h-4 mr-2" />
-              Start Scanning
-            </button>
-          </div>
-
-          {/* Manual Input & Scan Results - Grid 2 Kolom */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-            {/* Manual Input Card */}
-            <div className="card p-4 sm:p-6">
-              <p className="section-title flex items-center gap-2">
-                <Clipboard className="w-4 h-4" /> Manual Input
-              </p>
-              <form onSubmit={handleManualCheck} className="space-y-3 sm:space-y-4">
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
-                    Enter Serial Number or Barcode
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Example: NS-PC-887632 or BC-RJ45-554321"
-                    value={manualInput}
-                    onChange={(e) => setManualInput(e.target.value)}
-                    className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-xs sm:text-sm"
-                    required
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full flex items-center justify-center px-3 sm:px-4 py-2 sm:py-3 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300 transition disabled:opacity-50 text-sm"
-                  disabled={scanResult === "loading" || isSubmitting}
-                >
-                  <Search className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                  Check Validity
-                </button>
-              </form>
-            </div>
-
-            {/* Latest Detection Result Card */}
-            <div className="card p-4 sm:p-6">
-              <p className="section-title flex items-center gap-2">
-                <Eye className="w-4 h-4" /> Latest Detection Result
-              </p>
-
-              {scanResult === "loading" && (
-                <div className="text-center py-6 sm:py-8 text-gray-500">
-                  <Loader2 className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-3 animate-spin text-blue-600" />
-                  <p className="font-medium text-sm sm:text-base">Processing detection...</p>
-                </div>
-              )}
-
-              {scanResult && scanResult !== "loading" && (
-                <div
-                  className={`p-3 sm:p-4 rounded-lg border-l-4 ${
-                    scanResult.status === "success" || scanResult.status === "serial_scanned"
-                      ? "bg-green-50 border-green-500"
-                      : scanResult.status === "device_detected"
-                        ? "bg-blue-50 border-blue-500"
-                        : "bg-red-50 border-red-500"
-                  }`}
-                >
-                  <div
-                    className={`flex items-center mb-2 sm:mb-3 ${
-                      scanResult.status === "success" || scanResult.status === "serial_scanned"
-                        ? "text-green-700"
-                        : scanResult.status === "device_detected"
-                          ? "text-blue-700"
-                          : "text-red-700"
-                    }`}
-                  >
-                    {scanResult.status === "success" || scanResult.status === "serial_scanned" ? (
-                      <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 mr-2" />
-                    ) : scanResult.status === "device_detected" ? (
-                      <Camera className="w-5 h-5 sm:w-6 sm:h-6 mr-2" />
-                    ) : (
-                      <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 mr-2" />
-                    )}
-                    <span className="font-bold text-base sm:text-lg capitalize">
-                      {getStatusText(scanResult.status)}
+              {Object.values(scanningProgress).every(
+                (p) => p.scanned === p.total,
+              ) &&
+                totalTarget > 0 && (
+                  <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="text-xs font-semibold text-green-700">
+                      All items scanned — session complete!
                     </span>
                   </div>
+                )}
+            </div>
+          )}
 
-                  <div className="space-y-1 sm:space-y-2 text-xs sm:text-sm">
-                    <div className="flex justify-between">
-                      <span className="font-medium text-gray-600">Asset ID:</span>
-                      <span className="font-bold text-gray-800">{scanResult.id}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium text-gray-600">Type:</span>
-                      <span className="text-gray-800">{scanResult.jenisAset}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium text-gray-600">Category:</span>
-                      <span className="flex items-center">
-                        {getCategoryIcon(scanResult.kategori)}
-                        <span className="ml-1 text-gray-800">{scanResult.kategori}</span>
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium text-gray-600">Brand:</span>
-                      <span className="text-gray-800 font-medium">{scanResult.brand || "N/A"}</span>
-                    </div>
-                    {scanResult.nomorSeri && (
-                      <div className="flex justify-between">
-                        <span className="font-medium text-gray-600">Serial Number:</span>
-                        <span className="font-mono text-gray-800 font-medium">{scanResult.nomorSeri}</span>
-                      </div>
-                    )}
-                    {scanResult.confidencePercent && scanResult.confidencePercent !== "N/A" && (
-                      <div className="flex justify-between">
-                        <span className="font-medium text-gray-600">Confidence:</span>
-                        <span className="font-bold text-gray-800">{scanResult.confidencePercent}%</span>
-                      </div>
-                    )}
-                    {currentPreparation && (
-                      <div className="flex justify-between">
-                        <span className="font-medium text-gray-600">Session:</span>
-                        <span className="text-gray-800">{currentPreparation.checking_name}</span>
-                      </div>
-                    )}
-                  </div>
+          {/* ── Main Grid: Camera + Input ────────────────────────── */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+            {/* Camera — spans 3 cols */}
+            <div className="lg:col-span-3 scan-card p-4 sm:p-5">
+              <p className="section-label">
+                <Camera className="w-3.5 h-3.5" /> Camera Scanner
+              </p>
+
+              {/* Viewfinder */}
+              <div className="scan-viewfinder mb-4">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="absolute inset-0 w-full h-full object-cover opacity-90"
+                />
+                {/* Dimmed overlay at edges */}
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    background:
+                      "radial-gradient(ellipse 60% 55% at 50% 50%, transparent 0%, rgba(0,0,0,.45) 100%)",
+                  }}
+                />
+                {/* Scan corners */}
+                <div className="scan-corner tl" />
+                <div className="scan-corner tr" />
+                <div className="scan-corner bl" />
+                <div className="scan-corner br" />
+                {/* Animated scan line */}
+                <div className="scan-line" />
+                {/* Bottom label */}
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: 12,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    background: "rgba(0,0,0,.5)",
+                    borderRadius: 20,
+                    padding: "4px 14px",
+                  }}
+                >
+                  <p
+                    style={{
+                      color: "rgba(255,255,255,.75)",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Point camera at device or barcode
+                  </p>
                 </div>
-              )}
+                {cameraError && (
+                  <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center p-4">
+                    <div className="text-center">
+                      <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+                      <p className="text-xs text-gray-300">{cameraError}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Scan Buttons */}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    setCameraMode("device");
+                    setIsCameraOpen(true);
+                  }}
+                >
+                  <Cpu className="w-4 h-4" /> Scan Device
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={() => {
+                    setCameraMode("serial");
+                    setIsCameraOpen(true);
+                  }}
+                >
+                  <Hash className="w-4 h-4" /> Scan Serial
+                </button>
+              </div>
+            </div>
+
+            {/* Right Panel — spans 2 cols */}
+            <div className="lg:col-span-2 flex flex-col gap-5">
+              {/* Manual Input */}
+              <div className="scan-card p-4 sm:p-5">
+                <p className="section-label">
+                  <Clipboard className="w-3.5 h-3.5" /> Manual Input
+                </p>
+                <form onSubmit={handleManualCheck} className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1.5">
+                      Serial number or barcode
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="NS-PC-887632 or BC-RJ45-554321"
+                      value={manualInput}
+                      onChange={(e) => setManualInput(e.target.value)}
+                      className="input-field"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="btn-secondary"
+                    disabled={scanResult === "loading"}
+                  >
+                    {scanResult === "loading" ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" /> Checking...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="w-4 h-4" /> Check Validity
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+
+              {/* Last Detection Result */}
+              <div className="scan-card p-4 sm:p-5 flex-1">
+                <p className="section-label">
+                  <Eye className="w-3.5 h-3.5" /> Last Detection
+                </p>
+
+                {!scanResult && (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
+                      <Scan className="w-6 h-6 text-gray-400" />
+                    </div>
+                    <p className="text-sm text-gray-500">No result yet</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Scan or enter a serial number
+                    </p>
+                  </div>
+                )}
+
+                {scanResult === "loading" && (
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-2" />
+                    <p className="text-sm text-gray-500">Processing...</p>
+                  </div>
+                )}
+
+                {scanResult &&
+                  scanResult !== "loading" &&
+                  (() => {
+                    const cfg = getStatusConfig(scanResult.status);
+                    return (
+                      <div
+                        className={`rounded-xl p-3.5 border ${cfg.bg} ${cfg.border}`}
+                      >
+                        <div
+                          className={`flex items-center gap-2 mb-3 ${cfg.text}`}
+                        >
+                          <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+                          <span className="text-xs font-semibold uppercase tracking-wide">
+                            {cfg.label}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          {[
+                            {
+                              label: "Asset ID",
+                              value: scanResult.id,
+                              mono: true,
+                            },
+                            { label: "Type", value: scanResult.jenisAset },
+                            {
+                              label: "Brand",
+                              value: scanResult.brand || "N/A",
+                            },
+                            scanResult.nomorSeri && {
+                              label: "Serial",
+                              value: scanResult.nomorSeri,
+                              mono: true,
+                            },
+                            scanResult.confidencePercent && {
+                              label: "Confidence",
+                              value: `${scanResult.confidencePercent}%`,
+                            },
+                          ]
+                            .filter(Boolean)
+                            .map((row) => (
+                              <div
+                                key={row.label}
+                                className="flex justify-between items-center text-xs"
+                              >
+                                <span className="text-gray-500">
+                                  {row.label}
+                                </span>
+                                <span
+                                  className={`text-gray-800 ${row.mono ? "font-mono" : ""}`}
+                                >
+                                  {row.value}
+                                </span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+              </div>
             </div>
           </div>
 
-          {/* History Table */}
-          <div className="card p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 sm:mb-4 gap-2">
-              <div className="flex items-center">
-                <p className="section-title flex items-center gap-2 mb-0">
-                  <Calendar className="w-4 h-4" /> Recent Detection History
+          {/* ── Scan History (Full width table) ──────────────────────────── */}
+          <div className="scan-card p-4 sm:p-5">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <p className="section-label mb-0" style={{ marginBottom: 0 }}>
+                  <Calendar className="w-3.5 h-3.5" /> Detection History
                 </p>
-              </div>
-              <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs sm:text-sm text-gray-500">
-                    {checkHistory.length} items
-                  </span>
+                  {checkHistory.length > 0 && (
+                    <span
+                      style={{
+                        background: "#f1f5f9",
+                        color: "#475569",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        padding: "2px 10px",
+                        borderRadius: "20px",
+                      }}
+                    >
+                      {checkHistory.length} items
+                    </span>
+                  )}
                   {readyToSubmitCount > 0 && (
-                    <span className="ml-2 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                    <span
+                      style={{
+                        background: "#dcfce7",
+                        color: "#15803d",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        padding: "2px 10px",
+                        borderRadius: "20px",
+                      }}
+                    >
                       {readyToSubmitCount} ready
                     </span>
                   )}
                 </div>
-                <div className="flex gap-2">
-                  {checkHistory.length > 0 && (
-                    <button
-                      onClick={handleDeleteAll}
-                      className="flex items-center px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition"
-                      title="Delete All History"
-                    >
-                      <Trash2 className="w-3 h-3 mr-1" />
-                      Delete All
-                    </button>
-                  )}
-                </div>
               </div>
+              {checkHistory.length > 0 && (
+                <button
+                  onClick={handleDeleteAll}
+                  className="bg-white border border-red-500 text-red-500 hover:bg-red-50 rounded-lg px-2.5 py-1 text-xs font-medium flex items-center gap-1 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Clear All
+                </button>
+              )}
             </div>
 
             {checkHistory.length === 0 ? (
-              <div className="text-center py-6 sm:py-8 text-gray-500">
-                <Box className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-3 text-gray-400" />
-                <p className="font-medium text-sm sm:text-base">No detection history yet</p>
-                <p className="text-xs sm:text-sm mt-1">Start scanning with your active session</p>
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
+                  <Box className="w-7 h-7 text-gray-400" />
+                </div>
+                <p className="text-sm text-gray-500">No scan history</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Your scanned items will appear here
+                </p>
               </div>
             ) : (
               <>
-                {/* Desktop Table */}
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full text-sm text-left">
+                {/* Desktop Table - Full width */}
+                <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-100">
+                  <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50">
-                        {["Asset ID", "Type", "Category", "Brand", "Confidence", "Serial Number", "Location", "Status", "Date", "Time", "Action"].map((h) => (
-                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
+                      <tr style={{ background: "#f8fafc" }}>
+                        {[
+                          "Asset ID",
+                          "Type",
+                          "Category",
+                          "Brand",
+                          "Serial",
+                          "Confidence",
+                          "Status",
+                          "Time",
+                          "",
+                        ].map((h) => (
+                          <th
+                            key={h}
+                            className="px-4 py-3 text-left"
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: "#6b7280",
+                              textTransform: "uppercase",
+                              letterSpacing: ".06em",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
                             {h}
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {checkHistory.map((item) => (
-                        <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50 text-gray-800">
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
-                                {getCategoryIcon(item.kategori)}
+                      {checkHistory.map((item, idx) => {
+                        const cfg = getStatusConfig(item.status);
+                        return (
+                          <tr
+                            key={item.id}
+                            className="history-row border-t border-gray-50"
+                          >
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                                  {getCategoryIcon(item.kategori)}
+                                </div>
+                                <span className="font-mono text-gray-900 text-xs">
+                                  {item.id}
+                                </span>
                               </div>
-                              <span className="font-semibold text-gray-900 text-sm">{item.id}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-xs text-gray-600">{item.jenisAset}</td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 text-xs rounded-full font-semibold ${
-                              item.kategori === "Perangkat" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"
-                            }`}>
-                              {item.kategori === "Perangkat" ? "Device" : "Material"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-xs text-gray-600">
-                            <span className="font-medium text-gray-500">{item.brand || "N/A"}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 text-xs rounded-full font-semibold ${
-                              item.confidencePercent >= 80
-                                ? "bg-green-100 text-green-700"
-                                : item.confidencePercent >= 60
-                                  ? "bg-yellow-100 text-yellow-700"
-                                  : "bg-red-100 text-red-700"
-                            }`}>
-                              {item.confidencePercent || "N/A"}%
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-xs text-gray-600">
-                            <span className="font-mono text-gray-500 text-xs">
-                              {item.nomorSeri || "-"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-xs text-gray-600">
-                            <div className="max-w-[120px] truncate" title={item.lokasiLabel || item.lokasi}>
-                              {item.lokasiLabel || item.lokasi || "From Preparation"}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 text-xs rounded-full font-semibold border ${getStatusColor(item.status)}`}>
-                              {getStatusText(item.status)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="text-xs text-gray-600">{item.tanggal}</div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="text-xs text-gray-400">{item.waktu}</div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex space-x-1 sm:space-x-2">
-                              {item.status !== "Submitted" && item.lokasi && (
-                                <button
-                                  onClick={() => handleSubmitSingle(item)}
-                                  disabled={isSubmitting}
-                                  className="flex items-center px-2 sm:px-3 py-1 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition disabled:opacity-50"
-                                  title="Submit Data"
-                                >
-                                  <Send className="w-3 h-3 mr-1" />
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleDeleteData(item)}
-                                className="flex items-center px-2 sm:px-3 py-1 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition"
-                                title="Delete Data"
+                            </td>
+                            <td className="px-4 py-3 text-xs text-gray-600">
+                              {item.jenisAset}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                style={{
+                                  background:
+                                    item.kategori === "Perangkat"
+                                      ? "#dbeafe"
+                                      : "#dcfce7",
+                                  color:
+                                    item.kategori === "Perangkat"
+                                      ? "#1d4ed8"
+                                      : "#15803d",
+                                  fontSize: 11,
+                                  fontWeight: 500,
+                                  padding: "3px 8px",
+                                  borderRadius: 20,
+                                }}
                               >
-                                <Trash2 className="w-3 h-3 mr-1" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                                {item.kategori === "Perangkat"
+                                  ? "Device"
+                                  : "Material"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-xs text-gray-500">
+                              {item.brand || "—"}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="font-mono text-xs text-gray-600">
+                                {item.nomorSeri || "—"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                style={{
+                                  background:
+                                    item.confidencePercent >= 80
+                                      ? "#dcfce7"
+                                      : item.confidencePercent >= 60
+                                        ? "#fef9c3"
+                                        : "#fee2e2",
+                                  color:
+                                    item.confidencePercent >= 80
+                                      ? "#15803d"
+                                      : item.confidencePercent >= 60
+                                        ? "#854d0e"
+                                        : "#b91c1c",
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  padding: "2px 8px",
+                                  borderRadius: 20,
+                                }}
+                              >
+                                {item.confidencePercent || "—"}%
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  fontWeight: 500,
+                                  padding: "3px 10px",
+                                  borderRadius: 20,
+                                }}
+                                className={cfg.badge}
+                              >
+                                {cfg.label}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <p className="text-xs text-gray-500">
+                                {item.tanggal}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {item.waktu}
+                              </p>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1">
+                                {item.status !== "Submitted" && item.lokasi && (
+                                  <button
+                                    onClick={() => handleSubmitSingle(item)}
+                                    disabled={isSubmitting}
+                                    className="w-7 h-7 rounded-lg flex items-center justify-center bg-green-600 hover:bg-green-700 text-white transition disabled:opacity-50"
+                                    title="Submit"
+                                  >
+                                    <Send className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleDeleteData(item)}
+                                  className="w-7 h-7 rounded-lg flex items-center justify-center bg-red-500 hover:bg-red-600 text-white transition"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
 
-                {/* Mobile View */}
-                <div className="md:hidden space-y-3">
-                  {checkHistory.map((item) => (
-                    <div key={item.id} className="border border-gray-200 rounded-lg p-3 bg-white hover:bg-gray-50 transition">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
-                            {getCategoryIcon(item.kategori)}
+                {/* Mobile Cards */}
+                <div className="md:hidden space-y-2">
+                  {checkHistory.map((item) => {
+                    const cfg = getStatusConfig(item.status);
+                    return (
+                      <div
+                        key={item.id}
+                        className="border border-gray-100 rounded-xl p-3 bg-white"
+                      >
+                        <div className="flex items-start justify-between mb-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center">
+                              {getCategoryIcon(item.kategori)}
+                            </div>
+                            <div>
+                              <p className="font-mono text-xs text-gray-900">
+                                {item.id}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {item.jenisAset}
+                              </p>
+                            </div>
                           </div>
-                          <div className="font-bold text-sm text-gray-900">{item.id}</div>
-                        </div>
-                        <span className={`px-2 py-1 text-xs rounded-full font-semibold border ${getStatusColor(item.status)}`}>
-                          {getStatusText(item.status)}
-                        </span>
-                      </div>
-
-                      <div className="text-xs text-gray-600 space-y-1">
-                        <div className="flex justify-between">
-                          <span className="font-medium">Type:</span>
-                          <span>{item.jenisAset}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">Category:</span>
-                          <span className={`px-1 rounded text-xs ${
-                            item.kategori === "Perangkat" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"
-                          }`}>
-                            {item.kategori === "Perangkat" ? "Device" : "Material"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">Brand:</span>
-                          <span>{item.brand || "N/A"}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">Confidence:</span>
-                          <span className="font-bold">{item.confidencePercent}%</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">Serial:</span>
-                          <span className="font-mono">{item.nomorSeri || "-"}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="font-medium">Location:</span>
-                          <span className="text-right max-w-[120px] truncate">
-                            {item.lokasiLabel || item.lokasi || "From Preparation"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-gray-500">
-                          <span>{item.tanggal}</span>
-                          <span>{item.waktu}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex space-x-2 mt-3 pt-2 border-t border-gray-100">
-                        {item.status !== "Submitted" && item.lokasi && (
-                          <button
-                            onClick={() => handleSubmitSingle(item)}
-                            disabled={isSubmitting}
-                            className="flex-1 flex items-center justify-center px-2 py-1 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition"
+                          <span
+                            className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.badge}`}
                           >
-                            <Send className="w-3 h-3 mr-1" />
-                            Submit
+                            {cfg.label}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1 text-xs mb-2.5">
+                          <div>
+                            <span className="text-gray-400">Brand: </span>
+                            <span className="text-gray-700">
+                              {item.brand || "—"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Confidence: </span>
+                            <span className="font-bold text-gray-700">
+                              {item.confidencePercent}%
+                            </span>
+                          </div>
+                          {item.nomorSeri && (
+                            <div className="col-span-2">
+                              <span className="text-gray-400">Serial: </span>
+                              <span className="font-mono text-gray-700">
+                                {item.nomorSeri}
+                              </span>
+                            </div>
+                          )}
+                          <div className="col-span-2 text-gray-400">
+                            {item.tanggal} &nbsp;{item.waktu}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 pt-2 border-t border-gray-50">
+                          {item.status !== "Submitted" && item.lokasi && (
+                            <button
+                              onClick={() => handleSubmitSingle(item)}
+                              disabled={isSubmitting}
+                              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition"
+                            >
+                              <Send className="w-3 h-3" /> Submit
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteData(item)}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-red-500 text-white text-xs font-semibold rounded-lg hover:bg-red-600 transition"
+                          >
+                            <Trash2 className="w-3 h-3" /> Delete
                           </button>
-                        )}
-                        <button
-                          onClick={() => handleDeleteData(item)}
-                          className="flex-1 flex items-center justify-center px-2 py-1 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition"
-                        >
-                          <Trash2 className="w-3 h-3 mr-1" />
-                          Delete
-                        </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
+                {/* Submit All Button - Full width */}
                 {readyToSubmitCount > 0 && (
-                  <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-gray-200">
+                  <div className="mt-4 pt-4 border-t border-gray-100">
                     <button
                       onClick={handleSubmitAll}
                       disabled={isSubmittingAll}
-                      className="w-full flex items-center justify-center px-3 sm:px-4 py-2 sm:py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm sm:text-base"
+                      className="btn-primary"
+                      style={{ maxWidth: "100%" }}
                     >
                       {isSubmittingAll ? (
                         <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Sending {readyToSubmitCount} items...
+                          <Loader2 className="w-4 h-4 animate-spin" />{" "}
+                          Submitting {readyToSubmitCount} items...
                         </>
                       ) : (
                         <>
-                          <Send className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                          Submit All ({readyToSubmitCount} items)
+                          <Zap className="w-4 h-4" /> Submit All (
+                          {readyToSubmitCount} items)
                         </>
                       )}
                     </button>
@@ -1241,6 +1605,18 @@ export default function SerialScanningPage() {
             )}
           </div>
         </div>
+
+        {/* Session Selector Modal */}
+        <SessionSelectorModal />
+
+        {/* Fullscreen Camera Component */}
+        <FullscreenCamera
+          isOpen={isCameraOpen}
+          onClose={() => setIsCameraOpen(false)}
+          onDetect={handleCameraDetection}
+          mode={cameraMode}
+          sessionData={currentPreparation}
+        />
       </LayoutDashboard>
     </ProtectedPage>
   );
