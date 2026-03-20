@@ -171,16 +171,28 @@ export default function SerialScanningPage() {
       if (data.success) {
         setCurrentPreparation(data.data);
         const progress = {};
+        
+        // Initialize progress for each item from the database
         data.data.items.forEach((item) => {
+          // Check if there are existing scans for this item
+          const scannedCount = item.scanned_count || 0;
+          
           progress[item.id_item] = {
             total: item.quantity,
-            scanned: 0,
-            items: [],
+            scanned: scannedCount,
+            items: [], // This will store IDs of scanned items
           };
         });
+        
         setScanningProgress(progress);
+        
+        // Load scanned items into checkHistory if available
+        if (data.data.scanned_items && data.data.scanned_items.length > 0) {
+          setCheckHistory(data.data.scanned_items);
+        }
       }
     } catch (error) {
+      console.error("Error loading preparation:", error);
       Swal.fire({
         title: "Error!",
         text: "Failed to load scanning session",
@@ -191,7 +203,7 @@ export default function SerialScanningPage() {
     }
   };
 
-  // ─── Camera detection handler (unchanged logic) ──────────────────────────
+  // ─── Camera detection handler ──────────────────────────────────────────
   const handleCameraDetection = (detection) => {
     if (detection.type === "device") {
       const deviceData = detection.data;
@@ -231,9 +243,7 @@ export default function SerialScanningPage() {
           return;
         }
         const scanItem = {
-          id:
-            deviceData.id ||
-            `${targetItem.item_name.toUpperCase().replace(/\s/g, "")}-${Date.now()}`,
+          id: deviceData.id || `SCAN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           jenisAset: targetItem.item_name || deviceData.asset_type,
           kategori: targetItem.kategori || deviceData.category || "Perangkat",
           brand: targetItem.brand || deviceData.brand || "Unknown",
@@ -319,11 +329,21 @@ export default function SerialScanningPage() {
     setTimeout(() => {
       const isSerial =
         manualInput.includes("NS-") || manualInput.includes("BC-");
+      
+      // Find matching item from current preparation
+      let matchedItem = null;
+      if (currentPreparation) {
+        matchedItem = currentPreparation.items.find(item => 
+          manualInput.toLowerCase().includes(item.item_name.toLowerCase()) ||
+          (item.brand && manualInput.toLowerCase().includes(item.brand.toLowerCase()))
+        );
+      }
+      
       const scanItem = {
-        id: isSerial ? manualInput : `MAN-${Date.now()}`,
-        jenisAset: isSerial ? "Manual Input" : "Unknown",
-        kategori: isSerial ? "Material" : "Perangkat",
-        brand: "N/A",
+        id: isSerial ? manualInput : `MAN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        jenisAset: matchedItem ? matchedItem.item_name : (isSerial ? "Manual Input" : "Unknown"),
+        kategori: matchedItem ? matchedItem.kategori || "Perangkat" : (isSerial ? "Material" : "Perangkat"),
+        brand: matchedItem ? matchedItem.brand || "N/A" : "N/A",
         confidencePercent: "100",
         status: "Checked",
         nomorSeri: isSerial ? manualInput : "",
@@ -338,34 +358,26 @@ export default function SerialScanningPage() {
         preparation_name: currentPreparation?.checking_name,
         lokasi: currentPreparation?.location_name || "",
         lokasiLabel: currentPreparation?.location_name || "",
+        item_id: matchedItem?.id_item,
       };
       setCheckHistory((prev) => [scanItem, ...prev]);
       setScanResult(scanItem);
       setManualInput("");
-      if (currentPreparation) updateScanningProgress(scanItem);
+      if (currentPreparation && matchedItem) updateScanningProgress(scanItem);
     }, 800);
   };
 
   const updateScanningProgress = (scanItem) => {
-    if (!currentPreparation) return;
+    if (!currentPreparation || !scanItem.item_id) return;
     setScanningProgress((prev) => {
       const np = { ...prev };
-      const matchingItem = currentPreparation.items.find(
-        (item) =>
-          item.item_name
-            .toLowerCase()
-            .includes(scanItem.jenisAset.toLowerCase()) ||
-          scanItem.jenisAset
-            .toLowerCase()
-            .includes(item.item_name.toLowerCase()),
-      );
-      if (matchingItem && np[matchingItem.id_item]) {
-        const { scanned, total } = np[matchingItem.id_item];
+      if (np[scanItem.item_id]) {
+        const { scanned, total } = np[scanItem.item_id];
         if (scanned < total) {
-          np[matchingItem.id_item] = {
-            ...np[matchingItem.id_item],
+          np[scanItem.item_id] = {
+            ...np[scanItem.item_id],
             scanned: Math.min(scanned + 1, total),
-            items: [...(np[matchingItem.id_item].items || []), scanItem.id],
+            items: [...(np[scanItem.item_id].items || []), scanItem.id],
           };
         }
       }
@@ -471,6 +483,22 @@ export default function SerialScanningPage() {
   const handleDeleteData = (item) => {
     showDeleteItemModal(item, () => {
       setCheckHistory((prev) => prev.filter((p) => p.id !== item.id));
+      
+      // Update scanning progress if item had item_id
+      if (item.item_id && scanningProgress[item.item_id]) {
+        setScanningProgress((prev) => {
+          const np = { ...prev };
+          if (np[item.item_id]) {
+            np[item.item_id] = {
+              ...np[item.item_id],
+              scanned: Math.max(0, np[item.item_id].scanned - 1),
+              items: (np[item.item_id].items || []).filter(id => id !== item.id),
+            };
+          }
+          return np;
+        });
+      }
+      
       Swal.fire({ title: "Deleted!", icon: "success" });
     });
   };
@@ -479,6 +507,20 @@ export default function SerialScanningPage() {
     if (!checkHistory.length) return;
     showDeleteAllModal(checkHistory.length, () => {
       setCheckHistory([]);
+      
+      // Reset scanning progress but keep totals
+      if (currentPreparation) {
+        const resetProgress = {};
+        currentPreparation.items.forEach((item) => {
+          resetProgress[item.id_item] = {
+            total: item.quantity,
+            scanned: 0,
+            items: [],
+          };
+        });
+        setScanningProgress(resetProgress);
+      }
+      
       localStorage.removeItem("scanCheckHistory");
       Swal.fire({ title: "Deleted!", icon: "success" });
     });
@@ -571,10 +613,7 @@ export default function SerialScanningPage() {
               Select Scanning Session
             </h2>
             <button
-         onClick={() => {
-  setShowSessionSelector(false);
-  router.push(`/scanning?prep_id=${session.id_preparation}`);
-}}
+              onClick={() => setShowSessionSelector(false)}
               className="text-gray-400 hover:text-gray-600"
             >
               <X className="w-5 h-5" />
@@ -894,7 +933,7 @@ export default function SerialScanningPage() {
         `}</style>
 
         <div className="scan-root max-w-7xl mx-auto px-4 py-4 space-y-5">
-          {/* ── Page Header (Updated) ─────────────────────────────────────── */}
+          {/* ── Page Header ─────────────────────────────────────── */}
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -1146,15 +1185,6 @@ export default function SerialScanningPage() {
                 >
                   <Cpu className="w-4 h-4" /> Scan Device
                 </button>
-                <button
-                  className="btn-secondary"
-                  onClick={() => {
-                    setCameraMode("serial");
-                    setIsCameraOpen(true);
-                  }}
-                >
-                  <Hash className="w-4 h-4" /> Scan Serial Number
-                </button>
               </div>
             </div>
 
@@ -1307,20 +1337,6 @@ export default function SerialScanningPage() {
                       {checkHistory.length} items
                     </span>
                   )}
-                  {/* {readyToSubmitCount > 0 && (
-                    <span
-                      style={{
-                        background: "#dcfce7",
-                        color: "#15803d",
-                        fontSize: "11px",
-                        fontWeight: 600,
-                        padding: "2px 10px",
-                        borderRadius: "20px",
-                      }}
-                    >
-                      {readyToSubmitCount} ready
-                    </span>
-                  )} */}
                 </div>
               </div>
               {checkHistory.length > 0 && (

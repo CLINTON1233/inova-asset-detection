@@ -652,116 +652,112 @@ export default function ScanningPreparationListPage() {
                     <th className="sp-th text-center">Actions</th>
                   </tr>
                 </thead>
-              <tbody>
-  {filteredSessions.map((session, idx) => {
-    const sc = getStatusConfig(session.status);
-    return (
-      <tr
-        key={session.id_preparation}
-        className="sp-row transition-colors cursor-pointer hover:bg-blue-50/50"
-        onClick={() => router.push(`/scanning_preparation/${session.id_preparation}`)}
-      >
-        <td className="sp-td">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">
-              {idx + 1}
-            </div>
-            <div>
-              <div className="font-semibold text-gray-900 text-sm leading-tight">
-                {session.checking_name}
-              </div>
-              <div className="text-xs text-gray-400 mono mt-0.5">
-                {session.checking_number}
-              </div>
-            </div>
-          </div>
-        </td>
-        <td className="sp-td hidden md:table-cell">
-          <div className="flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-            <span className="text-xs text-gray-600">
-              {formatDate(session.checking_date)}
-            </span>
-          </div>
-        </td>
-        <td className="sp-td hidden lg:table-cell">
-          <div className="flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-            <span className="text-xs text-gray-600 truncate max-w-[140px]">
-              {session.location_name}
-            </span>
-          </div>
-        </td>
-        <td className="sp-td">
-          <span
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}
-            onClick={(e) => e.stopPropagation()} // Mencegah klik pada badge memicu row click
-          >
-            <span
-              className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`}
-            />
-            {sc.label}
-          </span>
-        </td>
-        <td className="sp-td hidden xl:table-cell">
-          <div className="text-sm font-semibold text-gray-800">
-            {session.totalItems}{" "}
-            <span className="font-normal text-gray-400 text-xs">
-              items
-            </span>
-          </div>
-          <div className="text-xs text-gray-400">
-            {session.totalQty} qty total
-          </div>
-        </td>
-        <td className="sp-td">
-          <div className="flex items-center gap-2">
-            <div className="prog-track w-20">
-              <div
-                className="prog-fill"
-                style={{ width: `${session.progress || 0}%` }}
-              />
-            </div>
-            <span className="text-xs font-semibold text-gray-600">
-              {session.progress || 0}%
-            </span>
-          </div>
-        </td>
-        <td className="sp-td text-center">
-          <div className="flex items-center justify-center gap-2">
-            <button
-              onClick={(e) => {
-                e.stopPropagation(); // Mencegah row click
-                router.push(
-                  `/scanning?prep_id=${session.id_preparation}`,
-                );
-              }}
-              className="scan-btn"
-              title="Start Scanning"
-            >
-              <ScanLine className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Scan</span>
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation(); // Mencegah row click
-                handleDelete(
-                  session.id_preparation,
-                  session.checking_name,
-                );
-              }}
-              className="delete-btn"
-              title="Delete Session"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Delete</span>
-            </button>
-          </div>
-        </td>
-      </tr>
-    );
-  })}
-</tbody>
+                <tbody>
+                  {filteredSessions.map((session, idx) => {
+                    const sc = getStatusConfig(session.status);
+                    return (
+                      <tr
+                        key={session.id_preparation}
+                        className="sp-row transition-colors"
+                      >
+                        <td className="sp-td">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">
+                              {idx + 1}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-gray-900 text-sm leading-tight">
+                                {session.checking_name}
+                              </div>
+                              <div className="text-xs text-gray-400 mono mt-0.5">
+                                {session.checking_number}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="sp-td hidden md:table-cell">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                            <span className="text-xs text-gray-600">
+                              {formatDate(session.checking_date)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="sp-td hidden lg:table-cell">
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                            <span className="text-xs text-gray-600 truncate max-w-[140px]">
+                              {session.location_name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="sp-td">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`}
+                            />
+                            {sc.label}
+                          </span>
+                        </td>
+                        <td className="sp-td hidden xl:table-cell">
+                          <div className="text-sm font-semibold text-gray-800">
+                            {session.totalItems}{" "}
+                            <span className="font-normal text-gray-400 text-xs">
+                              items
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {session.totalQty} qty total
+                          </div>
+                        </td>
+                        <td className="sp-td">
+                          <div className="flex items-center gap-2">
+                            <div className="prog-track w-20">
+                              <div
+                                className="prog-fill"
+                                style={{ width: `${session.progress || 0}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-semibold text-gray-600">
+                              {session.progress || 0}%
+                            </span>
+                          </div>
+                        </td>
+                        <td className="sp-td text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() =>
+                                router.push(
+                                  `/scanning?prep_id=${session.id_preparation}`,
+                                )
+                              }
+                              className="scan-btn"
+                              title="Start Scanning"
+                            >
+                              <ScanLine className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Scan</span>
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDelete(
+                                  session.id_preparation,
+                                  session.checking_name,
+                                )
+                              }
+                              className="delete-btn"
+                              title="Delete Session"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Delete</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
               </table>
             </div>
           )}
