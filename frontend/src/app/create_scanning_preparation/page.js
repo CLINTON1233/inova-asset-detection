@@ -18,6 +18,8 @@ import {
   Users,
   ChevronDown,
   ChevronUp,
+  Copy,
+  Layers,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import API_BASE_URL, { API_ENDPOINTS } from "../../config/api";
@@ -29,28 +31,31 @@ export default function ScanningPreparationPage() {
   const [locations, setLocations] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [mounted, setMounted] = useState(false);
-  const [checkingNumber, setCheckingNumber] = useState("");
   const [expandedItems, setExpandedItems] = useState({});
 
-  // Form state
-  const [formData, setFormData] = useState({
-    checking_name: "",
-    category_id: "",
-    location_id: "",
-    checking_date: new Date().toISOString().split("T")[0],
-    remarks: "",
-  });
-
-  // Multiple items state
-  const [items, setItems] = useState([
+  // Multiple sessions state
+  const [sessions, setSessions] = useState([
     {
-      id: `item-${Date.now()}-1`,
-      item_name: "",
-      brand: "",
-      model: "",
-      specifications: "",
-      quantity: 1,
-      departments: [],
+      id: `session-${Date.now()}-1`,
+      checking_number: generateCheckingNumber(),
+      formData: {
+        checking_name: "",
+        category_id: "",
+        location_id: "",
+        checking_date: new Date().toISOString().split("T")[0],
+        remarks: "",
+      },
+      items: [
+        {
+          id: `item-${Date.now()}-1-1`,
+          item_name: "",
+          brand: "",
+          model: "",
+          specifications: "",
+          quantity: 1,
+          departments: [],
+        },
+      ],
     },
   ]);
 
@@ -59,17 +64,16 @@ export default function ScanningPreparationPage() {
     fetchCategories();
     fetchLocations();
     fetchDepartments();
-    generateCheckingNumber();
   }, []);
 
-  const generateCheckingNumber = () => {
+  function generateCheckingNumber() {
     const date = new Date();
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
     const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-    setCheckingNumber(`SCAN-${year}${month}${day}-${random}`);
-  };
+    return `SCAN-${year}${month}${day}-${random}`;
+  }
 
   const fetchCategories = async () => {
     try {
@@ -169,42 +173,147 @@ export default function ScanningPreparationPage() {
     }
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const addNewItem = () => {
-    setItems([
-      ...items,
-      {
-        id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        item_name: "",
-        brand: "",
-        model: "",
-        specifications: "",
-        quantity: 1,
-        departments: [],
+  // Session management functions
+  const addNewSession = () => {
+    const newSession = {
+      id: `session-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      checking_number: generateCheckingNumber(),
+      formData: {
+        checking_name: "",
+        category_id: "",
+        location_id: "",
+        checking_date: new Date().toISOString().split("T")[0],
+        remarks: "",
       },
-    ]);
+      items: [
+        {
+          id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}-1`,
+          item_name: "",
+          brand: "",
+          model: "",
+          specifications: "",
+          quantity: 1,
+          departments: [],
+        },
+      ],
+    };
+    setSessions([...sessions, newSession]);
   };
 
-  const removeItem = (id) => {
-    if (items.length > 1) {
-      setItems(items.filter((item) => item.id !== id));
+  const duplicateSession = (sessionId) => {
+    const sessionToDuplicate = sessions.find(s => s.id === sessionId);
+    if (sessionToDuplicate) {
+      const newSession = {
+        ...JSON.parse(JSON.stringify(sessionToDuplicate)),
+        id: `session-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        checking_number: generateCheckingNumber(),
+      };
+      // Update item IDs to avoid conflicts
+      newSession.items = newSession.items.map(item => ({
+        ...item,
+        id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      }));
+      setSessions([...sessions, newSession]);
+    }
+  };
+
+  const removeSession = (sessionId) => {
+    if (sessions.length > 1) {
+      Swal.fire({
+        title: "Remove Session?",
+        text: "This action cannot be undone",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#d33",
+        cancelButtonColor: "#6b7280",
+        confirmButtonText: "Yes, Remove",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setSessions(sessions.filter(s => s.id !== sessionId));
+        }
+      });
     } else {
       Swal.fire({
         title: "Cannot Remove",
-        text: "At least one item is required",
+        text: "At least one session is required",
         icon: "warning",
         confirmButtonColor: "#1e40af",
       });
     }
   };
 
-  const updateItem = (id, field, value) => {
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+  // Session form handlers
+  const handleSessionInputChange = (sessionId, field, value) => {
+    setSessions(prev =>
+      prev.map(session =>
+        session.id === sessionId
+          ? { ...session, formData: { ...session.formData, [field]: value } }
+          : session
+      )
+    );
+  };
+
+  // Item management functions for specific session
+  const addNewItem = (sessionId) => {
+    setSessions(prev =>
+      prev.map(session =>
+        session.id === sessionId
+          ? {
+              ...session,
+              items: [
+                ...session.items,
+                {
+                  id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                  item_name: "",
+                  brand: "",
+                  model: "",
+                  specifications: "",
+                  quantity: 1,
+                  departments: [],
+                },
+              ],
+            }
+          : session
+      )
+    );
+  };
+
+  const removeItem = (sessionId, itemId) => {
+    setSessions(prev =>
+      prev.map(session => {
+        if (session.id === sessionId) {
+          if (session.items.length > 1) {
+            return {
+              ...session,
+              items: session.items.filter(item => item.id !== itemId),
+            };
+          } else {
+            Swal.fire({
+              title: "Cannot Remove",
+              text: "At least one item is required per session",
+              icon: "warning",
+              confirmButtonColor: "#1e40af",
+            });
+            return session;
+          }
+        }
+        return session;
+      })
+    );
+  };
+
+  const updateItem = (sessionId, itemId, field, value) => {
+    setSessions(prev =>
+      prev.map(session =>
+        session.id === sessionId
+          ? {
+              ...session,
+              items: session.items.map(item =>
+                item.id === itemId ? { ...item, [field]: value } : item
+              ),
+            }
+          : session
+      )
     );
   };
 
@@ -215,83 +324,78 @@ export default function ScanningPreparationPage() {
     }));
   };
 
-  const updateDepartmentQuantity = (itemId, departmentId, quantity) => {
+  const updateDepartmentQuantity = (sessionId, itemId, departmentId, quantity) => {
     const department = departments.find((d) => d.id_department === departmentId);
-    const item = items.find((i) => i.id === itemId);
-    if (!item) return;
+    
+    setSessions(prev =>
+      prev.map(session => {
+        if (session.id === sessionId) {
+          return {
+            ...session,
+            items: session.items.map(item => {
+              if (item.id === itemId) {
+                const newQuantity = parseInt(quantity) || 0;
+                const currentTotal = item.departments.reduce(
+                  (sum, d) => (d.department_id === departmentId ? sum : sum + d.quantity),
+                  0
+                );
 
-    const newQuantity = parseInt(quantity) || 0;
-    const currentTotal = item.departments.reduce(
-      (sum, d) => (d.department_id === departmentId ? sum : sum + d.quantity),
-      0
-    );
+                if (currentTotal + newQuantity > item.quantity) {
+                  const maxAllowed = item.quantity - currentTotal;
+                  if (newQuantity > maxAllowed) {
+                    const existingDept = item.departments.find((d) => d.department_id === departmentId);
+                    if (existingDept) {
+                      return {
+                        ...item,
+                        departments: item.departments.map((d) =>
+                          d.department_id === departmentId ? { ...d, quantity: maxAllowed } : d
+                        ),
+                      };
+                    } else if (maxAllowed > 0) {
+                      return {
+                        ...item,
+                        departments: [
+                          ...item.departments,
+                          { department_id: departmentId, department_name: department.department_name, quantity: maxAllowed },
+                        ],
+                      };
+                    }
+                    return item;
+                  }
+                }
 
-    if (currentTotal + newQuantity > item.quantity) {
-      const maxAllowed = item.quantity - currentTotal;
-      if (newQuantity > maxAllowed) {
-        setItems((prev) =>
-          prev.map((i) => {
-            if (i.id === itemId) {
-              const existingDept = i.departments.find((d) => d.department_id === departmentId);
-              if (existingDept) {
-                return {
-                  ...i,
-                  departments: i.departments.map((d) =>
-                    d.department_id === departmentId ? { ...d, quantity: maxAllowed } : d
-                  ),
-                };
-              } else if (maxAllowed > 0) {
-                return {
-                  ...i,
-                  departments: [
-                    ...i.departments,
-                    { department_id: departmentId, department_name: department.department_name, quantity: maxAllowed },
-                  ],
-                };
+                if (newQuantity > 0) {
+                  const existingDept = item.departments.find((d) => d.department_id === departmentId);
+                  if (existingDept) {
+                    return {
+                      ...item,
+                      departments: item.departments.map((d) =>
+                        d.department_id === departmentId ? { ...d, quantity: newQuantity } : d
+                      ),
+                    };
+                  } else {
+                    return {
+                      ...item,
+                      departments: [
+                        ...item.departments,
+                        { department_id: departmentId, department_name: department.department_name, quantity: newQuantity },
+                      ],
+                    };
+                  }
+                } else {
+                  return {
+                    ...item,
+                    departments: item.departments.filter((d) => d.department_id !== departmentId),
+                  };
+                }
               }
-            }
-            return i;
-          })
-        );
-        return;
-      }
-    }
-
-    if (newQuantity > 0) {
-      setItems((prev) =>
-        prev.map((i) => {
-          if (i.id === itemId) {
-            const existingDept = i.departments.find((d) => d.department_id === departmentId);
-            if (existingDept) {
-              return {
-                ...i,
-                departments: i.departments.map((d) =>
-                  d.department_id === departmentId ? { ...d, quantity: newQuantity } : d
-                ),
-              };
-            } else {
-              return {
-                ...i,
-                departments: [
-                  ...i.departments,
-                  { department_id: departmentId, department_name: department.department_name, quantity: newQuantity },
-                ],
-              };
-            }
-          }
-          return i;
-        })
-      );
-    } else {
-      setItems((prev) =>
-        prev.map((i) => {
-          if (i.id === itemId) {
-            return { ...i, departments: i.departments.filter((d) => d.department_id !== departmentId) };
-          }
-          return i;
-        })
-      );
-    }
+              return item;
+            }),
+          };
+        }
+        return session;
+      })
+    );
   };
 
   const isDepartmentInputDisabled = (item, departmentId) => {
@@ -300,50 +404,63 @@ export default function ScanningPreparationPage() {
     return totalAssigned >= item.quantity && !currentDept;
   };
 
-  const validateForm = () => {
+  const validateSession = (session) => {
     const errors = [];
-    if (!formData.checking_name) errors.push("Checking name is required");
-    if (!formData.category_id) errors.push("Category is required");
-    if (!formData.location_id) errors.push("Location is required");
-    if (!formData.checking_date) errors.push("Checking date is required");
-    items.forEach((item, index) => {
-      if (!item.item_name) errors.push(`Item #${index + 1}: Item name is required`);
-      if (!item.quantity || item.quantity < 1) errors.push(`Item #${index + 1}: Quantity must be at least 1`);
+    if (!session.formData.checking_name) errors.push("Checking name is required");
+    if (!session.formData.category_id) errors.push("Category is required");
+    if (!session.formData.location_id) errors.push("Location is required");
+    if (!session.formData.checking_date) errors.push("Checking date is required");
+    
+    session.items.forEach((item, index) => {
+      if (!item.item_name) errors.push(`Session ${session.checking_number} - Item #${index + 1}: Item name is required`);
+      if (!item.quantity || item.quantity < 1) errors.push(`Session ${session.checking_number} - Item #${index + 1}: Quantity must be at least 1`);
       if (item.departments.length > 0) {
         const totalDeptQty = item.departments.reduce((sum, d) => sum + d.quantity, 0);
         if (totalDeptQty > item.quantity) {
-          errors.push(`Item #${index + 1}: Total department quantity (${totalDeptQty}) exceeds item quantity (${item.quantity})`);
+          errors.push(`Session ${session.checking_number} - Item #${index + 1}: Total department quantity exceeds item quantity`);
         }
       }
     });
+    
     return errors;
   };
 
   const handleSubmit = async () => {
-    const errors = validateForm();
-    if (errors.length > 0) {
+    // Validate all sessions
+    let allErrors = [];
+    sessions.forEach(session => {
+      const sessionErrors = validateSession(session);
+      allErrors = [...allErrors, ...sessionErrors];
+    });
+
+    if (allErrors.length > 0) {
       Swal.fire({
         title: "Validation Error",
-        html: errors.map((err) => `• ${err}`).join("<br>"),
+        html: allErrors.map((err) => `• ${err}`).join("<br>"),
         icon: "warning",
         confirmButtonColor: "#1e40af",
       });
       return;
     }
 
+    const totalItems = sessions.reduce((sum, session) => sum + session.items.length, 0);
+    const totalQuantity = sessions.reduce((sum, session) => 
+      sum + session.items.reduce((itemSum, item) => itemSum + (item.quantity || 1), 0), 0
+    );
+
     const result = await Swal.fire({
-      title: "Create Scanning Preparation?",
+      title: "Create Scanning Preparations?",
       html: `
         <div class="text-left text-sm">
-          <p><strong>Checking Number:</strong> ${checkingNumber}</p>
-          <p><strong>Total Items:</strong> ${items.length}</p>
-          <p><strong>Total Quantity:</strong> ${items.reduce((sum, item) => sum + (item.quantity || 1), 0)}</p>
-          <p class="mt-2 text-xs text-gray-500">This will create a new scanning session</p>
+          <p><strong>Total Sessions:</strong> ${sessions.length}</p>
+          <p><strong>Total Items:</strong> ${totalItems}</p>
+          <p><strong>Total Quantity:</strong> ${totalQuantity}</p>
+          <p class="mt-2 text-xs text-gray-500">This will create ${sessions.length} new scanning session(s)</p>
         </div>
       `,
       icon: "question",
       showCancelButton: true,
-      confirmButtonText: "Yes, Create",
+      confirmButtonText: "Yes, Create All",
       cancelButtonText: "Cancel",
       confirmButtonColor: "#2563eb",
       cancelButtonColor: "#6b7280",
@@ -353,50 +470,59 @@ export default function ScanningPreparationPage() {
 
     setLoading(true);
     try {
-      const payload = {
-        checking_name: formData.checking_name,
-        category_id: parseInt(formData.category_id),
-        location_id: parseInt(formData.location_id),
-        checking_date: formData.checking_date,
-        remarks: formData.remarks,
-        items: items.map(({ id, ...item }) => ({
-          ...item,
-          quantity: parseInt(item.quantity) || 1,
-          departments: item.departments.map((d) => ({
-            department_id: d.department_id,
-            quantity: d.quantity,
+      const results = [];
+      
+      for (const session of sessions) {
+        const payload = {
+          checking_name: session.formData.checking_name,
+          category_id: parseInt(session.formData.category_id),
+          location_id: parseInt(session.formData.location_id),
+          checking_date: session.formData.checking_date,
+          remarks: session.formData.remarks,
+          items: session.items.map(({ id, ...item }) => ({
+            ...item,
+            quantity: parseInt(item.quantity) || 1,
+            departments: item.departments.map((d) => ({
+              department_id: d.department_id,
+              quantity: d.quantity,
+            })),
           })),
-        })),
-        user_id: 1,
-      };
+          user_id: 1,
+        };
 
-      const response = await fetch(API_ENDPOINTS.SCANNING_PREP_CREATE, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+        const response = await fetch(API_ENDPOINTS.SCANNING_PREP_CREATE, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
 
-      const data = await response.json();
+        const data = await response.json();
+        if (data.success) {
+          results.push(data);
+        }
+      }
 
-      if (data.success) {
+      if (results.length > 0) {
         await Swal.fire({
           title: "Success!",
           html: `
             <div class="text-center">
-              <p>Scanning preparation created successfully!</p>
-              <p class="font-mono text-sm bg-gray-100 p-2 rounded mt-2">${data.checking_number}</p>
+              <p>Successfully created ${results.length} scanning preparations!</p>
+              <div class="font-mono text-xs bg-gray-100 p-2 rounded mt-2 max-h-32 overflow-y-auto">
+                ${results.map(r => `<div>${r.checking_number}</div>`).join('')}
+              </div>
             </div>
           `,
           icon: "success",
-          timer: 2000,
+          timer: 3000,
           showConfirmButton: false,
         });
-        router.push(`/scanning?prep_id=${data.preparation_id}`);
+        router.push("/scanning");
       }
     } catch (error) {
       Swal.fire({
         title: "Error!",
-        text: error.message || "Failed to create scanning preparation",
+        text: error.message || "Failed to create scanning preparations",
         icon: "error",
         confirmButtonColor: "#1e40af",
       });
@@ -407,35 +533,40 @@ export default function ScanningPreparationPage() {
 
   const handleReset = () => {
     Swal.fire({
-      title: "Reset Form?",
-      text: "All entered data will be lost",
+      title: "Reset All Forms?",
+      text: "All entered data for all sessions will be lost",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Yes, Reset",
+      confirmButtonText: "Yes, Reset All",
       cancelButtonText: "Cancel",
       confirmButtonColor: "#d33",
       cancelButtonColor: "#6b7280",
     }).then((result) => {
       if (result.isConfirmed) {
-        setFormData({
-          checking_name: "",
-          category_id: "",
-          location_id: "",
-          checking_date: new Date().toISOString().split("T")[0],
-          remarks: "",
-        });
-        setItems([
+        setSessions([
           {
-            id: `item-${Date.now()}-1`,
-            item_name: "",
-            brand: "",
-            model: "",
-            specifications: "",
-            quantity: 1,
-            departments: [],
+            id: `session-${Date.now()}-1`,
+            checking_number: generateCheckingNumber(),
+            formData: {
+              checking_name: "",
+              category_id: "",
+              location_id: "",
+              checking_date: new Date().toISOString().split("T")[0],
+              remarks: "",
+            },
+            items: [
+              {
+                id: `item-${Date.now()}-1-1`,
+                item_name: "",
+                brand: "",
+                model: "",
+                specifications: "",
+                quantity: 1,
+                departments: [],
+              },
+            ],
           },
         ]);
-        generateCheckingNumber();
       }
     });
   };
@@ -481,7 +612,6 @@ export default function ScanningPreparationPage() {
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
         .bm-root { font-family: 'DM Sans', sans-serif; }
 
-        /* Raised card — same as dashboard .card */
         .form-card {
           background: #ffffff;
           border-radius: 16px;
@@ -490,31 +620,48 @@ export default function ScanningPreparationPage() {
           overflow: hidden;
         }
 
+        .session-card {
+          background: #ffffff;
+          border-radius: 16px;
+          border: 1px solid #e5e7eb;
+          transition: all 0.2s ease;
+          margin-bottom: 1rem;
+        }
+
+        .session-card:last-child {
+          margin-bottom: 0;
+        }
+
+        .session-card:hover {
+          border-color: #93c5fd;
+          box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.1);
+        }
+
         .section-title { font-size: 13px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; }
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
 
-      {/* Root — no bg, no min-h-screen; inherits gray-100 from LayoutDashboard */}
-      <div className="bm-root space-y-5">
-
-        {/* ── Header (outside card, same as other pages) ── */}
-        <div className="flex items-start justify-between">
+      <div className="bm-root">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-5">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Package className="w-5 h-5 text-blue-600" />
               <h1 className="text-xl font-bold text-gray-900">Scanning Preparation</h1>
             </div>
-            <p className="text-sm text-gray-500">Prepare your scanning session before starting check</p>
+            <p className="text-sm text-gray-500">Create preparation scanning sessions at once</p>
           </div>
-          <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-mono">
-            {checkingNumber}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+              <Layers className="w-3 h-3 inline mr-1" />
+              {sessions.length} Session
+            </span>
+          </div>
         </div>
 
-        {/* ── Main Form Card ── */}
+        {/* Main Form Card - Everything inside one card */}
         <div className="form-card">
-
           {/* Card Header */}
           <div className="px-6 py-5 border-b border-gray-100 bg-gray-50 rounded-t-2xl">
             <div className="flex items-center gap-3">
@@ -522,323 +669,348 @@ export default function ScanningPreparationPage() {
                 <Package className="w-4 h-4 text-blue-600" />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-gray-800 leading-tight">Session Details</h2>
-                <p className="text-xs text-gray-400 leading-tight mt-0.5">Fill in the information below to create a new scanning session</p>
+                <h2 className="text-sm font-bold text-gray-800 leading-tight">Scanning Preparation Form</h2>
+                <p className="text-xs text-gray-400 leading-tight mt-0.5">Fill in the information below to create scanning sessions</p>
               </div>
             </div>
           </div>
 
-          {/* Form Content — structure UNCHANGED */}
+          {/* Form Content */}
           <div className="p-6">
-            {/* BASIC INFORMATION */}
-            <SectionDivider icon={FileText} label="Basic Information" />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div>
-                <Label required>Checking Name</Label>
-                <input
-                  type="text"
-                  name="checking_name"
-                  value={formData.checking_name}
-                  onChange={handleInputChange}
-                  className={inputCls}
-                  placeholder="e.g. IT Asset Inventory"
-                  required
-                />
-                <Hint>Name for this scanning session</Hint>
-              </div>
-
-              <div>
-                <Label required>Category</Label>
-                <div className="relative">
-                  <select
-                    name="category_id"
-                    value={formData.category_id}
-                    onChange={handleInputChange}
-                    className={selectCls}
-                    required
-                  >
-                    <option value="">Select Category</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id_category} value={cat.id_category}>
-                        {cat.category_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* LOCATION & DATE */}
-            <SectionDivider icon={MapPin} label="Location & Date" />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div>
-                <Label required>Location Check</Label>
-                <div className="relative">
-                  <select
-                    name="location_id"
-                    value={formData.location_id}
-                    onChange={handleInputChange}
-                    className={selectCls}
-                    required
-                  >
-                    <option value="">Select Location</option>
-                    {locations.map((loc) => (
-                      <option key={loc.id_location} value={loc.id_location}>
-                        {loc.location_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <Label required>Checking Date</Label>
-                <input
-                  type="date"
-                  name="checking_date"
-                  value={formData.checking_date}
-                  onChange={handleInputChange}
-                  className={inputCls}
-                  required
-                />
-              </div>
-            </div>
-
-            {/* ITEMS SECTION */}
-            <SectionDivider icon={Box} label="Items to Scan" />
-
-            {/* Items List — UNCHANGED */}
-            <div className="space-y-4">
-              {items.map((item, index) => {
-                const totalDeptQty = item.departments.reduce((sum, d) => sum + d.quantity, 0);
-                const remainingQty = item.quantity - totalDeptQty;
-                const isExpanded = expandedItems[item.id];
-
-                return (
-                  <div key={item.id} className="border border-gray-200 rounded-lg p-4 bg-white">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                          Item #{index + 1}
-                        </span>
-                        {item.quantity > 1 && (
-                          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-                            Qty: {item.quantity}
-                          </span>
-                        )}
+            {/* Sessions Container */}
+            <div className="space-y-6">
+              {sessions.map((session, sessionIndex) => (
+                <div key={session.id} className="session-card">
+                  {/* Session Header */}
+                  <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 rounded-t-2xl">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                          <Package className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <h2 className="text-sm font-bold text-gray-800">
+                            Session #{sessionIndex + 1}
+                          </h2>
+                          <p className="text-xs font-mono text-blue-600 mt-0.5">
+                            {session.checking_number}
+                          </p>
+                        </div>
                       </div>
-                      {items.length > 1 && (
+                      <div className="flex items-center gap-2">
                         <button
-                          onClick={() => removeItem(item.id)}
-                          className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded-lg transition"
+                          onClick={() => duplicateSession(session.id)}
+                          className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                          title="Duplicate Session"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => removeSession(session.id)}
+                          className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                          title="Remove Session"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="col-span-1 md:col-span-2">
-                        <Label required>Item Name</Label>
-                        <input
-                          type="text"
-                          value={item.item_name}
-                          onChange={(e) => updateItem(item.id, "item_name", e.target.value)}
-                          className={inputCls}
-                          placeholder="e.g. Laptop Dell, Ethernet Cable"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <Label>Brand</Label>
-                        <input
-                          type="text"
-                          value={item.brand}
-                          onChange={(e) => updateItem(item.id, "brand", e.target.value)}
-                          className={inputCls}
-                          placeholder="e.g. Dell, Cisco"
-                        />
-                      </div>
-
-                      <div>
-                        <Label>Model</Label>
-                        <input
-                          type="text"
-                          value={item.model}
-                          onChange={(e) => updateItem(item.id, "model", e.target.value)}
-                          className={inputCls}
-                          placeholder="e.g. Latitude 3420"
-                        />
-                      </div>
-
-                      <div className="col-span-1 md:col-span-2">
-                        <Label>Specifications</Label>
-                        <input
-                          type="text"
-                          value={item.specifications}
-                          onChange={(e) => updateItem(item.id, "specifications", e.target.value)}
-                          className={inputCls}
-                          placeholder="e.g. Intel i5, 8GB RAM, 256GB SSD"
-                        />
-                      </div>
-
-                      <div>
-                        <Label required>Quantity</Label>
-                        <input
-                          type="number"
-                          value={item.quantity}
-                          onChange={(e) => updateItem(item.id, "quantity", parseInt(e.target.value) || 1)}
-                          className={inputCls}
-                          min="1"
-                          required
-                        />
-                        <Hint>Number of items to scan</Hint>
-                      </div>
-
-                      {/* Department Distribution — UNCHANGED */}
-                      <div className="col-span-1 md:col-span-2 lg:col-span-4">
-                        <div className="flex items-center justify-between mt-2">
-                          <Label>Department Distribution</Label>
-                          <button
-                            onClick={() => toggleDepartmentSection(item.id)}
-                            className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${
-                              isExpanded
-                                ? "bg-gray-100 text-gray-700 border border-gray-300"
-                                : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
-                            }`}
-                          >
-                            {isExpanded ? "Close Distribution" : "Distribute Items"}
-                            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                          </button>
-                        </div>
-
-                        {isExpanded && (
-                          <div className="mt-4 space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {departments.map((dept) => {
-                                const assignedDept = item.departments.find((d) => d.department_id === dept.id_department);
-                                const assignedQty = assignedDept?.quantity || 0;
-                                const isDisabled = isDepartmentInputDisabled(item, dept.id_department);
-                                return (
-                                  <div key={dept.id_department} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-white">
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium text-gray-700 truncate">{dept.department_name}</p>
-                                      {assignedQty > 0 && (
-                                        <p className="text-xs text-blue-600 mt-0.5">Assigned: {assignedQty}</p>
-                                      )}
-                                    </div>
-                                    <div className="w-24 ml-2">
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        max={item.quantity}
-                                        value={assignedQty}
-                                        onChange={(e) => updateDepartmentQuantity(item.id, dept.id_department, e.target.value)}
-                                        disabled={isDisabled}
-                                        className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${
-                                          isDisabled
-                                            ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
-                                            : "bg-white border-gray-200 text-gray-800"
-                                        }`}
-                                        placeholder="Qty"
-                                      />
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-
-                            <div className="p-3 border-t border-gray-200">
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium text-gray-700">Distribution Summary:</span>
-                                <span className={`text-sm font-semibold ${
-                                  totalDeptQty === item.quantity ? "text-green-600"
-                                  : totalDeptQty > 0 ? "text-blue-600"
-                                  : "text-gray-500"
-                                }`}>
-                                  {totalDeptQty} of {item.quantity} assigned
-                                </span>
-                              </div>
-                              {remainingQty > 0 && (
-                                <p className="text-xs text-gray-500 mt-1">
-                                  {remainingQty} unassigned items will stay at main location
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {!isExpanded && item.departments.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {item.departments.map((dept) => (
-                              <div key={dept.department_id} className="inline-flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-full border border-gray-200">
-                                <Users className="w-3 h-3 text-gray-500" />
-                                <span className="text-xs text-gray-700">{dept.department_name}</span>
-                                <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded-full">{dept.quantity}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
 
-            {/* Add Item Button */}
-            <button
-              onClick={addNewItem}
-              className="mt-4 flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all w-full justify-center"
-            >
-              <Plus className="w-4 h-4" />
-              Add Another Item
-            </button>
+                  {/* Session Content */}
+                  <div className="p-6">
+                    {/* BASIC INFORMATION */}
+                    <SectionDivider icon={FileText} label="Basic Information" />
 
-            {/* REMARKS */}
-            <SectionDivider icon={Info} label="Additional Information" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                      <div>
+                        <Label required>Checking Name</Label>
+                        <input
+                          type="text"
+                          value={session.formData.checking_name}
+                          onChange={(e) => handleSessionInputChange(session.id, "checking_name", e.target.value)}
+                          className={inputCls}
+                          placeholder="e.g. IT Asset Inventory"
+                          required
+                        />
+                        <Hint>Name for this scanning session</Hint>
+                      </div>
 
-            <div className="mb-6">
-              <Label>Remarks</Label>
-              <textarea
-                name="remarks"
-                value={formData.remarks}
-                onChange={handleInputChange}
-                rows="3"
-                className={inputCls}
-                placeholder="Additional notes or instructions for this scanning session..."
-              />
-            </div>
-
-            {/* Summary */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-start gap-3">
-                <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
-                <div className="text-xs text-blue-700">
-                  <p className="font-semibold mb-2">Scanning Session Summary:</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <span className="text-blue-600">Total Items:</span>
-                      <span className="ml-2 font-bold">{items.length}</span>
+                      <div>
+                        <Label required>Category</Label>
+                        <div className="relative">
+                          <select
+                            value={session.formData.category_id}
+                            onChange={(e) => handleSessionInputChange(session.id, "category_id", e.target.value)}
+                            className={selectCls}
+                            required
+                          >
+                            <option value="">Select Category</option>
+                            {categories.map((cat) => (
+                              <option key={cat.id_category} value={cat.id_category}>
+                                {cat.category_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-blue-600">Total Quantity:</span>
-                      <span className="ml-2 font-bold">{items.reduce((sum, item) => sum + (item.quantity || 1), 0)}</span>
+
+                    {/* LOCATION & DATE */}
+                    <SectionDivider icon={MapPin} label="Location & Date" />
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                      <div>
+                        <Label required>Location Check</Label>
+                        <div className="relative">
+                          <select
+                            value={session.formData.location_id}
+                            onChange={(e) => handleSessionInputChange(session.id, "location_id", e.target.value)}
+                            className={selectCls}
+                            required
+                          >
+                            <option value="">Select Location</option>
+                            {locations.map((loc) => (
+                              <option key={loc.id_location} value={loc.id_location}>
+                                {loc.location_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label required>Checking Date</Label>
+                        <input
+                          type="date"
+                          value={session.formData.checking_date}
+                          onChange={(e) => handleSessionInputChange(session.id, "checking_date", e.target.value)}
+                          className={inputCls}
+                          required
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-blue-600">Checking Number:</span>
-                      <span className="ml-2 font-mono font-bold">{checkingNumber}</span>
+
+                    {/* ITEMS SECTION */}
+                    <SectionDivider icon={Box} label="Items to Scan" />
+
+                    {/* Items List */}
+                    <div className="space-y-4">
+                      {session.items.map((item, itemIndex) => {
+                        const totalDeptQty = item.departments.reduce((sum, d) => sum + d.quantity, 0);
+                        const remainingQty = item.quantity - totalDeptQty;
+                        const isExpanded = expandedItems[item.id];
+
+                        return (
+                          <div key={item.id} className="border border-gray-200 rounded-lg p-4 bg-white">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                                  Item #{itemIndex + 1}
+                                </span>
+                                {item.quantity > 1 && (
+                                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                                    Qty: {item.quantity}
+                                  </span>
+                                )}
+                              </div>
+                              {session.items.length > 1 && (
+                                <button
+                                  onClick={() => removeItem(session.id, item.id)}
+                                  className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded-lg transition"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                              <div className="col-span-1 md:col-span-2">
+                                <Label required>Item Name</Label>
+                                <input
+                                  type="text"
+                                  value={item.item_name}
+                                  onChange={(e) => updateItem(session.id, item.id, "item_name", e.target.value)}
+                                  className={inputCls}
+                                  placeholder="e.g. Laptop Dell, Ethernet Cable"
+                                  required
+                                />
+                              </div>
+
+                              <div>
+                                <Label>Brand</Label>
+                                <input
+                                  type="text"
+                                  value={item.brand}
+                                  onChange={(e) => updateItem(session.id, item.id, "brand", e.target.value)}
+                                  className={inputCls}
+                                  placeholder="e.g. Dell, Cisco"
+                                />
+                              </div>
+
+                              <div>
+                                <Label>Model</Label>
+                                <input
+                                  type="text"
+                                  value={item.model}
+                                  onChange={(e) => updateItem(session.id, item.id, "model", e.target.value)}
+                                  className={inputCls}
+                                  placeholder="e.g. Latitude 3420"
+                                />
+                              </div>
+
+                              <div className="col-span-1 md:col-span-2">
+                                <Label>Specifications</Label>
+                                <input
+                                  type="text"
+                                  value={item.specifications}
+                                  onChange={(e) => updateItem(session.id, item.id, "specifications", e.target.value)}
+                                  className={inputCls}
+                                  placeholder="e.g. Intel i5, 8GB RAM, 256GB SSD"
+                                />
+                              </div>
+
+                              <div>
+                                <Label required>Quantity</Label>
+                                <input
+                                  type="number"
+                                  value={item.quantity}
+                                  onChange={(e) => updateItem(session.id, item.id, "quantity", parseInt(e.target.value) || 1)}
+                                  className={inputCls}
+                                  min="1"
+                                  required
+                                />
+                                <Hint>Number of items to scan</Hint>
+                              </div>
+
+                              {/* Department Distribution */}
+                              <div className="col-span-1 md:col-span-2 lg:col-span-4">
+                                <div className="flex items-center justify-between mt-2">
+                                  <Label>Department Distribution</Label>
+                                  <button
+                                    onClick={() => toggleDepartmentSection(item.id)}
+                                    className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+                                      isExpanded
+                                        ? "bg-gray-100 text-gray-700 border border-gray-300"
+                                        : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
+                                    }`}
+                                  >
+                                    {isExpanded ? "Close Distribution" : "Distribute Items"}
+                                    {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                  </button>
+                                </div>
+
+                                {isExpanded && (
+                                  <div className="mt-4 space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                      {departments.map((dept) => {
+                                        const assignedDept = item.departments.find((d) => d.department_id === dept.id_department);
+                                        const assignedQty = assignedDept?.quantity || 0;
+                                        const isDisabled = isDepartmentInputDisabled(item, dept.id_department);
+                                        return (
+                                          <div key={dept.id_department} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-white">
+                                            <div className="flex-1 min-w-0">
+                                              <p className="text-sm font-medium text-gray-700 truncate">{dept.department_name}</p>
+                                              {assignedQty > 0 && (
+                                                <p className="text-xs text-blue-600 mt-0.5">Assigned: {assignedQty}</p>
+                                              )}
+                                            </div>
+                                            <div className="w-24 ml-2">
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                max={item.quantity}
+                                                value={assignedQty}
+                                                onChange={(e) => updateDepartmentQuantity(session.id, item.id, dept.id_department, e.target.value)}
+                                                disabled={isDisabled}
+                                                className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${
+                                                  isDisabled
+                                                    ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
+                                                    : "bg-white border-gray-200 text-gray-800"
+                                                }`}
+                                                placeholder="Qty"
+                                              />
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+
+                                    <div className="p-3 border-t border-gray-200">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium text-gray-700">Distribution Summary:</span>
+                                        <span className={`text-sm font-semibold ${
+                                          totalDeptQty === item.quantity ? "text-green-600"
+                                          : totalDeptQty > 0 ? "text-blue-600"
+                                          : "text-gray-500"
+                                        }`}>
+                                          {totalDeptQty} of {item.quantity} assigned
+                                        </span>
+                                      </div>
+                                      {remainingQty > 0 && (
+                                        <p className="text-xs text-gray-500 mt-1">
+                                          {remainingQty} unassigned items will stay at main location
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {!isExpanded && item.departments.length > 0 && (
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {item.departments.map((dept) => (
+                                      <div key={dept.department_id} className="inline-flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-full border border-gray-200">
+                                        <Users className="w-3 h-3 text-gray-500" />
+                                        <span className="text-xs text-gray-700">{dept.department_name}</span>
+                                        <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded-full">{dept.quantity}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Add Item Button for this session */}
+                    <button
+                      onClick={() => addNewItem(session.id)}
+                      className="mt-4 flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all w-full justify-center"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Another Item #{sessionIndex + 1}
+                    </button>
+
+                    {/* REMARKS for this session */}
+                    <SectionDivider icon={Info} label="Additional Information" />
+
+                    <div className="mb-6">
+                      <Label>Remarks</Label>
+                      <textarea
+                        value={session.formData.remarks}
+                        onChange={(e) => handleSessionInputChange(session.id, "remarks", e.target.value)}
+                        rows="3"
+                        className={inputCls}
+                        placeholder="Additional notes or instructions for this scanning session..."
+                      />
                     </div>
                   </div>
                 </div>
-              </div>
+              ))}
+
+              {/* Add Session Button - Inside the main card */}
+              <button
+                onClick={addNewSession}
+                className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all w-full justify-center"
+              >
+                <Plus className="w-4 h-4" />
+                Add Another Form Scanning Preparation
+              </button>
             </div>
           </div>
 
-          {/* Form Actions */}
+          {/* Form Actions - Inside the main card */}
           <div className="border-t border-gray-100 px-6 py-5 bg-gray-50 rounded-b-2xl">
             <div className="flex items-center justify-between">
               <p className="text-xs text-gray-400">
@@ -851,7 +1023,7 @@ export default function ScanningPreparationPage() {
                   className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition shadow-sm"
                 >
                   <RotateCcw className="w-4 h-4" />
-                  Reset
+                  Reset All
                 </button>
                 <button
                   onClick={handleSubmit}
@@ -861,12 +1033,12 @@ export default function ScanningPreparationPage() {
                   {loading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Creating...
+                      Creating {sessions.length} Sessions...
                     </>
                   ) : (
                     <>
                       <Save className="w-4 h-4" />
-                      Create Preparation
+                      Create All Sessions ({sessions.length})
                     </>
                   )}
                 </button>

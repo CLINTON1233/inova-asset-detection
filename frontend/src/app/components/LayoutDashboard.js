@@ -19,6 +19,8 @@ import {
   User as UserIcon,
   Key,
   CheckCircle,
+  Plus,
+  List,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -29,10 +31,12 @@ export default function LayoutDashboard({ children, activeMenu }) {
   const [activeMenuIndex, setActiveMenuIndex] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [prepDropdownOpen, setPrepDropdownOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState("");
   const [showWelcome, setShowWelcome] = useState(false);
   const [hasShownWelcome, setHasShownWelcome] = useState(false);
   const userDropdownRef = useRef(null);
+  const prepDropdownRef = useRef(null);
 
   const router = useRouter();
   const { user, logout } = useAuth();
@@ -78,14 +82,23 @@ export default function LayoutDashboard({ children, activeMenu }) {
 
   const menuItems = [
     { icon: Home, label: "Home", hasDropdown: false, href: "/dashboard" },
-    { icon: Package, label: "Preparation Check", hasDropdown:true, href: "/scanning_preparation_list" }, 
+    { 
+      icon: Package, 
+      label: "Preparation Check", 
+      hasDropdown: true, 
+      href: "#",
+      submenu: [
+        { icon: Plus, label: "Create Preparation", href: "/create_scanning_preparation" },
+        { icon: List, label: "List Preparation", href: "/scanning_preparation_list" }
+      ]
+    },
     {
       icon: FileText,
       label: "Inventory Data",
       hasDropdown: true,
       href: "/inventory-data",
     },
-    // {
+   // {
     //   icon: Shield,
     //   label: "Serial Scanning",
     //   hasDropdown: true,
@@ -125,6 +138,12 @@ export default function LayoutDashboard({ children, activeMenu }) {
         !userDropdownRef.current.contains(event.target)
       ) {
         setUserDropdownOpen(false);
+      }
+      if (
+        prepDropdownRef.current &&
+        !prepDropdownRef.current.contains(event.target)
+      ) {
+        setPrepDropdownOpen(false);
       }
     };
 
@@ -176,26 +195,31 @@ export default function LayoutDashboard({ children, activeMenu }) {
 
         setTimeout(() => {
           logout();
-           Swal.fire({
-          title: "Success!",
-          text: "You have been successfully logged out",
-          icon: "success",
-          confirmButtonColor: "#1e40af",
-          background: "#ffffff",
-          color: "#333333",
-          customClass: {
-            popup: "rounded-xl font-poppins",
-            confirmButton: "px-4 py-2 text-sm font-medium rounded-lg"
-          },
-          timer: 1500,
-          showConfirmButton: false
-        }).then(() => {
-          // Redirect ke login page setelah notifikasi selesai
-          router.push("/login");
-        });
+          Swal.fire({
+            title: "Success!",
+            text: "You have been successfully logged out",
+            icon: "success",
+            confirmButtonColor: "#1e40af",
+            background: "#ffffff",
+            color: "#333333",
+            customClass: {
+              popup: "rounded-xl font-poppins",
+              confirmButton: "px-4 py-2 text-sm font-medium rounded-lg"
+            },
+            timer: 1500,
+            showConfirmButton: false
+          }).then(() => {
+            // Redirect ke login page setelah notifikasi selesai
+            router.push("/login");
+          });
         }, 1500);
       }
     });
+  };
+
+  const handleSubmenuClick = (href) => {
+    setPrepDropdownOpen(false);
+    router.push(href);
   };
 
   // Jika user belum loaded, tampilkan loading
@@ -362,6 +386,45 @@ export default function LayoutDashboard({ children, activeMenu }) {
                   ? index === activeMenu
                   : index === activeMenuIndex;
 
+              // Special handling untuk Preparation Check dengan dropdown
+              if (item.label === "Preparation Check") {
+                return (
+                  <div key={index} className="relative" ref={prepDropdownRef}>
+                    <button
+                      className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition ${
+                        isActive ? "bg-blue-700" : ""
+                      }`}
+                      onClick={() => setPrepDropdownOpen(!prepDropdownOpen)}
+                    >
+                      <item.icon className="w-4 h-4" />
+                      <span>{item.label}</span>
+                      <ChevronDown
+                        className={`w-3 h-3 transition-transform ${
+                          prepDropdownOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+
+                    {/* Submenu Dropdown */}
+                    {prepDropdownOpen && (
+                      <div className="absolute left-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                        {item.submenu.map((subItem, subIndex) => (
+                          <button
+                            key={subIndex}
+                            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition"
+                            onClick={() => handleSubmenuClick(subItem.href)}
+                          >
+                            <subItem.icon className="w-4 h-4 mr-3 text-blue-500" />
+                            {subItem.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // Menu items lainnya
               return (
                 <button
                   key={index}
@@ -422,7 +485,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
               </div>
               <div className="flex-1">
                 <div className="text-white font-medium text-sm">
-                  {user.name}
+                  {user.username}
                 </div>
                 <div className="text-blue-100 text-xs">{user.department}</div>
                 <button
@@ -491,27 +554,59 @@ export default function LayoutDashboard({ children, activeMenu }) {
                   activeMenu !== undefined
                     ? index === activeMenu
                     : index === activeMenuIndex;
+                
+                // Untuk mobile, kita buat sederhana dulu (tanpa submenu dropdown)
                 return (
-                  <button
-                    key={index}
-                    className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition ${
-                      isActive ? "bg-blue-700" : ""
-                    }`}
-                    onClick={() => {
-                      if (item.href) {
-                        router.push(item.href);
-                        setMobileMenuOpen(false);
-                      } else {
-                        setActiveMenuIndex(
-                          activeMenuIndex === index ? null : index
-                        );
-                      }
-                    }}
-                  >
-                    <item.icon className="w-4 h-4" />
-                    <span>{item.label}</span>
-                    {item.hasDropdown && <ChevronDown className="w-3 h-3" />}
-                  </button>
+                  <div key={index}>
+                    <button
+                      className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition w-full ${
+                        isActive ? "bg-blue-700" : ""
+                      }`}
+                      onClick={() => {
+                        if (item.label === "Preparation Check") {
+                          // Untuk Preparation Check di mobile, kita toggle prepDropdownOpen
+                          setPrepDropdownOpen(!prepDropdownOpen);
+                        } else if (item.href) {
+                          router.push(item.href);
+                          setMobileMenuOpen(false);
+                        } else {
+                          setActiveMenuIndex(
+                            activeMenuIndex === index ? null : index
+                          );
+                        }
+                      }}
+                    >
+                      <item.icon className="w-4 h-4" />
+                      <span>{item.label}</span>
+                      {item.hasDropdown && (
+                        <ChevronDown
+                          className={`w-3 h-3 ml-auto transition-transform ${
+                            prepDropdownOpen && item.label === "Preparation Check" ? "rotate-180" : ""
+                          }`}
+                        />
+                      )}
+                    </button>
+
+                    {/* Submenu untuk mobile */}
+                    {item.label === "Preparation Check" && prepDropdownOpen && (
+                      <div className="bg-blue-500 pl-8 py-1">
+                        {item.submenu.map((subItem, subIndex) => (
+                          <button
+                            key={subIndex}
+                            className="flex items-center w-full px-3 py-2 text-white hover:bg-blue-600 text-sm transition"
+                            onClick={() => {
+                              router.push(subItem.href);
+                              setMobileMenuOpen(false);
+                              setPrepDropdownOpen(false);
+                            }}
+                          >
+                            <subItem.icon className="w-3.5 h-3.5 mr-2" />
+                            {subItem.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -525,7 +620,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-3 md:px-4 py-4 md:py-6">
-        {/* HAPUS Welcome Banner yang lama dari sini */}
         {children}
       </div>
 

@@ -20,6 +20,7 @@ import {
   Filter,
   ChevronDown,
   X,
+  Trash2,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import * as XLSX from "xlsx";
@@ -48,7 +49,9 @@ export default function ScanningPreparationListPage() {
         (s) =>
           s.checking_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           s.checking_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (s.location_name || "").toLowerCase().includes(searchTerm.toLowerCase())
+          (s.location_name || "")
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()),
       );
     }
     if (statusFilter !== "all") {
@@ -78,12 +81,17 @@ export default function ScanningPreparationListPage() {
       if (result.success) {
         const sessionsWithDetails = result.data.map((session) => {
           const totalItems = session.items?.length || 0;
-          const totalQty = session.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) || 0;
+          const totalQty =
+            session.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) || 0;
           let status = session.status || "pending";
           let progress = 0;
           if (session.items && session.items.length > 0) {
-            const totalScanned = session.items.reduce((sum, i) => sum + (i.scanned_count || 0), 0);
-            progress = totalQty > 0 ? Math.round((totalScanned / totalQty) * 100) : 0;
+            const totalScanned = session.items.reduce(
+              (sum, i) => sum + (i.scanned_count || 0),
+              0,
+            );
+            progress =
+              totalQty > 0 ? Math.round((totalScanned / totalQty) * 100) : 0;
             if (progress === 100) status = "completed";
             else if (progress > 0) status = "in-progress";
           }
@@ -95,14 +103,20 @@ export default function ScanningPreparationListPage() {
             totalQty,
             category_name: session.category_name || "General",
             location_name: session.location_name || "No location",
-            uniqueCode: session.checking_number || `SESS-${session.id_preparation}`,
+            uniqueCode:
+              session.checking_number || `SESS-${session.id_preparation}`,
           };
         });
         setSessions(sessionsWithDetails);
         setFilteredSessions(sessionsWithDetails);
       }
     } catch (error) {
-      Swal.fire({ title: "Error!", text: error.message || "Failed to load sessions", icon: "error", confirmButtonColor: "#1e40af" });
+      Swal.fire({
+        title: "Error!",
+        text: error.message || "Failed to load sessions",
+        icon: "error",
+        confirmButtonColor: "#1e40af",
+      });
     } finally {
       setLoading(false);
     }
@@ -117,48 +131,87 @@ export default function ScanningPreparationListPage() {
   };
 
   const handleSort = (columnId) => {
-    setSorting((prev) => ({ id: columnId, desc: prev.id === columnId ? !prev.desc : false }));
+    setSorting((prev) => ({
+      id: columnId,
+      desc: prev.id === columnId ? !prev.desc : false,
+    }));
   };
 
   const getSortIcon = (columnId) => {
-    if (sorting.id !== columnId) return <span className="text-gray-300 ml-1 text-xs">⇅</span>;
-    return sorting.desc
-      ? <ArrowDown className="w-3 h-3 ml-1 text-blue-500" />
-      : <ArrowUp className="w-3 h-3 ml-1 text-blue-500" />;
+    if (sorting.id !== columnId)
+      return <span className="text-gray-300 ml-1 text-xs">⇅</span>;
+    return sorting.desc ? (
+      <ArrowDown className="w-3 h-3 ml-1 text-blue-500" />
+    ) : (
+      <ArrowUp className="w-3 h-3 ml-1 text-blue-500" />
+    );
   };
 
   const getStatusConfig = (status) => {
     switch (status) {
       case "pending":
-        return { dot: "bg-amber-400", text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200", label: "Pending" };
+        return {
+          dot: "bg-amber-400",
+          text: "text-amber-700",
+          bg: "bg-amber-50",
+          border: "border-amber-200",
+          label: "Pending",
+        };
       case "in-progress":
-        return { dot: "bg-blue-500", text: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200", label: "In Progress" };
+        return {
+          dot: "bg-blue-500",
+          text: "text-blue-700",
+          bg: "bg-blue-50",
+          border: "border-blue-200",
+          label: "In Progress",
+        };
       case "completed":
-        return { dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", label: "Completed" };
+        return {
+          dot: "bg-emerald-500",
+          text: "text-emerald-700",
+          bg: "bg-emerald-50",
+          border: "border-emerald-200",
+          label: "Completed",
+        };
       default:
-        return { dot: "bg-gray-400", text: "text-gray-700", bg: "bg-gray-50", border: "border-gray-200", label: status };
+        return {
+          dot: "bg-gray-400",
+          text: "text-gray-700",
+          bg: "bg-gray-50",
+          border: "border-gray-200",
+          label: status,
+        };
     }
   };
 
   const formatDate = (dateString) => {
     if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+    return new Date(dateString).toLocaleDateString("en-US", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
   };
 
   const exportToExcel = (exportType = "current") => {
     try {
-      const data = (exportType === "all" ? sessions : filteredSessions).map((s) => ({
-        "Session Name": s.checking_name,
-        "Session Number": s.checking_number,
-        Category: s.category_name,
-        Location: s.location_name,
-        "Items Count": s.totalItems,
-        "Total Quantity": s.totalQty,
-        Progress: `${s.progress || 0}%`,
-        Status: s.status,
-        "Checking Date": formatDate(s.checking_date),
-      }));
-      if (!data.length) { Swal.fire("No Data", "No data to export", "info"); return; }
+      const data = (exportType === "all" ? sessions : filteredSessions).map(
+        (s) => ({
+          "Session Name": s.checking_name,
+          "Session Number": s.checking_number,
+          Category: s.category_name,
+          Location: s.location_name,
+          "Items Count": s.totalItems,
+          "Total Quantity": s.totalQty,
+          Progress: `${s.progress || 0}%`,
+          Status: s.status,
+          "Checking Date": formatDate(s.checking_date),
+        }),
+      );
+      if (!data.length) {
+        Swal.fire("No Data", "No data to export", "info");
+        return;
+      }
       const ws = XLSX.utils.json_to_sheet(data);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Sessions");
@@ -166,6 +219,66 @@ export default function ScanningPreparationListPage() {
       setShowExportDropdown(false);
     } catch {
       Swal.fire("Error", "Failed to export", "error");
+    }
+  };
+
+  const handleDelete = async (prepId, checkingName) => {
+    try {
+      const result = await Swal.fire({
+        title: "Delete Session?",
+        text: `Are you sure you want to delete session "${checkingName}"? All related scanning data will also be deleted.`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#dc2626",
+        cancelButtonColor: "#6b7280",
+        confirmButtonText: "Yes, Delete!",
+        cancelButtonText: "Cancel",
+        reverseButtons: true,
+      });
+
+      if (result.isConfirmed) {
+        setLoading(true);
+
+        const response = await fetch(
+          API_ENDPOINTS.SCANNING_PREP_DELETE(prepId),
+          {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        );
+
+        const data = await response.json();
+
+        if (data.success) {
+          setSessions((prevSessions) =>
+            prevSessions.filter((s) => s.id_preparation !== prepId),
+          );
+          setFilteredSessions((prevFiltered) =>
+            prevFiltered.filter((s) => s.id_preparation !== prepId),
+          );
+
+          Swal.fire({
+            title: "Success!",
+            text: "Session deleted successfully",
+            icon: "success",
+            timer: 1500,
+            showConfirmButton: false,
+          });
+        } else {
+          throw new Error(data.error || "Failed to delete session");
+        }
+      }
+    } catch (error) {
+      Swal.fire({
+        title: "Error!",
+        text: error.message || "An error occurred while deleting the session",
+        icon: "error",
+        confirmButtonColor: "#1e40af",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -179,13 +292,37 @@ export default function ScanningPreparationListPage() {
     );
   }
 
-  // KPI data — no donut, just title + number + subtitle
   const kpis = [
-    { title: "Total Sessions", value: stats.total,      sub: "All sessions",        accent: "#2563eb" },
-    { title: "Pending",        value: stats.pending,    sub: "Awaiting scan",       accent: "#f59e0b" },
-    { title: "In Progress",    value: stats.inProgress, sub: "Sessions active",     accent: "#6366f1" },
-    { title: "Completed",      value: stats.completed,  sub: "Sessions done",       accent: "#10b981" },
-    { title: "Total Items",    value: stats.totalItems, sub: "Items prepared",      accent: "#8b5cf6" },
+    {
+      title: "Total Sessions",
+      value: stats.total,
+      sub: "All sessions",
+      accent: "#2563eb",
+    },
+    {
+      title: "Pending",
+      value: stats.pending,
+      sub: "Awaiting scan",
+      accent: "#f59e0b",
+    },
+    {
+      title: "In Progress",
+      value: stats.inProgress,
+      sub: "Sessions active",
+      accent: "#6366f1",
+    },
+    {
+      title: "Completed",
+      value: stats.completed,
+      sub: "Sessions done",
+      accent: "#10b981",
+    },
+    {
+      title: "Total Items",
+      value: stats.totalItems,
+      sub: "Items prepared",
+      accent: "#8b5cf6",
+    },
   ];
 
   return (
@@ -205,7 +342,6 @@ export default function ScanningPreparationListPage() {
           box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
         }
 
-        /* KPI cell — same layout rhythm as donut-card but without the donut */
         .kpi-cell {
           display: flex;
           flex-direction: column;
@@ -215,7 +351,6 @@ export default function ScanningPreparationListPage() {
           text-align: center;
         }
 
-        /* Table */
         .sp-th {
           font-size: 11px;
           font-weight: 600;
@@ -256,53 +391,92 @@ export default function ScanningPreparationListPage() {
         }
         .scan-btn:hover { background: #1d3a9e; }
 
+        .delete-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          background: #dc2626;
+          color: #fff;
+          padding: 7px 16px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+          transition: background 0.15s;
+          border: none;
+          cursor: pointer;
+          white-space: nowrap;
+          box-shadow: 0 1px 3px rgba(220,38,38,0.3);
+        }
+        .delete-btn:hover { background: #b91c1c; }
+
+        .new-session-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          background: #2563eb;
+          color: #fff;
+          padding: 7px 16px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+          transition: background 0.15s;
+          border: none;
+          cursor: pointer;
+          white-space: nowrap;
+          box-shadow: 0 1px 3px rgba(37,99,235,0.3);
+        }
+        .new-session-btn:hover { background: #1d4ed8; }
+
         .prog-track { background: #e5e7eb; border-radius: 99px; height: 5px; }
         .prog-fill  { background: #3b82f6; border-radius: 99px; height: 5px; transition: width 0.3s; }
       `}</style>
 
       <div className="sp-root space-y-5">
-
-        {/* ── Header ── */}
+        {/* Header */}
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <ScanLine className="w-5 h-5 text-blue-600" />
-              <h1 className="text-xl font-bold text-gray-900">Scanning Preparation List</h1>
+              <h1 className="text-xl font-bold text-gray-900">
+                Scanning Preparation List
+              </h1>
             </div>
-            <p className="text-sm text-gray-500">List of sessions prepared for asset scanning</p>
+            <p className="text-sm text-gray-500">
+              List of sessions prepared for asset scanning
+            </p>
           </div>
           <button
             onClick={() => router.push("/create_scanning_preparation")}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-sm"
+            className="new-session-btn"
           >
-            <Plus className="w-4 h-4" />
-            New Session
+            <Plus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">New Session</span>
+            <span className="sm:hidden">New</span>
           </button>
         </div>
 
-        {/* ── KPI Card — 1 card, 5 columns, dividers, no donut ── */}
+        {/* KPI Card */}
         <div className="sp-card">
           <div className="grid grid-cols-2 lg:grid-cols-5 divide-x divide-y lg:divide-y-0 divide-gray-100">
             {kpis.map((d, i) => (
               <div key={i} className="kpi-cell">
-                {/* Title — center, uppercase, small */}
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
                   {d.title}
                 </p>
-                {/* Big number with accent color */}
-                <span className="text-4xl font-bold" style={{ color: d.accent }}>
+                <span
+                  className="text-4xl font-bold"
+                  style={{ color: d.accent }}
+                >
                   {d.value}
                 </span>
-                {/* Subtitle */}
                 <p className="text-xs text-gray-400 mt-2">{d.sub}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* ── Main Table Card ── */}
+        {/* Main Table Card */}
         <div className="sp-card overflow-hidden">
-
           {/* Toolbar */}
           <div className="flex flex-wrap items-center gap-3 p-4 md:p-5 border-b border-gray-100">
             <div className="relative flex-1 min-w-[200px]">
@@ -315,7 +489,10 @@ export default function ScanningPreparationListPage() {
                 className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
               />
               {searchTerm && (
-                <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
@@ -342,7 +519,9 @@ export default function ScanningPreparationListPage() {
                 disabled={loading}
                 className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
+                />
                 Refresh
               </button>
 
@@ -357,13 +536,24 @@ export default function ScanningPreparationListPage() {
                 </button>
                 {showExportDropdown && (
                   <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowExportDropdown(false)} />
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setShowExportDropdown(false)}
+                    />
                     <div className="absolute right-0 mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
-                      <button onClick={() => exportToExcel("current")} className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                        <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Export Current ({filteredSessions.length})
+                      <button
+                        onClick={() => exportToExcel("current")}
+                        className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <FileSpreadsheet className="w-4 h-4 text-emerald-600" />{" "}
+                        Export Current ({filteredSessions.length})
                       </button>
-                      <button onClick={() => exportToExcel("all")} className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                        <FileSpreadsheet className="w-4 h-4 text-blue-600" /> Export All ({sessions.length})
+                      <button
+                        onClick={() => exportToExcel("all")}
+                        className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <FileSpreadsheet className="w-4 h-4 text-blue-600" />{" "}
+                        Export All ({sessions.length})
                       </button>
                     </div>
                   </>
@@ -381,21 +571,35 @@ export default function ScanningPreparationListPage() {
           ) : sessions.length === 0 ? (
             <div className="py-20 text-center">
               <ScanLine className="w-14 h-14 text-gray-200 mx-auto mb-3" />
-              <h3 className="text-gray-800 font-semibold text-lg mb-1">No sessions found</h3>
-              <p className="text-gray-400 text-sm mb-5">Create your first scanning session to get started</p>
+              <h3 className="text-gray-800 font-semibold text-lg mb-1">
+                No sessions found
+              </h3>
+              <p className="text-gray-400 text-sm mb-5">
+                Create your first scanning session to get started
+              </p>
               <button
                 onClick={() => router.push("/create_scanning_preparation")}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700"
+                className="new-session-btn"
               >
-                <Plus className="w-4 h-4" /> Create Session
+                <Plus className="w-3.5 h-3.5" /> Create Session
               </button>
             </div>
           ) : filteredSessions.length === 0 ? (
             <div className="py-16 text-center">
               <Search className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-              <h3 className="text-gray-800 font-semibold mb-1">No matching sessions</h3>
-              <p className="text-gray-400 text-sm mb-4">Try adjusting your filters</p>
-              <button onClick={() => { setSearchTerm(""); setStatusFilter("all"); }} className="text-sm text-blue-600 hover:underline">
+              <h3 className="text-gray-800 font-semibold mb-1">
+                No matching sessions
+              </h3>
+              <p className="text-gray-400 text-sm mb-4">
+                Try adjusting your filters
+              </p>
+              <button
+                onClick={() => {
+                  setSearchTerm("");
+                  setStatusFilter("all");
+                }}
+                className="text-sm text-blue-600 hover:underline"
+              >
                 Clear filters
               </button>
             </div>
@@ -404,81 +608,142 @@ export default function ScanningPreparationListPage() {
               <table className="min-w-full">
                 <thead>
                   <tr>
-                    <th className="sp-th text-left" onClick={() => handleSort("checking_name")}>
-                      <span className="flex items-center">Session {getSortIcon("checking_name")}</span>
+                    <th
+                      className="sp-th text-left"
+                      onClick={() => handleSort("checking_name")}
+                    >
+                      <span className="flex items-center">
+                        Session {getSortIcon("checking_name")}
+                      </span>
                     </th>
-                    <th className="sp-th text-left hidden md:table-cell" onClick={() => handleSort("checking_date")}>
-                      <span className="flex items-center">Date {getSortIcon("checking_date")}</span>
+                    <th
+                      className="sp-th text-left hidden md:table-cell"
+                      onClick={() => handleSort("checking_date")}
+                    >
+                      <span className="flex items-center">
+                        Date {getSortIcon("checking_date")}
+                      </span>
                     </th>
-                    <th className="sp-th text-left hidden lg:table-cell" onClick={() => handleSort("location_name")}>
-                      <span className="flex items-center">Location {getSortIcon("location_name")}</span>
+                    <th
+                      className="sp-th text-left hidden lg:table-cell"
+                      onClick={() => handleSort("location_name")}
+                    >
+                      <span className="flex items-center">
+                        Location {getSortIcon("location_name")}
+                      </span>
                     </th>
-                    <th className="sp-th text-left" onClick={() => handleSort("status")}>
-                      <span className="flex items-center">Status {getSortIcon("status")}</span>
+                    <th
+                      className="sp-th text-left"
+                      onClick={() => handleSort("status")}
+                    >
+                      <span className="flex items-center">
+                        Status {getSortIcon("status")}
+                      </span>
                     </th>
-                    <th className="sp-th text-left hidden xl:table-cell" onClick={() => handleSort("totalItems")}>
-                      <span className="flex items-center">Items {getSortIcon("totalItems")}</span>
+                    <th
+                      className="sp-th text-left hidden xl:table-cell"
+                      onClick={() => handleSort("totalItems")}
+                    >
+                      <span className="flex items-center">
+                        Items {getSortIcon("totalItems")}
+                      </span>
                     </th>
                     <th className="sp-th text-left">Progress</th>
-                    <th className="sp-th text-center">Action</th>
+                    <th className="sp-th text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredSessions.map((session, idx) => {
                     const sc = getStatusConfig(session.status);
                     return (
-                      <tr key={session.id_preparation} className="sp-row transition-colors">
+                      <tr
+                        key={session.id_preparation}
+                        className="sp-row transition-colors"
+                      >
                         <td className="sp-td">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">
                               {idx + 1}
                             </div>
                             <div>
-                              <div className="font-semibold text-gray-900 text-sm leading-tight">{session.checking_name}</div>
-                              <div className="text-xs text-gray-400 mono mt-0.5">{session.checking_number}</div>
+                              <div className="font-semibold text-gray-900 text-sm leading-tight">
+                                {session.checking_name}
+                              </div>
+                              <div className="text-xs text-gray-400 mono mt-0.5">
+                                {session.checking_number}
+                              </div>
                             </div>
                           </div>
                         </td>
                         <td className="sp-td hidden md:table-cell">
                           <div className="flex items-center gap-1.5">
                             <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                            <span className="text-xs text-gray-600">{formatDate(session.checking_date)}</span>
+                            <span className="text-xs text-gray-600">
+                              {formatDate(session.checking_date)}
+                            </span>
                           </div>
                         </td>
                         <td className="sp-td hidden lg:table-cell">
                           <div className="flex items-center gap-1.5">
                             <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                            <span className="text-xs text-gray-600 truncate max-w-[140px]">{session.location_name}</span>
+                            <span className="text-xs text-gray-600 truncate max-w-[140px]">
+                              {session.location_name}
+                            </span>
                           </div>
                         </td>
                         <td className="sp-td">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`} />
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`}
+                            />
                             {sc.label}
                           </span>
                         </td>
                         <td className="sp-td hidden xl:table-cell">
                           <div className="text-sm font-semibold text-gray-800">
-                            {session.totalItems} <span className="font-normal text-gray-400 text-xs">items</span>
+                            {session.totalItems}{" "}
+                            <span className="font-normal text-gray-400 text-xs">
+                              items
+                            </span>
                           </div>
-                          <div className="text-xs text-gray-400">{session.totalQty} qty total</div>
+                          <div className="text-xs text-gray-400">
+                            {session.totalQty} qty total
+                          </div>
                         </td>
                         <td className="sp-td">
                           <div className="flex items-center gap-2">
                             <div className="prog-track w-20">
-                              <div className="prog-fill" style={{ width: `${session.progress || 0}%` }} />
+                              <div
+                                className="prog-fill"
+                                style={{ width: `${session.progress || 0}%` }}
+                              />
                             </div>
-                            <span className="text-xs font-semibold text-gray-600">{session.progress || 0}%</span>
+                            <span className="text-xs font-semibold text-gray-600">
+                              {session.progress || 0}%
+                            </span>
                           </div>
                         </td>
                         <td className="sp-td text-center">
-                          <button
-                            onClick={() => router.push(`/scanning?prep_id=${session.id_preparation}`)}
-                            className="scan-btn"
-                          >
-                            <ScanLine className="w-3.5 h-3.5" />
-                            Scan
-                          </button>
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => router.push(`/scanning?prep_id=${session.id_preparation}`)}
+                              className="scan-btn"
+                              title="Start Scanning"
+                            >
+                              <ScanLine className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Scan</span>
+                            </button>
+                            <button
+                              onClick={() => handleDelete(session.id_preparation, session.checking_name)}
+                              className="delete-btn"
+                              title="Delete Session"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Delete</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -493,14 +758,24 @@ export default function ScanningPreparationListPage() {
             <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-2 rounded-b-2xl">
               <p className="text-xs text-gray-500">
                 Showing{" "}
-                <span className="font-semibold text-gray-700">{filteredSessions.length}</span>{" "}
+                <span className="font-semibold text-gray-700">
+                  {filteredSessions.length}
+                </span>{" "}
                 of{" "}
-                <span className="font-semibold text-gray-700">{sessions.length}</span>{" "}
+                <span className="font-semibold text-gray-700">
+                  {sessions.length}
+                </span>{" "}
                 sessions
-                {statusFilter !== "all" && <span className="text-gray-400"> · {statusFilter}</span>}
-                {searchTerm && <span className="text-gray-400"> · "{searchTerm}"</span>}
+                {statusFilter !== "all" && (
+                  <span className="text-gray-400"> · {statusFilter}</span>
+                )}
+                {searchTerm && (
+                  <span className="text-gray-400"> · "{searchTerm}"</span>
+                )}
               </p>
-              <p className="text-xs text-gray-400">Updated {new Date().toLocaleTimeString("id-ID")}</p>
+              <p className="text-xs text-gray-400">
+                Updated {new Date().toLocaleTimeString("en-US")}
+              </p>
             </div>
           )}
         </div>

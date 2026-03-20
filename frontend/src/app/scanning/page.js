@@ -31,7 +31,7 @@ import {
 import Swal from "sweetalert2";
 import LayoutDashboard from "../components/LayoutDashboard";
 import ProtectedPage from "../components/ProtectedPage";
-import FullscreenCamera from "../components/FullScreenCamera";
+import FullscreenCamera from "../components/FullscreenCamera";
 import API_BASE_URL, { API_ENDPOINTS } from "../../config/api";
 import {
   SerialScanningModal,
@@ -705,7 +705,7 @@ export default function SerialScanningPage() {
 
   return (
     <ProtectedPage>
-      <LayoutDashboard activeMenu={2}>
+      <LayoutDashboard activeMenu={1}>
         <style>{styles}</style>
 
         {/* Fullscreen Camera Component */}

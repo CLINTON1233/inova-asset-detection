@@ -167,6 +167,55 @@ def create_scanning_preparation():
         if conn:
             conn.close()
 
+@scanning_prep_bp.route('/api/scanning-preparation/<int:prep_id>', methods=['DELETE'])
+def delete_scanning_preparation(prep_id):
+    """Menghapus persiapan scanning beserta semua item dan department distributions"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Cek apakah preparation exists
+        cur.execute("SELECT id_preparation FROM scanning_preparations WHERE id_preparation = %s", (prep_id,))
+        if not cur.fetchone():
+            return jsonify({
+                'success': False,
+                'error': 'Preparation not found'
+            }), 404
+
+        cur.execute("""
+            DELETE FROM item_departments 
+            WHERE item_id IN (
+                SELECT id_item FROM scanning_items WHERE preparation_id = %s
+            )
+        """, (prep_id,))
+        
+        # Hapus scanning_items
+        cur.execute("DELETE FROM scanning_items WHERE preparation_id = %s", (prep_id,))
+        
+        # Hapus scanning_preparations
+        cur.execute("DELETE FROM scanning_preparations WHERE id_preparation = %s", (prep_id,))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Scanning preparation deleted successfully'
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Error in delete_scanning_preparation for id {prep_id}:", str(e))
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
 @scanning_prep_bp.route('/api/departments', methods=['GET'])
 def get_departments():
     """Mendapatkan daftar semua department"""
