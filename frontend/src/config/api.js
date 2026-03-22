@@ -21,13 +21,13 @@ export const API_ENDPOINTS = {
   // Detection
   DETECT_CAMERA: `${API_BASE_URL}/api/detect/camera`,
   DETECT_CAMERA_SIMPLE: `${API_BASE_URL}/api/detect/camera/simple`,
-  
+
   // Serial Detection
   SERIAL_DETECT_CAMERA: `${API_BASE_URL}/api/serial/detect/camera`,
   SERIAL_DETECT_COMPLETE: `${API_BASE_URL}/api/serial/detect/complete`,
   SERIAL_GET_SPECS: `${API_BASE_URL}/api/serial/specs`,
-  
-  
+
+
   // OCR
   OCR_EXTRACT_SERIAL: `${API_BASE_URL}/api/ocr/extract-serial`,
   OCR_VALIDATE_SERIAL: `${API_BASE_URL}/api/ocr/validate-serial`,
@@ -39,6 +39,7 @@ export const API_ENDPOINTS = {
   SCANNING_PREP_CREATE: `${API_BASE_URL}/api/scanning-preparation/create`,
   SCANNING_PREP_LIST: `${API_BASE_URL}/api/scanning-preparation/list`,
   SCANNING_PREP_DETAIL: (id) => `${API_BASE_URL}/api/scanning-preparation/${id}`,
+  SCANNING_PREP_UPDATE: (id) => `${API_BASE_URL}/api/scanning-preparation/${id}`,
   SCANNING_PREP_DELETE: (id) => `${API_BASE_URL}/api/scanning-preparation/${id}`,
 };
 

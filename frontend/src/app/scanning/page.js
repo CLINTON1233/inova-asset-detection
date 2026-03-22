@@ -1138,12 +1138,11 @@ export default function SerialScanningPage() {
                 <Camera className="w-3.5 h-3.5" /> Camera Scanner
               </p>
 
-              {/* Placeholder untuk camera yang mati - TANPA GARIS BIRU */}
-              <div className="relative w-full aspect-video bg-gray-900 rounded-xl overflow-hidden flex items-center justify-center mb-4">
+              <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden flex items-center justify-center mb-4">
                 <div className="text-center">
-                  <Camera className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                  <p className="text-gray-300 text-base font-semibold mb-2">Camera Off</p>
-                  <p className="text-gray-400 text-sm">Click Start Scan to activate camera</p>
+                  <Camera className="w-16 h-16 text-gray-700 mx-auto mb-4" />
+                  <p className="text-gray-400 text-base font-semibold mb-2">Camera Off</p>
+                  <p className="text-gray-500 text-sm">Click Start Scan to activate camera</p>
                 </div>
               </div>
 
@@ -1170,8 +1169,8 @@ export default function SerialScanningPage() {
                 </p>
                 <form onSubmit={handleManualCheck} className="space-y-3">
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1.5">
-                      Serial number atau barcode
+                    <label className="block text-sm text-gray-600 mb-1.5">
+                      Serial number or Scan Code
                     </label>
                     <input
                       type="text"
@@ -1213,9 +1212,11 @@ export default function SerialScanningPage() {
                     <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
                       <Scan className="w-6 h-6 text-gray-400" />
                     </div>
-                    <p className="text-sm text-gray-500">Belum ada hasil scan</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Scan perangkat atau input serial number
+                    <p className="text-lg text-gray-500 font-medium">
+                      No scan results yet
+                    </p>
+                    <p className="text-sm text-gray-400 mt-2">
+                      Scan a device or material and enter the serial number or scan the code
                     </p>
                   </div>
                 )}
@@ -1336,8 +1337,8 @@ export default function SerialScanningPage() {
                 <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
                   <Box className="w-7 h-7 text-gray-400" />
                 </div>
-                <p className="text-sm text-gray-500">No scan history</p>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-lg text-gray-500">No scan history</p>
+                <p className="text-sm text-gray-400 mt-1">
                   Your scanned items will appear here
                 </p>
               </div>

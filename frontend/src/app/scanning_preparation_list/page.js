@@ -15,6 +15,7 @@ import {
   RefreshCw,
   FileSpreadsheet,
   ArrowUp,
+  Edit,
   ArrowDown,
   ScanLine,
   Filter,
@@ -76,25 +77,49 @@ export default function ScanningPreparationListPage() {
   const fetchSessions = async () => {
     setLoading(true);
     try {
-      const response = await fetch(API_ENDPOINTS.SCANNING_PREP_LIST);
+      console.log('Fetching sessions from:', API_ENDPOINTS.SCANNING_PREP_LIST);
+
+      const response = await fetch(API_ENDPOINTS.SCANNING_PREP_LIST, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      // Cek response status
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Cek content type
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Response is not JSON:', text.substring(0, 200));
+        throw new Error('Server returned non-JSON response');
+      }
+
       const result = await response.json();
+      console.log('API Response:', result);
+
       if (result.success) {
         const sessionsWithDetails = result.data.map((session) => {
           const totalItems = session.items?.length || 0;
-          const totalQty =
-            session.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) || 0;
+          const totalQty = session.totalQty || session.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) || 0;
           let status = session.status || "pending";
-          let progress = 0;
-          if (session.items && session.items.length > 0) {
+          let progress = session.progress || 0;
+
+          // Jika ada scanned_count di items, hitung progress
+          if (session.items && session.items.length > 0 && !session.progress) {
             const totalScanned = session.items.reduce(
               (sum, i) => sum + (i.scanned_count || 0),
               0,
             );
-            progress =
-              totalQty > 0 ? Math.round((totalScanned / totalQty) * 100) : 0;
+            progress = totalQty > 0 ? Math.round((totalScanned / totalQty) * 100) : 0;
             if (progress === 100) status = "completed";
             else if (progress > 0) status = "in-progress";
           }
+
           return {
             ...session,
             status,
@@ -103,17 +128,19 @@ export default function ScanningPreparationListPage() {
             totalQty,
             category_name: session.category_name || "General",
             location_name: session.location_name || "No location",
-            uniqueCode:
-              session.checking_number || `SESS-${session.id_preparation}`,
+            uniqueCode: session.checking_number || `SESS-${session.id_preparation}`,
           };
         });
         setSessions(sessionsWithDetails);
         setFilteredSessions(sessionsWithDetails);
+      } else {
+        throw new Error(result.message || result.error || 'Failed to load sessions');
       }
     } catch (error) {
+      console.error('Error fetching sessions:', error);
       Swal.fire({
         title: "Error!",
-        text: error.message || "Failed to load sessions",
+        text: error.message || "Failed to load sessions. Please check if backend server is running.",
         icon: "error",
         confirmButtonColor: "#1e40af",
       });
@@ -728,25 +755,26 @@ export default function ScanningPreparationListPage() {
                         <td className="sp-td text-center">
                           <div className="flex items-center justify-center gap-2">
                             <button
-                              onClick={() =>
-                                router.push(
-                                  `/scanning?prep_id=${session.id_preparation}`,
-                                )
-                              }
-                              className="scan-btn"
+                              onClick={() => router.push(`/scanning?prep_id=${session.id_preparation}`)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
                               title="Start Scanning"
                             >
                               <ScanLine className="w-3.5 h-3.5" />
                               <span className="hidden sm:inline">Scan</span>
                             </button>
+
                             <button
-                              onClick={() =>
-                                handleDelete(
-                                  session.id_preparation,
-                                  session.checking_name,
-                                )
-                              }
-                              className="delete-btn"
+                              onClick={() => router.push(`/edit_scanning_preparation?id=${session.id_preparation}`)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-lg hover:bg-gray-700 transition"
+                              title="Edit Session"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Edit</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleDelete(session.id_preparation, session.checking_name)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
                               title="Delete Session"
                             >
                               <Trash2 className="w-3.5 h-3.5" />

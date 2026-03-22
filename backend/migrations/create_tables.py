@@ -117,6 +117,46 @@ def create_scanning_items_table(conn):
     except Exception as e:
         conn.rollback()
         print(f"Error creating scanning_items table: {e}")
+        
+def create_items_preparation_table(conn):
+    """Membuat tabel items_preparation untuk menyimpan setiap item individual"""
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS items_preparation (
+                id_item_preparation SERIAL PRIMARY KEY,
+                scanning_item_id INTEGER REFERENCES scanning_items(id_item) ON DELETE CASCADE,
+                preparation_id INTEGER REFERENCES scanning_preparations(id_preparation) ON DELETE CASCADE,
+                item_number VARCHAR(50),
+                item_name VARCHAR(255) NOT NULL,
+                brand VARCHAR(100),
+                model VARCHAR(100),
+                specifications TEXT,
+                serial_number VARCHAR(100),
+                scan_code VARCHAR(100),
+                status VARCHAR(50) DEFAULT 'pending',
+                scanned_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
+                scanned_at TIMESTAMP,
+                department_id INTEGER REFERENCES departments(id_department) ON DELETE SET NULL,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Create indexes
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_items_prep_scanning_item ON items_preparation(scanning_item_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_items_prep_preparation ON items_preparation(preparation_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_items_prep_status ON items_preparation(status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_items_prep_serial ON items_preparation(serial_number)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_items_prep_scan_code ON items_preparation(scan_code)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_items_prep_department ON items_preparation(department_id)")
+        
+        conn.commit()
+        print("✓ Tabel items_preparation berhasil dibuat")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating items_preparation table: {e}")
 
 def create_asset_categories_table(conn):
     """Membuat tabel asset_categories"""
@@ -145,7 +185,7 @@ def create_assets_table(conn):
                 category_id INTEGER REFERENCES asset_categories(id_category) ON DELETE SET NULL,
                 asset_name VARCHAR(255) NOT NULL,
                 serial_number VARCHAR(100) UNIQUE,
-                barcode VARCHAR(100) UNIQUE,
+                scan_code VARCHAR(100) UNIQUE,
                 lokasi VARCHAR(255),
                 status VARCHAR(50) DEFAULT 'available',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -156,7 +196,7 @@ def create_assets_table(conn):
         # Create indexes
         cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_category ON assets(category_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_status ON assets(status)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_barcode ON assets(barcode)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_scan_code ON assets(scan_code)")
         
         conn.commit()
         print("✓ Tabel assets berhasil dibuat")
@@ -380,7 +420,8 @@ def create_all_tables():
         create_scan_results_table(conn)
         create_validations_table(conn)
         create_scanning_preparations_table(conn) 
-        create_scanning_items_table(conn)         
+        create_scanning_items_table(conn) 
+        create_items_preparation_table(conn)        
         create_item_departments_table(conn)
         
         print("-" * 50)
