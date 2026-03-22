@@ -1130,7 +1130,7 @@ export default function SerialScanningPage() {
             </div>
           )}
 
-          {/* ── Main Grid: Camera & Input*/}
+          {/* ── Main Grid: Camera + Input ────────────────────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
             {/* Camera — spans 3 cols - CAMERA MATI (tidak ada preview) */}
             <div className="lg:col-span-3 scan-card p-4 sm:p-5">
@@ -1141,9 +1141,9 @@ export default function SerialScanningPage() {
               {/* Placeholder untuk camera yang mati - TANPA GARIS BIRU */}
               <div className="relative w-full aspect-video bg-gray-900 rounded-xl overflow-hidden flex items-center justify-center mb-4">
                 <div className="text-center">
-                  <Camera className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                  <p className="text-gray-400 text-sm font-medium">Camera Off</p>
-                  <p className="text-gray-500 text-xs mt-1">Click Start Scan to activate camera</p>
+                  <Camera className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                  <p className="text-gray-300 text-base font-semibold mb-2">Camera Off</p>
+                  <p className="text-gray-400 text-sm">Click Start Scan to activate camera</p>
                 </div>
               </div>
 
