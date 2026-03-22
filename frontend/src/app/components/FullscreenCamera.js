@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Camera, Loader2 } from "lucide-react";
+import { X, Camera } from "lucide-react";
 import Swal from "sweetalert2";
 import { API_ENDPOINTS } from "@/config/api";
 
@@ -9,7 +9,7 @@ export default function FullscreenCamera({
   isOpen,
   onClose,
   onDetect,
-  mode = "device", // "device" atau "serial"
+  mode = "device",
   sessionData = null,
 }) {
   const videoRef = useRef(null);
@@ -22,40 +22,59 @@ export default function FullscreenCamera({
   const [selectedCamera, setSelectedCamera] = useState(null);
   const [isCameraReady, setIsCameraReady] = useState(false);
 
-  // Fungsi untuk mendapatkan daftar kamera yang tersedia
   const getAvailableCameras = async () => {
-    // Minta izin kamera dulu agar label terisi
     try {
-      // Request permission dulu
       const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
       tempStream.getTracks().forEach(track => track.stop());
 
       const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      let videoDevices = devices.filter(device => device.kind === "videoinput");
+
+      // SORT: kamera asli (laptop) di atas, virtual (DroidCam/Iriun) di bawah
+      videoDevices = videoDevices.sort((a, b) => {
+        const aLabel = a.label.toLowerCase();
+        const bLabel = b.label.toLowerCase();
+
+        const isAVirtual =
+          aLabel.includes("droidcam") ||
+          aLabel.includes("iriun") ||
+          aLabel.includes("obs") ||
+          aLabel.includes("virtual");
+
+        const isBVirtual =
+          bLabel.includes("droidcam") ||
+          bLabel.includes("iriun") ||
+          bLabel.includes("obs") ||
+          bLabel.includes("virtual");
+
+        // virtual selalu di bawah (priority rendah)
+        if (isAVirtual && !isBVirtual) return 1;
+        if (!isAVirtual && isBVirtual) return -1;
+
+        // Prioritaskan kamera dengan label "Integrated", "Webcam", atau "HD"
+        const aIsBuiltIn = aLabel.includes("integrated") || aLabel.includes("webcam") || aLabel.includes("hd") || aLabel.includes("camera");
+        const bIsBuiltIn = bLabel.includes("integrated") || bLabel.includes("webcam") || bLabel.includes("hd") || bLabel.includes("camera");
+
+        if (aIsBuiltIn && !bIsBuiltIn) return -1;
+        if (!aIsBuiltIn && bIsBuiltIn) return 1;
+
+        return 0;
+      });
+
       setAvailableCameras(videoDevices);
 
-      // Cari DroidCam atau Iriun
-      const droidCam = videoDevices.find(device =>
-        device.label.toLowerCase().includes('droidcam') ||
-        device.label.toLowerCase().includes('iriun') ||
-        device.label.toLowerCase().includes('droid')
-      );
-
-      if (droidCam) {
-        console.log("Found DroidCam:", droidCam.label);
-        setSelectedCamera(droidCam.deviceId);
-      } else if (videoDevices.length > 0) {
-        console.log("Available cameras:", videoDevices.map(d => d.label));
+      // ✅ pilih kamera pertama (kamera asli/laptop, bukan virtual)
+      if (videoDevices.length > 0) {
+        console.log("Selected default camera:", videoDevices[0].label);
         setSelectedCamera(videoDevices[0].deviceId);
       }
+
     } catch (err) {
       console.error("Failed to get camera devices:", err);
     }
   };
 
-  // Fungsi start camera yang digabung jadi satu
   const startCamera = async () => {
-    // Stop stream lama jika ada
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
     }
@@ -64,22 +83,20 @@ export default function FullscreenCamera({
       let constraints;
 
       if (selectedCamera) {
-        // Gunakan deviceId yang dipilih
         constraints = {
           video: {
             deviceId: { exact: selectedCamera },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
           },
           audio: false,
         };
       } else {
-        // Fallback ke facingMode
         constraints = {
           video: {
             facingMode: facingMode,
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
           },
           audio: false,
         };
@@ -91,7 +108,6 @@ export default function FullscreenCamera({
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
 
-        // Gunakan Promise untuk menunggu video siap
         await new Promise((resolve) => {
           videoRef.current.onloadedmetadata = () => {
             videoRef.current.play().then(resolve).catch(resolve);
@@ -112,7 +128,6 @@ export default function FullscreenCamera({
     }
   };
 
-  // Inisialisasi kamera saat modal terbuka atau device berubah
   useEffect(() => {
     if (!isOpen) return;
 
@@ -124,7 +139,6 @@ export default function FullscreenCamera({
     init();
 
     return () => {
-      // Cleanup saat modal ditutup
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
@@ -133,16 +147,13 @@ export default function FullscreenCamera({
     };
   }, [isOpen]);
 
-  // Effect untuk restart camera saat selectedCamera berubah
   useEffect(() => {
     if (isOpen && selectedCamera) {
       startCamera();
     }
   }, [selectedCamera]);
 
-  // Fungsi untuk menangkap dan mendeteksi
   const captureAndDetect = async () => {
-    // Prevent multiple detections
     if (isDetecting || hasDetectedRef.current || !videoRef.current || !isCameraReady) return;
 
     const video = videoRef.current;
@@ -159,10 +170,8 @@ export default function FullscreenCamera({
       const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Konversi ke base64
       const imageData = canvas.toDataURL("image/jpeg", 0.8);
 
-      // Panggil API sesuai mode
       const endpoint =
         mode === "device"
           ? API_ENDPOINTS.DETECT_CAMERA
@@ -180,7 +189,6 @@ export default function FullscreenCamera({
         if (mode === "device" && result.detected_items?.length > 0) {
           const detectedItem = result.detected_items[0];
 
-          // Validasi dengan session jika ada
           if (sessionData) {
             const detectedAssetType = detectedItem.asset_type?.toLowerCase() || "";
             const detectedCategory = detectedItem.category || "";
@@ -330,16 +338,12 @@ export default function FullscreenCamera({
     }
   };
 
-  // Fungsi untuk ganti kamera
   const toggleCamera = async () => {
     setFacingMode((prev) => (prev === "environment" ? "user" : "environment"));
-    setSelectedCamera(null); // Reset selected camera agar pakai facingMode
-
-    // Restart camera dengan facingMode baru
+    setSelectedCamera(null);
     await startCamera();
   };
 
-  // Fungsi untuk memilih kamera dari dropdown
   const handleCameraSelect = async (deviceId) => {
     setSelectedCamera(deviceId);
   };
@@ -349,39 +353,41 @@ export default function FullscreenCamera({
   return (
     <div className="fixed inset-0 bg-black z-[9999] flex flex-col">
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-10 p-4 flex justify-between items-center bg-gradient-to-b from-black/70 to-transparent">
+      <div className="absolute top-0 left-0 right-0 z-10 px-4 py-4 flex justify-between items-center bg-gradient-to-b from-black/50 to-transparent">
         <button
           onClick={onClose}
-          className="w-10 h-10 bg-black/50 backdrop-blur rounded-full flex items-center justify-center text-white hover:bg-black/70 transition"
+          className="w-9 h-9 bg-black/40 hover:bg-black/60 backdrop-blur rounded-full flex items-center justify-center text-white transition-all duration-200"
         >
-          <X className="w-6 h-6" />
+          <X className="w-4 h-4" />
         </button>
 
-        <div className="text-white font-medium bg-black/30 backdrop-blur px-4 py-2 rounded-full">
+        <div className="text-white/90 text-sm font-medium tracking-wide">
           {mode === "device" ? "Scan Device" : "Scan Serial Number"}
         </div>
 
-        {/* Dropdown untuk pilih kamera */}
         {availableCameras.length > 1 && (
           <select
             onChange={(e) => handleCameraSelect(e.target.value)}
             value={selectedCamera || ''}
-            className="bg-black/50 text-white text-sm rounded-lg px-3 py-1.5 border border-white/30"
+            className="bg-black/40 hover:bg-black/60 backdrop-blur text-white/90 text-xs rounded-lg px-2 py-1.5 border border-white/30 focus:outline-none focus:border-blue-500 transition-all duration-200 cursor-pointer max-w-[140px] truncate"
           >
-            {availableCameras.map((cam) => (
-              <option key={cam.deviceId} value={cam.deviceId}>
-                {cam.label?.slice(0, 30) || `Camera ${cam.deviceId.slice(0, 5)}`}
-              </option>
-            ))}
+            {availableCameras.map((cam) => {
+              let label = cam.label || `Camera ${cam.deviceId.slice(0, 5)}`;
+              if (label.length > 20) {
+                label = label.slice(0, 18) + '...';
+              }
+              return (
+                <option key={cam.deviceId} value={cam.deviceId}>
+                  {label}
+                </option>
+              );
+            })}
           </select>
         )}
 
-        <button
-          onClick={toggleCamera}
-          className="w-10 h-10 bg-black/50 backdrop-blur rounded-full flex items-center justify-center text-white hover:bg-black/70 transition"
-        >
-          <Camera className="w-5 h-5" />
-        </button>
+        {availableCameras.length <= 1 && (
+          <div className="w-20"></div>
+        )}
       </div>
 
       {/* Video Preview */}
@@ -394,47 +400,42 @@ export default function FullscreenCamera({
           className="absolute inset-0 w-full h-full object-cover"
         />
 
-        {/* Overlay Bounding Box */}
+        {/* Scanning Overlay */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="relative w-[80%] h-[60%]">
-            {/* Border detector */}
-            <div className="absolute inset-0 border-4 border-dashed border-blue-400/70 rounded-2xl"></div>
-
-            {/* Corner markers */}
-            <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-500"></div>
-            <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-500"></div>
-            <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-500"></div>
-            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-500"></div>
+          <div className="relative w-[75%] h-[55%]">
+            <div className="absolute inset-0 border-2 border-white/40 rounded-2xl"></div>
+            <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-white"></div>
+            <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-white"></div>
+            <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-white"></div>
+            <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-white"></div>
+            <div className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-blue-500 to-transparent animate-scan"></div>
           </div>
         </div>
 
-        {/* Loading Indicator */}
         {isDetecting && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
             <div className="text-center">
-              <Loader2 className="w-16 h-16 text-blue-500 animate-spin mx-auto mb-4" />
-              <p className="text-white text-lg font-medium">Detecting...</p>
+              <div className="w-14 h-14 border-3 border-white/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-3"></div>
+              <p className="text-white text-base font-medium tracking-wide">Mendeteksi...</p>
             </div>
           </div>
         )}
 
-        {/* Camera Ready Indicator */}
         {!isCameraReady && !cameraError && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
             <div className="text-center">
-              <Loader2 className="w-12 h-12 text-white animate-spin mx-auto mb-3" />
-              <p className="text-white text-sm">Starting camera...</p>
+              <div className="w-12 h-12 border-3 border-white/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-3"></div>
+              <p className="text-white text-sm tracking-wide">Menyalakan kamera...</p>
             </div>
           </div>
         )}
 
-        {/* Camera Error */}
         {cameraError && (
           <div className="absolute inset-0 bg-black/90 flex items-center justify-center p-6">
-            <div className="text-center text-white">
-              <div className="mx-auto mb-4 w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center">
+            <div className="text-center max-w-sm">
+              <div className="mx-auto mb-4 w-14 h-14 bg-yellow-500/20 rounded-full flex items-center justify-center">
                 <svg
-                  className="w-8 h-8 text-yellow-500"
+                  className="w-7 h-7 text-yellow-500"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -447,42 +448,73 @@ export default function FullscreenCamera({
                   ></path>
                 </svg>
               </div>
-              <p className="text-lg font-medium mb-2">Camera Error</p>
+              <p className="text-lg font-medium text-white mb-2">Kamera Error</p>
               <p className="text-sm text-gray-300">{cameraError}</p>
               <button
                 onClick={onClose}
-                className="mt-6 px-6 py-2 bg-blue-600 rounded-full text-white font-medium"
+                className="mt-5 px-5 py-2 bg-blue-600 hover:bg-blue-700 rounded-full text-white text-sm font-medium transition-colors"
               >
-                Close
+                Tutup
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Capture Button */}
       {!isDetecting && !cameraError && isCameraReady && (
         <div className="absolute bottom-8 left-0 right-0 flex justify-center">
           <button
             onClick={captureAndDetect}
-            className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+            className="group relative w-20 h-20 rounded-full bg-white/20 backdrop-blur-md hover:bg-white/30 transition-all duration-300 flex items-center justify-center shadow-lg hover:scale-105 active:scale-95"
           >
-            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
-              <Camera className="w-8 h-8 text-white" />
+            <div className="w-16 h-16 rounded-full bg-blue-600 group-hover:bg-blue-500 transition-all duration-300 flex items-center justify-center">
+              <Camera className="w-7 h-7 text-white" />
             </div>
           </button>
         </div>
       )}
 
-      {/* Instructions */}
       <div className="absolute bottom-24 left-0 right-0 text-center">
-        <p className="text-white text-sm bg-black/50 inline-block px-4 py-2 rounded-full">
-          <Camera className="w-4 h-4 inline mr-1" />
+        <p className="text-white/60 text-xs tracking-wide font-normal">
           {mode === "device"
-            ? "Tekan tombol kamera untuk mendeteksi device"
-            : "Tekan tombol kamera untuk mendeteksi serial number"}
+            ? "Arahkan kamera ke perangkat yang akan discan"
+            : "Arahkan kamera ke barcode atau serial number"}
         </p>
       </div>
+
+      <style jsx>{`
+        @keyframes scan {
+          0% {
+            top: 0%;
+            opacity: 0;
+          }
+          10% {
+            opacity: 1;
+          }
+          90% {
+            opacity: 1;
+          }
+          100% {
+            top: 100%;
+            opacity: 0;
+          }
+        }
+        .animate-scan {
+          position: absolute;
+          animation: scan 2.5s ease-in-out infinite;
+        }
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+        .animate-spin {
+          animation: spin 1s linear infinite;
+        }
+      `}</style>
     </div>
   );
 }

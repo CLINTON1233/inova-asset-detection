@@ -372,7 +372,7 @@ export default function DashboardPage() {
                       icon: ScanLine,
                       label: "Start Scan",
                       desc: "Check Devices & Materials",
-                      href: "/create_scanning_preparation",
+                      href: "/scanning",
                     },
                     {
                       icon: CheckCircle,
@@ -646,11 +646,10 @@ export default function DashboardPage() {
                           </td>
                           <td className="px-4 py-3">
                             <span
-                              className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
-                                row.kategori === "Perangkat"
+                              className={`px-2 py-0.5 text-xs font-semibold rounded-full ${row.kategori === "Perangkat"
                                   ? "bg-blue-100 text-blue-700"
                                   : "bg-green-100 text-green-700"
-                              }`}
+                                }`}
                             >
                               {row.kategori === "Perangkat"
                                 ? "Device"

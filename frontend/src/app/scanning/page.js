@@ -63,21 +63,38 @@ export default function SerialScanningPage() {
   const [currentPreparation, setCurrentPreparation] = useState(null);
   const [scanningProgress, setScanningProgress] = useState({});
   const [loading, setLoading] = useState(true);
+  const [loadingMessage, setLoadingMessage] = useState("");
+  const [loadingSubMessage, setLoadingSubMessage] = useState("");
 
   const [availableSessions, setAvailableSessions] = useState([]);
   const [showSessionSelector, setShowSessionSelector] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(false);
 
-  const [cameraError, setCameraError] = useState(null);
-  const videoRef = useRef(null);
+  // Hapus cameraError dan videoRef karena tidak digunakan lagi untuk preview
+  // const [cameraError, setCameraError] = useState(null);
+  // const videoRef = useRef(null);
+
+  // Komponen Loading yang konsisten dengan layout dashboard
+  const LoadingSpinner = ({ message, subMessage }) => (
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="mt-4 text-gray-600 font-medium">{message || "Loading..."}</p>
+        {subMessage && (
+          <p className="mt-2 text-sm text-gray-500">{subMessage}</p>
+        )}
+      </div>
+    </div>
+  );
 
   const loadAvailableSessions = async () => {
     setLoadingSessions(true);
+    setLoadingMessage("Loading");
+
     try {
       const response = await fetch(API_ENDPOINTS.SCANNING_PREP_LIST);
       const result = await response.json();
       if (result.success) {
-        // Filter hanya session yang statusnya pending atau in-progress
         const activeSessions = result.data.filter(
           (s) => s.status === "pending" || s.status === "in-progress",
         );
@@ -112,6 +129,8 @@ export default function SerialScanningPage() {
       });
     } finally {
       setLoadingSessions(false);
+      setLoadingMessage("");
+      setLoadingSubMessage("");
     }
   };
 
@@ -142,51 +161,32 @@ export default function SerialScanningPage() {
       localStorage.setItem("scanCheckHistory", JSON.stringify(checkHistory));
   }, [checkHistory]);
 
-  useEffect(() => {
-    const startCamera = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
-          audio: false,
-        });
-        if (videoRef.current) videoRef.current.srcObject = stream;
-      } catch (err) {
-        setCameraError(
-          "Unable to access camera. Please grant camera permissions.",
-        );
-      }
-    };
-    startCamera();
-    return () => {
-      if (videoRef.current?.srcObject)
-        videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
-    };
-  }, []);
+  // HAPUS useEffect untuk camera preview - karena camera di scanning page dimatikan
+  // Camera hanya aktif saat tombol Start Scan ditekan (membuka FullscreenCamera)
 
   const loadPreparation = async (prepId) => {
     setLoading(true);
+    setLoadingMessage("Loading");
+
     try {
       const response = await fetch(API_ENDPOINTS.SCANNING_PREP_DETAIL(prepId));
       const data = await response.json();
       if (data.success) {
         setCurrentPreparation(data.data);
         const progress = {};
-        
-        // Initialize progress for each item from the database
+
         data.data.items.forEach((item) => {
-          // Check if there are existing scans for this item
           const scannedCount = item.scanned_count || 0;
-          
+
           progress[item.id_item] = {
             total: item.quantity,
             scanned: scannedCount,
-            items: [], // This will store IDs of scanned items
+            items: [],
           };
         });
-        
+
         setScanningProgress(progress);
-        
-        // Load scanned items into checkHistory if available
+
         if (data.data.scanned_items && data.data.scanned_items.length > 0) {
           setCheckHistory(data.data.scanned_items);
         }
@@ -200,6 +200,8 @@ export default function SerialScanningPage() {
       }).then(() => router.push("/scanning_sessions"));
     } finally {
       setLoading(false);
+      setLoadingMessage("");
+      setLoadingSubMessage("");
     }
   };
 
@@ -300,13 +302,13 @@ export default function SerialScanningPage() {
           prev.map((item) =>
             item.id === pendingDevice.id
               ? {
-                  ...item,
-                  nomorSeri: serialData.detected_text,
-                  status: "serial_scanned",
-                  confidencePercent: Math.round(
-                    (serialData.confidence || 0.9) * 100,
-                  ),
-                }
+                ...item,
+                nomorSeri: serialData.detected_text,
+                status: "serial_scanned",
+                confidencePercent: Math.round(
+                  (serialData.confidence || 0.9) * 100,
+                ),
+              }
               : item,
           ),
         );
@@ -329,16 +331,15 @@ export default function SerialScanningPage() {
     setTimeout(() => {
       const isSerial =
         manualInput.includes("NS-") || manualInput.includes("BC-");
-      
-      // Find matching item from current preparation
+
       let matchedItem = null;
       if (currentPreparation) {
-        matchedItem = currentPreparation.items.find(item => 
+        matchedItem = currentPreparation.items.find(item =>
           manualInput.toLowerCase().includes(item.item_name.toLowerCase()) ||
           (item.brand && manualInput.toLowerCase().includes(item.brand.toLowerCase()))
         );
       }
-      
+
       const scanItem = {
         id: isSerial ? manualInput : `MAN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         jenisAset: matchedItem ? matchedItem.item_name : (isSerial ? "Manual Input" : "Unknown"),
@@ -483,8 +484,7 @@ export default function SerialScanningPage() {
   const handleDeleteData = (item) => {
     showDeleteItemModal(item, () => {
       setCheckHistory((prev) => prev.filter((p) => p.id !== item.id));
-      
-      // Update scanning progress if item had item_id
+
       if (item.item_id && scanningProgress[item.item_id]) {
         setScanningProgress((prev) => {
           const np = { ...prev };
@@ -498,7 +498,7 @@ export default function SerialScanningPage() {
           return np;
         });
       }
-      
+
       Swal.fire({ title: "Deleted!", icon: "success" });
     });
   };
@@ -507,8 +507,7 @@ export default function SerialScanningPage() {
     if (!checkHistory.length) return;
     showDeleteAllModal(checkHistory.length, () => {
       setCheckHistory([]);
-      
-      // Reset scanning progress but keep totals
+
       if (currentPreparation) {
         const resetProgress = {};
         currentPreparation.items.forEach((item) => {
@@ -520,7 +519,7 @@ export default function SerialScanningPage() {
         });
         setScanningProgress(resetProgress);
       }
-      
+
       localStorage.removeItem("scanCheckHistory");
       Swal.fire({ title: "Deleted!", icon: "success" });
     });
@@ -622,9 +621,9 @@ export default function SerialScanningPage() {
 
           <div className="p-5 overflow-y-auto max-h-[60vh]">
             {loadingSessions ? (
-              <div className="py-10 text-center">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-3" />
-                <p className="text-sm text-gray-500">Loading sessions...</p>
+              <div className="py-12 text-center">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-sm text-gray-600 font-medium">Loading</p>
               </div>
             ) : availableSessions.length === 0 ? (
               <div className="py-10 text-center">
@@ -638,15 +637,13 @@ export default function SerialScanningPage() {
                 <div className="flex gap-2 justify-center">
                   <button
                     onClick={() => router.push("/create_scanning_preparation")}
-                    className="btn-primary"
-                    style={{ width: "auto", padding: "8px 16px" }}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center gap-2"
                   >
                     <Plus className="w-4 h-4" /> New Session
                   </button>
                   <button
                     onClick={() => router.push("/scanning_preparation_list")}
-                    className="btn-secondary"
-                    style={{ width: "auto", padding: "8px 16px" }}
+                    className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition"
                   >
                     View All Sessions
                   </button>
@@ -693,11 +690,10 @@ export default function SerialScanningPage() {
                           </p>
                         </div>
                         <span
-                          className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            session.status === "pending"
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-blue-100 text-blue-700"
-                          }`}
+                          className={`px-2 py-1 text-xs font-semibold rounded-full ${session.status === "pending"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-blue-100 text-blue-700"
+                            }`}
                         >
                           {session.status === "pending"
                             ? "Pending"
@@ -756,9 +752,9 @@ export default function SerialScanningPage() {
             </button>
             <button
               onClick={() => router.push("/create_scanning_preparation")}
-              className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-1"
             >
-              <Plus className="w-3.5 h-3.5 inline mr-1" /> New Session
+              <Plus className="w-3.5 h-3.5" /> New Session
             </button>
           </div>
         </div>
@@ -766,16 +762,20 @@ export default function SerialScanningPage() {
     );
   };
 
-  if (loading) {
+  // Loading state yang konsisten
+  if (loading || loadingSessions) {
     return (
       <ProtectedPage>
-        <LayoutDashboard activeMenu={2}>
-          <div className="min-h-screen flex items-center justify-center bg-gray-50">
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-              <p className="text-sm text-gray-500 font-medium">
-                Loading session...
+        <LayoutDashboard activeMenu={1}>
+          <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600 font-medium">
+                {loadingMessage || (loadingSessions ? "Loading" : "Loading")}
               </p>
+              {loadingSubMessage && (
+                <p className="mt-2 text-sm text-gray-500">{loadingSubMessage}</p>
+              )}
             </div>
           </div>
         </LayoutDashboard>
@@ -817,6 +817,30 @@ export default function SerialScanningPage() {
             background: #0f172a;
             border-radius: 12px;
             overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .scan-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            color: #9ca3af;
+          }
+          .scan-placeholder svg {
+            width: 48px;
+            height: 48px;
+            opacity: 0.5;
+          }
+          .scan-placeholder p {
+            font-size: 14px;
+            font-weight: 500;
+          }
+          .scan-placeholder span {
+            font-size: 12px;
+            opacity: 0.7;
           }
           .scan-corner {
             position: absolute;
@@ -838,13 +862,6 @@ export default function SerialScanningPage() {
           @keyframes scanmove {
             0%,100% { top: 20%; opacity: .7; }
             50% { top: 78%; opacity: 1; }
-          }
-          .pulse-ring {
-            animation: pulse-ring 1.8s ease-out infinite;
-          }
-          @keyframes pulse-ring {
-            0% { transform: scale(1); opacity: 1; }
-            100% { transform: scale(1.5); opacity: 0; }
           }
           .progress-fill { transition: width .4s ease; }
           .history-row { transition: background .15s ease; }
@@ -930,6 +947,13 @@ export default function SerialScanningPage() {
             color: #6b7280;
             margin-top: 4px;
           }
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          .animate-spin {
+            animation: spin 1s linear infinite;
+          }
         `}</style>
 
         <div className="scan-root max-w-7xl mx-auto px-4 py-4 space-y-5">
@@ -939,7 +963,7 @@ export default function SerialScanningPage() {
               <div className="flex items-center gap-2 mb-1">
                 <ScanLine className="w-5 h-5 text-blue-600" />
                 <h1 className="text-xl font-bold text-gray-900">
-                  IT Asset Scanning
+                  Scanning Assets
                 </h1>
               </div>
               <p className="text-sm text-gray-500">
@@ -1006,7 +1030,6 @@ export default function SerialScanningPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  {/* Overall progress circle */}
                   <div className="flex flex-col items-center">
                     <div className="relative w-12 h-12">
                       <svg viewBox="0 0 48 48" className="w-12 h-12 -rotate-90">
@@ -1040,7 +1063,7 @@ export default function SerialScanningPage() {
                     onClick={() => {
                       setCurrentPreparation(null);
                       setScanningProgress({});
-                      router.push("/scanning_sessions");
+                      router.push("/scanning");
                     }}
                     className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
                   >
@@ -1049,7 +1072,6 @@ export default function SerialScanningPage() {
                 </div>
               </div>
 
-              {/* Item progress list */}
               <div className="space-y-2.5">
                 {currentPreparation.items.map((item) => {
                   const prog = scanningProgress[item.id_item] || {
@@ -1108,82 +1130,33 @@ export default function SerialScanningPage() {
             </div>
           )}
 
-          {/* ── Main Grid: Camera + Input ────────────────────────── */}
+          {/* ── Main Grid: Camera & Input*/}
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-            {/* Camera — spans 3 cols */}
+            {/* Camera — spans 3 cols - CAMERA MATI (tidak ada preview) */}
             <div className="lg:col-span-3 scan-card p-4 sm:p-5">
-              <p className="section-label">
+              <p className="section-label flex items-center gap-2">
                 <Camera className="w-3.5 h-3.5" /> Camera Scanner
               </p>
 
-              {/* Viewfinder */}
-              <div className="scan-viewfinder mb-4">
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="absolute inset-0 w-full h-full object-cover opacity-90"
-                />
-                {/* Dimmed overlay at edges */}
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    background:
-                      "radial-gradient(ellipse 60% 55% at 50% 50%, transparent 0%, rgba(0,0,0,.45) 100%)",
-                  }}
-                />
-                {/* Scan corners */}
-                <div className="scan-corner tl" />
-                <div className="scan-corner tr" />
-                <div className="scan-corner bl" />
-                <div className="scan-corner br" />
-                {/* Animated scan line */}
-                <div className="scan-line" />
-                {/* Bottom label */}
-                <div
-                  style={{
-                    position: "absolute",
-                    bottom: 12,
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    background: "rgba(0,0,0,.5)",
-                    borderRadius: 20,
-                    padding: "4px 14px",
-                  }}
-                >
-                  <p
-                    style={{
-                      color: "rgba(255,255,255,.75)",
-                      fontSize: 11,
-                      fontWeight: 600,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Point camera at device or barcode
-                  </p>
+              {/* Placeholder untuk camera yang mati - TANPA GARIS BIRU */}
+              <div className="relative w-full aspect-video bg-gray-900 rounded-xl overflow-hidden flex items-center justify-center mb-4">
+                <div className="text-center">
+                  <Camera className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                  <p className="text-gray-400 text-sm font-medium">Camera Off</p>
+                  <p className="text-gray-500 text-xs mt-1">Click Start Scan to activate camera</p>
                 </div>
-                {cameraError && (
-                  <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center p-4">
-                    <div className="text-center">
-                      <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
-                      <p className="text-xs text-gray-300">{cameraError}</p>
-                    </div>
-                  </div>
-                )}
               </div>
 
-              {/* Scan Buttons */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="w-full">
                 <button
-                  className="btn-primary"
+                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 text-base shadow-md"
                   onClick={() => {
                     setCameraMode("device");
                     setIsCameraOpen(true);
                   }}
                 >
-                  <Cpu className="w-4 h-4" /> Scan Device
+                  <Camera className="w-5 h-5" />
+                  Start Scan
                 </button>
               </div>
             </div>
@@ -1192,35 +1165,37 @@ export default function SerialScanningPage() {
             <div className="lg:col-span-2 flex flex-col gap-5">
               {/* Manual Input */}
               <div className="scan-card p-4 sm:p-5">
-                <p className="section-label">
+                <p className="section-label flex items-center gap-2">
                   <Clipboard className="w-3.5 h-3.5" /> Manual Input
                 </p>
                 <form onSubmit={handleManualCheck} className="space-y-3">
                   <div>
                     <label className="block text-xs text-gray-600 mb-1.5">
-                      Serial number or barcode
+                      Serial number atau barcode
                     </label>
                     <input
                       type="text"
-                      placeholder="NS-PC-887632 or BC-RJ45-554321"
+                      placeholder="NS-PC-887632 atau BC-RJ45-554321"
                       value={manualInput}
                       onChange={(e) => setManualInput(e.target.value)}
-                      className="input-field"
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-sm"
                       required
                     />
                   </div>
                   <button
                     type="submit"
-                    className="btn-secondary"
+                    className="w-full flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 px-4 rounded-lg transition-all duration-200 text-sm"
                     disabled={scanResult === "loading"}
                   >
                     {scanResult === "loading" ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" /> Checking...
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-600 border-t-transparent"></div>
+                        Memproses...
                       </>
                     ) : (
                       <>
-                        <Search className="w-4 h-4" /> Check Validity
+                        <Search className="w-4 h-4" />
+                        Validasi
                       </>
                     )}
                   </button>
@@ -1229,40 +1204,29 @@ export default function SerialScanningPage() {
 
               {/* Last Detection Result */}
               <div className="scan-card p-4 sm:p-5 flex-1">
-                <p className="section-label">
-                  <Eye className="w-3.5 h-3.5" /> Last Detection
+                <p className="section-label flex items-center gap-2">
+                  <Eye className="w-3.5 h-3.5" /> Last Detection Result
                 </p>
 
-                {!scanResult && (
+                {!scanResult && checkHistory.length === 0 && (
                   <div className="flex flex-col items-center justify-center py-8 text-center">
                     <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
                       <Scan className="w-6 h-6 text-gray-400" />
                     </div>
-                    <p className="text-sm text-gray-500">No result yet</p>
+                    <p className="text-sm text-gray-500">Belum ada hasil scan</p>
                     <p className="text-xs text-gray-400 mt-1">
-                      Scan or enter a serial number
+                      Scan perangkat atau input serial number
                     </p>
                   </div>
                 )}
 
-                {scanResult === "loading" && (
-                  <div className="flex flex-col items-center justify-center py-8">
-                    <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-2" />
-                    <p className="text-sm text-gray-500">Processing...</p>
-                  </div>
-                )}
-
-                {scanResult &&
-                  scanResult !== "loading" &&
+                {!scanResult && checkHistory.length > 0 && (
                   (() => {
-                    const cfg = getStatusConfig(scanResult.status);
+                    const latestScan = checkHistory[0];
+                    const cfg = getStatusConfig(latestScan.status);
                     return (
-                      <div
-                        className={`rounded-xl p-3.5 border ${cfg.bg} ${cfg.border}`}
-                      >
-                        <div
-                          className={`flex items-center gap-2 mb-3 ${cfg.text}`}
-                        >
+                      <div className={`rounded-xl p-3.5 border ${cfg.bg} ${cfg.border}`}>
+                        <div className={`flex items-center gap-2 mb-3 ${cfg.text}`}>
                           <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
                           <span className="text-xs font-semibold uppercase tracking-wide">
                             {cfg.label}
@@ -1270,53 +1234,71 @@ export default function SerialScanningPage() {
                         </div>
                         <div className="space-y-2">
                           {[
-                            {
-                              label: "Asset ID",
-                              value: scanResult.id,
-                              mono: true,
-                            },
-                            { label: "Type", value: scanResult.jenisAset },
-                            {
-                              label: "Brand",
-                              value: scanResult.brand || "N/A",
-                            },
-                            scanResult.nomorSeri && {
-                              label: "Serial",
-                              value: scanResult.nomorSeri,
-                              mono: true,
-                            },
-                            scanResult.confidencePercent && {
-                              label: "Confidence",
-                              value: `${scanResult.confidencePercent}%`,
-                            },
-                          ]
-                            .filter(Boolean)
-                            .map((row) => (
-                              <div
-                                key={row.label}
-                                className="flex justify-between items-center text-xs"
-                              >
-                                <span className="text-gray-500">
-                                  {row.label}
-                                </span>
-                                <span
-                                  className={`text-gray-800 ${row.mono ? "font-mono" : ""}`}
-                                >
-                                  {row.value}
-                                </span>
-                              </div>
-                            ))}
+                            { label: "Asset ID", value: latestScan.id, mono: true },
+                            { label: "Type", value: latestScan.jenisAset },
+                            { label: "Brand", value: latestScan.brand || "N/A" },
+                            latestScan.nomorSeri && { label: "Serial", value: latestScan.nomorSeri, mono: true },
+                            { label: "Confidence", value: `${latestScan.confidencePercent}%` },
+                            { label: "Waktu Scan", value: `${latestScan.tanggal} ${latestScan.waktu}` },
+                          ].filter(Boolean).map((row) => (
+                            <div key={row.label} className="flex justify-between items-center text-xs">
+                              <span className="text-gray-500">{row.label}</span>
+                              <span className={`text-gray-800 ${row.mono ? "font-mono" : ""}`}>
+                                {row.value}
+                              </span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     );
-                  })()}
+                  })()
+                )}
+
+                {scanResult === "loading" && (
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent mb-2"></div>
+                    <p className="text-sm text-gray-500">Memproses...</p>
+                  </div>
+                )}
+
+                {scanResult && scanResult !== "loading" && (
+                  (() => {
+                    const cfg = getStatusConfig(scanResult.status);
+                    return (
+                      <div className={`rounded-xl p-3.5 border ${cfg.bg} ${cfg.border}`}>
+                        <div className={`flex items-center gap-2 mb-3 ${cfg.text}`}>
+                          <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+                          <span className="text-xs font-semibold uppercase tracking-wide">
+                            {cfg.label}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          {[
+                            { label: "Asset ID", value: scanResult.id, mono: true },
+                            { label: "Type", value: scanResult.jenisAset },
+                            { label: "Brand", value: scanResult.brand || "N/A" },
+                            scanResult.nomorSeri && { label: "Serial", value: scanResult.nomorSeri, mono: true },
+                            { label: "Confidence", value: `${scanResult.confidencePercent}%` },
+                            { label: "Waktu Scan", value: `${scanResult.tanggal} ${scanResult.waktu}` },
+                          ].filter(Boolean).map((row) => (
+                            <div key={row.label} className="flex justify-between items-center text-xs">
+                              <span className="text-gray-500">{row.label}</span>
+                              <span className={`text-gray-800 ${row.mono ? "font-mono" : ""}`}>
+                                {row.value}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()
+                )}
               </div>
             </div>
           </div>
 
           {/* ── Scan History (Full width table) ──────────────────────────── */}
           <div className="scan-card p-4 sm:p-5">
-            {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div className="flex items-center gap-3">
                 <p className="section-label mb-0" style={{ marginBottom: 0 }}>
@@ -1361,7 +1343,6 @@ export default function SerialScanningPage() {
               </div>
             ) : (
               <>
-                {/* Desktop Table - Full width */}
                 <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-100">
                   <table className="w-full text-sm">
                     <thead>
@@ -1518,7 +1499,6 @@ export default function SerialScanningPage() {
                   </table>
                 </div>
 
-                {/* Mobile Cards */}
                 <div className="md:hidden space-y-2">
                   {checkHistory.map((item) => {
                     const cfg = getStatusConfig(item.status);
@@ -1594,7 +1574,6 @@ export default function SerialScanningPage() {
                   })}
                 </div>
 
-                {/* Submit All Button - Full width */}
                 {readyToSubmitCount > 0 && (
                   <div className="mt-4 pt-4 border-t border-gray-100">
                     <button
@@ -1605,7 +1584,7 @@ export default function SerialScanningPage() {
                     >
                       {isSubmittingAll ? (
                         <>
-                          <Loader2 className="w-4 h-4 animate-spin" />{" "}
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                           Submitting {readyToSubmitCount} items...
                         </>
                       ) : (
@@ -1622,10 +1601,8 @@ export default function SerialScanningPage() {
           </div>
         </div>
 
-        {/* Session Selector Modal */}
         <SessionSelectorModal />
 
-        {/* Fullscreen Camera Component */}
         <FullscreenCamera
           isOpen={isCameraOpen}
           onClose={() => setIsCameraOpen(false)}
