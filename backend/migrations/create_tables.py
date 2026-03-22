@@ -157,6 +157,89 @@ def create_items_preparation_table(conn):
     except Exception as e:
         conn.rollback()
         print(f"Error creating items_preparation table: {e}")
+        
+def create_scan_results_table(conn):
+    """Membuat tabel scan_results dengan relasi ke items_preparation"""
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS scan_results (
+                id_scan SERIAL PRIMARY KEY,
+                preparation_id INTEGER REFERENCES scanning_preparations(id_preparation) ON DELETE CASCADE,
+                scanning_item_id INTEGER REFERENCES scanning_items(id_item) ON DELETE CASCADE,
+                item_preparation_id INTEGER REFERENCES items_preparation(id_item_preparation) ON DELETE CASCADE,
+                asset_id INTEGER REFERENCES assets(id_assets) ON DELETE SET NULL,
+                category_id INTEGER REFERENCES asset_categories(id_category) ON DELETE SET NULL,
+                user_id INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
+                scan_type VARCHAR(50),
+                scan_value TEXT,
+                serial_number VARCHAR(100),
+                scan_code VARCHAR(100),
+                asset_name VARCHAR(255),
+                brand VARCHAR(100),
+                model VARCHAR(100),
+                specifications TEXT,
+                bounding_box JSONB,
+                photo_proof TEXT,
+                confidence FLOAT DEFAULT 0,
+                scan_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_valid BOOLEAN DEFAULT FALSE,
+                status VARCHAR(50) DEFAULT 'pending',
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Create indexes
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_prep ON scan_results(preparation_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_item_prep ON scan_results(item_preparation_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_asset ON scan_results(asset_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_user ON scan_results(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_status ON scan_results(status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_serial ON scan_results(serial_number)")
+        
+        conn.commit()
+        print("✓ Tabel scan_results berhasil dibuat")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating scan_results table: {e}")
+
+def create_validations_table(conn):
+    """Membuat tabel validations dengan relasi ke scan_results"""
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS validations (
+                id_validation SERIAL PRIMARY KEY,
+                scan_id INTEGER REFERENCES scan_results(id_scan) ON DELETE CASCADE,
+                preparation_id INTEGER REFERENCES scanning_preparations(id_preparation) ON DELETE CASCADE,
+                item_preparation_id INTEGER REFERENCES items_preparation(id_item_preparation) ON DELETE CASCADE,
+                asset_id INTEGER REFERENCES assets(id_assets) ON DELETE SET NULL,
+                user_id INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
+                validation_status VARCHAR(50) DEFAULT 'pending',
+                validation_notes TEXT,
+                validated_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
+                validated_at TIMESTAMP,
+                unique_code VARCHAR(100) UNIQUE,
+                is_approved BOOLEAN DEFAULT FALSE,
+                rejection_reason TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Create indexes
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_scan ON validations(scan_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_prep ON validations(preparation_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_item_prep ON validations(item_preparation_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_status ON validations(validation_status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_unique_code ON validations(unique_code)")
+        
+        conn.commit()
+        print("✓ Tabel validations berhasil dibuat")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating validations table: {e}")
 
 def create_asset_categories_table(conn):
     """Membuat tabel asset_categories"""
@@ -295,65 +378,6 @@ def create_report_details_table(conn):
         conn.rollback()
         print(f"Error creating report_details table: {e}")
 
-def create_scan_results_table(conn):
-    """Membuat tabel scan_results"""
-    try:
-        cur = conn.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS scan_results (
-                id_scan SERIAL PRIMARY KEY,
-                asset_id INTEGER REFERENCES assets(id_assets) ON DELETE SET NULL,
-                category_id INTEGER REFERENCES asset_categories(id_category) ON DELETE SET NULL,
-                user_id INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
-                scan_type VARCHAR(50),
-                scan_value TEXT,
-                bounding_box JSONB,
-                photo_proof TEXT,
-                scan_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                is_success BOOLEAN DEFAULT FALSE,
-                notes TEXT
-            )
-        """)
-        
-        # Create indexes
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_asset ON scan_results(asset_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_user ON scan_results(user_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_time ON scan_results(scan_time)")
-        
-        conn.commit()
-        print("✓ Tabel scan_results berhasil dibuat")
-    except Exception as e:
-        conn.rollback()
-        print(f"Error creating scan_results table: {e}")
-
-def create_validations_table(conn):
-    """Membuat tabel validations"""
-    try:
-        cur = conn.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS validations (
-                id_validations SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
-                scan_id INTEGER REFERENCES scan_results(id_scan) ON DELETE CASCADE,
-                asset_id INTEGER REFERENCES assets(id_assets) ON DELETE SET NULL,
-                validation_status VARCHAR(50) DEFAULT 'pending',
-                unique_code VARCHAR(100) UNIQUE,
-                notes TEXT,
-                validated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Create indexes
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_user ON validations(user_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_scan ON validations(scan_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_status ON validations(validation_status)")
-        
-        conn.commit()
-        print("✓ Tabel validations berhasil dibuat")
-    except Exception as e:
-        conn.rollback()
-        print(f"Error creating validations table: {e}")
-        
 def create_departments_table(conn):
     """Membuat tabel departments"""
     try:
@@ -457,8 +481,7 @@ def drop_all_tables():
     try:
         print("Menghapus semua tabel...")
         cur = conn.cursor()
-        
-        # Drop tables in reverse order (because of foreign key constraints)
+    
         tables_to_drop = [
             'validations',
             'scan_results',

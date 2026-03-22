@@ -18,6 +18,117 @@ def generate_item_number(preparation_id, item_index, sub_item_index):
     """Generate item number format: PREP-{preparation_id}-{item_index}-{sub_item_index}"""
     return f"ITEM-{preparation_id}-{item_index + 1}-{sub_item_index + 1}"
 
+@scanning_prep_bp.route('/api/items-preparation/<int:prep_id>/item/<int:item_id>/available', methods=['GET'])
+def get_available_item(prep_id, item_id):
+    """Mendapatkan item preparation yang belum di-scan"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        cur.execute("""
+            SELECT ip.*
+            FROM items_preparation ip
+            WHERE ip.preparation_id = %s 
+            AND ip.scanning_item_id = %s
+            AND ip.status = 'pending'
+            ORDER BY ip.id_item_preparation ASC
+            LIMIT 1
+        """, (prep_id, item_id))
+        
+        item = cur.fetchone()
+        
+        if item:
+            return jsonify({
+                'success': True,
+                'data': dict(item)
+            })
+        else:
+            # Jika tidak ada item pending, cek apakah sudah semua di-scan
+            cur.execute("""
+                SELECT COUNT(*) as total, 
+                       COUNT(CASE WHEN status = 'scanned' THEN 1 END) as scanned
+                FROM items_preparation
+                WHERE preparation_id = %s AND scanning_item_id = %s
+            """, (prep_id, item_id))
+            
+            stats = cur.fetchone()
+            
+            if stats and stats['total'] == stats['scanned']:
+                return jsonify({
+                    'success': False,
+                    'error': 'All items for this type have been scanned',
+                    'all_scanned': True
+                }), 404
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'No available item found'
+                }), 404
+            
+    except Exception as e:
+        print(f"Error in get_available_item: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@scanning_prep_bp.route('/api/items-preparation/<int:item_prep_id>', methods=['PUT'])
+def update_item_preparation(item_prep_id):
+    """Update item preparation dengan serial number"""
+    conn = None
+    try:
+        data = request.json
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE items_preparation 
+            SET serial_number = %s, 
+                scan_code = %s, 
+                status = %s, 
+                scanned_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id_item_preparation = %s
+            RETURNING id_item_preparation
+        """, (
+            data.get('serial_number'),
+            data.get('scan_code'),
+            data.get('status', 'scanned'),
+            item_prep_id
+        ))
+        
+        updated = cur.fetchone()
+        
+        if not updated:
+            return jsonify({
+                'success': False,
+                'error': 'Item preparation not found'
+            }), 404
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Item preparation updated successfully'
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Error in update_item_preparation: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
 @scanning_prep_bp.route('/api/scanning-preparation/list', methods=['GET'])
 def get_scanning_preparations():
     """Mendapatkan daftar persiapan scanning"""

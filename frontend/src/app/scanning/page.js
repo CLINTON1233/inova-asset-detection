@@ -70,11 +70,6 @@ export default function SerialScanningPage() {
   const [showSessionSelector, setShowSessionSelector] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(false);
 
-  // Hapus cameraError dan videoRef karena tidak digunakan lagi untuk preview
-  // const [cameraError, setCameraError] = useState(null);
-  // const videoRef = useRef(null);
-
-  // Komponen Loading yang konsisten dengan layout dashboard
   const LoadingSpinner = ({ message, subMessage }) => (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center">
       <div className="text-center">
@@ -134,6 +129,27 @@ export default function SerialScanningPage() {
     }
   };
 
+  // ─── Save Scan Results────────────────────────────────────────────────────────────
+  const saveScanResult = async (scanData) => {
+    try {
+      const response = await fetch(API_ENDPOINTS.SCAN_RESULTS_CREATE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(scanData)
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        console.log('Scan result saved:', result);
+        return result;
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Error saving scan result:', error);
+      return { success: false, error: error.message };
+    }
+  };
   // ─── Load data ────────────────────────────────────────────────────────────
   useEffect(() => {
     const savedHistory = localStorage.getItem("scanCheckHistory");
@@ -160,9 +176,6 @@ export default function SerialScanningPage() {
     if (checkHistory.length > 0)
       localStorage.setItem("scanCheckHistory", JSON.stringify(checkHistory));
   }, [checkHistory]);
-
-  // HAPUS useEffect untuk camera preview - karena camera di scanning page dimatikan
-  // Camera hanya aktif saat tombol Start Scan ditekan (membuka FullscreenCamera)
 
   const loadPreparation = async (prepId) => {
     setLoading(true);
@@ -206,7 +219,7 @@ export default function SerialScanningPage() {
   };
 
   // ─── Camera detection handler ──────────────────────────────────────────
-  const handleCameraDetection = (detection) => {
+  const handleCameraDetection = async (detection) => {
     if (detection.type === "device") {
       const deviceData = detection.data;
       if (currentPreparation) {
@@ -219,13 +232,12 @@ export default function SerialScanningPage() {
             detectedAssetType.includes(itemName) ||
             (detectedCategory === "Perangkat" && itemName.includes("laptop")) ||
             (detectedCategory === "Perangkat" && itemName.includes("pc")) ||
-            (detectedCategory === "Perangkat" &&
-              itemName.includes("komputer")) ||
-            (detectedCategory === "Perangkat" &&
-              itemName.includes("monitor")) ||
+            (detectedCategory === "Perangkat" && itemName.includes("komputer")) ||
+            (detectedCategory === "Perangkat" && itemName.includes("monitor")) ||
             (detectedCategory === "Material" && itemName.includes("kabel"))
           );
         });
+
         if (matchingItems.length === 0) {
           Swal.fire({
             title: "Item Tidak Sesuai!",
@@ -234,8 +246,10 @@ export default function SerialScanningPage() {
           });
           return;
         }
+
         const targetItem = matchingItems[0];
         const progress = scanningProgress[targetItem.id_item];
+
         if (progress && progress.scanned >= progress.total) {
           Swal.fire({
             title: "Kuota Penuh",
@@ -244,6 +258,63 @@ export default function SerialScanningPage() {
           });
           return;
         }
+
+        let availableItem = null;
+        try {
+          const response = await fetch(API_ENDPOINTS.ITEMS_PREPARATION_AVAILABLE(currentPreparation.id_preparation, targetItem.id_item));
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            if (errorData.all_scanned) {
+              Swal.fire({
+                title: "Kuota Penuh",
+                text: `Target ${targetItem.item_name} sudah tercapai (semua item sudah di-scan)`,
+                icon: "warning",
+              });
+              return;
+            }
+            throw new Error(errorData.error || 'No available item');
+          }
+
+          const result = await response.json();
+          if (result.success && result.data) {
+            availableItem = result.data;
+          }
+        } catch (error) {
+          console.error("Error fetching available item:", error);
+          if (error.message === 'No available item') {
+            Swal.fire({
+              title: "No Items Left",
+              text: `No remaining items for ${targetItem.item_name} to scan`,
+              icon: "info",
+            });
+            return;
+          }
+        }
+
+        // Save to scan_results first
+        const scanResultData = {
+          preparation_id: currentPreparation.id_preparation,
+          scanning_item_id: targetItem.id_item,
+          item_preparation_id: availableItem?.id_item_preparation || null,
+          user_id: 1,
+          scan_type: 'device',
+          scan_value: deviceData.asset_type,
+          serial_number: null,
+          scan_code: null,
+          asset_name: targetItem.item_name,
+          brand: targetItem.brand || deviceData.brand || "Unknown",
+          model: targetItem.model || null,
+          specifications: targetItem.specifications || null,
+          confidence: deviceData.confidence || 0.85,
+          bounding_box: deviceData.bounding_box || null,
+          photo_proof: deviceData.photo_proof || null,
+          status: 'pending',
+          notes: `Device detected: ${deviceData.asset_type}`
+        };
+
+        const savedResult = await saveScanResult(scanResultData);
+
         const scanItem = {
           id: deviceData.id || `SCAN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           jenisAset: targetItem.item_name || deviceData.asset_type,
@@ -264,7 +335,10 @@ export default function SerialScanningPage() {
           preparation_name: currentPreparation?.checking_name,
           lokasi: currentPreparation?.location_name || "",
           lokasiLabel: currentPreparation?.location_name || "",
+          scan_id: savedResult.success ? savedResult.scan_id : null,
+          item_preparation_id: availableItem?.id_item_preparation || null
         };
+
         setPendingDevice(scanItem);
         setCheckHistory((prev) => [scanItem, ...prev]);
         setScanningProgress((prev) => {
@@ -281,6 +355,7 @@ export default function SerialScanningPage() {
           }
           return np;
         });
+
         Swal.fire({
           title: "Device Detected!",
           html: `<p class="text-lg font-semibold">${targetItem.item_name}</p><p class="text-sm text-gray-600">Brand: ${targetItem.brand || "Unknown"} &nbsp;|&nbsp; Confidence: ${Math.round((deviceData.confidence || 0.85) * 100)}%</p><p class="text-sm text-blue-600 mt-2">Scan serial number?</p>`,
@@ -292,12 +367,59 @@ export default function SerialScanningPage() {
           if (result.isConfirmed) {
             setCameraMode("serial");
             setIsCameraOpen(true);
-          } else setIsCameraOpen(false);
+          } else {
+            setIsCameraOpen(false);
+            // If skipped, update scan_result status
+            if (scanItem.scan_id) {
+              fetch(API_ENDPOINTS.SCAN_RESULTS_UPDATE(scanItem.scan_id), {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  status: 'completed',
+                  notes: 'Device detected, serial scan skipped'
+                })
+              });
+            }
+          }
         });
       }
     } else if (detection.type === "serial") {
       const serialData = detection.data;
       if (pendingDevice) {
+        // Update scan_result with serial number
+        if (pendingDevice.scan_id) {
+          const updateData = {
+            serial_number: serialData.detected_text,
+            scan_code: serialData.detected_text,
+            status: 'serial_scanned',
+            confidence: serialData.confidence || 0.9,
+            notes: `Serial number detected: ${serialData.detected_text}`
+          };
+
+          try {
+            await fetch(API_ENDPOINTS.SCAN_RESULTS_UPDATE(pendingDevice.scan_id), {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(updateData)
+            });
+
+            // Update items_preparation with serial number
+            if (pendingDevice.item_preparation_id) {
+              await fetch(API_ENDPOINTS.ITEMS_PREPARATION_UPDATE(pendingDevice.item_preparation_id), {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  serial_number: serialData.detected_text,
+                  scan_code: serialData.detected_text,
+                  status: 'scanned'
+                })
+              });
+            }
+          } catch (error) {
+            console.error("Error updating scan result:", error);
+          }
+        }
+
         setCheckHistory((prev) =>
           prev.map((item) =>
             item.id === pendingDevice.id
@@ -308,13 +430,15 @@ export default function SerialScanningPage() {
                 confidencePercent: Math.round(
                   (serialData.confidence || 0.9) * 100,
                 ),
+                scan_id: pendingDevice.scan_id
               }
               : item,
           ),
         );
+
         Swal.fire({
           title: "Serial Detected!",
-          html: `<p class="text-xl font-mono text-blue-600 font-bold">${serialData.detected_text}</p>`,
+          html: `<p class="text-xl font-mono text-blue-600 font-bold">${serialData.detected_text}</p><p class="text-sm text-gray-500 mt-2">Data has been saved to database</p>`,
           icon: "success",
         }).then(() => {
           setPendingDevice(null);
@@ -431,8 +555,9 @@ export default function SerialScanningPage() {
 
   const handleSubmitAll = async () => {
     const itemsToSubmit = checkHistory.filter(
-      (item) => item.status !== "Submitted" && item.lokasi,
+      (item) => item.status !== "Submitted" && item.lokasi
     );
+
     if (itemsToSubmit.length === 0) {
       Swal.fire({
         title: "No Items",
@@ -441,38 +566,54 @@ export default function SerialScanningPage() {
       });
       return;
     }
+
     showSubmitAllModal(itemsToSubmit, async () => {
       setIsSubmittingAll(true);
       try {
-        const response = await fetch(API_ENDPOINTS.LOCATION_ASSIGN_MULTIPLE, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            asset_ids: itemsToSubmit.map((i) => i.id),
-            location_code: itemsToSubmit[0].lokasi,
-            scanned_by: "Scanner User",
-            notes: `Batch - ${itemsToSubmit.length} items`,
-          }),
-        });
-        const result = await response.json();
-        if (result.success) {
-          setCheckHistory((prev) =>
-            prev.map((p) =>
-              itemsToSubmit.some((i) => i.id === p.id)
-                ? { ...p, submitted: true, status: "Submitted" }
-                : p,
-            ),
-          );
+        const results = [];
+
+        for (const item of itemsToSubmit) {
+          // Create validation record for each item
+          const validationData = {
+            scan_id: item.scan_id,
+            user_id: 1,
+            validation_status: 'pending',
+            validation_notes: `Submitted from scanning page - ${item.jenisAset}`,
+            location: item.lokasi
+          };
+
+          const response = await fetch(API_ENDPOINTS.VALIDATIONS_CREATE, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(validationData),
+          });
+
+          const result = await response.json();
+          if (result.success) {
+            results.push(result);
+
+            // Update item status
+            setCheckHistory((prev) =>
+              prev.map((p) =>
+                p.id === item.id
+                  ? { ...p, submitted: true, status: "Submitted", validation_id: result.validation_id }
+                  : p
+              )
+            );
+          }
+        }
+
+        if (results.length > 0) {
           Swal.fire({
             title: "Success!",
-            text: `${result.success_count} items submitted.`,
+            text: `${results.length} items submitted for validation`,
             icon: "success",
           });
         }
-      } catch {
+      } catch (error) {
         Swal.fire({
           title: "Error",
-          text: "Failed to connect.",
+          text: error.message || "Failed to submit items",
           icon: "error",
         });
       } finally {
