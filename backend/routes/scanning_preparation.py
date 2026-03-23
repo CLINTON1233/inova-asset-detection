@@ -18,6 +18,92 @@ def generate_item_number(preparation_id, item_index, sub_item_index):
     """Generate item number format: ITEM-{preparation_id}-{item_index}-{sub_item_index}"""
     return f"ITEM-{preparation_id}-{item_index + 1}-{sub_item_index + 1}"
 
+@scanning_prep_bp.route('/api/scanning-preparation/<int:prep_id>/progress', methods=['GET'])
+def get_preparation_progress(prep_id):
+    """Mendapatkan progress scanning untuk preparation tertentu"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        cur.execute("""
+            SELECT si.id_item, si.item_name, si.brand, si.model, si.quantity
+            FROM scanning_items si
+            WHERE si.preparation_id = %s
+        """, (prep_id,))
+        
+        items = cur.fetchall()
+        
+        cur.execute("""
+            SELECT 
+                sr.id_scan,
+                sr.item_preparation_id,
+                sr.scanned_at,
+                sr.scan_category,
+                sr.scan_value,
+                sr.serial_number,
+                sr.status,
+                sr.is_valid,
+                ip.scanning_item_id,
+                ip.item_number,
+                si.id_item,
+                si.item_name,
+                si.brand,
+                si.model,
+                si.quantity as item_quantity
+            FROM scan_results sr
+            LEFT JOIN items_preparation ip ON sr.item_preparation_id = ip.id_item_preparation
+            LEFT JOIN scanning_items si ON ip.scanning_item_id = si.id_item
+            WHERE si.preparation_id = %s OR ip.preparation_id = %s
+            ORDER BY sr.scanned_at DESC
+        """, (prep_id, prep_id))
+        
+        scan_results = cur.fetchall()
+        
+        # Build progress data
+        progress = []
+        total_scanned = 0
+        total_target = 0
+        
+        for item in items:
+            scanned_count = 0
+            for scan in scan_results:
+                if scan['scanning_item_id'] == item['id_item']:
+                    scanned_count += 1
+            total_scanned += scanned_count
+            total_target += item['quantity']
+            
+            progress.append({
+                'id_item': item['id_item'],
+                'item_name': item['item_name'],
+                'brand': item['brand'],
+                'model': item['model'],
+                'quantity': item['quantity'],
+                'scanned': scanned_count,
+                'percentage': int((scanned_count / item['quantity']) * 100) if item['quantity'] > 0 else 0
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'progress': progress,
+                'scan_results': [dict(row) for row in scan_results],
+                'total_scanned': total_scanned,
+                'total_target': total_target,
+                'overall_percentage': int((total_scanned / total_target) * 100) if total_target > 0 else 0
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error in get_preparation_progress: {e}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+            
 @scanning_prep_bp.route('/api/items-preparation/<int:prep_id>/item/<int:item_id>/available', methods=['GET'])
 def get_available_item(prep_id, item_id):
     """Mendapatkan item preparation yang belum di-scan"""
@@ -78,25 +164,20 @@ def get_available_item(prep_id, item_id):
 
 @scanning_prep_bp.route('/api/items-preparation/<int:item_prep_id>', methods=['PUT'])
 def update_item_preparation(item_prep_id):
-    """Update item preparation dengan serial number"""
+    """Update item preparation - HANYA UPDATE STATUS, BUKAN SERIAL NUMBER"""
     conn = None
     try:
         data = request.json
         conn = get_db_connection()
         cur = conn.cursor()
-        
+
         cur.execute("""
             UPDATE items_preparation 
-            SET serial_number = %s, 
-                scan_code = %s, 
-                status = %s, 
-                scanned_at = CURRENT_TIMESTAMP,
+            SET status = %s, 
                 updated_at = CURRENT_TIMESTAMP
             WHERE id_item_preparation = %s
             RETURNING id_item_preparation
         """, (
-            data.get('serial_number'),
-            data.get('scan_code'),
             data.get('status', 'scanned'),
             item_prep_id
         ))
@@ -135,8 +216,6 @@ def get_scanning_preparations():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        
-        # Perbaiki query: ganti created_by dengan user_id, dan scanned_count dihitung dari items_preparation
         cur.execute("""
             SELECT 
                 sp.id_preparation,

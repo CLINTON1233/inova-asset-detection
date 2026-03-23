@@ -158,7 +158,7 @@ def create_scanning_items_table(conn):
         print(f"Error creating scanning_items table: {e}")
 
 def create_items_preparation_table(conn):
-    """Tabel untuk menyimpan setiap item individual (hasil dari quantity)"""
+    """Tabel untuk menyimpan setiap item individual (hasil dari quantity) - HANYA DATA REFERENSI"""
     try:
         cur = conn.cursor()
         cur.execute("""
@@ -168,13 +168,8 @@ def create_items_preparation_table(conn):
                 preparation_id INTEGER REFERENCES scanning_preparations(id_preparation) ON DELETE CASCADE,
                 user_id INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
                 item_number VARCHAR(50),
-                serial_number VARCHAR(100),
-                scan_code VARCHAR(100),
                 status VARCHAR(50) DEFAULT 'pending',
-                scanned_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
-                scanned_at TIMESTAMP,
                 department_id INTEGER REFERENCES departments(id_department) ON DELETE SET NULL,
-                notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -182,9 +177,9 @@ def create_items_preparation_table(conn):
         cur.execute("CREATE INDEX IF NOT EXISTS idx_items_prep_scanning_item ON items_preparation(scanning_item_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_items_prep_preparation ON items_preparation(preparation_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_items_prep_user ON items_preparation(user_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_items_prep_serial ON items_preparation(serial_number)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_items_prep_status ON items_preparation(status)")
         conn.commit()
-        print("✓ Tabel items_preparation berhasil dibuat")
+        print("✓ Tabel items_preparation berhasil dibuat (tanpa serial_number)")
     except Exception as e:
         conn.rollback()
         print(f"Error creating items_preparation table: {e}")
@@ -213,7 +208,7 @@ def create_item_departments_table(conn):
         print(f"Error creating item_departments table: {e}")
 
 def create_scan_results_table(conn):
-    """Tabel hasil scan - hanya menyimpan data yang tidak ada di tabel lain"""
+    """Tabel hasil scan - menyimpan semua data hasil scanning termasuk serial number"""
     try:
         cur = conn.cursor()
         cur.execute("""
@@ -221,12 +216,13 @@ def create_scan_results_table(conn):
                 id_scan SERIAL PRIMARY KEY,
                 item_preparation_id INTEGER REFERENCES items_preparation(id_item_preparation) ON DELETE CASCADE,
                 user_id INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
+                scanned_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
+                scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 scan_category VARCHAR(50),
                 scan_value TEXT,
                 serial_number VARCHAR(100),
                 scan_code VARCHAR(100),
                 detection_data JSONB,
-                scan_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 is_valid BOOLEAN DEFAULT FALSE,
                 status VARCHAR(50) DEFAULT 'pending',
                 notes TEXT,
@@ -235,9 +231,11 @@ def create_scan_results_table(conn):
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_item_prep ON scan_results(item_preparation_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_user ON scan_results(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_scanned_by ON scan_results(scanned_by)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_status ON scan_results(status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_serial ON scan_results(serial_number)")
         conn.commit()
-        print("✓ Tabel scan_results berhasil dibuat")
+        print("✓ Tabel scan_results berhasil dibuat (dengan serial_number, scanned_by, scanned_at)")
     except Exception as e:
         conn.rollback()
         print(f"Error creating scan_results table: {e}")

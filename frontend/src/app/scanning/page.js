@@ -74,7 +74,9 @@ export default function SerialScanningPage() {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center">
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="mt-4 text-gray-600 font-medium">{message || "Loading..."}</p>
+        <p className="mt-4 text-gray-600 font-medium">
+          {message || "Loading..."}
+        </p>
         {subMessage && (
           <p className="mt-2 text-sm text-gray-500">{subMessage}</p>
         )}
@@ -133,20 +135,20 @@ export default function SerialScanningPage() {
   const saveScanResult = async (scanData) => {
     try {
       const response = await fetch(API_ENDPOINTS.SCAN_RESULTS_CREATE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(scanData)
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(scanData),
       });
 
       const result = await response.json();
       if (result.success) {
-        console.log('Scan result saved:', result);
+        console.log("Scan result saved:", result);
         return result;
       } else {
         throw new Error(result.error);
       }
     } catch (error) {
-      console.error('Error saving scan result:', error);
+      console.error("Error saving scan result:", error);
       return { success: false, error: error.message };
     }
   };
@@ -164,7 +166,6 @@ export default function SerialScanningPage() {
     }
   }, []);
 
-  // Deteksi perubahan prep_id di URL
   useEffect(() => {
     const prepId = searchParams.get("prep_id");
     if (prepId) {
@@ -172,35 +173,89 @@ export default function SerialScanningPage() {
     }
   }, [searchParams]);
 
-  useEffect(() => {
-    if (checkHistory.length > 0)
-      localStorage.setItem("scanCheckHistory", JSON.stringify(checkHistory));
-  }, [checkHistory]);
-
   const loadPreparation = async (prepId) => {
     setLoading(true);
     setLoadingMessage("Loading");
 
     try {
+      // Load progress dari endpoint progress
+      const progressResponse = await fetch(
+        API_ENDPOINTS.SCANNING_PREP_PROGRESS(prepId),
+      );
+      const progressData = await progressResponse.json();
+
+      // Load preparation detail
       const response = await fetch(API_ENDPOINTS.SCANNING_PREP_DETAIL(prepId));
       const data = await response.json();
-      if (data.success) {
+
+      if (data.success && progressData.success) {
         setCurrentPreparation(data.data);
+
+        // Build progress dari progressData
         const progress = {};
-
-        data.data.items.forEach((item) => {
-          const scannedCount = item.scanned_count || 0;
-
+        progressData.data.progress.forEach((item) => {
           progress[item.id_item] = {
             total: item.quantity,
-            scanned: scannedCount,
+            scanned: item.scanned,
             items: [],
           };
         });
 
+        // Build checkHistory dari scan_results
+        const scannedItems = [];
+        progressData.data.scan_results.forEach((scan) => {
+          // Cari item yang sesuai
+          const item = data.data.items.find(
+            (i) => i.id_item === scan.scanning_item_id,
+          );
+
+          scannedItems.push({
+            id: scan.id_scan,
+            jenisAset: scan.scan_value || (item ? item.item_name : "Unknown"),
+            kategori:
+              scan.scan_category === "Devices" ? "Perangkat" : "Material",
+            brand: item ? item.brand : "Unknown",
+            confidencePercent: 85,
+            status: scan.serial_number
+              ? "serial_scanned"
+              : scan.status === "completed"
+                ? "Submitted"
+                : "device_detected",
+            nomorSeri: scan.serial_number || "",
+            timestamp: scan.scanned_at,
+            tanggal: scan.scanned_at
+              ? new Date(scan.scanned_at).toLocaleDateString("id-ID")
+              : new Date().toLocaleDateString("id-ID"),
+            waktu: scan.scanned_at
+              ? new Date(scan.scanned_at).toLocaleTimeString("id-ID", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                })
+              : new Date().toLocaleTimeString("id-ID"),
+            item_id: scan.scanning_item_id,
+            preparation_id: prepId,
+            preparation_name: data.data.checking_name,
+            lokasi: data.data.location_name,
+            lokasiLabel: data.data.location_name,
+            scan_id: scan.id_scan,
+            item_preparation_id: scan.item_preparation_id,
+            submitted: scan.status === "completed",
+          });
+        });
+
         setScanningProgress(progress);
 
-        if (data.data.scanned_items && data.data.scanned_items.length > 0) {
+        if (scannedItems.length > 0) {
+          setCheckHistory(scannedItems);
+          localStorage.setItem(
+            "scanCheckHistory",
+            JSON.stringify(scannedItems),
+          );
+        } else if (
+          data.data.scanned_items &&
+          data.data.scanned_items.length > 0
+        ) {
           setCheckHistory(data.data.scanned_items);
         }
       }
@@ -232,8 +287,10 @@ export default function SerialScanningPage() {
             detectedAssetType.includes(itemName) ||
             (detectedCategory === "Perangkat" && itemName.includes("laptop")) ||
             (detectedCategory === "Perangkat" && itemName.includes("pc")) ||
-            (detectedCategory === "Perangkat" && itemName.includes("komputer")) ||
-            (detectedCategory === "Perangkat" && itemName.includes("monitor")) ||
+            (detectedCategory === "Perangkat" &&
+              itemName.includes("komputer")) ||
+            (detectedCategory === "Perangkat" &&
+              itemName.includes("monitor")) ||
             (detectedCategory === "Material" && itemName.includes("kabel"))
           );
         });
@@ -261,7 +318,12 @@ export default function SerialScanningPage() {
 
         let availableItem = null;
         try {
-          const response = await fetch(API_ENDPOINTS.ITEMS_PREPARATION_AVAILABLE(currentPreparation.id_preparation, targetItem.id_item));
+          const response = await fetch(
+            API_ENDPOINTS.ITEMS_PREPARATION_AVAILABLE(
+              currentPreparation.id_preparation,
+              targetItem.id_item,
+            ),
+          );
 
           if (!response.ok) {
             const errorData = await response.json();
@@ -273,7 +335,7 @@ export default function SerialScanningPage() {
               });
               return;
             }
-            throw new Error(errorData.error || 'No available item');
+            throw new Error(errorData.error || "No available item");
           }
 
           const result = await response.json();
@@ -282,7 +344,7 @@ export default function SerialScanningPage() {
           }
         } catch (error) {
           console.error("Error fetching available item:", error);
-          if (error.message === 'No available item') {
+          if (error.message === "No available item") {
             Swal.fire({
               title: "No Items Left",
               text: `No remaining items for ${targetItem.item_name} to scan`,
@@ -292,31 +354,32 @@ export default function SerialScanningPage() {
           }
         }
 
-        // Save to scan_results first
+        // Save to scan_results
         const scanResultData = {
           preparation_id: currentPreparation.id_preparation,
           scanning_item_id: targetItem.id_item,
           item_preparation_id: availableItem?.id_item_preparation || null,
           user_id: 1,
-          scan_type: 'device',
           scan_value: deviceData.asset_type,
           serial_number: null,
           scan_code: null,
-          asset_name: targetItem.item_name,
-          brand: targetItem.brand || deviceData.brand || "Unknown",
-          model: targetItem.model || null,
-          specifications: targetItem.specifications || null,
-          confidence: deviceData.confidence || 0.85,
-          bounding_box: deviceData.bounding_box || null,
-          photo_proof: deviceData.photo_proof || null,
-          status: 'pending',
-          notes: `Device detected: ${deviceData.asset_type}`
+          detection_data: {
+            bounding_box: deviceData.bounding_box || null,
+            photo_proof: deviceData.photo_proof || null,
+            confidence: deviceData.confidence || 0.85,
+            asset_type: deviceData.asset_type,
+            category: deviceData.category,
+          },
+          status: "pending",
+          notes: `Device detected: ${deviceData.asset_type}`,
         };
 
         const savedResult = await saveScanResult(scanResultData);
 
         const scanItem = {
-          id: deviceData.id || `SCAN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          id:
+            deviceData.id ||
+            `SCAN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           jenisAset: targetItem.item_name || deviceData.asset_type,
           kategori: targetItem.kategori || deviceData.category || "Perangkat",
           brand: targetItem.brand || deviceData.brand || "Unknown",
@@ -336,7 +399,7 @@ export default function SerialScanningPage() {
           lokasi: currentPreparation?.location_name || "",
           lokasiLabel: currentPreparation?.location_name || "",
           scan_id: savedResult.success ? savedResult.scan_id : null,
-          item_preparation_id: availableItem?.id_item_preparation || null
+          item_preparation_id: availableItem?.id_item_preparation || null,
         };
 
         setPendingDevice(scanItem);
@@ -372,12 +435,12 @@ export default function SerialScanningPage() {
             // If skipped, update scan_result status
             if (scanItem.scan_id) {
               fetch(API_ENDPOINTS.SCAN_RESULTS_UPDATE(scanItem.scan_id), {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  status: 'completed',
-                  notes: 'Device detected, serial scan skipped'
-                })
+                  status: "completed",
+                  notes: "Device detected, serial scan skipped",
+                }),
               });
             }
           }
@@ -386,34 +449,39 @@ export default function SerialScanningPage() {
     } else if (detection.type === "serial") {
       const serialData = detection.data;
       if (pendingDevice) {
-        // Update scan_result with serial number
         if (pendingDevice.scan_id) {
           const updateData = {
             serial_number: serialData.detected_text,
             scan_code: serialData.detected_text,
-            status: 'serial_scanned',
-            confidence: serialData.confidence || 0.9,
-            notes: `Serial number detected: ${serialData.detected_text}`
+            status: "serial_scanned",
+            scanned_by: 1,
+            scanned_at: new Date().toISOString(),
+            notes: `Serial number detected: ${serialData.detected_text}`,
           };
 
           try {
-            await fetch(API_ENDPOINTS.SCAN_RESULTS_UPDATE(pendingDevice.scan_id), {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(updateData)
-            });
+            await fetch(
+              API_ENDPOINTS.SCAN_RESULTS_UPDATE(pendingDevice.scan_id),
+              {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(updateData),
+              },
+            );
 
-            // Update items_preparation with serial number
             if (pendingDevice.item_preparation_id) {
-              await fetch(API_ENDPOINTS.ITEMS_PREPARATION_UPDATE(pendingDevice.item_preparation_id), {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  serial_number: serialData.detected_text,
-                  scan_code: serialData.detected_text,
-                  status: 'scanned'
-                })
-              });
+              await fetch(
+                API_ENDPOINTS.ITEMS_PREPARATION_UPDATE(
+                  pendingDevice.item_preparation_id,
+                ),
+                {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    status: "scanned",
+                  }),
+                },
+              );
             }
           } catch (error) {
             console.error("Error updating scan result:", error);
@@ -424,21 +492,21 @@ export default function SerialScanningPage() {
           prev.map((item) =>
             item.id === pendingDevice.id
               ? {
-                ...item,
-                nomorSeri: serialData.detected_text,
-                status: "serial_scanned",
-                confidencePercent: Math.round(
-                  (serialData.confidence || 0.9) * 100,
-                ),
-                scan_id: pendingDevice.scan_id
-              }
+                  ...item,
+                  nomorSeri: serialData.detected_text,
+                  status: "serial_scanned",
+                  confidencePercent: Math.round(
+                    (serialData.confidence || 0.9) * 100,
+                  ),
+                  scan_id: pendingDevice.scan_id,
+                }
               : item,
           ),
         );
 
         Swal.fire({
           title: "Serial Detected!",
-          html: `<p class="text-xl font-mono text-blue-600 font-bold">${serialData.detected_text}</p><p class="text-sm text-gray-500 mt-2">Data has been saved to database</p>`,
+          html: `<p class="text-xl font-mono text-blue-600 font-bold">${serialData.detected_text}</p><p class="text-sm text-gray-500 mt-2">Data has been saved to scan_results</p>`,
           icon: "success",
         }).then(() => {
           setPendingDevice(null);
@@ -458,16 +526,28 @@ export default function SerialScanningPage() {
 
       let matchedItem = null;
       if (currentPreparation) {
-        matchedItem = currentPreparation.items.find(item =>
-          manualInput.toLowerCase().includes(item.item_name.toLowerCase()) ||
-          (item.brand && manualInput.toLowerCase().includes(item.brand.toLowerCase()))
+        matchedItem = currentPreparation.items.find(
+          (item) =>
+            manualInput.toLowerCase().includes(item.item_name.toLowerCase()) ||
+            (item.brand &&
+              manualInput.toLowerCase().includes(item.brand.toLowerCase())),
         );
       }
 
       const scanItem = {
-        id: isSerial ? manualInput : `MAN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        jenisAset: matchedItem ? matchedItem.item_name : (isSerial ? "Manual Input" : "Unknown"),
-        kategori: matchedItem ? matchedItem.kategori || "Perangkat" : (isSerial ? "Material" : "Perangkat"),
+        id: isSerial
+          ? manualInput
+          : `MAN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        jenisAset: matchedItem
+          ? matchedItem.item_name
+          : isSerial
+            ? "Manual Input"
+            : "Unknown",
+        kategori: matchedItem
+          ? matchedItem.kategori || "Perangkat"
+          : isSerial
+            ? "Material"
+            : "Perangkat",
         brand: matchedItem ? matchedItem.brand || "N/A" : "N/A",
         confidencePercent: "100",
         status: "Checked",
@@ -555,7 +635,7 @@ export default function SerialScanningPage() {
 
   const handleSubmitAll = async () => {
     const itemsToSubmit = checkHistory.filter(
-      (item) => item.status !== "Submitted" && item.lokasi
+      (item) => item.status !== "Submitted" && item.lokasi,
     );
 
     if (itemsToSubmit.length === 0) {
@@ -577,9 +657,9 @@ export default function SerialScanningPage() {
           const validationData = {
             scan_id: item.scan_id,
             user_id: 1,
-            validation_status: 'pending',
+            validation_status: "pending",
             validation_notes: `Submitted from scanning page - ${item.jenisAset}`,
-            location: item.lokasi
+            location: item.lokasi,
           };
 
           const response = await fetch(API_ENDPOINTS.VALIDATIONS_CREATE, {
@@ -596,9 +676,14 @@ export default function SerialScanningPage() {
             setCheckHistory((prev) =>
               prev.map((p) =>
                 p.id === item.id
-                  ? { ...p, submitted: true, status: "Submitted", validation_id: result.validation_id }
-                  : p
-              )
+                  ? {
+                      ...p,
+                      submitted: true,
+                      status: "Submitted",
+                      validation_id: result.validation_id,
+                    }
+                  : p,
+              ),
             );
           }
         }
@@ -622,47 +707,106 @@ export default function SerialScanningPage() {
     });
   };
 
-  const handleDeleteData = (item) => {
-    showDeleteItemModal(item, () => {
-      setCheckHistory((prev) => prev.filter((p) => p.id !== item.id));
+  const handleDeleteData = async (item) => {
+    showDeleteItemModal(item, async () => {
+      try {
+        // Delete dari database
+        if (item.scan_id) {
+          const response = await fetch(
+            API_ENDPOINTS.SCAN_RESULTS_DELETE(item.scan_id),
+            {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+            },
+          );
 
-      if (item.item_id && scanningProgress[item.item_id]) {
-        setScanningProgress((prev) => {
-          const np = { ...prev };
-          if (np[item.item_id]) {
-            np[item.item_id] = {
-              ...np[item.item_id],
-              scanned: Math.max(0, np[item.item_id].scanned - 1),
-              items: (np[item.item_id].items || []).filter(id => id !== item.id),
-            };
+          const result = await response.json();
+          if (!result.success) {
+            throw new Error(result.error || "Failed to delete from database");
           }
-          return np;
+        }
+
+        // Update local state
+        setCheckHistory((prev) => prev.filter((p) => p.id !== item.id));
+
+        if (item.item_id && scanningProgress[item.item_id]) {
+          setScanningProgress((prev) => {
+            const np = { ...prev };
+            if (np[item.item_id]) {
+              np[item.item_id] = {
+                ...np[item.item_id],
+                scanned: Math.max(0, np[item.item_id].scanned - 1),
+                items: (np[item.item_id].items || []).filter(
+                  (id) => id !== item.id,
+                ),
+              };
+            }
+            return np;
+          });
+        }
+
+        Swal.fire({ title: "Deleted!", icon: "success" });
+
+        // Refresh data
+        if (currentPreparation) {
+          loadPreparation(currentPreparation.id_preparation);
+        }
+      } catch (error) {
+        console.error("Error deleting scan result:", error);
+        Swal.fire({
+          title: "Error!",
+          text: error.message || "Failed to delete item",
+          icon: "error",
         });
       }
-
-      Swal.fire({ title: "Deleted!", icon: "success" });
     });
   };
 
-  const handleDeleteAll = () => {
+  const handleDeleteAll = async () => {
     if (!checkHistory.length) return;
-    showDeleteAllModal(checkHistory.length, () => {
-      setCheckHistory([]);
 
-      if (currentPreparation) {
-        const resetProgress = {};
-        currentPreparation.items.forEach((item) => {
-          resetProgress[item.id_item] = {
-            total: item.quantity,
-            scanned: 0,
-            items: [],
-          };
+    showDeleteAllModal(checkHistory.length, async () => {
+      try {
+        // Delete semua scan results dari database
+        for (const item of checkHistory) {
+          if (item.scan_id) {
+            await fetch(API_ENDPOINTS.SCAN_RESULTS_DELETE(item.scan_id), {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+        }
+
+        // Reset local state
+        setCheckHistory([]);
+
+        if (currentPreparation) {
+          const resetProgress = {};
+          currentPreparation.items.forEach((item) => {
+            resetProgress[item.id_item] = {
+              total: item.quantity,
+              scanned: 0,
+              items: [],
+            };
+          });
+          setScanningProgress(resetProgress);
+        }
+
+        localStorage.removeItem("scanCheckHistory");
+        Swal.fire({ title: "Deleted!", icon: "success" });
+
+        // Refresh data
+        if (currentPreparation) {
+          loadPreparation(currentPreparation.id_preparation);
+        }
+      } catch (error) {
+        console.error("Error deleting all scan results:", error);
+        Swal.fire({
+          title: "Error!",
+          text: "Failed to delete all items",
+          icon: "error",
         });
-        setScanningProgress(resetProgress);
       }
-
-      localStorage.removeItem("scanCheckHistory");
-      Swal.fire({ title: "Deleted!", icon: "success" });
     });
   };
 
@@ -831,10 +975,11 @@ export default function SerialScanningPage() {
                           </p>
                         </div>
                         <span
-                          className={`px-2 py-1 text-xs font-semibold rounded-full ${session.status === "pending"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-blue-100 text-blue-700"
-                            }`}
+                          className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            session.status === "pending"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}
                         >
                           {session.status === "pending"
                             ? "Pending"
@@ -915,7 +1060,9 @@ export default function SerialScanningPage() {
                 {loadingMessage || (loadingSessions ? "Loading" : "Loading")}
               </p>
               {loadingSubMessage && (
-                <p className="mt-2 text-sm text-gray-500">{loadingSubMessage}</p>
+                <p className="mt-2 text-sm text-gray-500">
+                  {loadingSubMessage}
+                </p>
               )}
             </div>
           </div>
@@ -1282,8 +1429,12 @@ export default function SerialScanningPage() {
               <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden flex items-center justify-center mb-4">
                 <div className="text-center">
                   <Camera className="w-16 h-16 text-gray-700 mx-auto mb-4" />
-                  <p className="text-gray-400 text-base font-semibold mb-2">Camera Off</p>
-                  <p className="text-gray-500 text-sm">Click Start Scan to activate camera</p>
+                  <p className="text-gray-400 text-base font-semibold mb-2">
+                    Camera Off
+                  </p>
+                  <p className="text-gray-500 text-sm">
+                    Click Start Scan to activate camera
+                  </p>
                 </div>
               </div>
 
@@ -1357,18 +1508,24 @@ export default function SerialScanningPage() {
                       No scan results yet
                     </p>
                     <p className="text-sm text-gray-400 mt-2">
-                      Scan a device or material and enter the serial number or scan the code
+                      Scan a device or material and enter the serial number or
+                      scan the code
                     </p>
                   </div>
                 )}
 
-                {!scanResult && checkHistory.length > 0 && (
+                {!scanResult &&
+                  checkHistory.length > 0 &&
                   (() => {
                     const latestScan = checkHistory[0];
                     const cfg = getStatusConfig(latestScan.status);
                     return (
-                      <div className={`rounded-xl p-3.5 border ${cfg.bg} ${cfg.border}`}>
-                        <div className={`flex items-center gap-2 mb-3 ${cfg.text}`}>
+                      <div
+                        className={`rounded-xl p-3.5 border ${cfg.bg} ${cfg.border}`}
+                      >
+                        <div
+                          className={`flex items-center gap-2 mb-3 ${cfg.text}`}
+                        >
                           <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
                           <span className="text-xs font-semibold uppercase tracking-wide">
                             {cfg.label}
@@ -1376,25 +1533,50 @@ export default function SerialScanningPage() {
                         </div>
                         <div className="space-y-2">
                           {[
-                            { label: "Asset ID", value: latestScan.id, mono: true },
+                            {
+                              label: "Asset ID",
+                              value: latestScan.id,
+                              mono: true,
+                            },
                             { label: "Type", value: latestScan.jenisAset },
-                            { label: "Brand", value: latestScan.brand || "N/A" },
-                            latestScan.nomorSeri && { label: "Serial", value: latestScan.nomorSeri, mono: true },
-                            { label: "Confidence", value: `${latestScan.confidencePercent}%` },
-                            { label: "Waktu Scan", value: `${latestScan.tanggal} ${latestScan.waktu}` },
-                          ].filter(Boolean).map((row) => (
-                            <div key={row.label} className="flex justify-between items-center text-xs">
-                              <span className="text-gray-500">{row.label}</span>
-                              <span className={`text-gray-800 ${row.mono ? "font-mono" : ""}`}>
-                                {row.value}
-                              </span>
-                            </div>
-                          ))}
+                            {
+                              label: "Brand",
+                              value: latestScan.brand || "N/A",
+                            },
+                            latestScan.nomorSeri && {
+                              label: "Serial",
+                              value: latestScan.nomorSeri,
+                              mono: true,
+                            },
+                            {
+                              label: "Confidence",
+                              value: `${latestScan.confidencePercent}%`,
+                            },
+                            {
+                              label: "Waktu Scan",
+                              value: `${latestScan.tanggal} ${latestScan.waktu}`,
+                            },
+                          ]
+                            .filter(Boolean)
+                            .map((row) => (
+                              <div
+                                key={row.label}
+                                className="flex justify-between items-center text-xs"
+                              >
+                                <span className="text-gray-500">
+                                  {row.label}
+                                </span>
+                                <span
+                                  className={`text-gray-800 ${row.mono ? "font-mono" : ""}`}
+                                >
+                                  {row.value}
+                                </span>
+                              </div>
+                            ))}
                         </div>
                       </div>
                     );
-                  })()
-                )}
+                  })()}
 
                 {scanResult === "loading" && (
                   <div className="flex flex-col items-center justify-center py-8">
@@ -1403,12 +1585,17 @@ export default function SerialScanningPage() {
                   </div>
                 )}
 
-                {scanResult && scanResult !== "loading" && (
+                {scanResult &&
+                  scanResult !== "loading" &&
                   (() => {
                     const cfg = getStatusConfig(scanResult.status);
                     return (
-                      <div className={`rounded-xl p-3.5 border ${cfg.bg} ${cfg.border}`}>
-                        <div className={`flex items-center gap-2 mb-3 ${cfg.text}`}>
+                      <div
+                        className={`rounded-xl p-3.5 border ${cfg.bg} ${cfg.border}`}
+                      >
+                        <div
+                          className={`flex items-center gap-2 mb-3 ${cfg.text}`}
+                        >
                           <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
                           <span className="text-xs font-semibold uppercase tracking-wide">
                             {cfg.label}
@@ -1416,25 +1603,50 @@ export default function SerialScanningPage() {
                         </div>
                         <div className="space-y-2">
                           {[
-                            { label: "Asset ID", value: scanResult.id, mono: true },
+                            {
+                              label: "Asset ID",
+                              value: scanResult.id,
+                              mono: true,
+                            },
                             { label: "Type", value: scanResult.jenisAset },
-                            { label: "Brand", value: scanResult.brand || "N/A" },
-                            scanResult.nomorSeri && { label: "Serial", value: scanResult.nomorSeri, mono: true },
-                            { label: "Confidence", value: `${scanResult.confidencePercent}%` },
-                            { label: "Waktu Scan", value: `${scanResult.tanggal} ${scanResult.waktu}` },
-                          ].filter(Boolean).map((row) => (
-                            <div key={row.label} className="flex justify-between items-center text-xs">
-                              <span className="text-gray-500">{row.label}</span>
-                              <span className={`text-gray-800 ${row.mono ? "font-mono" : ""}`}>
-                                {row.value}
-                              </span>
-                            </div>
-                          ))}
+                            {
+                              label: "Brand",
+                              value: scanResult.brand || "N/A",
+                            },
+                            scanResult.nomorSeri && {
+                              label: "Serial",
+                              value: scanResult.nomorSeri,
+                              mono: true,
+                            },
+                            {
+                              label: "Confidence",
+                              value: `${scanResult.confidencePercent}%`,
+                            },
+                            {
+                              label: "Waktu Scan",
+                              value: `${scanResult.tanggal} ${scanResult.waktu}`,
+                            },
+                          ]
+                            .filter(Boolean)
+                            .map((row) => (
+                              <div
+                                key={row.label}
+                                className="flex justify-between items-center text-xs"
+                              >
+                                <span className="text-gray-500">
+                                  {row.label}
+                                </span>
+                                <span
+                                  className={`text-gray-800 ${row.mono ? "font-mono" : ""}`}
+                                >
+                                  {row.value}
+                                </span>
+                              </div>
+                            ))}
                         </div>
                       </div>
                     );
-                  })()
-                )}
+                  })()}
               </div>
             </div>
           </div>

@@ -43,6 +43,7 @@ export const API_ENDPOINTS = {
   SCANNING_PREP_DETAIL: (id) => `${API_BASE_URL}/api/scanning-preparation/${id}`,
   SCANNING_PREP_UPDATE: (id) => `${API_BASE_URL}/api/scanning-preparation/${id}`,
   SCANNING_PREP_DELETE: (id) => `${API_BASE_URL}/api/scanning-preparation/${id}`,
+  SCANNING_PREP_PROGRESS: (id) => `${API_BASE_URL}/api/scanning-preparation/${id}/progress`, 
 
   // Items Preparation 
   ITEMS_PREPARATION_AVAILABLE: (prepId, itemId) => `${API_BASE_URL}/api/items-preparation/${prepId}/item/${itemId}/available`,
@@ -52,6 +53,7 @@ export const API_ENDPOINTS = {
   SCAN_RESULTS_CREATE: `${API_BASE_URL}/api/scan-results/create`,
   SCAN_RESULTS_BY_PREP: (id) => `${API_BASE_URL}/api/scan-results/preparation/${id}`,
   SCAN_RESULTS_UPDATE: (id) => `${API_BASE_URL}/api/scan-results/${id}`,
+  SCAN_RESULTS_DELETE: (id) => `${API_BASE_URL}/api/scan-results/${id}`, 
   SCAN_RESULTS_PENDING: `${API_BASE_URL}/api/scan-results/pending`,
 
 

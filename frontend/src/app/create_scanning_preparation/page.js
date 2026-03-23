@@ -468,40 +468,41 @@ export default function ScanningPreparationPage() {
 
     if (!result.isConfirmed) return;
 
-    setLoading(true);
-    try {
-      const results = [];
-      
-      for (const session of sessions) {
-        const payload = {
-          checking_name: session.formData.checking_name,
-          category_id: parseInt(session.formData.category_id),
-          location_id: parseInt(session.formData.location_id),
-          checking_date: session.formData.checking_date,
-          remarks: session.formData.remarks,
-          items: session.items.map(({ id, ...item }) => ({
-            ...item,
-            quantity: parseInt(item.quantity) || 1,
-            departments: item.departments.map((d) => ({
-              department_id: d.department_id,
-              quantity: d.quantity,
-            })),
+     setLoading(true);
+  try {
+    const results = [];
+    
+    const userId = localStorage.getItem('user_id') || 1; 
+    
+    for (const session of sessions) {
+      const payload = {
+        checking_name: session.formData.checking_name,
+        category_id: parseInt(session.formData.category_id),
+        location_id: parseInt(session.formData.location_id),
+        checking_date: session.formData.checking_date,
+        remarks: session.formData.remarks,
+        items: session.items.map(({ id, ...item }) => ({
+          ...item,
+          quantity: parseInt(item.quantity) || 1,
+          departments: item.departments.map((d) => ({
+            department_id: d.department_id,
+            quantity: d.quantity,
           })),
-          user_id: 1,
-        };
+        })),
+        user_id: userId, 
+      };
 
-        const response = await fetch(API_ENDPOINTS.SCANNING_PREP_CREATE, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+      const response = await fetch(API_ENDPOINTS.SCANNING_PREP_CREATE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-        const data = await response.json();
-        if (data.success) {
-          results.push(data);
-        }
+      const data = await response.json();
+      if (data.success) {
+        results.push(data);
       }
-
+    }
       if (results.length > 0) {
         await Swal.fire({
           title: "Success!",
