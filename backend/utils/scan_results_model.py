@@ -4,7 +4,6 @@ import json
 from utils.database import get_db_connection
 
 class ScanResultsModel:
-    """Model untuk mengelola scan_results"""
     
     @staticmethod
     def create_scan_result(data):
@@ -14,30 +13,40 @@ class ScanResultsModel:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             
+            user_id = data.get('user_id', 1)
+            
+            # Dapatkan scan_category dari preparation melalui item_preparation
+            scan_category = None
+            if data.get('item_preparation_id'):
+                cur.execute("""
+                    SELECT ac.category_name
+                    FROM items_preparation ip
+                    JOIN scanning_preparations sp ON ip.preparation_id = sp.id_preparation
+                    JOIN asset_categories ac ON sp.category_id = ac.id_category
+                    WHERE ip.id_item_preparation = %s
+                """, (data.get('item_preparation_id'),))
+                result = cur.fetchone()
+                if result:
+                    scan_category = result['category_name']
+            
+            detection_data = {}
+            if data.get('detection_data'):
+                detection_data = data.get('detection_data')
+            
             cur.execute("""
                 INSERT INTO scan_results (
-                    preparation_id, scanning_item_id, item_preparation_id,
-                    user_id, scan_type, scan_value, serial_number, scan_code,
-                    asset_name, brand, model, specifications, confidence,
-                    bounding_box, photo_proof, status, notes
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    item_preparation_id, user_id, scan_category, scan_value, 
+                    serial_number, scan_code, detection_data, status, notes
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id_scan
             """, (
-                data.get('preparation_id'),
-                data.get('scanning_item_id'),
                 data.get('item_preparation_id'),
-                data.get('user_id', 1),
-                data.get('scan_type'),  # 'device', 'serial', 'manual'
+                user_id,
+                scan_category,
                 data.get('scan_value'),
                 data.get('serial_number'),
                 data.get('scan_code'),
-                data.get('asset_name'),
-                data.get('brand'),
-                data.get('model'),
-                data.get('specifications'),
-                data.get('confidence', 0),
-                json.dumps(data.get('bounding_box')) if data.get('bounding_box') else None,
-                data.get('photo_proof'),
+                json.dumps(detection_data) if detection_data else None,
                 data.get('status', 'pending'),
                 data.get('notes')
             ))
@@ -49,9 +58,13 @@ class ScanResultsModel:
             if data.get('item_preparation_id'):
                 cur.execute("""
                     UPDATE items_preparation 
-                    SET status = 'scanned', scanned_at = CURRENT_TIMESTAMP, scanned_by = %s
+                    SET status = 'scanned', 
+                        scanned_at = CURRENT_TIMESTAMP, 
+                        scanned_by = %s,
+                        serial_number = COALESCE(%s, serial_number),
+                        scan_code = COALESCE(%s, scan_code)
                     WHERE id_item_preparation = %s
-                """, (data.get('user_id', 1), data.get('item_preparation_id')))
+                """, (user_id, data.get('serial_number'), data.get('scan_code'), data.get('item_preparation_id')))
                 conn.commit()
             
             return {
@@ -64,31 +77,52 @@ class ScanResultsModel:
             if conn:
                 conn.rollback()
             print(f"Error creating scan result: {e}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {'success': False, 'error': str(e)}
         finally:
             if conn:
                 conn.close()
     
     @staticmethod
     def get_scan_results_by_preparation(preparation_id):
-        """Mendapatkan semua scan results untuk preparation tertentu"""
+        """Mendapatkan scan results dengan data lengkap via JOIN"""
         conn = None
         try:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             
             cur.execute("""
-                SELECT sr.*, 
-                       u.username as scanned_by_name,
-                       ip.item_number,
-                       ip.status as item_status
+                SELECT 
+                    sr.id_scan,
+                    sr.item_preparation_id,
+                    sr.user_id,
+                    sr.scan_category,
+                    sr.scan_value,
+                    sr.serial_number,
+                    sr.scan_code,
+                    sr.detection_data,
+                    sr.scan_time,
+                    sr.is_valid,
+                    sr.status,
+                    sr.notes,
+                    sr.created_at,
+                    ip.item_number,
+                    ip.status as item_status,
+                    si.item_name,
+                    si.brand,
+                    si.model,
+                    si.specifications,
+                    si.quantity,
+                    u.username as scanned_by_name,
+                    sp.checking_name,
+                    sp.checking_number,
+                    l.location_name
                 FROM scan_results sr
-                LEFT JOIN users u ON sr.user_id = u.id_user
                 LEFT JOIN items_preparation ip ON sr.item_preparation_id = ip.id_item_preparation
-                WHERE sr.preparation_id = %s
+                LEFT JOIN scanning_items si ON ip.scanning_item_id = si.id_item
+                LEFT JOIN scanning_preparations sp ON si.preparation_id = sp.id_preparation
+                LEFT JOIN locations l ON sp.location_id = l.id_location
+                LEFT JOIN users u ON sr.user_id = u.id_user
+                WHERE sp.id_preparation = %s
                 ORDER BY sr.scan_time DESC
             """, (preparation_id,))
             
@@ -101,91 +135,7 @@ class ScanResultsModel:
             
         except Exception as e:
             print(f"Error getting scan results: {e}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
-        finally:
-            if conn:
-                conn.close()
-    
-    @staticmethod
-    def update_scan_result(scan_id, data):
-        """Update scan result"""
-        conn = None
-        try:
-            conn = get_db_connection()
-            cur = conn.cursor()
-            
-            update_fields = []
-            values = []
-            
-            allowed_fields = ['is_valid', 'status', 'notes', 'serial_number', 'scan_code']
-            for field in allowed_fields:
-                if field in data:
-                    update_fields.append(f"{field} = %s")
-                    values.append(data[field])
-            
-            if not update_fields:
-                return {'success': False, 'error': 'No fields to update'}
-            
-            values.append(scan_id)
-            query = f"UPDATE scan_results SET {', '.join(update_fields)} WHERE id_scan = %s"
-            cur.execute(query, values)
-            
-            conn.commit()
-            return {
-                'success': True,
-                'message': 'Scan result updated successfully'
-            }
-            
-        except Exception as e:
-            if conn:
-                conn.rollback()
-            print(f"Error updating scan result: {e}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
-        finally:
-            if conn:
-                conn.close()
-    
-    @staticmethod
-    def get_pending_scans():
-        """Mendapatkan scan results yang pending untuk validasi"""
-        conn = None
-        try:
-            conn = get_db_connection()
-            cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-            
-            cur.execute("""
-                SELECT sr.*, 
-                       sp.checking_name,
-                       sp.checking_number,
-                       l.location_name,
-                       u.username as scanned_by_name
-                FROM scan_results sr
-                LEFT JOIN scanning_preparations sp ON sr.preparation_id = sp.id_preparation
-                LEFT JOIN locations l ON sp.location_id = l.id_location
-                LEFT JOIN users u ON sr.user_id = u.id_user
-                WHERE sr.status = 'pending' OR sr.is_valid = FALSE
-                ORDER BY sr.scan_time DESC
-            """)
-            
-            results = cur.fetchall()
-            return {
-                'success': True,
-                'data': [dict(row) for row in results],
-                'total': len(results)
-            }
-            
-        except Exception as e:
-            print(f"Error getting pending scans: {e}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {'success': False, 'error': str(e)}
         finally:
             if conn:
                 conn.close()

@@ -15,7 +15,7 @@ def generate_checking_number():
     return f"SCAN-{date_str}-{random_chars}"
 
 def generate_item_number(preparation_id, item_index, sub_item_index):
-    """Generate item number format: PREP-{preparation_id}-{item_index}-{sub_item_index}"""
+    """Generate item number format: ITEM-{preparation_id}-{item_index}-{sub_item_index}"""
     return f"ITEM-{preparation_id}-{item_index + 1}-{sub_item_index + 1}"
 
 @scanning_prep_bp.route('/api/items-preparation/<int:prep_id>/item/<int:item_id>/available', methods=['GET'])
@@ -27,8 +27,9 @@ def get_available_item(prep_id, item_id):
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
         cur.execute("""
-            SELECT ip.*
+            SELECT ip.*, si.item_name, si.brand, si.model, si.specifications
             FROM items_preparation ip
+            LEFT JOIN scanning_items si ON ip.scanning_item_id = si.id_item
             WHERE ip.preparation_id = %s 
             AND ip.scanning_item_id = %s
             AND ip.status = 'pending'
@@ -44,7 +45,6 @@ def get_available_item(prep_id, item_id):
                 'data': dict(item)
             })
         else:
-            # Jika tidak ada item pending, cek apakah sudah semua di-scan
             cur.execute("""
                 SELECT COUNT(*) as total, 
                        COUNT(CASE WHEN status = 'scanned' THEN 1 END) as scanned
@@ -54,7 +54,7 @@ def get_available_item(prep_id, item_id):
             
             stats = cur.fetchone()
             
-            if stats and stats['total'] == stats['scanned']:
+            if stats and stats['total'] == stats['scanned'] and stats['total'] > 0:
                 return jsonify({
                     'success': False,
                     'error': 'All items for this type have been scanned',
@@ -75,7 +75,6 @@ def get_available_item(prep_id, item_id):
     finally:
         if conn:
             conn.close()
-
 
 @scanning_prep_bp.route('/api/items-preparation/<int:item_prep_id>', methods=['PUT'])
 def update_item_preparation(item_prep_id):
@@ -136,6 +135,8 @@ def get_scanning_preparations():
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        # Perbaiki query: ganti created_by dengan user_id, dan scanned_count dihitung dari items_preparation
         cur.execute("""
             SELECT 
                 sp.id_preparation,
@@ -146,7 +147,7 @@ def get_scanning_preparations():
                 sp.checking_date,
                 sp.remarks,
                 sp.status,
-                sp.created_by,
+                sp.user_id,
                 sp.created_at,
                 sp.updated_at,
                 ac.category_name,
@@ -179,7 +180,7 @@ def get_scanning_preparations():
             FROM scanning_preparations sp
             LEFT JOIN asset_categories ac ON sp.category_id = ac.id_category
             LEFT JOIN locations l ON sp.location_id = l.id_location
-            LEFT JOIN users u ON sp.created_by = u.id_user
+            LEFT JOIN users u ON sp.user_id = u.id_user
             ORDER BY sp.created_at DESC
         """)
         
@@ -242,7 +243,10 @@ def get_preparation_items(prep_id):
             SELECT ip.*, 
                    d.department_name,
                    u.username as scanned_by_name,
-                   si.item_name as master_item_name
+                   si.item_name as master_item_name,
+                   si.brand,
+                   si.model,
+                   si.specifications
             FROM items_preparation ip
             LEFT JOIN departments d ON ip.department_id = d.id_department
             LEFT JOIN users u ON ip.scanned_by = u.id_user
@@ -285,15 +289,21 @@ def delete_scanning_preparation(prep_id):
                 'error': 'Preparation not found'
             }), 404
 
+        # Hapus items_preparation
         cur.execute("DELETE FROM items_preparation WHERE preparation_id = %s", (prep_id,))
+        
+        # Hapus item_departments (via scanning_items)
         cur.execute("""
             DELETE FROM item_departments 
-            WHERE item_id IN (
+            WHERE scanning_item_id IN (
                 SELECT id_item FROM scanning_items WHERE preparation_id = %s
             )
         """, (prep_id,))
 
+        # Hapus scanning_items
         cur.execute("DELETE FROM scanning_items WHERE preparation_id = %s", (prep_id,))
+        
+        # Hapus scanning_preparations
         cur.execute("DELETE FROM scanning_preparations WHERE id_preparation = %s", (prep_id,))
         
         conn.commit()
@@ -332,7 +342,7 @@ def get_scanning_preparation(prep_id):
             FROM scanning_preparations sp
             LEFT JOIN asset_categories ac ON sp.category_id = ac.id_category
             LEFT JOIN locations l ON sp.location_id = l.id_location
-            LEFT JOIN users u ON sp.created_by = u.id_user
+            LEFT JOIN users u ON sp.user_id = u.id_user
             WHERE sp.id_preparation = %s
         """, (prep_id,))
         
@@ -346,6 +356,7 @@ def get_scanning_preparation(prep_id):
         
         prep_dict = dict(preparation)
         
+        # Perbaiki query: ganti item_id dengan scanning_item_id
         cur.execute("""
             SELECT si.*, 
                    COALESCE(
@@ -359,7 +370,7 @@ def get_scanning_preparation(prep_id):
                        '[]'
                    ) as departments
             FROM scanning_items si
-            LEFT JOIN item_departments id ON si.id_item = id.item_id
+            LEFT JOIN item_departments id ON si.id_item = id.scanning_item_id
             LEFT JOIN departments d ON id.department_id = d.id_department
             WHERE si.preparation_id = %s
             GROUP BY si.id_item
@@ -387,7 +398,7 @@ def get_scanning_preparation(prep_id):
 
 @scanning_prep_bp.route('/api/scanning-preparation/<int:prep_id>', methods=['PUT'])
 def update_scanning_preparation(prep_id):
-    """Update persiapan scanning yang sudah ada"""
+    """Update persiapan scanning yang sudah ada dengan user_id"""
     conn = None
     try:
         data = request.json
@@ -423,6 +434,7 @@ def update_scanning_preparation(prep_id):
         conn = get_db_connection()
         cur = conn.cursor()
         
+        # Update preparation
         cur.execute("""
             UPDATE scanning_preparations 
             SET checking_name = %s,
@@ -430,14 +442,16 @@ def update_scanning_preparation(prep_id):
                 location_id = %s,
                 checking_date = %s,
                 remarks = %s,
+                user_id = %s,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id_preparation = %s
-        """, (checking_name, category_id, location_id, checking_date, remarks, prep_id))
+        """, (checking_name, category_id, location_id, checking_date, remarks, user_id, prep_id))
         
+        # Delete existing data
         cur.execute("DELETE FROM items_preparation WHERE preparation_id = %s", (prep_id,))
         cur.execute("""
             DELETE FROM item_departments 
-            WHERE item_id IN (SELECT id_item FROM scanning_items WHERE preparation_id = %s)
+            WHERE scanning_item_id IN (SELECT id_item FROM scanning_items WHERE preparation_id = %s)
         """, (prep_id,))
         cur.execute("DELETE FROM scanning_items WHERE preparation_id = %s", (prep_id,))
         
@@ -446,13 +460,14 @@ def update_scanning_preparation(prep_id):
         for idx, item in enumerate(items):
             quantity = item.get('quantity', 1)
             
+            # Insert scanning_items
             cur.execute("""
                 INSERT INTO scanning_items
-                (preparation_id, item_name, brand, model, specifications, quantity)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                (preparation_id, item_name, brand, model, specifications, quantity, user_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING id_item
             """, (prep_id, item.get('item_name', ''), item.get('brand', ''),
-                  item.get('model', ''), item.get('specifications', ''), quantity))
+                  item.get('model', ''), item.get('specifications', ''), quantity, user_id))
             
             scanning_item_id = cur.fetchone()[0]
             
@@ -460,8 +475,10 @@ def update_scanning_preparation(prep_id):
             for dept in departments:
                 if dept.get('department_id') and dept.get('quantity', 0) > 0:
                     cur.execute("""
-                        INSERT INTO item_departments (item_id, department_id, quantity)
+                        INSERT INTO item_departments (scanning_item_id, department_id, quantity)
                         VALUES (%s, %s, %s)
+                        ON CONFLICT (scanning_item_id, department_id) 
+                        DO UPDATE SET quantity = EXCLUDED.quantity
                     """, (scanning_item_id, dept['department_id'], dept['quantity']))
 
             dept_allocation = {}
@@ -479,14 +496,12 @@ def update_scanning_preparation(prep_id):
                 
                 item_number = generate_item_number(prep_id, idx, sub_idx)
                 
+                # Insert items_preparation
                 cur.execute("""
                     INSERT INTO items_preparation
-                    (scanning_item_id, preparation_id, item_number, item_name, brand, model, 
-                     specifications, status, department_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (scanning_item_id, prep_id, item_number, item.get('item_name', ''),
-                      item.get('brand', ''), item.get('model', ''), item.get('specifications', ''),
-                      'pending', assigned_dept))
+                    (scanning_item_id, preparation_id, item_number, status, department_id, user_id)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (scanning_item_id, prep_id, item_number, 'pending', assigned_dept, user_id))
                 
                 total_items_created += 1
         
@@ -514,13 +529,12 @@ def update_scanning_preparation(prep_id):
 
 @scanning_prep_bp.route('/api/scanning-preparation/create', methods=['POST'])
 def create_scanning_preparation():
-    """Membuat persiapan scanning baru dengan multiple items dan department distribution"""
+    """Membuat persiapan scanning baru"""
     conn = None
     try:
         data = request.json
         print("="*50)
         print("RECEIVED DATA:", data)
-        print("="*50)
         
         checking_name = data.get('checking_name')
         category_id = data.get('category_id')
@@ -530,14 +544,6 @@ def create_scanning_preparation():
         items = data.get('items', []) 
         user_id = data.get('user_id', 1) 
         
-        print(f"checking_name: {checking_name}")
-        print(f"category_id: {category_id} (type: {type(category_id)})")
-        print(f"location_id: {location_id} (type: {type(location_id)})")
-        print(f"checking_date: {checking_date}")
-        print(f"user_id: {user_id}")
-        print(f"items count: {len(items)}")
-        
-        # Validasi
         if not all([checking_name, category_id, location_id, checking_date]):
             missing = []
             if not checking_name: missing.append('checking_name')
@@ -558,35 +564,15 @@ def create_scanning_preparation():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
-        cur.execute("SELECT id_user FROM users WHERE id_user = %s", (user_id,))
-        user_exists = cur.fetchone()
-        if not user_exists:
-            print(f"User with id {user_id} not found!")
-            cur.execute("""
-                INSERT INTO users (id_user, username, email, password, role)
-                VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT (id_user) DO NOTHING
-            """, (user_id, 'admin', 'admin@example.com', 'password123', 'admin'))
-            conn.commit()
-            print(f"Created default user with id {user_id}")
-        
         checking_number = generate_checking_number()
-        print(f"Generated checking number: {checking_number}")
         
+        # Insert scanning preparation
         cur.execute("""
             INSERT INTO scanning_preparations 
-            (checking_number, checking_name, category_id, location_id, checking_date, remarks, created_by)
+            (checking_number, checking_name, category_id, location_id, checking_date, remarks, user_id)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             RETURNING id_preparation
-        """, (
-            checking_number, 
-            checking_name,
-            category_id,
-            location_id,
-            checking_date,
-            remarks,
-            user_id
-        ))
+        """, (checking_number, checking_name, category_id, location_id, checking_date, remarks, user_id))
         
         preparation_id = cur.fetchone()[0]
         print(f"Created preparation with ID: {preparation_id}")
@@ -594,12 +580,13 @@ def create_scanning_preparation():
         total_items_created = 0
         
         for idx, item in enumerate(items):
-            print(f"Processing item {idx+1}: {item}")
             quantity = item.get('quantity', 1)
+            
+            # Insert scanning_items (master)
             cur.execute("""
                 INSERT INTO scanning_items
-                (preparation_id, item_name, brand, model, specifications, quantity)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                (preparation_id, item_name, brand, model, specifications, quantity, user_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING id_item
             """, (
                 preparation_id,
@@ -607,38 +594,30 @@ def create_scanning_preparation():
                 item.get('brand', ''),
                 item.get('model', ''),
                 item.get('specifications', ''),
-                quantity
+                quantity,
+                user_id
             ))
             
             scanning_item_id = cur.fetchone()[0]
-            print(f"Created scanning item with ID: {scanning_item_id}")
-            departments = item.get('departments', [])
-            print(f"Department distributions: {departments}")
             
+            # Insert department distributions
+            departments = item.get('departments', [])
             for dept in departments:
                 if dept.get('department_id') and dept.get('quantity', 0) > 0:
                     cur.execute("SELECT id_department FROM departments WHERE id_department = %s", (dept['department_id'],))
-                    dept_exists = cur.fetchone()
-                    if dept_exists:
+                    if cur.fetchone():
                         cur.execute("""
-                            INSERT INTO item_departments
-                            (item_id, department_id, quantity)
+                            INSERT INTO item_departments (scanning_item_id, department_id, quantity)
                             VALUES (%s, %s, %s)
-                        """, (
-                            scanning_item_id,
-                            dept['department_id'],
-                            dept['quantity']
-                        ))
-                        print(f"Added department {dept['department_id']} with quantity {dept['quantity']}")
-                    else:
-                        print(f"Warning: Department {dept['department_id']} not found, skipping")
+                            ON CONFLICT (scanning_item_id, department_id) 
+                            DO UPDATE SET quantity = EXCLUDED.quantity
+                        """, (scanning_item_id, dept['department_id'], dept['quantity']))
 
+            # Create individual items
             dept_allocation = {}
             for dept in departments:
                 if dept.get('department_id') and dept.get('quantity', 0) > 0:
                     dept_allocation[dept['department_id']] = dept['quantity']
-            
-            items_without_dept = quantity - sum(dept_allocation.values())
             
             for sub_idx in range(quantity):
                 assigned_dept = None
@@ -652,27 +631,21 @@ def create_scanning_preparation():
                 
                 cur.execute("""
                     INSERT INTO items_preparation
-                    (scanning_item_id, preparation_id, item_number, item_name, brand, model, 
-                     specifications, status, department_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (scanning_item_id, preparation_id, item_number, status, department_id, user_id)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                 """, (
                     scanning_item_id,
                     preparation_id,
                     item_number,
-                    item.get('item_name', ''),
-                    item.get('brand', ''),
-                    item.get('model', ''),
-                    item.get('specifications', ''),
                     'pending',
-                    assigned_dept
+                    assigned_dept,
+                    user_id
                 ))
                 
                 total_items_created += 1
-                print(f"Created individual item {sub_idx + 1}/{quantity} with number: {item_number}")
         
         conn.commit()
-        print(f"Transaction committed successfully. Created {total_items_created} individual items")
-        print("="*50)
+        print(f"Created {total_items_created} individual items")
         
         return jsonify({
             'success': True,
@@ -685,14 +658,11 @@ def create_scanning_preparation():
     except Exception as e:
         if conn:
             conn.rollback()
-        print("="*50)
-        print("ERROR in create_scanning_preparation:")
+        print("ERROR:", str(e))
         print(traceback.format_exc())
-        print("="*50)
         return jsonify({
             'success': False,
-            'error': str(e),
-            'trace': traceback.format_exc()
+            'error': str(e)
         }), 500
     finally:
         if conn:
