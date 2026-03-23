@@ -69,6 +69,7 @@ export default function SerialScanningPage() {
   const [availableSessions, setAvailableSessions] = useState([]);
   const [showSessionSelector, setShowSessionSelector] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(false);
+  const [selectedItemForSerial, setSelectedItemForSerial] = useState(null);
 
   const LoadingSpinner = ({ message, subMessage }) => (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -130,6 +131,81 @@ export default function SerialScanningPage() {
       setLoadingSubMessage("");
     }
   };
+
+  const checkSerialExists = async (serialNumber) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/scan-results/check-serial?serial=${encodeURIComponent(serialNumber)}`);
+    const result = await response.json();
+    return result.exists;
+  } catch (error) {
+    console.error("Error checking serial:", error);
+    return false;
+  }
+};
+
+const saveManualSerial = async (serialNumber, targetItem, availableItem) => {
+  if (!serialNumber || serialNumber.trim() === "") {
+    Swal.fire({
+      title: "Error!",
+      text: "Serial number cannot be empty",
+      icon: "error",
+    });
+    return false;
+  }
+
+  // Cek apakah serial number sudah ada
+  const exists = await checkSerialExists(serialNumber);
+  if (exists) {
+    Swal.fire({
+      title: "Serial Number Already Exists!",
+      text: `Serial number "${serialNumber}" has already been used. Please use a different serial number.`,
+      icon: "warning",
+    });
+    return false;
+  }
+
+  try {
+    // Save to scan_results
+    const scanResultData = {
+      preparation_id: currentPreparation.id_preparation,
+      scanning_item_id: targetItem.id_item,
+      item_preparation_id: availableItem?.id_item_preparation || null,
+      user_id: 1,
+      scan_value: targetItem.item_name,
+      serial_number: serialNumber,
+      scan_code: serialNumber,
+      detection_data: {
+        confidence: 100,
+        asset_type: targetItem.item_name,
+        category: targetItem.kategori || "Perangkat",
+        source: "manual"
+      },
+      status: "serial_scanned",
+      scanned_by: 1,
+      scanned_at: new Date().toISOString(),
+      notes: `Manual serial input: ${serialNumber}`,
+    };
+
+    const savedResult = await saveScanResult(scanResultData);
+
+    if (savedResult.success) {
+      // Update items_preparation
+      if (availableItem?.id_item_preparation) {
+        await fetch(API_ENDPOINTS.ITEMS_PREPARATION_UPDATE(availableItem.id_item_preparation), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "scanned" }),
+        });
+      }
+
+      return savedResult;
+    }
+    return false;
+  } catch (error) {
+    console.error("Error saving manual serial:", error);
+    return false;
+  }
+};
 
   // ─── Save Scan Results────────────────────────────────────────────────────────────
   const saveScanResult = async (scanData) => {
@@ -432,7 +508,6 @@ export default function SerialScanningPage() {
             setIsCameraOpen(true);
           } else {
             setIsCameraOpen(false);
-            // If skipped, update scan_result status
             if (scanItem.scan_id) {
               fetch(API_ENDPOINTS.SCAN_RESULTS_UPDATE(scanItem.scan_id), {
                 method: "PUT",
@@ -446,131 +521,234 @@ export default function SerialScanningPage() {
           }
         });
       }
-    } else if (detection.type === "serial") {
-      const serialData = detection.data;
-      if (pendingDevice) {
-        if (pendingDevice.scan_id) {
-          const updateData = {
-            serial_number: serialData.detected_text,
-            scan_code: serialData.detected_text,
-            status: "serial_scanned",
-            scanned_by: 1,
-            scanned_at: new Date().toISOString(),
-            notes: `Serial number detected: ${serialData.detected_text}`,
-          };
+  } else if (detection.type === "serial") {
+  const serialData = detection.data;
+  const targetItem = selectedItemForSerial || pendingDevice;
+  
+  if (targetItem) {
+    const exists = await checkSerialExists(serialData.detected_text);
+    if (exists) {
+      Swal.fire({
+        title: "Serial Number Already Exists!",
+        text: `Serial number "${serialData.detected_text}" has already been used. Please use a different serial number.`,
+        icon: "warning",
+      });
+      setIsCameraOpen(false);
+      setSelectedItemForSerial(null);
+      return;
+    }
+    
+    if (targetItem.scan_id) {
+      const updateData = {
+        serial_number: serialData.detected_text,
+        scan_code: serialData.detected_text,
+        status: "serial_scanned",
+        scanned_by: 1,
+        scanned_at: new Date().toISOString(),
+        notes: `Serial number detected: ${serialData.detected_text}`,
+      };
 
-          try {
-            await fetch(
-              API_ENDPOINTS.SCAN_RESULTS_UPDATE(pendingDevice.scan_id),
-              {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(updateData),
-              },
-            );
+      try {
+        await fetch(API_ENDPOINTS.SCAN_RESULTS_UPDATE(targetItem.scan_id), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updateData),
+        });
 
-            if (pendingDevice.item_preparation_id) {
-              await fetch(
-                API_ENDPOINTS.ITEMS_PREPARATION_UPDATE(
-                  pendingDevice.item_preparation_id,
-                ),
-                {
-                  method: "PUT",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    status: "scanned",
-                  }),
-                },
-              );
-            }
-          } catch (error) {
-            console.error("Error updating scan result:", error);
-          }
+        if (targetItem.item_preparation_id) {
+          await fetch(API_ENDPOINTS.ITEMS_PREPARATION_UPDATE(targetItem.item_preparation_id), {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "scanned" }),
+          });
         }
-
+        
+        // Update local state
         setCheckHistory((prev) =>
           prev.map((item) =>
-            item.id === pendingDevice.id
+            item.id === targetItem.id
               ? {
                   ...item,
                   nomorSeri: serialData.detected_text,
                   status: "serial_scanned",
-                  confidencePercent: Math.round(
-                    (serialData.confidence || 0.9) * 100,
-                  ),
-                  scan_id: pendingDevice.scan_id,
+                  confidencePercent: Math.round((serialData.confidence || 0.9) * 100),
                 }
               : item,
           ),
         );
-
+        
         Swal.fire({
           title: "Serial Detected!",
-          html: `<p class="text-xl font-mono text-blue-600 font-bold">${serialData.detected_text}</p><p class="text-sm text-gray-500 mt-2">Data has been saved to scan_results</p>`,
+          html: `<p class="text-xl font-mono text-blue-600 font-bold">${serialData.detected_text}</p><p class="text-sm text-gray-500 mt-2">Serial number saved successfully!</p>`,
           icon: "success",
-        }).then(() => {
-          setPendingDevice(null);
-          setIsCameraOpen(false);
+        });
+      } catch (error) {
+        console.error("Error updating scan result:", error);
+        Swal.fire({
+          title: "Error!",
+          text: "Failed to save serial number",
+          icon: "error",
         });
       }
     }
+    
+    setPendingDevice(null);
+    setSelectedItemForSerial(null);
+    setIsCameraOpen(false);
+  }
+}
+
   };
 
-  const handleManualCheck = (e) => {
-    e.preventDefault();
-    if (!manualInput) return;
-    setScanResult("loading");
-    setTimeout(() => {
-      const isSerial =
-        manualInput.includes("NS-") || manualInput.includes("BC-");
-
-      let matchedItem = null;
-      if (currentPreparation) {
-        matchedItem = currentPreparation.items.find(
-          (item) =>
-            manualInput.toLowerCase().includes(item.item_name.toLowerCase()) ||
-            (item.brand &&
-              manualInput.toLowerCase().includes(item.brand.toLowerCase())),
-        );
-      }
-
-      const scanItem = {
-        id: isSerial
-          ? manualInput
-          : `MAN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        jenisAset: matchedItem
-          ? matchedItem.item_name
-          : isSerial
-            ? "Manual Input"
-            : "Unknown",
-        kategori: matchedItem
-          ? matchedItem.kategori || "Perangkat"
-          : isSerial
-            ? "Material"
-            : "Perangkat",
-        brand: matchedItem ? matchedItem.brand || "N/A" : "N/A",
-        confidencePercent: "100",
-        status: "Checked",
-        nomorSeri: isSerial ? manualInput : "",
-        timestamp: new Date().toISOString(),
-        tanggal: new Date().toLocaleDateString("id-ID"),
-        waktu: new Date().toLocaleTimeString("id-ID", {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        }),
-        preparation_id: currentPreparation?.id_preparation,
-        preparation_name: currentPreparation?.checking_name,
-        lokasi: currentPreparation?.location_name || "",
-        lokasiLabel: currentPreparation?.location_name || "",
-        item_id: matchedItem?.id_item,
-      };
-      setCheckHistory((prev) => [scanItem, ...prev]);
-      setScanResult(scanItem);
+const handleManualCheck = async (e) => {
+  e.preventDefault();
+  if (!manualInput) return;
+  
+  setScanResult("loading");
+  
+  try {
+    const serialNumber = manualInput.trim();
+    
+    // Cek apakah serial number sudah ada
+    const exists = await checkSerialExists(serialNumber);
+    if (exists) {
+      Swal.fire({
+        title: "Serial Number Already Exists!",
+        text: `Serial number "${serialNumber}" has already been used. Please use a different serial number.`,
+        icon: "warning",
+      });
+      setScanResult(null);
       setManualInput("");
-      if (currentPreparation && matchedItem) updateScanningProgress(scanItem);
-    }, 800);
-  };
+      return;
+    }
+    
+    // Cari item yang cocok dari current preparation
+    let targetItem = null;
+    let availableItem = null;
+    
+    if (currentPreparation) {
+      // Cari item yang belum mencapai kuota
+      for (const item of currentPreparation.items) {
+        const progress = scanningProgress[item.id_item];
+        if (progress && progress.scanned < progress.total) {
+          targetItem = item;
+          break;
+        }
+      }
+      
+      if (!targetItem) {
+        Swal.fire({
+          title: "No Available Items",
+          text: "All items have reached their quota. Please create a new session.",
+          icon: "info",
+        });
+        setScanResult(null);
+        setManualInput("");
+        return;
+      }
+      
+      // Dapatkan available item preparation
+      try {
+        const response = await fetch(
+          API_ENDPOINTS.ITEMS_PREPARATION_AVAILABLE(
+            currentPreparation.id_preparation,
+            targetItem.id_item,
+          ),
+        );
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            availableItem = result.data;
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching available item:", error);
+      }
+      
+      // Simpan serial number manual
+      const savedResult = await saveManualSerial(serialNumber, targetItem, availableItem);
+      
+      if (savedResult && savedResult.success) {
+        const scanItem = {
+          id: savedResult.scan_id,
+          jenisAset: targetItem.item_name,
+          kategori: targetItem.kategori || "Perangkat",
+          brand: targetItem.brand || "Unknown",
+          confidencePercent: 100,
+          status: "serial_scanned",
+          nomorSeri: serialNumber,
+          timestamp: new Date().toISOString(),
+          tanggal: new Date().toLocaleDateString("id-ID"),
+          waktu: new Date().toLocaleTimeString("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          }),
+          item_id: targetItem.id_item,
+          preparation_id: currentPreparation.id_preparation,
+          preparation_name: currentPreparation.checking_name,
+          lokasi: currentPreparation.location_name || "",
+          lokasiLabel: currentPreparation.location_name || "",
+          scan_id: savedResult.scan_id,
+          item_preparation_id: availableItem?.id_item_preparation || null,
+          submitted: false
+        };
+        
+        setCheckHistory((prev) => [scanItem, ...prev]);
+        setScanResult(scanItem);
+        
+        // Update progress
+        setScanningProgress((prev) => {
+          const np = { ...prev };
+          if (np[targetItem.id_item]) {
+            np[targetItem.id_item] = {
+              ...np[targetItem.id_item],
+              scanned: Math.min(
+                np[targetItem.id_item].scanned + 1,
+                np[targetItem.id_item].total,
+              ),
+              items: [...(np[targetItem.id_item].items || []), scanItem.id],
+            };
+          }
+          return np;
+        });
+        
+        Swal.fire({
+          title: "Success!",
+          text: `Serial number "${serialNumber}" has been saved successfully.`,
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      } else {
+        Swal.fire({
+          title: "Error!",
+          text: "Failed to save serial number. Please try again.",
+          icon: "error",
+        });
+      }
+    }
+    
+    setManualInput("");
+  } catch (error) {
+    console.error("Error in manual check:", error);
+    Swal.fire({
+      title: "Error!",
+      text: "An error occurred while processing your input.",
+      icon: "error",
+    });
+  } finally {
+    setScanResult(null);
+  }
+};
+
+const handleScanSerialForItem = (item) => {
+  setSelectedItemForSerial(item);
+  setCameraMode("serial");
+  setIsCameraOpen(true);
+};
+
 
   const updateScanningProgress = (scanItem) => {
     if (!currentPreparation || !scanItem.item_id) return;
@@ -1827,6 +2005,15 @@ export default function SerialScanningPage() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-1">
+                                {item.status === "device_detected" && !item.nomorSeri && (
+                                  <button
+                                    onClick={() => handleScanSerialForItem(item)}
+                                    className="w-7 h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white transition"
+                                    title="Scan Serial Number"
+                                  >
+                                    <ScanLine className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                                 {item.status !== "Submitted" && item.lokasi && (
                                   <button
                                     onClick={() => handleSubmitSingle(item)}

@@ -120,6 +120,44 @@ def delete_scan_result(scan_id):
     finally:
         if conn:
             conn.close()
+            
+@scan_results_bp.route('/api/scan-results/check-serial', methods=['GET'])
+def check_serial_exists():
+    """Mengecek apakah serial number sudah ada di database"""
+    conn = None
+    try:
+        serial_number = request.args.get('serial', '')
+        
+        if not serial_number:
+            return jsonify({
+                'success': False,
+                'error': 'Serial number is required'
+            }), 400
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id_scan FROM scan_results 
+            WHERE serial_number = %s
+        """, (serial_number,))
+        
+        result = cur.fetchone()
+        
+        return jsonify({
+            'success': True,
+            'exists': result is not None
+        })
+        
+    except Exception as e:
+        print(f"Error checking serial: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
 
 @scan_results_bp.route('/api/scan-results/pending', methods=['GET'])
 def get_pending_scans():

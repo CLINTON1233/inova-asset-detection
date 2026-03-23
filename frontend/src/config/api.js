@@ -55,7 +55,7 @@ export const API_ENDPOINTS = {
   SCAN_RESULTS_UPDATE: (id) => `${API_BASE_URL}/api/scan-results/${id}`,
   SCAN_RESULTS_DELETE: (id) => `${API_BASE_URL}/api/scan-results/${id}`, 
   SCAN_RESULTS_PENDING: `${API_BASE_URL}/api/scan-results/pending`,
-
+  SCAN_RESULTS_CHECK_SERIAL: (serial) => `${API_BASE_URL}/api/scan-results/check-serial?serial=${encodeURIComponent(serial)}`,
 
   // Validations
   VALIDATIONS_CREATE: `${API_BASE_URL}/api/validations/create`,

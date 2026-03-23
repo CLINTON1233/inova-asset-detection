@@ -30,7 +30,6 @@ export default function FullscreenCamera({
       const devices = await navigator.mediaDevices.enumerateDevices();
       let videoDevices = devices.filter(device => device.kind === "videoinput");
 
-      // SORT: kamera asli (laptop) di atas, virtual (DroidCam/Iriun) di bawah
       videoDevices = videoDevices.sort((a, b) => {
         const aLabel = a.label.toLowerCase();
         const bLabel = b.label.toLowerCase();
@@ -47,11 +46,9 @@ export default function FullscreenCamera({
           bLabel.includes("obs") ||
           bLabel.includes("virtual");
 
-        // virtual selalu di bawah (priority rendah)
         if (isAVirtual && !isBVirtual) return 1;
         if (!isAVirtual && isBVirtual) return -1;
 
-        // Prioritaskan kamera dengan label "Integrated", "Webcam", atau "HD"
         const aIsBuiltIn = aLabel.includes("integrated") || aLabel.includes("webcam") || aLabel.includes("hd") || aLabel.includes("camera");
         const bIsBuiltIn = bLabel.includes("integrated") || bLabel.includes("webcam") || bLabel.includes("hd") || bLabel.includes("camera");
 
@@ -63,7 +60,6 @@ export default function FullscreenCamera({
 
       setAvailableCameras(videoDevices);
 
-      // ✅ pilih kamera pertama (kamera asli/laptop, bukan virtual)
       if (videoDevices.length > 0) {
         console.log("Selected default camera:", videoDevices[0].label);
         setSelectedCamera(videoDevices[0].deviceId);
