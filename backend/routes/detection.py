@@ -7,12 +7,14 @@ from datetime import datetime
 from werkzeug.utils import secure_filename
 from config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS, DEVICE_MODEL_PATH
 from utils.detector import detect_devices_from_image
+from utils.material_detector import detect_materials_from_image
 
 detection_bp = Blueprint('detection', __name__, url_prefix='/api')
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+# Devices
 @detection_bp.route('/detect', methods=['POST'])
 def detect_devices():
     try:
@@ -126,3 +128,45 @@ def test_detection():
         },
         "model_status": "Ready" if os.path.exists(DEVICE_MODEL_PATH) else "Model not found"
     })
+    
+# Material
+@detection_bp.route('/detect/material/camera', methods=['POST'])
+def detect_materials_from_camera():
+    try:
+        data = request.get_json()
+        
+        if not data or 'image_data' not in data:
+            return jsonify({
+                "success": False,
+                "message": "No image data provided"
+            }), 400
+        
+        image_data = data['image_data']
+        
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
+        
+        image_bytes = base64.b64decode(image_data)
+        
+        temp_dir = 'temp'
+        os.makedirs(temp_dir, exist_ok=True)
+        temp_path = os.path.join(temp_dir, f'material_camera_{int(time.time())}.jpg')
+        
+        with open(temp_path, 'wb') as f:
+            f.write(image_bytes)
+        
+        result = detect_materials_from_image(temp_path)
+        
+        try:
+            os.remove(temp_path)
+        except:
+            pass
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"Camera material detection error: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Error processing camera material image: {str(e)}"
+        }), 500

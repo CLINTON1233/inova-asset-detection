@@ -11,6 +11,9 @@ export const API_ENDPOINTS = {
   SERIAL_DETECT_COMPLETE: `${API_BASE_URL}/api/serial/detect/complete`,
   SERIAL_GET_SPECS: `${API_BASE_URL}/api/serial/specs`,
 
+  // Material Detection
+  MATERIAL_DETECT_CAMERA: `${API_BASE_URL}/api/detect/material/camera`,
+  
   // OCR
   OCR_EXTRACT_SERIAL: `${API_BASE_URL}/api/ocr/extract-serial`,
   OCR_VALIDATE_SERIAL: `${API_BASE_URL}/api/ocr/validate-serial`,
@@ -94,8 +97,11 @@ export const API_ENDPOINTS = {
   SCAN_RESULTS_DELETE_MATERIAL: (id) =>
     `${API_BASE_URL}/api/scan-results/material/${id}`,
 
+  // Check Serial Number & Scan Code
   SCAN_RESULTS_CHECK_SERIAL: (serial) =>
     `${API_BASE_URL}/api/scan-results/check-serial?serial=${encodeURIComponent(serial)}`,
+  SCAN_RESULTS_CHECK_SCAN_CODE: (code) => 
+    `${API_BASE_URL}/api/scan-results/check-scan-code?code=${encodeURIComponent(code)}`,
 
   // Validations
   VALIDATIONS_CREATE: `${API_BASE_URL}/api/validations/create`,

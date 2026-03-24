@@ -209,6 +209,43 @@ def delete_scan_result_material(scan_id):
     finally:
         if conn:
             conn.close()
+            
+@scan_results_bp.route('/check-scan-code', methods=['GET'])
+def check_scan_code():
+    """Cek apakah scan code sudah digunakan"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        scan_code = request.args.get('code')
+        if not scan_code:
+            return jsonify({'success': False, 'error': 'No scan code provided'}), 400
+        
+        cur.execute("""
+            SELECT EXISTS(
+                SELECT 1 FROM scan_results_materials WHERE scan_code = %s
+                UNION
+                SELECT 1 FROM materials_items_preparation WHERE scan_code = %s AND status = 'scanned'
+            ) as exists
+        """, (scan_code, scan_code))
+        
+        result = cur.fetchone()
+        exists = result[0] if result else False
+        
+        return jsonify({
+            'success': True,
+            'exists': exists
+        })
+        
+    except Exception as e:
+        print(f"Error checking scan code: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
 
 @scan_results_bp.route('/api/scan-results/check-serial', methods=['GET'])
 def check_serial_exists():

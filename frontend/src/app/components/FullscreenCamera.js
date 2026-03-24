@@ -168,9 +168,12 @@ export default function FullscreenCamera({
 
       const imageData = canvas.toDataURL("image/jpeg", 0.8);
 
+      // MODIFIKASI: Pilih endpoint berdasarkan mode
       const endpoint =
         mode === "device"
           ? API_ENDPOINTS.DETECT_CAMERA
+          : mode === "material"
+          ? API_ENDPOINTS.MATERIAL_DETECT_CAMERA
           : API_ENDPOINTS.SERIAL_DETECT_CAMERA;
 
       const response = await fetch(endpoint, {
@@ -182,6 +185,7 @@ export default function FullscreenCamera({
       const result = await response.json();
 
       if (result.success) {
+        // MODIFIKASI: Deteksi untuk mode device
         if (mode === "device" && result.detected_items?.length > 0) {
           const detectedItem = result.detected_items[0];
 
@@ -246,7 +250,68 @@ export default function FullscreenCamera({
           setTimeout(() => {
             onClose();
           }, 500);
-        } else if (mode === "serial" && result.serial_detections?.length > 0) {
+        } 
+        // MODIFIKASI: Deteksi untuk mode material
+        else if (mode === "material" && result.detected_items?.length > 0) {
+          const detectedItem = result.detected_items[0];
+          
+          if (sessionData) {
+            const detectedAssetType = detectedItem.asset_type?.toLowerCase() || "";
+            
+            const matchingItems = sessionData.items.filter((item) => {
+              const itemName = (item.material_name || item.item_name || "")?.toLowerCase() || "";
+              return (
+                itemName.includes(detectedAssetType) ||
+                detectedAssetType.includes(itemName)
+              );
+            });
+            
+            if (matchingItems.length === 0) {
+              Swal.fire({
+                title: "Material Tidak Sesuai!",
+                html: `
+                  <div class="text-center">
+                    <div class="mx-auto mb-3 w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                      <svg class="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                      </svg>
+                    </div>
+                    <p class="text-lg font-semibold text-gray-800 mb-2">Detected: ${detectedItem.asset_type}</p>
+                    <p class="text-sm text-gray-600">Material yang discan tidak sesuai dengan session ini.</p>
+                    <div class="mt-4 p-3 bg-gray-100 rounded-lg text-left">
+                      <p class="text-xs font-semibold text-gray-700 mb-2">Materials in this session:</p>
+                      <ul class="text-xs text-gray-600 space-y-1">
+                        ${sessionData.items.map((item) => `<li>• ${item.material_name || item.item_name}</li>`).join("")}
+                      </ul>
+                    </div>
+                  </div>
+                `,
+                icon: "warning",
+                confirmButtonText: "OK",
+                customClass: {
+                  popup: "rounded-xl",
+                  confirmButton: "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+                },
+                didClose: () => {
+                  setIsDetecting(false);
+                  hasDetectedRef.current = false;
+                },
+              });
+              return;
+            }
+          }
+          
+          onDetect({
+            type: "device", // Tetap menggunakan type "device" karena akan diproses di scanning page sebagai material
+            data: detectedItem,
+            result: result,
+          });
+          
+          setTimeout(() => {
+            onClose();
+          }, 500);
+        } 
+        else if (mode === "serial" && result.serial_detections?.length > 0) {
           const validSerials = result.serial_detections.filter(
             (s) => s.is_valid,
           );
@@ -284,6 +349,8 @@ export default function FullscreenCamera({
             title: "No Detection",
             text: mode === "device"
               ? "No device detected. Please try again."
+              : mode === "material"
+              ? "No material detected. Please try again."
               : "No serial number detected. Please try again.",
             icon: "info",
             confirmButtonText: "Try Again",
@@ -358,7 +425,7 @@ export default function FullscreenCamera({
         </button>
 
         <div className="text-white/90 text-sm font-medium tracking-wide">
-          {mode === "device" ? "Scan Device" : "Scan Serial Number"}
+          {mode === "device" ? "Scan Device" : mode === "material" ? "Scan Material" : "Scan Code"}
         </div>
 
         {availableCameras.length > 1 && (
@@ -474,6 +541,8 @@ export default function FullscreenCamera({
         <p className="text-white/60 text-xs tracking-wide font-normal">
           {mode === "device"
             ? "Arahkan kamera ke perangkat yang akan discan"
+            : mode === "material"
+            ? "Arahkan kamera ke material yang akan discan"
             : "Arahkan kamera ke barcode atau serial number"}
         </p>
       </div>
