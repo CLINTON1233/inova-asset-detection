@@ -68,19 +68,32 @@ export const API_ENDPOINTS = {
   // All Scanning Preparations (Combined)
   SCANNING_PREP_LIST_ALL: `${API_BASE_URL}/api/scanning-preparation/list-all`,
 
-  // Items Preparation
-  ITEMS_PREPARATION_AVAILABLE: (prepId, itemId) =>
-    `${API_BASE_URL}/api/items-preparation/${prepId}/item/${itemId}/available`,
-  ITEMS_PREPARATION_UPDATE: (id) =>
-    `${API_BASE_URL}/api/items-preparation/${id}`,
+  // Items Preparation Devices
+  DEVICES_ITEMS_PREPARATION_AVAILABLE: (prepId, itemId) =>
+    `${API_BASE_URL}/api/devices/items-preparation/${prepId}/item/${itemId}/available`,
+  DEVICES_ITEMS_PREPARATION_UPDATE: (id) =>
+    `${API_BASE_URL}/api/devices/items-preparation/${id}`,
 
-  // Scan Results
-  SCAN_RESULTS_CREATE: `${API_BASE_URL}/api/scan-results/create`,
-  SCAN_RESULTS_BY_PREP: (id) =>
-    `${API_BASE_URL}/api/scan-results/preparation/${id}`,
-  SCAN_RESULTS_UPDATE: (id) => `${API_BASE_URL}/api/scan-results/${id}`,
-  SCAN_RESULTS_DELETE: (id) => `${API_BASE_URL}/api/scan-results/${id}`,
-  SCAN_RESULTS_PENDING: `${API_BASE_URL}/api/scan-results/pending`,
+  // Items Preparation Materials
+  MATERIALS_ITEMS_PREPARATION_AVAILABLE: (prepId, itemId) =>
+    `${API_BASE_URL}/api/materials/items-preparation/${prepId}/item/${itemId}/available`,
+  MATERIALS_ITEMS_PREPARATION_UPDATE: (id) =>
+    `${API_BASE_URL}/api/materials/items-preparation/${id}`,
+
+  // Scan Results Device
+  SCAN_RESULTS_CREATE_DEVICE: `${API_BASE_URL}/api/scan-results/create-device`,
+  SCAN_RESULTS_UPDATE_DEVICE: (id) =>
+    `${API_BASE_URL}/api/scan-results/device/${id}`,
+  SCAN_RESULTS_DELETE_DEVICE: (id) =>
+    `${API_BASE_URL}/api/scan-results/device/${id}`,
+
+  // Scan Results Materials
+  SCAN_RESULTS_CREATE_MATERIAL: `${API_BASE_URL}/api/scan-results/create-material`,
+  SCAN_RESULTS_UPDATE_MATERIAL: (id) =>
+    `${API_BASE_URL}/api/scan-results/material/${id}`,
+  SCAN_RESULTS_DELETE_MATERIAL: (id) =>
+    `${API_BASE_URL}/api/scan-results/material/${id}`,
+
   SCAN_RESULTS_CHECK_SERIAL: (serial) =>
     `${API_BASE_URL}/api/scan-results/check-serial?serial=${encodeURIComponent(serial)}`,
 

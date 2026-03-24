@@ -6,15 +6,15 @@ import traceback
 
 scan_results_bp = Blueprint('scan_results', __name__)
 
-@scan_results_bp.route('/api/scan-results/create', methods=['POST'])
-def create_scan_result():
-    """Menyimpan hasil scan ke database"""
+@scan_results_bp.route('/api/scan-results/create-device', methods=['POST'])
+def create_scan_result_device():
+    """Menyimpan hasil scan device ke database"""
     try:
         data = request.json
         print("="*50)
-        print("Saving scan result:", data)
+        print("Saving DEVICE scan result:", data)
         
-        result = ScanResultsModel.create_scan_result(data)
+        result = ScanResultsModel.create_scan_result_device(data)
         
         if result['success']:
             return jsonify(result), 201
@@ -22,37 +22,42 @@ def create_scan_result():
             return jsonify(result), 400
             
     except Exception as e:
-        print("Error in create_scan_result:", str(e))
+        print("Error in create_scan_result_device:", str(e))
         print(traceback.format_exc())
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
 
-@scan_results_bp.route('/api/scan-results/preparation/<int:prep_id>', methods=['GET'])
-def get_scan_results_by_preparation(prep_id):
-    """Mendapatkan semua scan results untuk preparation tertentu"""
+@scan_results_bp.route('/api/scan-results/create-material', methods=['POST'])
+def create_scan_result_material():
+    """Menyimpan hasil scan material ke database"""
     try:
-        result = ScanResultsModel.get_scan_results_by_preparation(prep_id)
+        data = request.json
+        print("="*50)
+        print("Saving MATERIAL scan result:", data)
+        
+        result = ScanResultsModel.create_scan_result_material(data)
         
         if result['success']:
-            return jsonify(result)
+            return jsonify(result), 201
         else:
             return jsonify(result), 400
             
     except Exception as e:
-        print("Error in get_scan_results_by_preparation:", str(e))
+        print("Error in create_scan_result_material:", str(e))
+        print(traceback.format_exc())
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
 
-@scan_results_bp.route('/api/scan-results/<int:scan_id>', methods=['PUT'])
-def update_scan_result(scan_id):
-    """Update scan result"""
+@scan_results_bp.route('/api/scan-results/device/<int:scan_id>', methods=['PUT'])
+def update_scan_result_device(scan_id):
+    """Update scan result device"""
     try:
         data = request.json
-        result = ScanResultsModel.update_scan_result(scan_id, data)
+        result = ScanResultsModel.update_scan_result_device(scan_id, data)
         
         if result['success']:
             return jsonify(result)
@@ -60,20 +65,41 @@ def update_scan_result(scan_id):
             return jsonify(result), 400
             
     except Exception as e:
-        print("Error in update_scan_result:", str(e))
+        print("Error in update_scan_result_device:", str(e))
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
+
+@scan_results_bp.route('/api/scan-results/material/<int:scan_id>', methods=['PUT'])
+def update_scan_result_material(scan_id):
+    """Update scan result material"""
+    try:
+        data = request.json
+        result = ScanResultsModel.update_scan_result_material(scan_id, data)
         
-@scan_results_bp.route('/api/scan-results/<int:scan_id>', methods=['DELETE'])
-def delete_scan_result(scan_id):
-    """Menghapus scan result dari database"""
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        print("Error in update_scan_result_material:", str(e))
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@scan_results_bp.route('/api/scan-results/device/<int:scan_id>', methods=['DELETE'])
+def delete_scan_result_device(scan_id):
+    """Menghapus scan result device dari database"""
     conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT id_scan, item_preparation_id FROM scan_results WHERE id_scan = %s", (scan_id,))
+        
+        # Cek apakah scan result exists
+        cur.execute("SELECT id_scan, item_preparation_id FROM scan_results_devices WHERE id_scan = %s", (scan_id,))
         scan = cur.fetchone()
         
         if not scan:
@@ -83,18 +109,21 @@ def delete_scan_result(scan_id):
             }), 404
         
         item_preparation_id = scan[1] if len(scan) > 1 else None
-        cur.execute("DELETE FROM scan_results WHERE id_scan = %s", (scan_id,))
+        
+        # Delete scan result
+        cur.execute("DELETE FROM scan_results_devices WHERE id_scan = %s", (scan_id,))
     
+        # Update items_preparation status jika tidak ada scan lain
         if item_preparation_id:
             cur.execute("""
-                SELECT COUNT(*) FROM scan_results 
+                SELECT COUNT(*) FROM scan_results_devices 
                 WHERE item_preparation_id = %s
             """, (item_preparation_id,))
             remaining_scans = cur.fetchone()[0]
             
             if remaining_scans == 0:
                 cur.execute("""
-                    UPDATE items_preparation 
+                    UPDATE devices_items_preparation 
                     SET status = 'pending', 
                         scanned_by = NULL,
                         scanned_at = NULL,
@@ -106,51 +135,13 @@ def delete_scan_result(scan_id):
         
         return jsonify({
             'success': True,
-            'message': 'Scan result deleted successfully'
+            'message': 'Device scan result deleted successfully'
         })
         
     except Exception as e:
         if conn:
             conn.rollback()
-        print(f"Error in delete_scan_result: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-    finally:
-        if conn:
-            conn.close()
-            
-@scan_results_bp.route('/api/scan-results/check-serial', methods=['GET'])
-def check_serial_exists():
-    """Mengecek apakah serial number sudah ada di database"""
-    conn = None
-    try:
-        serial_number = request.args.get('serial', '')
-        
-        if not serial_number:
-            return jsonify({
-                'success': False,
-                'error': 'Serial number is required'
-            }), 400
-        
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        cur.execute("""
-            SELECT id_scan FROM scan_results 
-            WHERE serial_number = %s
-        """, (serial_number,))
-        
-        result = cur.fetchone()
-        
-        return jsonify({
-            'success': True,
-            'exists': result is not None
-        })
-        
-    except Exception as e:
-        print(f"Error checking serial: {e}")
+        print(f"Error in delete_scan_result_device: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -159,20 +150,62 @@ def check_serial_exists():
         if conn:
             conn.close()
 
-@scan_results_bp.route('/api/scan-results/pending', methods=['GET'])
-def get_pending_scans():
-    """Mendapatkan scan results yang pending untuk validasi"""
+@scan_results_bp.route('/api/scan-results/material/<int:scan_id>', methods=['DELETE'])
+def delete_scan_result_material(scan_id):
+    """Menghapus scan result material dari database"""
+    conn = None
     try:
-        result = ScanResultsModel.get_pending_scans()
+        conn = get_db_connection()
+        cur = conn.cursor()
         
-        if result['success']:
-            return jsonify(result)
-        else:
-            return jsonify(result), 400
+        # Cek apakah scan result exists
+        cur.execute("SELECT id_scan, item_preparation_id FROM scan_results_materials WHERE id_scan = %s", (scan_id,))
+        scan = cur.fetchone()
+        
+        if not scan:
+            return jsonify({
+                'success': False,
+                'error': 'Scan result not found'
+            }), 404
+        
+        item_preparation_id = scan[1] if len(scan) > 1 else None
+        
+        # Delete scan result
+        cur.execute("DELETE FROM scan_results_materials WHERE id_scan = %s", (scan_id,))
+    
+        # Update items_preparation status jika tidak ada scan lain
+        if item_preparation_id:
+            cur.execute("""
+                SELECT COUNT(*) FROM scan_results_materials 
+                WHERE item_preparation_id = %s
+            """, (item_preparation_id,))
+            remaining_scans = cur.fetchone()[0]
             
+            if remaining_scans == 0:
+                cur.execute("""
+                    UPDATE materials_items_preparation 
+                    SET status = 'pending', 
+                        scanned_by = NULL,
+                        scanned_at = NULL,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id_item_preparation = %s
+                """, (item_preparation_id,))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Material scan result deleted successfully'
+        })
+        
     except Exception as e:
-        print("Error in get_pending_scans:", str(e))
+        if conn:
+            conn.rollback()
+        print(f"Error in delete_scan_result_material: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
+    finally:
+        if conn:
+            conn.close()

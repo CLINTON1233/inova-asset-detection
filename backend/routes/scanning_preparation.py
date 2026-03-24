@@ -375,7 +375,7 @@ def get_devices_preparation_progress(prep_id):
                 si.brand,
                 si.model,
                 si.quantity as item_quantity
-            FROM scan_results sr
+            FROM scan_results_devices sr
             LEFT JOIN devices_items_preparation ip ON sr.item_preparation_id = ip.id_item_preparation
             LEFT JOIN devices_scanning_items si ON ip.scanning_item_id = si.id_item
             WHERE si.preparation_id = %s OR ip.preparation_id = %s
@@ -790,7 +790,7 @@ def get_materials_preparation_progress(prep_id):
                 sr.scanned_at,
                 sr.scan_category,
                 sr.scan_value,
-                sr.serial_number,
+                sr.scan_code,
                 sr.status,
                 sr.is_valid,
                 ip.scanning_item_id,
@@ -798,7 +798,7 @@ def get_materials_preparation_progress(prep_id):
                 si.id_item,
                 si.material_name as item_name,
                 si.quantity as item_quantity
-            FROM scan_results sr
+            FROM scan_results_materials sr
             LEFT JOIN materials_items_preparation ip ON sr.item_preparation_id = ip.id_item_preparation
             LEFT JOIN materials_scanning_items si ON ip.scanning_item_id = si.id_item
             WHERE si.preparation_id = %s OR ip.preparation_id = %s
@@ -889,6 +889,225 @@ def get_all_scanning_preparations():
             'success': False,
             'error': str(e)
         }), 500
+# ==================== ENDPOINTS ITEMS PREPARATION DEVICES ====================
+@scanning_prep_bp.route('/api/devices/items-preparation/<int:prep_id>/item/<int:item_id>/available', methods=['GET'])
+def get_devices_available_item(prep_id, item_id):
+    """Mendapatkan item preparation devices yang belum di-scan"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        cur.execute("""
+            SELECT ip.*, si.device_name, si.brand, si.model, si.specifications
+            FROM devices_items_preparation ip
+            LEFT JOIN devices_scanning_items si ON ip.scanning_item_id = si.id_item
+            WHERE ip.preparation_id = %s 
+            AND ip.scanning_item_id = %s
+            AND ip.status = 'pending'
+            ORDER BY ip.id_item_preparation ASC
+            LIMIT 1
+        """, (prep_id, item_id))
+        
+        item = cur.fetchone()
+        
+        if item:
+            return jsonify({
+                'success': True,
+                'data': dict(item)
+            })
+        else:
+            cur.execute("""
+                SELECT COUNT(*) as total, 
+                       COUNT(CASE WHEN status = 'scanned' THEN 1 END) as scanned
+                FROM devices_items_preparation
+                WHERE preparation_id = %s AND scanning_item_id = %s
+            """, (prep_id, item_id))
+            
+            stats = cur.fetchone()
+            
+            if stats and stats['total'] == stats['scanned'] and stats['total'] > 0:
+                return jsonify({
+                    'success': False,
+                    'error': 'All items for this type have been scanned',
+                    'all_scanned': True
+                }), 404
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'No available item found'
+                }), 404
+            
+    except Exception as e:
+        print(f"Error in get_devices_available_item: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+@scanning_prep_bp.route('/api/devices/items-preparation/<int:item_prep_id>', methods=['PUT'])
+def update_devices_item_preparation(item_prep_id):
+    """Update item preparation devices dengan serial number"""
+    conn = None
+    try:
+        data = request.json
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE devices_items_preparation 
+            SET serial_number = %s, 
+                scan_code = %s, 
+                status = %s, 
+                scanned_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id_item_preparation = %s
+            RETURNING id_item_preparation
+        """, (
+            data.get('serial_number'),
+            data.get('scan_code'),
+            data.get('status', 'scanned'),
+            item_prep_id
+        ))
+        
+        updated = cur.fetchone()
+        
+        if not updated:
+            return jsonify({
+                'success': False,
+                'error': 'Item preparation not found'
+            }), 404
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Item preparation updated successfully'
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Error in update_devices_item_preparation: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+# ==================== ENDPOINTS ITEMS PREPARATION MATERIALS ====================
+@scanning_prep_bp.route('/api/materials/items-preparation/<int:prep_id>/item/<int:item_id>/available', methods=['GET'])
+def get_materials_available_item(prep_id, item_id):
+    """Mendapatkan item preparation materials yang belum di-scan"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        cur.execute("""
+            SELECT ip.*, si.material_name, si.uom, si.vendor, si.project_name
+            FROM materials_items_preparation ip
+            LEFT JOIN materials_scanning_items si ON ip.scanning_item_id = si.id_item
+            WHERE ip.preparation_id = %s 
+            AND ip.scanning_item_id = %s
+            AND ip.status = 'pending'
+            ORDER BY ip.id_item_preparation ASC
+            LIMIT 1
+        """, (prep_id, item_id))
+        
+        item = cur.fetchone()
+        
+        if item:
+            return jsonify({
+                'success': True,
+                'data': dict(item)
+            })
+        else:
+            cur.execute("""
+                SELECT COUNT(*) as total, 
+                       COUNT(CASE WHEN status = 'scanned' THEN 1 END) as scanned
+                FROM materials_items_preparation
+                WHERE preparation_id = %s AND scanning_item_id = %s
+            """, (prep_id, item_id))
+            
+            stats = cur.fetchone()
+            
+            if stats and stats['total'] == stats['scanned'] and stats['total'] > 0:
+                return jsonify({
+                    'success': False,
+                    'error': 'All items for this type have been scanned',
+                    'all_scanned': True
+                }), 404
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'No available item found'
+                }), 404
+            
+    except Exception as e:
+        print(f"Error in get_materials_available_item: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+@scanning_prep_bp.route('/api/materials/items-preparation/<int:item_prep_id>', methods=['PUT'])
+def update_materials_item_preparation(item_prep_id):
+    """Update item preparation materials dengan scan_code"""
+    conn = None
+    try:
+        data = request.json
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE materials_items_preparation 
+            SET scan_code = %s, 
+                status = %s, 
+                scanned_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id_item_preparation = %s
+            RETURNING id_item_preparation
+        """, (
+            data.get('scan_code'),
+            data.get('status', 'scanned'),
+            item_prep_id
+        ))
+        
+        updated = cur.fetchone()
+        
+        if not updated:
+            return jsonify({
+                'success': False,
+                'error': 'Item preparation not found'
+            }), 404
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Item preparation updated successfully'
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Error in update_materials_item_preparation: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
 
 @scanning_prep_bp.route('/api/materials/uom', methods=['GET'])
 def get_uom_list():

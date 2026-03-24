@@ -358,21 +358,54 @@ def create_materials_uom_table(conn):
     except Exception as e:
         conn.rollback()
         print(f"Error creating materials_uom table: {e}")
-
-def create_scan_results_table(conn):
-    """Tabel hasil scan - menyimpan semua data hasil scanning termasuk serial number"""
+        
+# ==================== TABEL UNTUK SCAN RESULTS DEVICES ====================
+def create_scan_results_devices_table(conn):
+    """Tabel hasil scan untuk Devices (dengan serial_number)"""
     try:
         cur = conn.cursor()
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS scan_results (
+            CREATE TABLE IF NOT EXISTS scan_results_devices (
                 id_scan SERIAL PRIMARY KEY,
-                item_preparation_id INTEGER REFERENCES items_preparation(id_item_preparation) ON DELETE CASCADE,
+                item_preparation_id INTEGER REFERENCES devices_items_preparation(id_item_preparation) ON DELETE CASCADE,
                 user_id INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
                 scanned_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
                 scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 scan_category VARCHAR(50),
                 scan_value TEXT,
                 serial_number VARCHAR(100),
+                detection_data JSONB,
+                is_valid BOOLEAN DEFAULT FALSE,
+                status VARCHAR(50) DEFAULT 'pending',
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_devices_item_prep ON scan_results_devices(item_preparation_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_devices_user ON scan_results_devices(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_devices_scanned_by ON scan_results_devices(scanned_by)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_devices_status ON scan_results_devices(status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_devices_serial ON scan_results_devices(serial_number)")
+        conn.commit()
+        print("✓ Tabel scan_results_devices berhasil dibuat")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating scan_results_devices table: {e}")
+
+# ==================== TABEL UNTUK SCAN RESULTS MATERIALS ====================
+def create_scan_results_materials_table(conn):
+    """Tabel hasil scan untuk Materials (dengan scan_code)"""
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS scan_results_materials (
+                id_scan SERIAL PRIMARY KEY,
+                item_preparation_id INTEGER REFERENCES materials_items_preparation(id_item_preparation) ON DELETE CASCADE,
+                user_id INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
+                scanned_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
+                scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                scan_category VARCHAR(50),
+                scan_value TEXT,
                 scan_code VARCHAR(100),
                 detection_data JSONB,
                 is_valid BOOLEAN DEFAULT FALSE,
@@ -381,16 +414,16 @@ def create_scan_results_table(conn):
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_item_prep ON scan_results(item_preparation_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_user ON scan_results(user_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_scanned_by ON scan_results(scanned_by)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_status ON scan_results(status)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_serial ON scan_results(serial_number)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_materials_item_prep ON scan_results_materials(item_preparation_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_materials_user ON scan_results_materials(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_materials_scanned_by ON scan_results_materials(scanned_by)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_materials_status ON scan_results_materials(status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_materials_scan_code ON scan_results_materials(scan_code)")
         conn.commit()
-        print("✓ Tabel scan_results berhasil dibuat (dengan serial_number, scanned_by, scanned_at)")
+        print("✓ Tabel scan_results_materials berhasil dibuat")
     except Exception as e:
         conn.rollback()
-        print(f"Error creating scan_results table: {e}")
+        print(f"Error creating scan_results_materials table: {e}")
 
 def create_assets_table(conn):
     """Tabel assets - data final setelah validasi"""
@@ -426,8 +459,10 @@ def create_validations_table(conn):
         cur.execute("""
             CREATE TABLE IF NOT EXISTS validations (
                 id_validation SERIAL PRIMARY KEY,
-                scan_id INTEGER REFERENCES scan_results(id_scan) ON DELETE CASCADE,
-                item_preparation_id INTEGER REFERENCES items_preparation(id_item_preparation) ON DELETE CASCADE,
+                scan_id INTEGER REFERENCES scan_results_devices(id_scan) ON DELETE CASCADE,
+                scan_material_id INTEGER REFERENCES scan_results_materials(id_scan) ON DELETE CASCADE,
+                item_preparation_id INTEGER REFERENCES devices_items_preparation(id_item_preparation) ON DELETE CASCADE,
+                material_item_preparation_id INTEGER REFERENCES materials_items_preparation(id_item_preparation) ON DELETE CASCADE,
                 user_id INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
                 asset_id INTEGER REFERENCES assets(id_assets) ON DELETE SET NULL,
                 validation_status VARCHAR(50) DEFAULT 'pending',
@@ -442,7 +477,9 @@ def create_validations_table(conn):
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_scan ON validations(scan_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_scan_material ON validations(scan_material_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_item_prep ON validations(item_preparation_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_material_item_prep ON validations(material_item_preparation_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_status ON validations(validation_status)")
         conn.commit()
         print("✓ Tabel validations berhasil dibuat")
@@ -502,8 +539,11 @@ def create_all_tables():
         create_materials_items_preparation_table(conn)
         create_materials_item_departments_table(conn)
         
-        # Tabel hasil (shared untuk devices dan materials)
-        create_scan_results_table(conn)
+        # Tabel hasil scan (terpisah)
+        create_scan_results_devices_table(conn)
+        create_scan_results_materials_table(conn)
+        
+        # Tabel assets dan validations
         create_assets_table(conn)
         create_validations_table(conn)
         create_history_logs_table(conn)
