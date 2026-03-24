@@ -563,36 +563,54 @@ export default function SerialScanningPage() {
           return np;
         });
 
-        const itemName = targetItem.device_name || targetItem.material_name;
-        Swal.fire({
-          title: `${isDevice ? "Device" : "Material"} Detected!`,
-          html: `<p class="text-lg font-semibold">${itemName}</p><p class="text-sm text-gray-600">Brand: ${targetItem.brand || "Unknown"} &nbsp;|&nbsp; Confidence: ${Math.round((deviceData.confidence || 0.85) * 100)}%</p>${isDevice ? '<p class="text-sm text-blue-600 mt-2">Scan serial number?</p>' : '<p class="text-sm text-green-600 mt-2">Material detected successfully!</p>'}`,
-          icon: "success",
-          showCancelButton: isDevice,
-          showConfirmButton: !isDevice,
-          confirmButtonText: isDevice ? "Scan Serial" : "OK",
-          cancelButtonText: "Skip",
-        }).then((result) => {
-          if (result.isConfirmed && isDevice) {
-            setCameraMode("serial");
-            setIsCameraOpen(true);
-          } else {
-            setIsCameraOpen(false);
-            if (scanItem.scan_id) {
-              const updateEndpoint = isDevice
-                ? API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(scanItem.scan_id)
-                : API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(scanItem.scan_id);
-              fetch(updateEndpoint, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  status: "completed",
-                  notes: `${isDevice ? "Device" : "Material"} detected, ${isDevice ? "serial scan skipped" : "scan completed"}`,
-                }),
-              });
-            }
-          }
-        });
+const itemName = targetItem.device_name || targetItem.material_name;
+
+Swal.fire({
+  title: `${isDevice ? "Device" : "Material"} Detected!`,
+  html: `<p class="text-lg font-semibold">${itemName}</p>
+         <p class="text-sm text-gray-600">Brand: ${targetItem.brand || "Unknown"} &nbsp;|&nbsp; Confidence: ${Math.round((deviceData.confidence || 0.85) * 100)}%</p>
+         ${isDevice ? '<p class="text-sm text-blue-600 mt-2">Scan serial number?</p>' : '<p class="text-sm text-green-600 mt-2">Material detected successfully!</p>'}`,
+  icon: "success",
+  showCancelButton: isDevice,  // Hanya devices yang punya cancel button
+  showConfirmButton: true,
+  confirmButtonText: isDevice ? "Scan Serial" : "OK",
+  cancelButtonText: "Skip",
+}).then((result) => {
+  if (result.isConfirmed && isDevice) {
+    // Jika user klik Scan Serial untuk devices
+    setCameraMode("serial");
+    setIsCameraOpen(true);
+  } else if (result.dismiss === Swal.DismissReason.cancel && isDevice) {
+    // Jika user klik Skip untuk devices
+    setIsCameraOpen(false);
+    if (scanItem.scan_id) {
+      const updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(scanItem.scan_id);
+      fetch(updateEndpoint, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "completed",
+          notes: "Device detected, serial scan skipped",
+        }),
+      });
+    }
+  } else if (result.isConfirmed && !isDevice) {
+    // Jika user klik OK untuk materials, langsung tutup
+    setIsCameraOpen(false);
+    if (scanItem.scan_id) {
+      const updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(scanItem.scan_id);
+      fetch(updateEndpoint, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "completed",
+          notes: "Material detected, scan completed",
+        }),
+      });
+    }
+  }
+});
+
       }
     } else if (detection.type === "serial") {
       const serialData = detection.data;
@@ -851,11 +869,87 @@ export default function SerialScanningPage() {
     }
   };
 
-  const handleScanSerialForItem = (item) => {
+ const handleScanSerialForItem = (item) => {
+  // Cek apakah ini device atau material berdasarkan kategori
+  if (item.kategori === "Perangkat") {
     setSelectedItemForSerial(item);
     setCameraMode("serial");
     setIsCameraOpen(true);
-  };
+  } else {
+    // Untuk material, langsung tampilkan modal input scan code
+    Swal.fire({
+      title: "Scan Code",
+      text: "Please enter the scan code for this material",
+      input: "text",
+      inputPlaceholder: "Enter scan code (e.g., BC-RJ45-554321)",
+      showCancelButton: true,
+      confirmButtonText: "Submit",
+      cancelButtonText: "Cancel",
+      preConfirm: async (scanCode) => {
+        if (!scanCode) {
+          Swal.showValidationMessage("Scan code is required");
+          return false;
+        }
+        return scanCode;
+      }
+    }).then(async (result) => {
+      if (result.isConfirmed && result.value) {
+        // Save scan code to database
+        const updateData = {
+          scan_code: result.value,
+          status: "serial_scanned",
+          scanned_by: 1,
+          scanned_at: new Date().toISOString(),
+          notes: `Scan code detected: ${result.value}`,
+        };
+
+        try {
+          await fetch(API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(item.scan_id), {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updateData),
+          });
+
+          if (item.item_preparation_id) {
+            await fetch(API_ENDPOINTS.MATERIALS_ITEMS_PREPARATION_UPDATE(item.item_preparation_id), {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "scanned" }),
+            });
+          }
+
+          // Update local state
+          setCheckHistory((prev) =>
+            prev.map((i) =>
+              i.id === item.id
+                ? {
+                    ...i,
+                    nomorSeri: result.value,
+                    status: "serial_scanned",
+                  }
+                : i,
+            ),
+          );
+
+          Swal.fire({
+            title: "Success!",
+            text: `Scan code "${result.value}" saved successfully!`,
+            icon: "success",
+            timer: 1500,
+            showConfirmButton: false,
+          });
+        } catch (error) {
+          console.error("Error updating scan result:", error);
+          Swal.fire({
+            title: "Error!",
+            text: "Failed to save scan code",
+            icon: "error",
+          });
+        }
+      }
+    });
+  }
+};
 
   const updateScanningProgress = (scanItem) => {
     if (!currentPreparation || !scanItem.item_id) return;
@@ -2086,11 +2180,12 @@ export default function SerialScanningPage() {
                             <td className="px-4 py-3 text-xs text-gray-500">
                               {item.brand || "—"}
                             </td>
-                            <td className="px-4 py-3">
-                              <span className="font-mono text-xs text-gray-600">
-                                {item.nomorSeri || "—"}
-                              </span>
-                            </td>
+                    
+<td className="px-4 py-3">
+  <span className="font-mono text-xs text-gray-600">
+    {item.nomorSeri || item.scan_code || "—"}
+  </span>
+</td>
                             <td className="px-4 py-3">
                               <span
                                 style={{

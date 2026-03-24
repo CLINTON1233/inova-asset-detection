@@ -209,3 +209,53 @@ def delete_scan_result_material(scan_id):
     finally:
         if conn:
             conn.close()
+
+@scan_results_bp.route('/api/scan-results/check-serial', methods=['GET'])
+def check_serial_exists():
+    """Memeriksa apakah serial number sudah ada di database"""
+    conn = None
+    try:
+        serial_number = request.args.get('serial', '')
+        
+        if not serial_number:
+            return jsonify({
+                'success': False,
+                'exists': False,
+                'error': 'Serial number is required'
+            }), 400
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Cek di scan_results_devices
+        cur.execute("""
+            SELECT COUNT(*) FROM scan_results_devices 
+            WHERE serial_number = %s
+        """, (serial_number,))
+        device_count = cur.fetchone()[0]
+        
+        # Cek di scan_results_materials (untuk scan_code)
+        cur.execute("""
+            SELECT COUNT(*) FROM scan_results_materials 
+            WHERE scan_code = %s
+        """, (serial_number,))
+        material_count = cur.fetchone()[0]
+        
+        exists = device_count > 0 or material_count > 0
+        
+        return jsonify({
+            'success': True,
+            'exists': exists,
+            'message': 'Serial number check completed'
+        })
+        
+    except Exception as e:
+        print(f"Error checking serial exists: {e}")
+        return jsonify({
+            'success': False,
+            'exists': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
