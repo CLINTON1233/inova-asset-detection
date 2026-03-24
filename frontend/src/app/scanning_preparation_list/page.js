@@ -74,86 +74,102 @@ export default function ScanningPreparationListPage() {
     setFilteredSessions(filtered);
   }, [searchTerm, statusFilter, sessions, sorting]);
 
-const fetchSessions = async () => {
-  setLoading(true);
-  try {
-    console.log('Fetching all sessions from:', API_ENDPOINTS.SCANNING_PREP_LIST_ALL);
+  const fetchSessions = async () => {
+    setLoading(true);
+    try {
+      console.log(
+        "Fetching all sessions from:",
+        API_ENDPOINTS.SCANNING_PREP_LIST_ALL,
+      );
 
-    const response = await fetch(API_ENDPOINTS.SCANNING_PREP_LIST_ALL, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      const text = await response.text();
-      console.error('Response is not JSON:', text.substring(0, 200));
-      throw new Error('Server returned non-JSON response');
-    }
-
-    const result = await response.json();
-    console.log('API Response:', result);
-
-    if (result.success) {
-      const sessionsWithDetails = result.data.map((session) => {
-        const totalItems = session.items?.length || 0;
-        const totalQty = session.totalQty || session.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) || 0;
-        let status = session.status || "pending";
-        let progress = session.progress || 0;
-
-        if (session.items && session.items.length > 0 && !session.progress) {
-          const totalScanned = session.items.reduce(
-            (sum, i) => sum + (i.scanned_count || 0),
-            0,
-          );
-          progress = totalQty > 0 ? Math.round((totalScanned / totalQty) * 100) : 0;
-          if (progress === 100) status = "completed";
-          else if (progress > 0) status = "in-progress";
-        }
-
-        // Tentukan display name berdasarkan tipe
-        let displayName = session.checking_name;
-        if (session.type === 'device') {
-          displayName = `[Device] ${session.checking_name}`;
-        } else if (session.type === 'material') {
-          displayName = `[Material] ${session.checking_name}`;
-        }
-
-        return {
-          ...session,
-          status,
-          progress,
-          totalItems,
-          totalQty,
-          category_name: session.category_name || "General",
-          location_name: session.location_name || "No location",
-          uniqueCode: session.checking_number || `SESS-${session.id_preparation}`,
-          display_name: displayName,
-        };
+      const response = await fetch(API_ENDPOINTS.SCANNING_PREP_LIST_ALL, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
-      setSessions(sessionsWithDetails);
-      setFilteredSessions(sessionsWithDetails);
-    } else {
-      throw new Error(result.message || result.error || 'Failed to load sessions');
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        console.error("Response is not JSON:", text.substring(0, 200));
+        throw new Error("Server returned non-JSON response");
+      }
+
+      const result = await response.json();
+      console.log("API Response:", result);
+
+      if (result.success) {
+        const sessionsWithDetails = result.data.map((session) => {
+          const totalItems = session.items?.length || 0;
+          const totalQty =
+            session.totalQty ||
+            session.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) ||
+            0;
+          let status = session.status || "pending";
+          let progress = session.progress || 0;
+
+          if (session.items && session.items.length > 0 && !session.progress) {
+            const totalScanned = session.items.reduce(
+              (sum, i) => sum + (i.scanned_count || 0),
+              0,
+            );
+            progress =
+              totalQty > 0 ? Math.round((totalScanned / totalQty) * 100) : 0;
+            if (progress === 100) status = "completed";
+            else if (progress > 0) status = "in-progress";
+          }
+
+          // PASTIKAN TYPE TERSIMPAN DENGAN BENAR
+          const sessionType = session.type || (session.category_id === 1 ? 'device' : 'material');
+
+          // Tentukan display name berdasarkan tipe
+          let displayName = session.checking_name;
+          if (sessionType === "device") {
+            displayName = `[Device] ${session.checking_name}`;
+          } else if (sessionType === "material") {
+            displayName = `[Material] ${session.checking_name}`;
+          }
+
+          return {
+            ...session,
+            type: sessionType, // <-- PASTIKAN INI ADA
+            status,
+            progress,
+            totalItems,
+            totalQty,
+            category_name: session.category_name || "General",
+            location_name: session.location_name || "No location",
+            uniqueCode:
+              session.checking_number || `SESS-${session.id_preparation}`,
+            display_name: displayName,
+          };
+        });
+        setSessions(sessionsWithDetails);
+        setFilteredSessions(sessionsWithDetails);
+      } else {
+        throw new Error(
+          result.message || result.error || "Failed to load sessions",
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching sessions:", error);
+      Swal.fire({
+        title: "Error!",
+        text:
+          error.message ||
+          "Failed to load sessions. Please check if backend server is running.",
+        icon: "error",
+        confirmButtonColor: "#1e40af",
+      });
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error fetching sessions:', error);
-    Swal.fire({
-      title: "Error!",
-      text: error.message || "Failed to load sessions. Please check if backend server is running.",
-      icon: "error",
-      confirmButtonColor: "#1e40af",
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const stats = {
     total: sessions.length,
@@ -255,7 +271,7 @@ const fetchSessions = async () => {
     }
   };
 
-  const handleDelete = async (prepId, checkingName) => {
+  const handleDelete = async (prepId, checkingName, type) => {
     try {
       const result = await Swal.fire({
         title: "Delete Session?",
@@ -272,15 +288,24 @@ const fetchSessions = async () => {
       if (result.isConfirmed) {
         setLoading(true);
 
-        const response = await fetch(
-          API_ENDPOINTS.SCANNING_PREP_DELETE(prepId),
-          {
-            method: "DELETE",
-            headers: {
-              "Content-Type": "application/json",
-            },
+        // Pilih endpoint berdasarkan tipe
+        let deleteEndpoint;
+        if (type === "device") {
+          deleteEndpoint = API_ENDPOINTS.DEVICES_SCANNING_PREP_DELETE(prepId);
+        } else if (type === "material") {
+          deleteEndpoint = API_ENDPOINTS.MATERIALS_SCANNING_PREP_DELETE(prepId);
+        } else {
+          throw new Error("Unknown session type");
+        }
+
+        console.log("Deleting with endpoint:", deleteEndpoint);
+
+        const response = await fetch(deleteEndpoint, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
           },
-        );
+        });
 
         const data = await response.json();
 
@@ -304,6 +329,7 @@ const fetchSessions = async () => {
         }
       }
     } catch (error) {
+      console.error("Delete error:", error);
       Swal.fire({
         title: "Error!",
         text: error.message || "An error occurred while deleting the session",
@@ -683,16 +709,15 @@ const fetchSessions = async () => {
                     </th>
                     <th className="sp-th text-left">Progress</th>
                     <th className="sp-th text-center">Actions</th>
-                  </tr>
+                   </tr>
                 </thead>
                 <tbody>
                   {filteredSessions.map((session, idx) => {
                     const sc = getStatusConfig(session.status);
+                    // Buat key yang unik dengan menggabungkan type dan id_preparation
+                    const uniqueKey = `${session.type || "unknown"}_${session.id_preparation}`;
                     return (
-                      <tr
-                        key={session.id_preparation}
-                        className="sp-row transition-colors"
-                      >
+                      <tr key={uniqueKey} className="sp-row transition-colors">
                         <td className="sp-td">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">
@@ -704,6 +729,23 @@ const fetchSessions = async () => {
                               </div>
                               <div className="text-xs text-gray-400 mono mt-0.5">
                                 {session.checking_number}
+                              </div>
+                              <div className="text-xs text-gray-400 mt-0.5">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                    session.type === "device"
+                                      ? "bg-blue-100 text-blue-700"
+                                      : session.type === "material"
+                                        ? "bg-green-100 text-green-700"
+                                        : "bg-gray-100 text-gray-700"
+                                  }`}
+                                >
+                                  {session.type === "device"
+                                    ? "Device"
+                                    : session.type === "material"
+                                      ? "Material"
+                                      : "Unknown"}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -761,7 +803,11 @@ const fetchSessions = async () => {
                         <td className="sp-td text-center">
                           <div className="flex items-center justify-center gap-2">
                             <button
-                              onClick={() => router.push(`/scanning?prep_id=${session.id_preparation}`)}
+                              onClick={() =>
+                                router.push(
+                                  `/scanning?prep_id=${session.id_preparation}`,
+                                )
+                              }
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
                               title="Start Scanning"
                             >
@@ -769,8 +815,13 @@ const fetchSessions = async () => {
                               <span className="hidden sm:inline">Scan</span>
                             </button>
 
+                            {/* Ganti link edit untuk menyertakan type */}
                             <button
-                              onClick={() => router.push(`/edit_scanning_preparation?id=${session.id_preparation}`)}
+                              onClick={() =>
+                                router.push(
+                                  `/edit_scanning_preparation?id=${session.id_preparation}&type=${session.type}`,
+                                )
+                              }
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-lg hover:bg-gray-700 transition"
                               title="Edit Session"
                             >
@@ -778,8 +829,15 @@ const fetchSessions = async () => {
                               <span className="hidden sm:inline">Edit</span>
                             </button>
 
+                            {/* Pastikan tombol delete mengirimkan type yang benar */}
                             <button
-                              onClick={() => handleDelete(session.id_preparation, session.checking_name)}
+                              onClick={() =>
+                                handleDelete(
+                                  session.id_preparation,
+                                  session.checking_name,
+                                  session.type,
+                                )
+                              }
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
                               title="Delete Session"
                             >

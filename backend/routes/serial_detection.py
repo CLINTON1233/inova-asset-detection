@@ -97,7 +97,7 @@ def assign_serial_to_device():
             }), 400
         
         return jsonify({
-            "success": True,
+            "success": True, 
             "message": f"Serial number assigned to device {data['device_id']}",
             "device_id": data['device_id'],
             "serial_number": data['serial_number']

@@ -162,6 +162,216 @@ def create_devices_scanning_preparation():
         if conn:
             conn.close()
             
+@scanning_prep_bp.route('/api/devices/scanning-preparation/<int:prep_id>', methods=['PUT'])
+def update_devices_scanning_preparation(prep_id):
+    """Update persiapan scanning untuk Devices"""
+    conn = None
+    try:
+        data = request.json
+        print("="*50)
+        print("UPDATE DEVICES PREPARATION ID:", prep_id)
+        print("UPDATE DATA:", data)
+        
+        checking_name = data.get('checking_name')
+        category_id = data.get('category_id')
+        location_id = data.get('location_id')
+        checking_date = data.get('checking_date')
+        remarks = data.get('remarks')
+        items = data.get('items', [])
+        user_id = data.get('user_id', 1)
+        
+        if not all([checking_name, category_id, location_id, checking_date]):
+            missing = []
+            if not checking_name: missing.append('checking_name')
+            if not category_id: missing.append('category_id')
+            if not location_id: missing.append('location_id')
+            if not checking_date: missing.append('checking_date')
+            return jsonify({
+                'success': False,
+                'error': f'Missing required fields: {", ".join(missing)}'
+            }), 400
+        
+        if not items or len(items) == 0:
+            return jsonify({
+                'success': False,
+                'error': 'At least one item is required'
+            }), 400
+        
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        # Update header preparation
+        cur.execute("""
+            UPDATE devices_scanning_preparations 
+            SET checking_name = %s,
+                category_id = %s,
+                location_id = %s,
+                checking_date = %s,
+                remarks = %s,
+                user_id = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id_preparation = %s
+            RETURNING id_preparation
+        """, (checking_name, category_id, location_id, checking_date, remarks, user_id, prep_id))
+        
+        updated = cur.fetchone()
+        if not updated:
+            return jsonify({
+                'success': False,
+                'error': 'Preparation not found'
+            }), 404
+        
+        # Delete existing items and related data
+        # First, get all scanning_item_ids to delete related data
+        cur.execute("""
+            SELECT id_item FROM devices_scanning_items 
+            WHERE preparation_id = %s
+        """, (prep_id,))
+        old_items = cur.fetchall()
+        
+        for old_item in old_items:
+            item_id = old_item['id_item']
+            # Delete department distributions
+            cur.execute("DELETE FROM devices_item_departments WHERE scanning_item_id = %s", (item_id,))
+            # Delete individual items preparation
+            cur.execute("DELETE FROM devices_items_preparation WHERE scanning_item_id = %s", (item_id,))
+        
+        # Delete all scanning items
+        cur.execute("DELETE FROM devices_scanning_items WHERE preparation_id = %s", (prep_id,))
+        
+        total_items_created = 0
+        
+        # Create new items
+        for idx, item in enumerate(items):
+            quantity = item.get('quantity', 1)
+            
+            # Insert ke devices_scanning_items
+            cur.execute("""
+                INSERT INTO devices_scanning_items
+                (preparation_id, device_name, device_detail, brand, vendor, model, specifications, quantity, user_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id_item
+            """, (
+                prep_id,
+                item.get('device_name', ''),
+                item.get('device_detail', ''),
+                item.get('brand', ''),
+                item.get('vendor', ''),
+                item.get('model', ''),
+                item.get('specifications', ''),
+                quantity,
+                user_id
+            ))
+            
+            scanning_item_id = cur.fetchone()[0]
+            
+            # Insert department distributions
+            departments = item.get('departments', [])
+            for dept in departments:
+                if dept.get('department_id') and dept.get('quantity', 0) > 0:
+                    cur.execute("SELECT id_department FROM departments WHERE id_department = %s", (dept['department_id'],))
+                    if cur.fetchone():
+                        cur.execute("""
+                            INSERT INTO devices_item_departments (scanning_item_id, department_id, quantity)
+                            VALUES (%s, %s, %s)
+                            ON CONFLICT (scanning_item_id, department_id) 
+                            DO UPDATE SET quantity = EXCLUDED.quantity
+                        """, (scanning_item_id, dept['department_id'], dept['quantity']))
+            
+            # Create individual items
+            dept_allocation = {}
+            for dept in departments:
+                if dept.get('department_id') and dept.get('quantity', 0) > 0:
+                    dept_allocation[dept['department_id']] = dept['quantity']
+            
+            for sub_idx in range(quantity):
+                assigned_dept = None
+                for dept_id, qty in dept_allocation.items():
+                    if qty > 0:
+                        assigned_dept = dept_id
+                        dept_allocation[dept_id] -= 1
+                        break
+                
+                item_number = generate_item_number(prep_id, idx, sub_idx)
+                
+                cur.execute("""
+                    INSERT INTO devices_items_preparation
+                    (scanning_item_id, preparation_id, item_number, status, department_id, user_id)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (
+                    scanning_item_id,
+                    prep_id,
+                    item_number,
+                    'pending',
+                    assigned_dept,
+                    user_id
+                ))
+                
+                total_items_created += 1
+        
+        conn.commit()
+        print(f"Updated {total_items_created} individual device items")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Devices scanning preparation updated successfully',
+            'preparation_id': prep_id,
+            'total_items_created': total_items_created
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print("ERROR updating devices preparation:", str(e))
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+            
+@scanning_prep_bp.route('/api/devices/scanning-preparation/<int:prep_id>', methods=['DELETE'])
+def delete_devices_scanning_preparation(prep_id):
+    """Menghapus persiapan scanning untuk Devices beserta semua data terkait"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Cek apakah preparation exists
+        cur.execute("SELECT id_preparation FROM devices_scanning_preparations WHERE id_preparation = %s", (prep_id,))
+        if not cur.fetchone():
+            return jsonify({
+                'success': False,
+                'error': 'Preparation not found'
+            }), 404
+        
+        # Delete akan cascade ke devices_scanning_items, devices_items_preparation, devices_item_departments
+        # karena foreign key dengan ON DELETE CASCADE
+        cur.execute("DELETE FROM devices_scanning_preparations WHERE id_preparation = %s", (prep_id,))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Devices scanning preparation deleted successfully'
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print("ERROR deleting devices preparation:", str(e))
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
 @scanning_prep_bp.route('/api/devices/scanning-preparation/list', methods=['GET'])
 def get_devices_scanning_preparations():
     """Mendapatkan daftar persiapan scanning untuk Devices"""
@@ -268,7 +478,6 @@ def get_devices_scanning_preparations():
         if conn:
             conn.close()
             
-# ==================== ENDPOINT DETAIL UNTUK DEVICES ====================
 @scanning_prep_bp.route('/api/devices/scanning-preparation/<int:prep_id>', methods=['GET'])
 def get_devices_scanning_preparation(prep_id):
     """Mendapatkan detail persiapan scanning untuk Devices"""
@@ -579,6 +788,223 @@ def create_materials_scanning_preparation():
         if conn:
             conn.rollback()
         print("ERROR:", str(e))
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+            
+@scanning_prep_bp.route('/api/materials/scanning-preparation/<int:prep_id>', methods=['PUT'])
+def update_materials_scanning_preparation(prep_id):
+    """Update persiapan scanning untuk Materials"""
+    conn = None
+    try:
+        data = request.json
+        print("="*50)
+        print("UPDATE MATERIALS PREPARATION ID:", prep_id)
+        print("UPDATE DATA:", data)
+        
+        checking_name = data.get('checking_name')
+        category_id = data.get('category_id')
+        location_id = data.get('location_id')
+        checking_date = data.get('checking_date')
+        remarks = data.get('remarks')
+        items = data.get('items', [])
+        user_id = data.get('user_id', 1)
+        
+        if not all([checking_name, category_id, location_id, checking_date]):
+            missing = []
+            if not checking_name: missing.append('checking_name')
+            if not category_id: missing.append('category_id')
+            if not location_id: missing.append('location_id')
+            if not checking_date: missing.append('checking_date')
+            return jsonify({
+                'success': False,
+                'error': f'Missing required fields: {", ".join(missing)}'
+            }), 400
+        
+        if not items or len(items) == 0:
+            return jsonify({
+                'success': False,
+                'error': 'At least one item is required'
+            }), 400
+        
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        # Update header preparation
+        cur.execute("""
+            UPDATE materials_scanning_preparations 
+            SET checking_name = %s,
+                category_id = %s,
+                location_id = %s,
+                checking_date = %s,
+                remarks = %s,
+                user_id = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id_preparation = %s
+            RETURNING id_preparation
+        """, (checking_name, category_id, location_id, checking_date, remarks, user_id, prep_id))
+        
+        updated = cur.fetchone()
+        if not updated:
+            return jsonify({
+                'success': False,
+                'error': 'Preparation not found'
+            }), 404
+        
+        # Delete existing items and related data
+        cur.execute("""
+            SELECT id_item FROM materials_scanning_items 
+            WHERE preparation_id = %s
+        """, (prep_id,))
+        old_items = cur.fetchall()
+        
+        for old_item in old_items:
+            item_id = old_item['id_item']
+            # Delete department distributions
+            cur.execute("DELETE FROM materials_item_departments WHERE scanning_item_id = %s", (item_id,))
+            # Delete individual items preparation
+            cur.execute("DELETE FROM materials_items_preparation WHERE scanning_item_id = %s", (item_id,))
+        
+        # Delete all scanning items
+        cur.execute("DELETE FROM materials_scanning_items WHERE preparation_id = %s", (prep_id,))
+        
+        total_items_created = 0
+        
+        # Create new items
+        for idx, item in enumerate(items):
+            quantity = item.get('quantity', 1)
+            uom = item.get('uom', 'PCS')
+            vendor = item.get('vendor', '')
+            project_name = item.get('project_name', '')
+            material_detail = item.get('specifications', '')
+            
+            # Insert ke materials_scanning_items
+            cur.execute("""
+                INSERT INTO materials_scanning_items
+                (preparation_id, material_name, material_detail, quantity, uom, vendor, project_name, user_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id_item
+            """, (
+                prep_id,
+                item.get('item_name', ''),
+                material_detail,
+                quantity,
+                uom,
+                vendor,
+                project_name,
+                user_id
+            ))
+            
+            scanning_item_id = cur.fetchone()[0]
+            
+            # Insert department distributions
+            departments = item.get('departments', [])
+            for dept in departments:
+                if dept.get('department_id') and dept.get('quantity', 0) > 0:
+                    cur.execute("SELECT id_department FROM departments WHERE id_department = %s", (dept['department_id'],))
+                    if cur.fetchone():
+                        cur.execute("""
+                            INSERT INTO materials_item_departments (scanning_item_id, department_id, quantity)
+                            VALUES (%s, %s, %s)
+                            ON CONFLICT (scanning_item_id, department_id) 
+                            DO UPDATE SET quantity = EXCLUDED.quantity
+                        """, (scanning_item_id, dept['department_id'], dept['quantity']))
+            
+            # Create individual items
+            dept_allocation = {}
+            for dept in departments:
+                if dept.get('department_id') and dept.get('quantity', 0) > 0:
+                    dept_allocation[dept['department_id']] = dept['quantity']
+            
+            for sub_idx in range(int(quantity) if quantity >= 1 else 1):
+                assigned_dept = None
+                if len(dept_allocation) > 0:
+                    remaining = quantity - sub_idx
+                    for dept_id, qty in dept_allocation.items():
+                        if qty > 0 and remaining > 0:
+                            assigned_dept = dept_id
+                            dept_allocation[dept_id] -= 1
+                            break
+                
+                item_number = generate_item_number(prep_id, idx, sub_idx)
+                
+                cur.execute("""
+                    INSERT INTO materials_items_preparation
+                    (scanning_item_id, preparation_id, item_number, quantity, uom, vendor, project_name, status, department_id, user_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    scanning_item_id,
+                    prep_id,
+                    item_number,
+                    1.0,
+                    uom,
+                    vendor,
+                    project_name,
+                    'pending',
+                    assigned_dept,
+                    user_id
+                ))
+                
+                total_items_created += 1
+        
+        conn.commit()
+        print(f"Updated {total_items_created} individual material items")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Materials scanning preparation updated successfully',
+            'preparation_id': prep_id,
+            'total_items_created': total_items_created
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print("ERROR updating materials preparation:", str(e))
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+            
+@scanning_prep_bp.route('/api/materials/scanning-preparation/<int:prep_id>', methods=['DELETE'])
+def delete_materials_scanning_preparation(prep_id):
+    """Menghapus persiapan scanning untuk Materials beserta semua data terkait"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Cek apakah preparation exists
+        cur.execute("SELECT id_preparation FROM materials_scanning_preparations WHERE id_preparation = %s", (prep_id,))
+        if not cur.fetchone():
+            return jsonify({
+                'success': False,
+                'error': 'Preparation not found'
+            }), 404
+        
+        # Delete akan cascade ke materials_scanning_items, materials_items_preparation, materials_item_departments
+        cur.execute("DELETE FROM materials_scanning_preparations WHERE id_preparation = %s", (prep_id,))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Materials scanning preparation deleted successfully'
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print("ERROR deleting materials preparation:", str(e))
         print(traceback.format_exc())
         return jsonify({
             'success': False,
