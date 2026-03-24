@@ -74,80 +74,86 @@ export default function ScanningPreparationListPage() {
     setFilteredSessions(filtered);
   }, [searchTerm, statusFilter, sessions, sorting]);
 
-  const fetchSessions = async () => {
-    setLoading(true);
-    try {
-      console.log('Fetching sessions from:', API_ENDPOINTS.SCANNING_PREP_LIST);
+const fetchSessions = async () => {
+  setLoading(true);
+  try {
+    console.log('Fetching all sessions from:', API_ENDPOINTS.SCANNING_PREP_LIST_ALL);
 
-      const response = await fetch(API_ENDPOINTS.SCANNING_PREP_LIST, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+    const response = await fetch(API_ENDPOINTS.SCANNING_PREP_LIST_ALL, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
-      // Cek response status
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      // Cek content type
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        console.error('Response is not JSON:', text.substring(0, 200));
-        throw new Error('Server returned non-JSON response');
-      }
-
-      const result = await response.json();
-      console.log('API Response:', result);
-
-      if (result.success) {
-        const sessionsWithDetails = result.data.map((session) => {
-          const totalItems = session.items?.length || 0;
-          const totalQty = session.totalQty || session.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) || 0;
-          let status = session.status || "pending";
-          let progress = session.progress || 0;
-
-          // Jika ada scanned_count di items, hitung progress
-          if (session.items && session.items.length > 0 && !session.progress) {
-            const totalScanned = session.items.reduce(
-              (sum, i) => sum + (i.scanned_count || 0),
-              0,
-            );
-            progress = totalQty > 0 ? Math.round((totalScanned / totalQty) * 100) : 0;
-            if (progress === 100) status = "completed";
-            else if (progress > 0) status = "in-progress";
-          }
-
-          return {
-            ...session,
-            status,
-            progress,
-            totalItems,
-            totalQty,
-            category_name: session.category_name || "General",
-            location_name: session.location_name || "No location",
-            uniqueCode: session.checking_number || `SESS-${session.id_preparation}`,
-          };
-        });
-        setSessions(sessionsWithDetails);
-        setFilteredSessions(sessionsWithDetails);
-      } else {
-        throw new Error(result.message || result.error || 'Failed to load sessions');
-      }
-    } catch (error) {
-      console.error('Error fetching sessions:', error);
-      Swal.fire({
-        title: "Error!",
-        text: error.message || "Failed to load sessions. Please check if backend server is running.",
-        icon: "error",
-        confirmButtonColor: "#1e40af",
-      });
-    } finally {
-      setLoading(false);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('Response is not JSON:', text.substring(0, 200));
+      throw new Error('Server returned non-JSON response');
+    }
+
+    const result = await response.json();
+    console.log('API Response:', result);
+
+    if (result.success) {
+      const sessionsWithDetails = result.data.map((session) => {
+        const totalItems = session.items?.length || 0;
+        const totalQty = session.totalQty || session.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) || 0;
+        let status = session.status || "pending";
+        let progress = session.progress || 0;
+
+        if (session.items && session.items.length > 0 && !session.progress) {
+          const totalScanned = session.items.reduce(
+            (sum, i) => sum + (i.scanned_count || 0),
+            0,
+          );
+          progress = totalQty > 0 ? Math.round((totalScanned / totalQty) * 100) : 0;
+          if (progress === 100) status = "completed";
+          else if (progress > 0) status = "in-progress";
+        }
+
+        // Tentukan display name berdasarkan tipe
+        let displayName = session.checking_name;
+        if (session.type === 'device') {
+          displayName = `[Device] ${session.checking_name}`;
+        } else if (session.type === 'material') {
+          displayName = `[Material] ${session.checking_name}`;
+        }
+
+        return {
+          ...session,
+          status,
+          progress,
+          totalItems,
+          totalQty,
+          category_name: session.category_name || "General",
+          location_name: session.location_name || "No location",
+          uniqueCode: session.checking_number || `SESS-${session.id_preparation}`,
+          display_name: displayName,
+        };
+      });
+      setSessions(sessionsWithDetails);
+      setFilteredSessions(sessionsWithDetails);
+    } else {
+      throw new Error(result.message || result.error || 'Failed to load sessions');
+    }
+  } catch (error) {
+    console.error('Error fetching sessions:', error);
+    Swal.fire({
+      title: "Error!",
+      text: error.message || "Failed to load sessions. Please check if backend server is running.",
+      icon: "error",
+      confirmButtonColor: "#1e40af",
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   const stats = {
     total: sessions.length,

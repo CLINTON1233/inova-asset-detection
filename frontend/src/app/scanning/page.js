@@ -249,105 +249,100 @@ const saveManualSerial = async (serialNumber, targetItem, availableItem) => {
     }
   }, [searchParams]);
 
-  const loadPreparation = async (prepId) => {
-    setLoading(true);
-    setLoadingMessage("Loading");
+const loadPreparation = async (prepId) => {
+  setLoading(true);
+  setLoadingMessage("Loading");
 
-    try {
-      // Load progress dari endpoint progress
-      const progressResponse = await fetch(
-        API_ENDPOINTS.SCANNING_PREP_PROGRESS(prepId),
-      );
+  try {
+    // Coba load dari devices terlebih dahulu
+    let response = await fetch(API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId));
+    let data = await response.json();
+    let prepType = 'device';
+    
+    // Jika tidak ditemukan, coba dari materials
+    if (!data.success) {
+      response = await fetch(API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId));
+      data = await response.json();
+      prepType = 'material';
+    }
+    
+    if (data.success) {
+      setCurrentPreparation(data.data);
+      
+      // Load progress berdasarkan tipe
+      let progressResponse;
+      if (prepType === 'device') {
+        progressResponse = await fetch(API_ENDPOINTS.DEVICES_SCANNING_PREP_PROGRESS(prepId));
+      } else {
+        progressResponse = await fetch(API_ENDPOINTS.MATERIALS_SCANNING_PREP_PROGRESS(prepId));
+      }
       const progressData = await progressResponse.json();
-
-      // Load preparation detail
-      const response = await fetch(API_ENDPOINTS.SCANNING_PREP_DETAIL(prepId));
-      const data = await response.json();
-
-      if (data.success && progressData.success) {
-        setCurrentPreparation(data.data);
-
-        // Build progress dari progressData
-        const progress = {};
+      
+      const progress = {};
+      if (progressData.success) {
         progressData.data.progress.forEach((item) => {
           progress[item.id_item] = {
             total: item.quantity,
             scanned: item.scanned,
             items: [],
+            item_name: item.item_name,
+            brand: item.brand,
+            model: item.model,
+            uom: item.uom
           };
         });
-
-        // Build checkHistory dari scan_results
-        const scannedItems = [];
+      }
+      
+      // Build checkHistory dari scan_results
+      const scannedItems = [];
+      if (progressData.success && progressData.data.scan_results) {
         progressData.data.scan_results.forEach((scan) => {
-          // Cari item yang sesuai
-          const item = data.data.items.find(
-            (i) => i.id_item === scan.scanning_item_id,
-          );
-
+          const item = data.data.items.find(i => i.id_item === scan.scanning_item_id);
+          
           scannedItems.push({
             id: scan.id_scan,
-            jenisAset: scan.scan_value || (item ? item.item_name : "Unknown"),
-            kategori:
-              scan.scan_category === "Devices" ? "Perangkat" : "Material",
-            brand: item ? item.brand : "Unknown",
+            jenisAset: scan.scan_value || (item ? (item.device_name || item.material_name) : "Unknown"),
+            kategori: scan.scan_category === "Devices" ? "Perangkat" : "Material",
+            brand: item ? (item.brand || "N/A") : "Unknown",
             confidencePercent: 85,
-            status: scan.serial_number
-              ? "serial_scanned"
-              : scan.status === "completed"
-                ? "Submitted"
-                : "device_detected",
+            status: scan.serial_number ? "serial_scanned" : 
+                    scan.status === "completed" ? "Submitted" : "device_detected",
             nomorSeri: scan.serial_number || "",
             timestamp: scan.scanned_at,
-            tanggal: scan.scanned_at
-              ? new Date(scan.scanned_at).toLocaleDateString("id-ID")
-              : new Date().toLocaleDateString("id-ID"),
-            waktu: scan.scanned_at
-              ? new Date(scan.scanned_at).toLocaleTimeString("id-ID", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                })
-              : new Date().toLocaleTimeString("id-ID"),
+            tanggal: scan.scanned_at ? new Date(scan.scanned_at).toLocaleDateString("id-ID") : new Date().toLocaleDateString("id-ID"),
+            waktu: scan.scanned_at ? new Date(scan.scanned_at).toLocaleTimeString("id-ID") : new Date().toLocaleTimeString("id-ID"),
             item_id: scan.scanning_item_id,
-            preparation_id: prepId,
+            preparation_id: parseInt(prepId),
             preparation_name: data.data.checking_name,
             lokasi: data.data.location_name,
             lokasiLabel: data.data.location_name,
             scan_id: scan.id_scan,
             item_preparation_id: scan.item_preparation_id,
-            submitted: scan.status === "completed",
+            submitted: scan.status === "completed"
           });
         });
-
-        setScanningProgress(progress);
-
-        if (scannedItems.length > 0) {
-          setCheckHistory(scannedItems);
-          localStorage.setItem(
-            "scanCheckHistory",
-            JSON.stringify(scannedItems),
-          );
-        } else if (
-          data.data.scanned_items &&
-          data.data.scanned_items.length > 0
-        ) {
-          setCheckHistory(data.data.scanned_items);
-        }
       }
-    } catch (error) {
-      console.error("Error loading preparation:", error);
-      Swal.fire({
-        title: "Error!",
-        text: "Failed to load scanning session",
-        icon: "error",
-      }).then(() => router.push("/scanning_sessions"));
-    } finally {
-      setLoading(false);
-      setLoadingMessage("");
-      setLoadingSubMessage("");
+      
+      setScanningProgress(progress);
+      
+      if (scannedItems.length > 0) {
+        setCheckHistory(scannedItems);
+        localStorage.setItem("scanCheckHistory", JSON.stringify(scannedItems));
+      }
     }
-  };
+  } catch (error) {
+    console.error("Error loading preparation:", error);
+    Swal.fire({
+      title: "Error!",
+      text: "Failed to load scanning session",
+      icon: "error",
+    }).then(() => router.push("/scanning_sessions"));
+  } finally {
+    setLoading(false);
+    setLoadingMessage("");
+    setLoadingSubMessage("");
+  }
+};
 
   // ─── Camera detection handler ──────────────────────────────────────────
   const handleCameraDetection = async (detection) => {

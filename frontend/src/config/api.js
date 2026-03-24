@@ -1,7 +1,6 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
 export const API_ENDPOINTS = {
-
   // DETECTION YOLO
   // Detection
   DETECT_CAMERA: `${API_BASE_URL}/api/detect/camera`,
@@ -28,34 +27,62 @@ export const API_ENDPOINTS = {
 
   // Location
   LOCATION_ALL: `${API_BASE_URL}/api/location/all`,
-  LOCATION_SEARCH: (q) => `${API_BASE_URL}/api/location/search?q=${encodeURIComponent(q)}`,
+  LOCATION_SEARCH: (q) =>
+    `${API_BASE_URL}/api/location/search?q=${encodeURIComponent(q)}`,
   LOCATION_ASSIGN_MULTIPLE: `${API_BASE_URL}/api/location/assign-multiple`,
 
   // Department
   DEPARTMENTS_ALL: `${API_BASE_URL}/api/department/all`,
-  DEPARTMENTS_SEARCH: (q) => `${API_BASE_URL}/api/department/search?q=${encodeURIComponent(q)}`,
+  DEPARTMENTS_SEARCH: (q) =>
+    `${API_BASE_URL}/api/department/search?q=${encodeURIComponent(q)}`,
   DEPARTMENT_BY_ID: (id) => `${API_BASE_URL}/api/department/${id}`,
   DEPARTMENT_BY_CODE: (code) => `${API_BASE_URL}/api/department/code/${code}`,
 
-  // Scanning Preparation
-  SCANNING_PREP_CREATE: `${API_BASE_URL}/api/scanning-preparation/create`,
-  SCANNING_PREP_LIST: `${API_BASE_URL}/api/scanning-preparation/list`,
-  SCANNING_PREP_DETAIL: (id) => `${API_BASE_URL}/api/scanning-preparation/${id}`,
-  SCANNING_PREP_UPDATE: (id) => `${API_BASE_URL}/api/scanning-preparation/${id}`,
-  SCANNING_PREP_DELETE: (id) => `${API_BASE_URL}/api/scanning-preparation/${id}`,
-  SCANNING_PREP_PROGRESS: (id) => `${API_BASE_URL}/api/scanning-preparation/${id}/progress`, 
+  // Scanning Preparation (Devices)
+  DEVICES_SCANNING_PREP_CREATE: `${API_BASE_URL}/api/devices/scanning-preparation/create`,
+  DEVICES_SCANNING_PREP_LIST: `${API_BASE_URL}/api/devices/scanning-preparation/list`,
+  DEVICES_SCANNING_PREP_DETAIL: (id) =>
+    `${API_BASE_URL}/api/devices/scanning-preparation/${id}`,
+  DEVICES_SCANNING_PREP_UPDATE: (id) =>
+    `${API_BASE_URL}/api/devices/scanning-preparation/${id}`,
+  DEVICES_SCANNING_PREP_DELETE: (id) =>
+    `${API_BASE_URL}/api/devices/scanning-preparation/${id}`,
+  DEVICES_SCANNING_PREP_PROGRESS: (id) =>
+    `${API_BASE_URL}/api/devices/scanning-preparation/${id}/progress`,
 
-  // Items Preparation 
-  ITEMS_PREPARATION_AVAILABLE: (prepId, itemId) => `${API_BASE_URL}/api/items-preparation/${prepId}/item/${itemId}/available`,
-  ITEMS_PREPARATION_UPDATE: (id) => `${API_BASE_URL}/api/items-preparation/${id}`,
+  // Scanning Preparation (Materials)
+  MATERIALS_SCANNING_PREP_CREATE: `${API_BASE_URL}/api/materials/scanning-preparation/create`,
+  MATERIALS_SCANNING_PREP_LIST: `${API_BASE_URL}/api/materials/scanning-preparation/list`,
+  MATERIALS_SCANNING_PREP_DETAIL: (id) =>
+    `${API_BASE_URL}/api/materials/scanning-preparation/${id}`,
+  MATERIALS_SCANNING_PREP_UPDATE: (id) =>
+    `${API_BASE_URL}/api/materials/scanning-preparation/${id}`,
+  MATERIALS_SCANNING_PREP_DELETE: (id) =>
+    `${API_BASE_URL}/api/materials/scanning-preparation/${id}`,
+  MATERIALS_SCANNING_PREP_PROGRESS: (id) =>
+    `${API_BASE_URL}/api/materials/scanning-preparation/${id}/progress`,
+
+  // UOM List
+  UOM_LIST: `${API_BASE_URL}/api/materials/uom`,
+
+  // All Scanning Preparations (Combined)
+  SCANNING_PREP_LIST_ALL: `${API_BASE_URL}/api/scanning-preparation/list-all`,
+
+  // Items Preparation
+  ITEMS_PREPARATION_AVAILABLE: (prepId, itemId) =>
+    `${API_BASE_URL}/api/items-preparation/${prepId}/item/${itemId}/available`,
+  ITEMS_PREPARATION_UPDATE: (id) =>
+    `${API_BASE_URL}/api/items-preparation/${id}`,
 
   // Scan Results
   SCAN_RESULTS_CREATE: `${API_BASE_URL}/api/scan-results/create`,
-  SCAN_RESULTS_BY_PREP: (id) => `${API_BASE_URL}/api/scan-results/preparation/${id}`,
+  SCAN_RESULTS_BY_PREP: (id) =>
+    `${API_BASE_URL}/api/scan-results/preparation/${id}`,
   SCAN_RESULTS_UPDATE: (id) => `${API_BASE_URL}/api/scan-results/${id}`,
-  SCAN_RESULTS_DELETE: (id) => `${API_BASE_URL}/api/scan-results/${id}`, 
+  SCAN_RESULTS_DELETE: (id) => `${API_BASE_URL}/api/scan-results/${id}`,
   SCAN_RESULTS_PENDING: `${API_BASE_URL}/api/scan-results/pending`,
-  SCAN_RESULTS_CHECK_SERIAL: (serial) => `${API_BASE_URL}/api/scan-results/check-serial?serial=${encodeURIComponent(serial)}`,
+  SCAN_RESULTS_CHECK_SERIAL: (serial) =>
+    `${API_BASE_URL}/api/scan-results/check-serial?serial=${encodeURIComponent(serial)}`,
 
   // Validations
   VALIDATIONS_CREATE: `${API_BASE_URL}/api/validations/create`,

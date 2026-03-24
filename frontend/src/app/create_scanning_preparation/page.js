@@ -32,6 +32,7 @@ export default function ScanningPreparationPage() {
   const [departments, setDepartments] = useState([]);
   const [mounted, setMounted] = useState(false);
   const [expandedItems, setExpandedItems] = useState({});
+  const [selectedCategory, setSelectedCategory] = useState({});
 
   // Multiple sessions state
   const [sessions, setSessions] = useState([
@@ -48,12 +49,18 @@ export default function ScanningPreparationPage() {
       items: [
         {
           id: `item-${Date.now()}-1-1`,
-          item_name: "",
+          device_name: "",
+          device_detail: "",
           brand: "",
+          vendor: "",
           model: "",
           specifications: "",
           quantity: 1,
           departments: [],
+          uom: "PCS",
+          material_name: "",
+          material_detail: "",
+          project_name: "",
         },
       ],
     },
@@ -116,8 +123,12 @@ export default function ScanningPreparationPage() {
       const data = await response.json();
       if (data.success) {
         const uniqueDepts = data.departments.reduce((acc, current) => {
-          const exists = acc.find(item => item.id_department === current.id_department);
-          if (!exists) { acc.push(current); }
+          const exists = acc.find(
+            (item) => item.id_department === current.id_department,
+          );
+          if (!exists) {
+            acc.push(current);
+          }
           return acc;
         }, []);
         console.log("Unique departments:", uniqueDepts);
@@ -173,6 +184,17 @@ export default function ScanningPreparationPage() {
     }
   };
 
+  // UOM options
+  const uomOptions = [
+    { code: "PCS", name: "Pieces" },
+    { code: "UNIT", name: "Unit" },
+    { code: "ROLL", name: "Roll" },
+    { code: "PACK", name: "Pack" },
+    { code: "BOX", name: "Box" },
+    { code: "METER", name: "Meter" },
+    { code: "KG", name: "Kilogram" },
+  ];
+
   // Session management functions
   const addNewSession = () => {
     const newSession = {
@@ -188,12 +210,18 @@ export default function ScanningPreparationPage() {
       items: [
         {
           id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}-1`,
-          item_name: "",
+          device_name: "",
+          device_detail: "",
           brand: "",
+          vendor: "",
           model: "",
           specifications: "",
           quantity: 1,
           departments: [],
+          uom: "PCS",
+          material_name: "",
+          material_detail: "",
+          project_name: "",
         },
       ],
     };
@@ -201,15 +229,14 @@ export default function ScanningPreparationPage() {
   };
 
   const duplicateSession = (sessionId) => {
-    const sessionToDuplicate = sessions.find(s => s.id === sessionId);
+    const sessionToDuplicate = sessions.find((s) => s.id === sessionId);
     if (sessionToDuplicate) {
       const newSession = {
         ...JSON.parse(JSON.stringify(sessionToDuplicate)),
         id: `session-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         checking_number: generateCheckingNumber(),
       };
-      // Update item IDs to avoid conflicts
-      newSession.items = newSession.items.map(item => ({
+      newSession.items = newSession.items.map((item) => ({
         ...item,
         id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       }));
@@ -229,7 +256,7 @@ export default function ScanningPreparationPage() {
         confirmButtonText: "Yes, Remove",
       }).then((result) => {
         if (result.isConfirmed) {
-          setSessions(sessions.filter(s => s.id !== sessionId));
+          setSessions(sessions.filter((s) => s.id !== sessionId));
         }
       });
     } else {
@@ -242,21 +269,22 @@ export default function ScanningPreparationPage() {
     }
   };
 
-  // Session form handlers
   const handleSessionInputChange = (sessionId, field, value) => {
-    setSessions(prev =>
-      prev.map(session =>
+    setSessions((prev) =>
+      prev.map((session) =>
         session.id === sessionId
-          ? { ...session, formData: { ...session.formData, [field]: value } }
-          : session
-      )
+          ? {
+              ...session,
+              formData: { ...session.formData, [field]: value },
+            }
+          : session,
+      ),
     );
   };
 
-  // Item management functions for specific session
   const addNewItem = (sessionId) => {
-    setSessions(prev =>
-      prev.map(session =>
+    setSessions((prev) =>
+      prev.map((session) =>
         session.id === sessionId
           ? {
               ...session,
@@ -264,28 +292,34 @@ export default function ScanningPreparationPage() {
                 ...session.items,
                 {
                   id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-                  item_name: "",
+                  device_name: "",
+                  device_detail: "",
                   brand: "",
+                  vendor: "",
                   model: "",
                   specifications: "",
                   quantity: 1,
                   departments: [],
+                  uom: "PCS",
+                  material_name: "",
+                  material_detail: "",
+                  project_name: "",
                 },
               ],
             }
-          : session
-      )
+          : session,
+      ),
     );
   };
 
   const removeItem = (sessionId, itemId) => {
-    setSessions(prev =>
-      prev.map(session => {
+    setSessions((prev) =>
+      prev.map((session) => {
         if (session.id === sessionId) {
           if (session.items.length > 1) {
             return {
               ...session,
-              items: session.items.filter(item => item.id !== itemId),
+              items: session.items.filter((item) => item.id !== itemId),
             };
           } else {
             Swal.fire({
@@ -298,22 +332,22 @@ export default function ScanningPreparationPage() {
           }
         }
         return session;
-      })
+      }),
     );
   };
 
   const updateItem = (sessionId, itemId, field, value) => {
-    setSessions(prev =>
-      prev.map(session =>
+    setSessions((prev) =>
+      prev.map((session) =>
         session.id === sessionId
           ? {
               ...session,
-              items: session.items.map(item =>
-                item.id === itemId ? { ...item, [field]: value } : item
+              items: session.items.map((item) =>
+                item.id === itemId ? { ...item, [field]: value } : item,
               ),
             }
-          : session
-      )
+          : session,
+      ),
     );
   };
 
@@ -324,31 +358,43 @@ export default function ScanningPreparationPage() {
     }));
   };
 
-  const updateDepartmentQuantity = (sessionId, itemId, departmentId, quantity) => {
-    const department = departments.find((d) => d.id_department === departmentId);
-    
-    setSessions(prev =>
-      prev.map(session => {
+  const updateDepartmentQuantity = (
+    sessionId,
+    itemId,
+    departmentId,
+    quantity,
+  ) => {
+    const department = departments.find(
+      (d) => d.id_department === departmentId,
+    );
+
+    setSessions((prev) =>
+      prev.map((session) => {
         if (session.id === sessionId) {
           return {
             ...session,
-            items: session.items.map(item => {
+            items: session.items.map((item) => {
               if (item.id === itemId) {
-                const newQuantity = parseInt(quantity) || 0;
+                const newQuantity = parseFloat(quantity) || 0;
                 const currentTotal = item.departments.reduce(
-                  (sum, d) => (d.department_id === departmentId ? sum : sum + d.quantity),
-                  0
+                  (sum, d) =>
+                    d.department_id === departmentId ? sum : sum + d.quantity,
+                  0,
                 );
 
                 if (currentTotal + newQuantity > item.quantity) {
                   const maxAllowed = item.quantity - currentTotal;
                   if (newQuantity > maxAllowed) {
-                    const existingDept = item.departments.find((d) => d.department_id === departmentId);
+                    const existingDept = item.departments.find(
+                      (d) => d.department_id === departmentId,
+                    );
                     if (existingDept) {
                       return {
                         ...item,
                         departments: item.departments.map((d) =>
-                          d.department_id === departmentId ? { ...d, quantity: maxAllowed } : d
+                          d.department_id === departmentId
+                            ? { ...d, quantity: maxAllowed }
+                            : d,
                         ),
                       };
                     } else if (maxAllowed > 0) {
@@ -356,7 +402,11 @@ export default function ScanningPreparationPage() {
                         ...item,
                         departments: [
                           ...item.departments,
-                          { department_id: departmentId, department_name: department.department_name, quantity: maxAllowed },
+                          {
+                            department_id: departmentId,
+                            department_name: department.department_name,
+                            quantity: maxAllowed,
+                          },
                         ],
                       };
                     }
@@ -365,12 +415,16 @@ export default function ScanningPreparationPage() {
                 }
 
                 if (newQuantity > 0) {
-                  const existingDept = item.departments.find((d) => d.department_id === departmentId);
+                  const existingDept = item.departments.find(
+                    (d) => d.department_id === departmentId,
+                  );
                   if (existingDept) {
                     return {
                       ...item,
                       departments: item.departments.map((d) =>
-                        d.department_id === departmentId ? { ...d, quantity: newQuantity } : d
+                        d.department_id === departmentId
+                          ? { ...d, quantity: newQuantity }
+                          : d,
                       ),
                     };
                   } else {
@@ -378,14 +432,20 @@ export default function ScanningPreparationPage() {
                       ...item,
                       departments: [
                         ...item.departments,
-                        { department_id: departmentId, department_name: department.department_name, quantity: newQuantity },
+                        {
+                          department_id: departmentId,
+                          department_name: department.department_name,
+                          quantity: newQuantity,
+                        },
                       ],
                     };
                   }
                 } else {
                   return {
                     ...item,
-                    departments: item.departments.filter((d) => d.department_id !== departmentId),
+                    departments: item.departments.filter(
+                      (d) => d.department_id !== departmentId,
+                    ),
                   };
                 }
               }
@@ -394,41 +454,66 @@ export default function ScanningPreparationPage() {
           };
         }
         return session;
-      })
+      }),
     );
   };
 
   const isDepartmentInputDisabled = (item, departmentId) => {
-    const totalAssigned = item.departments.reduce((sum, d) => sum + d.quantity, 0);
-    const currentDept = item.departments.find((d) => d.department_id === departmentId);
+    const totalAssigned = item.departments.reduce(
+      (sum, d) => sum + d.quantity,
+      0,
+    );
+    const currentDept = item.departments.find(
+      (d) => d.department_id === departmentId,
+    );
     return totalAssigned >= item.quantity && !currentDept;
   };
 
   const validateSession = (session) => {
     const errors = [];
-    if (!session.formData.checking_name) errors.push("Checking name is required");
+    if (!session.formData.checking_name)
+      errors.push("Checking name is required");
     if (!session.formData.category_id) errors.push("Category is required");
     if (!session.formData.location_id) errors.push("Location is required");
-    if (!session.formData.checking_date) errors.push("Checking date is required");
-    
+    if (!session.formData.checking_date)
+      errors.push("Checking date is required");
+
     session.items.forEach((item, index) => {
-      if (!item.item_name) errors.push(`Session ${session.checking_number} - Item #${index + 1}: Item name is required`);
-      if (!item.quantity || item.quantity < 1) errors.push(`Session ${session.checking_number} - Item #${index + 1}: Quantity must be at least 1`);
+      const isMaterial = session.formData.category_id === "2";
+      if (isMaterial) {
+        if (!item.material_name)
+          errors.push(
+            `Session ${session.checking_number} - Item #${index + 1}: Material name is required`,
+          );
+      } else {
+        if (!item.device_name)
+          errors.push(
+            `Session ${session.checking_number} - Item #${index + 1}: Device name is required`,
+          );
+      }
+      if (!item.quantity || item.quantity < 1)
+        errors.push(
+          `Session ${session.checking_number} - Item #${index + 1}: Quantity must be at least 1`,
+        );
       if (item.departments.length > 0) {
-        const totalDeptQty = item.departments.reduce((sum, d) => sum + d.quantity, 0);
+        const totalDeptQty = item.departments.reduce(
+          (sum, d) => sum + d.quantity,
+          0,
+        );
         if (totalDeptQty > item.quantity) {
-          errors.push(`Session ${session.checking_number} - Item #${index + 1}: Total department quantity exceeds item quantity`);
+          errors.push(
+            `Session ${session.checking_number} - Item #${index + 1}: Total department quantity exceeds item quantity`,
+          );
         }
       }
     });
-    
+
     return errors;
   };
 
   const handleSubmit = async () => {
-    // Validate all sessions
     let allErrors = [];
-    sessions.forEach(session => {
+    sessions.forEach((session) => {
       const sessionErrors = validateSession(session);
       allErrors = [...allErrors, ...sessionErrors];
     });
@@ -443,9 +528,18 @@ export default function ScanningPreparationPage() {
       return;
     }
 
-    const totalItems = sessions.reduce((sum, session) => sum + session.items.length, 0);
-    const totalQuantity = sessions.reduce((sum, session) => 
-      sum + session.items.reduce((itemSum, item) => itemSum + (item.quantity || 1), 0), 0
+    const totalItems = sessions.reduce(
+      (sum, session) => sum + session.items.length,
+      0,
+    );
+    const totalQuantity = sessions.reduce(
+      (sum, session) =>
+        sum +
+        session.items.reduce(
+          (itemSum, item) => itemSum + (item.quantity || 1),
+          0,
+        ),
+      0,
     );
 
     const result = await Swal.fire({
@@ -468,41 +562,79 @@ export default function ScanningPreparationPage() {
 
     if (!result.isConfirmed) return;
 
-     setLoading(true);
-  try {
-    const results = [];
-    
-    const userId = localStorage.getItem('user_id') || 1; 
-    
-    for (const session of sessions) {
-      const payload = {
-        checking_name: session.formData.checking_name,
-        category_id: parseInt(session.formData.category_id),
-        location_id: parseInt(session.formData.location_id),
-        checking_date: session.formData.checking_date,
-        remarks: session.formData.remarks,
-        items: session.items.map(({ id, ...item }) => ({
-          ...item,
-          quantity: parseInt(item.quantity) || 1,
-          departments: item.departments.map((d) => ({
-            department_id: d.department_id,
-            quantity: d.quantity,
-          })),
-        })),
-        user_id: userId, 
-      };
+    setLoading(true);
+    try {
+      const results = [];
+      const userId = localStorage.getItem("user_id") || 1;
 
-      const response = await fetch(API_ENDPOINTS.SCANNING_PREP_CREATE, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      for (const session of sessions) {
+        const isMaterial = session.formData.category_id === "2";
 
-      const data = await response.json();
-      if (data.success) {
-        results.push(data);
+        let payload;
+        
+        if (isMaterial) {
+          // PAYLOAD UNTUK MATERIALS
+          payload = {
+            checking_name: session.formData.checking_name,
+            category_id: parseInt(session.formData.category_id),
+            location_id: parseInt(session.formData.location_id),
+            checking_date: session.formData.checking_date,
+            remarks: session.formData.remarks,
+            items: session.items.map(({ id, ...item }) => ({
+              item_name: item.material_name,
+              specifications: item.material_detail,
+              quantity: parseFloat(item.quantity),
+              departments: item.departments.map((d) => ({
+                department_id: d.department_id,
+                quantity: parseFloat(d.quantity),
+              })),
+              uom: item.uom || "PCS",
+              vendor: item.vendor || "",
+              project_name: item.project_name || "",
+            })),
+            user_id: userId,
+          };
+        } else {
+          // PAYLOAD UNTUK DEVICES
+          payload = {
+            checking_name: session.formData.checking_name,
+            category_id: parseInt(session.formData.category_id),
+            location_id: parseInt(session.formData.location_id),
+            checking_date: session.formData.checking_date,
+            remarks: session.formData.remarks,
+            items: session.items.map(({ id, ...item }) => ({
+              device_name: item.device_name,
+              device_detail: item.device_detail,
+              brand: item.brand,
+              vendor: item.vendor,
+              model: item.model,
+              specifications: item.specifications,
+              quantity: parseInt(item.quantity),
+              departments: item.departments.map((d) => ({
+                department_id: d.department_id,
+                quantity: parseInt(d.quantity),
+              })),
+            })),
+            user_id: userId,
+          };
+        }
+
+        const endpoint = isMaterial
+          ? API_ENDPOINTS.MATERIALS_SCANNING_PREP_CREATE
+          : API_ENDPOINTS.DEVICES_SCANNING_PREP_CREATE;
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          results.push(data);
+        }
       }
-    }
+
       if (results.length > 0) {
         await Swal.fire({
           title: "Success!",
@@ -510,7 +642,7 @@ export default function ScanningPreparationPage() {
             <div class="text-center">
               <p>Successfully created ${results.length} scanning preparations!</p>
               <div class="font-mono text-xs bg-gray-100 p-2 rounded mt-2 max-h-32 overflow-y-auto">
-                ${results.map(r => `<div>${r.checking_number}</div>`).join('')}
+                ${results.map((r) => `<div>${r.checking_number}</div>`).join("")}
               </div>
             </div>
           `,
@@ -558,12 +690,18 @@ export default function ScanningPreparationPage() {
             items: [
               {
                 id: `item-${Date.now()}-1-1`,
-                item_name: "",
+                device_name: "",
+                device_detail: "",
                 brand: "",
+                vendor: "",
                 model: "",
                 specifications: "",
                 quantity: 1,
                 departments: [],
+                uom: "PCS",
+                material_name: "",
+                material_detail: "",
+                project_name: "",
               },
             ],
           },
@@ -649,9 +787,13 @@ export default function ScanningPreparationPage() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Package className="w-5 h-5 text-blue-600" />
-              <h1 className="text-xl font-bold text-gray-900">Scanning Preparation</h1>
+              <h1 className="text-xl font-bold text-gray-900">
+                Scanning Preparation
+              </h1>
             </div>
-            <p className="text-sm text-gray-500">Create preparation scanning sessions at once</p>
+            <p className="text-sm text-gray-500">
+              Create preparation scanning sessions at once
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
@@ -661,28 +803,28 @@ export default function ScanningPreparationPage() {
           </div>
         </div>
 
-        {/* Main Form Card - Everything inside one card */}
+        {/* Main Form Card */}
         <div className="form-card">
-          {/* Card Header */}
           <div className="px-6 py-5 border-b border-gray-100 bg-gray-50 rounded-t-2xl">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">
                 <Package className="w-4 h-4 text-blue-600" />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-gray-800 leading-tight">Scanning Preparation Form</h2>
-                <p className="text-xs text-gray-400 leading-tight mt-0.5">Fill in the information below to create scanning sessions</p>
+                <h2 className="text-sm font-bold text-gray-800 leading-tight">
+                  Scanning Preparation Form
+                </h2>
+                <p className="text-xs text-gray-400 leading-tight mt-0.5">
+                  Fill in the information below to create scanning sessions
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Form Content */}
           <div className="p-6">
-            {/* Sessions Container */}
             <div className="space-y-6">
               {sessions.map((session, sessionIndex) => (
                 <div key={session.id} className="session-card">
-                  {/* Session Header */}
                   <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 rounded-t-2xl">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -717,37 +859,48 @@ export default function ScanningPreparationPage() {
                     </div>
                   </div>
 
-                  {/* Session Content */}
                   <div className="p-6">
-                    {/* BASIC INFORMATION */}
                     <SectionDivider icon={FileText} label="Basic Information" />
-
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                       <div>
                         <Label required>Checking Name</Label>
                         <input
                           type="text"
                           value={session.formData.checking_name}
-                          onChange={(e) => handleSessionInputChange(session.id, "checking_name", e.target.value)}
+                          onChange={(e) =>
+                            handleSessionInputChange(
+                              session.id,
+                              "checking_name",
+                              e.target.value,
+                            )
+                          }
                           className={inputCls}
                           placeholder="e.g. IT Asset Inventory"
                           required
                         />
                         <Hint>Name for this scanning session</Hint>
                       </div>
-
                       <div>
                         <Label required>Category</Label>
                         <div className="relative">
                           <select
                             value={session.formData.category_id}
-                            onChange={(e) => handleSessionInputChange(session.id, "category_id", e.target.value)}
+                            onChange={(e) =>
+                              handleSessionInputChange(
+                                session.id,
+                                "category_id",
+                                e.target.value,
+                              )
+                            }
                             className={selectCls}
                             required
                           >
                             <option value="">Select Category</option>
                             {categories.map((cat) => (
-                              <option key={cat.id_category} value={cat.id_category}>
+                              <option
+                                key={cat.id_category}
+                                value={cat.id_category}
+                              >
                                 {cat.category_name}
                               </option>
                             ))}
@@ -756,53 +909,69 @@ export default function ScanningPreparationPage() {
                       </div>
                     </div>
 
-                    {/* LOCATION & DATE */}
                     <SectionDivider icon={MapPin} label="Location & Date" />
-
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                       <div>
                         <Label required>Location Check</Label>
                         <div className="relative">
                           <select
                             value={session.formData.location_id}
-                            onChange={(e) => handleSessionInputChange(session.id, "location_id", e.target.value)}
+                            onChange={(e) =>
+                              handleSessionInputChange(
+                                session.id,
+                                "location_id",
+                                e.target.value,
+                              )
+                            }
                             className={selectCls}
                             required
                           >
                             <option value="">Select Location</option>
                             {locations.map((loc) => (
-                              <option key={loc.id_location} value={loc.id_location}>
+                              <option
+                                key={loc.id_location}
+                                value={loc.id_location}
+                              >
                                 {loc.location_name}
                               </option>
                             ))}
                           </select>
                         </div>
                       </div>
-
                       <div>
                         <Label required>Checking Date</Label>
                         <input
                           type="date"
                           value={session.formData.checking_date}
-                          onChange={(e) => handleSessionInputChange(session.id, "checking_date", e.target.value)}
+                          onChange={(e) =>
+                            handleSessionInputChange(
+                              session.id,
+                              "checking_date",
+                              e.target.value,
+                            )
+                          }
                           className={inputCls}
                           required
                         />
                       </div>
                     </div>
 
-                    {/* ITEMS SECTION */}
                     <SectionDivider icon={Box} label="Items to Scan" />
-
-                    {/* Items List */}
                     <div className="space-y-4">
                       {session.items.map((item, itemIndex) => {
-                        const totalDeptQty = item.departments.reduce((sum, d) => sum + d.quantity, 0);
+                        const totalDeptQty = item.departments.reduce(
+                          (sum, d) => sum + d.quantity,
+                          0,
+                        );
                         const remainingQty = item.quantity - totalDeptQty;
                         const isExpanded = expandedItems[item.id];
+                        const isMaterial = session.formData.category_id === "2";
 
                         return (
-                          <div key={item.id} className="border border-gray-200 rounded-lg p-4 bg-white">
+                          <div
+                            key={item.id}
+                            className="border border-gray-200 rounded-lg p-4 bg-white"
+                          >
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
@@ -816,7 +985,9 @@ export default function ScanningPreparationPage() {
                               </div>
                               {session.items.length > 1 && (
                                 <button
-                                  onClick={() => removeItem(session.id, item.id)}
+                                  onClick={() =>
+                                    removeItem(session.id, item.id)
+                                  }
                                   className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded-lg transition"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -824,157 +995,530 @@ export default function ScanningPreparationPage() {
                               )}
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                              <div className="col-span-1 md:col-span-2">
-                                <Label required>Item Name</Label>
-                                <input
-                                  type="text"
-                                  value={item.item_name}
-                                  onChange={(e) => updateItem(session.id, item.id, "item_name", e.target.value)}
-                                  className={inputCls}
-                                  placeholder="e.g. Laptop Dell, Ethernet Cable"
-                                  required
-                                />
-                              </div>
-
-                              <div>
-                                <Label>Brand</Label>
-                                <input
-                                  type="text"
-                                  value={item.brand}
-                                  onChange={(e) => updateItem(session.id, item.id, "brand", e.target.value)}
-                                  className={inputCls}
-                                  placeholder="e.g. Dell, Cisco"
-                                />
-                              </div>
-
-                              <div>
-                                <Label>Model</Label>
-                                <input
-                                  type="text"
-                                  value={item.model}
-                                  onChange={(e) => updateItem(session.id, item.id, "model", e.target.value)}
-                                  className={inputCls}
-                                  placeholder="e.g. Latitude 3420"
-                                />
-                              </div>
-
-                              <div className="col-span-1 md:col-span-2">
-                                <Label>Specifications</Label>
-                                <input
-                                  type="text"
-                                  value={item.specifications}
-                                  onChange={(e) => updateItem(session.id, item.id, "specifications", e.target.value)}
-                                  className={inputCls}
-                                  placeholder="e.g. Intel i5, 8GB RAM, 256GB SSD"
-                                />
-                              </div>
-
-                              <div>
-                                <Label required>Quantity</Label>
-                                <input
-                                  type="number"
-                                  value={item.quantity}
-                                  onChange={(e) => updateItem(session.id, item.id, "quantity", parseInt(e.target.value) || 1)}
-                                  className={inputCls}
-                                  min="1"
-                                  required
-                                />
-                                <Hint>Number of items to scan</Hint>
-                              </div>
-
-                              {/* Department Distribution */}
-                              <div className="col-span-1 md:col-span-2 lg:col-span-4">
-                                <div className="flex items-center justify-between mt-2">
-                                  <Label>Department Distribution</Label>
-                                  <button
-                                    onClick={() => toggleDepartmentSection(item.id)}
-                                    className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${
-                                      isExpanded
-                                        ? "bg-gray-100 text-gray-700 border border-gray-300"
-                                        : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
-                                    }`}
-                                  >
-                                    {isExpanded ? "Close Distribution" : "Distribute Items"}
-                                    {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                                  </button>
+                            {isMaterial ? (
+                              // FORM UNTUK MATERIALS
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="col-span-1 md:col-span-2">
+                                  <Label required>Material Name</Label>
+                                  <input
+                                    type="text"
+                                    value={item.material_name}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        session.id,
+                                        item.id,
+                                        "material_name",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className={inputCls}
+                                    placeholder="e.g. Ethernet Cable, HDMI Cable, Copper Wire"
+                                    required
+                                  />
                                 </div>
 
-                                {isExpanded && (
-                                  <div className="mt-4 space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                      {departments.map((dept) => {
-                                        const assignedDept = item.departments.find((d) => d.department_id === dept.id_department);
-                                        const assignedQty = assignedDept?.quantity || 0;
-                                        const isDisabled = isDepartmentInputDisabled(item, dept.id_department);
-                                        return (
-                                          <div key={dept.id_department} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-white">
-                                            <div className="flex-1 min-w-0">
-                                              <p className="text-sm font-medium text-gray-700 truncate">{dept.department_name}</p>
-                                              {assignedQty > 0 && (
-                                                <p className="text-xs text-blue-600 mt-0.5">Assigned: {assignedQty}</p>
-                                              )}
-                                            </div>
-                                            <div className="w-24 ml-2">
-                                              <input
-                                                type="number"
-                                                min="0"
-                                                max={item.quantity}
-                                                value={assignedQty}
-                                                onChange={(e) => updateDepartmentQuantity(session.id, item.id, dept.id_department, e.target.value)}
-                                                disabled={isDisabled}
-                                                className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${
-                                                  isDisabled
-                                                    ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
-                                                    : "bg-white border-gray-200 text-gray-800"
-                                                }`}
-                                                placeholder="Qty"
-                                              />
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
+                                <div className="col-span-1 md:col-span-2">
+                                  <Label>Material Details</Label>
+                                  <textarea
+                                    value={item.material_detail}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        session.id,
+                                        item.id,
+                                        "material_detail",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className={inputCls}
+                                    rows="2"
+                                    placeholder="Specifications, color, length, gauge, etc."
+                                  />
+                                </div>
 
-                                    <div className="p-3 border-t border-gray-200">
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-sm font-medium text-gray-700">Distribution Summary:</span>
-                                        <span className={`text-sm font-semibold ${
-                                          totalDeptQty === item.quantity ? "text-green-600"
-                                          : totalDeptQty > 0 ? "text-blue-600"
-                                          : "text-gray-500"
-                                        }`}>
-                                          {totalDeptQty} of {item.quantity} assigned
-                                        </span>
-                                      </div>
-                                      {remainingQty > 0 && (
-                                        <p className="text-xs text-gray-500 mt-1">
-                                          {remainingQty} unassigned items will stay at main location
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
+                                <div>
+                                  <Label required>Quantity</Label>
+                                  <input
+                                    type="number"
+                                    value={item.quantity}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        session.id,
+                                        item.id,
+                                        "quantity",
+                                        parseFloat(e.target.value) || 1,
+                                      )
+                                    }
+                                    className={inputCls}
+                                    min="0.01"
+                                    step="0.01"
+                                    required
+                                  />
+                                </div>
 
-                                {!isExpanded && item.departments.length > 0 && (
-                                  <div className="mt-2 flex flex-wrap gap-2">
-                                    {item.departments.map((dept) => (
-                                      <div key={dept.department_id} className="inline-flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-full border border-gray-200">
-                                        <Users className="w-3 h-3 text-gray-500" />
-                                        <span className="text-xs text-gray-700">{dept.department_name}</span>
-                                        <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded-full">{dept.quantity}</span>
-                                      </div>
+                                <div>
+                                  <Label required>Unit of Measure (UOM)</Label>
+                                  <select
+                                    value={item.uom || "PCS"}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        session.id,
+                                        item.id,
+                                        "uom",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className={selectCls}
+                                  >
+                                    {uomOptions.map((uom) => (
+                                      <option key={uom.code} value={uom.code}>
+                                        {uom.name} ({uom.code})
+                                      </option>
                                     ))}
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <Label>Vendor</Label>
+                                  <input
+                                    type="text"
+                                    value={item.vendor}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        session.id,
+                                        item.id,
+                                        "vendor",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className={inputCls}
+                                    placeholder="e.g. Belden, 3M, Anixter"
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label>Project Name</Label>
+                                  <input
+                                    type="text"
+                                    value={item.project_name}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        session.id,
+                                        item.id,
+                                        "project_name",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className={inputCls}
+                                    placeholder="e.g. FPSO Project, GAMMA Project"
+                                  />
+                                </div>
+
+                                {/* Department Distribution */}
+                                <div className="col-span-1 md:col-span-2 lg:col-span-4">
+                                  <div className="flex items-center justify-between mt-2">
+                                    <Label>Department Distribution</Label>
+                                    <button
+                                      onClick={() =>
+                                        toggleDepartmentSection(item.id)
+                                      }
+                                      className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+                                        isExpanded
+                                          ? "bg-gray-100 text-gray-700 border border-gray-300"
+                                          : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
+                                      }`}
+                                    >
+                                      {isExpanded
+                                        ? "Close Distribution"
+                                        : "Distribute Items"}
+                                      {isExpanded ? (
+                                        <ChevronUp className="w-3 h-3" />
+                                      ) : (
+                                        <ChevronDown className="w-3 h-3" />
+                                      )}
+                                    </button>
                                   </div>
-                                )}
+
+                                  {isExpanded && (
+                                    <div className="mt-4 space-y-4">
+                                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {departments.map((dept) => {
+                                          const assignedDept =
+                                            item.departments.find(
+                                              (d) =>
+                                                d.department_id ===
+                                                dept.id_department,
+                                            );
+                                          const assignedQty =
+                                            assignedDept?.quantity || 0;
+                                          const isDisabled =
+                                            isDepartmentInputDisabled(
+                                              item,
+                                              dept.id_department,
+                                            );
+                                          return (
+                                            <div
+                                              key={dept.id_department}
+                                              className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-white"
+                                            >
+                                              <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-gray-700 truncate">
+                                                  {dept.department_name}
+                                                </p>
+                                                {assignedQty > 0 && (
+                                                  <p className="text-xs text-blue-600 mt-0.5">
+                                                    Assigned: {assignedQty}
+                                                  </p>
+                                                )}
+                                              </div>
+                                              <div className="w-24 ml-2">
+                                                <input
+                                                  type="number"
+                                                  min="0"
+                                                  max={item.quantity}
+                                                  value={assignedQty}
+                                                  onChange={(e) =>
+                                                    updateDepartmentQuantity(
+                                                      session.id,
+                                                      item.id,
+                                                      dept.id_department,
+                                                      e.target.value,
+                                                    )
+                                                  }
+                                                  disabled={isDisabled}
+                                                  className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${
+                                                    isDisabled
+                                                      ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
+                                                      : "bg-white border-gray-200 text-gray-800"
+                                                  }`}
+                                                  placeholder="Qty"
+                                                />
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+
+                                      <div className="p-3 border-t border-gray-200">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-sm font-medium text-gray-700">
+                                            Distribution Summary:
+                                          </span>
+                                          <span
+                                            className={`text-sm font-semibold ${
+                                              totalDeptQty === item.quantity
+                                                ? "text-green-600"
+                                                : totalDeptQty > 0
+                                                  ? "text-blue-600"
+                                                  : "text-gray-500"
+                                            }`}
+                                          >
+                                            {totalDeptQty} of {item.quantity}{" "}
+                                            assigned
+                                          </span>
+                                        </div>
+                                        {remainingQty > 0 && (
+                                          <p className="text-xs text-gray-500 mt-1">
+                                            {remainingQty} unassigned items will
+                                            stay at main location
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {!isExpanded &&
+                                    item.departments.length > 0 && (
+                                      <div className="mt-2 flex flex-wrap gap-2">
+                                        {item.departments.map((dept) => (
+                                          <div
+                                            key={dept.department_id}
+                                            className="inline-flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-full border border-gray-200"
+                                          >
+                                            <Users className="w-3 h-3 text-gray-500" />
+                                            <span className="text-xs text-gray-700">
+                                              {dept.department_name}
+                                            </span>
+                                            <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded-full">
+                                              {dept.quantity}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                </div>
                               </div>
-                            </div>
+                            ) : (
+                              // FORM UNTUK DEVICES
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="col-span-1 md:col-span-2">
+                                  <Label required>Device Name</Label>
+                                  <input
+                                    type="text"
+                                    value={item.device_name}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        session.id,
+                                        item.id,
+                                        "device_name",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className={inputCls}
+                                    placeholder="e.g. Laptop Dell, Monitor LG"
+                                    required
+                                  />
+                                </div>
+
+                                <div className="col-span-1 md:col-span-2">
+                                  <Label>Device Details</Label>
+                                  <textarea
+                                    value={item.device_detail}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        session.id,
+                                        item.id,
+                                        "device_detail",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className={inputCls}
+                                    rows="2"
+                                    placeholder="Specifications, color, size, features, etc."
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label>Brand</Label>
+                                  <input
+                                    type="text"
+                                    value={item.brand}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        session.id,
+                                        item.id,
+                                        "brand",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className={inputCls}
+                                    placeholder="e.g. Dell, LG, Samsung"
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label>Vendor</Label>
+                                  <input
+                                    type="text"
+                                    value={item.vendor}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        session.id,
+                                        item.id,
+                                        "vendor",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className={inputCls}
+                                    placeholder="e.g. PT DUTA, PT SUMBER MAKMUR"
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label>Model</Label>
+                                  <input
+                                    type="text"
+                                    value={item.model}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        session.id,
+                                        item.id,
+                                        "model",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className={inputCls}
+                                    placeholder="e.g. Latitude 3420, 27MN60T"
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label>Specifications</Label>
+                                  <input
+                                    type="text"
+                                    value={item.specifications}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        session.id,
+                                        item.id,
+                                        "specifications",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className={inputCls}
+                                    placeholder="e.g. Intel i5, 8GB RAM, 256GB SSD"
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label required>Quantity</Label>
+                                  <input
+                                    type="number"
+                                    value={item.quantity}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        session.id,
+                                        item.id,
+                                        "quantity",
+                                        parseInt(e.target.value) || 1,
+                                      )
+                                    }
+                                    className={inputCls}
+                                    min="1"
+                                    required
+                                  />
+                                  <Hint>Number of items to scan</Hint>
+                                </div>
+
+                                {/* Department Distribution */}
+                                <div className="col-span-1 md:col-span-2 lg:col-span-4">
+                                  <div className="flex items-center justify-between mt-2">
+                                    <Label>Department Distribution</Label>
+                                    <button
+                                      onClick={() =>
+                                        toggleDepartmentSection(item.id)
+                                      }
+                                      className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+                                        isExpanded
+                                          ? "bg-gray-100 text-gray-700 border border-gray-300"
+                                          : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
+                                      }`}
+                                    >
+                                      {isExpanded
+                                        ? "Close Distribution"
+                                        : "Distribute Items"}
+                                      {isExpanded ? (
+                                        <ChevronUp className="w-3 h-3" />
+                                      ) : (
+                                        <ChevronDown className="w-3 h-3" />
+                                      )}
+                                    </button>
+                                  </div>
+
+                                  {isExpanded && (
+                                    <div className="mt-4 space-y-4">
+                                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {departments.map((dept) => {
+                                          const assignedDept =
+                                            item.departments.find(
+                                              (d) =>
+                                                d.department_id ===
+                                                dept.id_department,
+                                            );
+                                          const assignedQty =
+                                            assignedDept?.quantity || 0;
+                                          const isDisabled =
+                                            isDepartmentInputDisabled(
+                                              item,
+                                              dept.id_department,
+                                            );
+                                          return (
+                                            <div
+                                              key={dept.id_department}
+                                              className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-white"
+                                            >
+                                              <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-gray-700 truncate">
+                                                  {dept.department_name}
+                                                </p>
+                                                {assignedQty > 0 && (
+                                                  <p className="text-xs text-blue-600 mt-0.5">
+                                                    Assigned: {assignedQty}
+                                                  </p>
+                                                )}
+                                              </div>
+                                              <div className="w-24 ml-2">
+                                                <input
+                                                  type="number"
+                                                  min="0"
+                                                  max={item.quantity}
+                                                  value={assignedQty}
+                                                  onChange={(e) =>
+                                                    updateDepartmentQuantity(
+                                                      session.id,
+                                                      item.id,
+                                                      dept.id_department,
+                                                      e.target.value,
+                                                    )
+                                                  }
+                                                  disabled={isDisabled}
+                                                  className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${
+                                                    isDisabled
+                                                      ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
+                                                      : "bg-white border-gray-200 text-gray-800"
+                                                  }`}
+                                                  placeholder="Qty"
+                                                />
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+
+                                      <div className="p-3 border-t border-gray-200">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-sm font-medium text-gray-700">
+                                            Distribution Summary:
+                                          </span>
+                                          <span
+                                            className={`text-sm font-semibold ${
+                                              totalDeptQty === item.quantity
+                                                ? "text-green-600"
+                                                : totalDeptQty > 0
+                                                  ? "text-blue-600"
+                                                  : "text-gray-500"
+                                            }`}
+                                          >
+                                            {totalDeptQty} of {item.quantity}{" "}
+                                            assigned
+                                          </span>
+                                        </div>
+                                        {remainingQty > 0 && (
+                                          <p className="text-xs text-gray-500 mt-1">
+                                            {remainingQty} unassigned items will
+                                            stay at main location
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {!isExpanded &&
+                                    item.departments.length > 0 && (
+                                      <div className="mt-2 flex flex-wrap gap-2">
+                                        {item.departments.map((dept) => (
+                                          <div
+                                            key={dept.department_id}
+                                            className="inline-flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-full border border-gray-200"
+                                          >
+                                            <Users className="w-3 h-3 text-gray-500" />
+                                            <span className="text-xs text-gray-700">
+                                              {dept.department_name}
+                                            </span>
+                                            <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded-full">
+                                              {dept.quantity}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
                     </div>
 
-                    {/* Add Item Button for this session */}
                     <button
                       onClick={() => addNewItem(session.id)}
                       className="mt-4 flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all w-full justify-center"
@@ -983,14 +1527,21 @@ export default function ScanningPreparationPage() {
                       Add Another Item #{sessionIndex + 1}
                     </button>
 
-                    {/* REMARKS for this session */}
-                    <SectionDivider icon={Info} label="Additional Information" />
-
+                    <SectionDivider
+                      icon={Info}
+                      label="Additional Information"
+                    />
                     <div className="mb-6">
                       <Label>Remarks</Label>
                       <textarea
                         value={session.formData.remarks}
-                        onChange={(e) => handleSessionInputChange(session.id, "remarks", e.target.value)}
+                        onChange={(e) =>
+                          handleSessionInputChange(
+                            session.id,
+                            "remarks",
+                            e.target.value,
+                          )
+                        }
                         rows="3"
                         className={inputCls}
                         placeholder="Additional notes or instructions for this scanning session..."
@@ -1000,7 +1551,6 @@ export default function ScanningPreparationPage() {
                 </div>
               ))}
 
-              {/* Add Session Button - Inside the main card */}
               <button
                 onClick={addNewSession}
                 className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all w-full justify-center"
@@ -1011,7 +1561,6 @@ export default function ScanningPreparationPage() {
             </div>
           </div>
 
-          {/* Form Actions - Inside the main card */}
           <div className="border-t border-gray-100 px-6 py-5 bg-gray-50 rounded-b-2xl">
             <div className="flex items-center justify-between">
               <p className="text-xs text-gray-400">
