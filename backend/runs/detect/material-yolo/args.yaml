@@ -1,7 +1,7 @@
 task: detect
 mode: train
 model: yolov8n.pt
-data: /content/Detector-Material-3/data.yaml
+data: /content/Detector-Material-4/data.yaml
 epochs: 80
 time: null
 patience: 100
