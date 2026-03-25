@@ -301,7 +301,7 @@ export default function DashboardPage() {
             <div>
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-                  IT ASSET INVENTORY SYSTEM
+                  IT Assets Inventory System
                 </h1>
                 {/* <span className="period-badge">Real-time Monitoring</span> */}
               </div>
@@ -647,8 +647,8 @@ export default function DashboardPage() {
                           <td className="px-4 py-3">
                             <span
                               className={`px-2 py-0.5 text-xs font-semibold rounded-full ${row.kategori === "Perangkat"
-                                  ? "bg-blue-100 text-blue-700"
-                                  : "bg-green-100 text-green-700"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-green-100 text-green-700"
                                 }`}
                             >
                               {row.kategori === "Perangkat"

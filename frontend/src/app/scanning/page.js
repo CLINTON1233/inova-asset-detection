@@ -171,17 +171,17 @@ export default function SerialScanningPage() {
   };
 
   const checkScanCodeExists = async (scanCode) => {
-  try {
-    const response = await fetch(
-      API_ENDPOINTS.SCAN_RESULTS_CHECK_SCAN_CODE(scanCode)
-    );
-    const result = await response.json();
-    return result.exists;
-  } catch (error) {
-    console.error("Error checking scan code:", error);
-    return false;
-  }
-};
+    try {
+      const response = await fetch(
+        API_ENDPOINTS.SCAN_RESULTS_CHECK_SCAN_CODE(scanCode)
+      );
+      const result = await response.json();
+      return result.exists;
+    } catch (error) {
+      console.error("Error checking scan code:", error);
+      return false;
+    }
+  };
 
   const saveManualScanCode = async (scanCode, targetItem, availableItem) => {
     if (!scanCode || scanCode.trim() === "") {
@@ -459,13 +459,13 @@ export default function SerialScanningPage() {
           const isDevicePrep = currentPreparation.type === "device";
           const endpoint = isDevicePrep
             ? API_ENDPOINTS.DEVICES_ITEMS_PREPARATION_AVAILABLE(
-                currentPreparation.id_preparation,
-                targetItem.id_item,
-              )
+              currentPreparation.id_preparation,
+              targetItem.id_item,
+            )
             : API_ENDPOINTS.MATERIALS_ITEMS_PREPARATION_AVAILABLE(
-                currentPreparation.id_preparation,
-                targetItem.id_item,
-              );
+              currentPreparation.id_preparation,
+              targetItem.id_item,
+            );
 
           const response = await fetch(endpoint);
 
@@ -684,13 +684,13 @@ export default function SerialScanningPage() {
               prev.map((item) =>
                 item.id === targetItem.id
                   ? {
-                      ...item,
-                      nomorSeri: serialData.detected_text,
-                      status: "serial_scanned",
-                      confidencePercent: Math.round(
-                        (serialData.confidence || 0.9) * 100,
-                      ),
-                    }
+                    ...item,
+                    nomorSeri: serialData.detected_text,
+                    status: "serial_scanned",
+                    confidencePercent: Math.round(
+                      (serialData.confidence || 0.9) * 100,
+                    ),
+                  }
                   : item,
               ),
             );
@@ -767,13 +767,13 @@ export default function SerialScanningPage() {
               prev.map((item) =>
                 item.id === targetItem.id
                   ? {
-                      ...item,
-                      nomorSeri: scanCodeData.detected_text,
-                      status: "serial_scanned",
-                      confidencePercent: Math.round(
-                        (scanCodeData.confidence || 0.9) * 100,
-                      ),
-                    }
+                    ...item,
+                    nomorSeri: scanCodeData.detected_text,
+                    status: "serial_scanned",
+                    confidencePercent: Math.round(
+                      (scanCodeData.confidence || 0.9) * 100,
+                    ),
+                  }
                   : item,
               ),
             );
@@ -1267,11 +1267,11 @@ export default function SerialScanningPage() {
               prev.map((p) =>
                 p.id === item.id
                   ? {
-                      ...p,
-                      submitted: true,
-                      status: "Submitted",
-                      validation_id: result.validation_id,
-                    }
+                    ...p,
+                    submitted: true,
+                    status: "Submitted",
+                    validation_id: result.validation_id,
+                  }
                   : p,
               ),
             );
@@ -1582,11 +1582,10 @@ export default function SerialScanningPage() {
                           </p>
                         </div>
                         <span
-                          className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            session.status === "pending"
+                          className={`px-2 py-1 text-xs font-semibold rounded-full ${session.status === "pending"
                               ? "bg-amber-100 text-amber-700"
                               : "bg-blue-100 text-blue-700"
-                          }`}
+                            }`}
                         >
                           {session.status === "pending"
                             ? "Pending"

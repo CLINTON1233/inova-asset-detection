@@ -274,9 +274,9 @@ export default function ScanningPreparationPage() {
       prev.map((session) =>
         session.id === sessionId
           ? {
-              ...session,
-              formData: { ...session.formData, [field]: value },
-            }
+            ...session,
+            formData: { ...session.formData, [field]: value },
+          }
           : session,
       ),
     );
@@ -287,26 +287,26 @@ export default function ScanningPreparationPage() {
       prev.map((session) =>
         session.id === sessionId
           ? {
-              ...session,
-              items: [
-                ...session.items,
-                {
-                  id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-                  device_name: "",
-                  device_detail: "",
-                  brand: "",
-                  vendor: "",
-                  model: "",
-                  specifications: "",
-                  quantity: 1,
-                  departments: [],
-                  uom: "PCS",
-                  material_name: "",
-                  material_detail: "",
-                  project_name: "",
-                },
-              ],
-            }
+            ...session,
+            items: [
+              ...session.items,
+              {
+                id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                device_name: "",
+                device_detail: "",
+                brand: "",
+                vendor: "",
+                model: "",
+                specifications: "",
+                quantity: 1,
+                departments: [],
+                uom: "PCS",
+                material_name: "",
+                material_detail: "",
+                project_name: "",
+              },
+            ],
+          }
           : session,
       ),
     );
@@ -341,11 +341,11 @@ export default function ScanningPreparationPage() {
       prev.map((session) =>
         session.id === sessionId
           ? {
-              ...session,
-              items: session.items.map((item) =>
-                item.id === itemId ? { ...item, [field]: value } : item,
-              ),
-            }
+            ...session,
+            items: session.items.map((item) =>
+              item.id === itemId ? { ...item, [field]: value } : item,
+            ),
+          }
           : session,
       ),
     );
@@ -571,7 +571,7 @@ export default function ScanningPreparationPage() {
         const isMaterial = session.formData.category_id === "2";
 
         let payload;
-        
+
         if (isMaterial) {
           // PAYLOAD UNTUK MATERIALS
           payload = {
@@ -1121,11 +1121,10 @@ export default function ScanningPreparationPage() {
                                       onClick={() =>
                                         toggleDepartmentSection(item.id)
                                       }
-                                      className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${
-                                        isExpanded
+                                      className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${isExpanded
                                           ? "bg-gray-100 text-gray-700 border border-gray-300"
                                           : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
-                                      }`}
+                                        }`}
                                     >
                                       {isExpanded
                                         ? "Close Distribution"
@@ -1185,11 +1184,10 @@ export default function ScanningPreparationPage() {
                                                     )
                                                   }
                                                   disabled={isDisabled}
-                                                  className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${
-                                                    isDisabled
+                                                  className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDisabled
                                                       ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
                                                       : "bg-white border-gray-200 text-gray-800"
-                                                  }`}
+                                                    }`}
                                                   placeholder="Qty"
                                                 />
                                               </div>
@@ -1204,13 +1202,12 @@ export default function ScanningPreparationPage() {
                                             Distribution Summary:
                                           </span>
                                           <span
-                                            className={`text-sm font-semibold ${
-                                              totalDeptQty === item.quantity
+                                            className={`text-sm font-semibold ${totalDeptQty === item.quantity
                                                 ? "text-green-600"
                                                 : totalDeptQty > 0
                                                   ? "text-blue-600"
                                                   : "text-gray-500"
-                                            }`}
+                                              }`}
                                           >
                                             {totalDeptQty} of {item.quantity}{" "}
                                             assigned
@@ -1387,11 +1384,10 @@ export default function ScanningPreparationPage() {
                                       onClick={() =>
                                         toggleDepartmentSection(item.id)
                                       }
-                                      className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${
-                                        isExpanded
+                                      className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${isExpanded
                                           ? "bg-gray-100 text-gray-700 border border-gray-300"
                                           : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
-                                      }`}
+                                        }`}
                                     >
                                       {isExpanded
                                         ? "Close Distribution"
@@ -1451,11 +1447,10 @@ export default function ScanningPreparationPage() {
                                                     )
                                                   }
                                                   disabled={isDisabled}
-                                                  className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${
-                                                    isDisabled
+                                                  className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDisabled
                                                       ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
                                                       : "bg-white border-gray-200 text-gray-800"
-                                                  }`}
+                                                    }`}
                                                   placeholder="Qty"
                                                 />
                                               </div>
@@ -1470,13 +1465,12 @@ export default function ScanningPreparationPage() {
                                             Distribution Summary:
                                           </span>
                                           <span
-                                            className={`text-sm font-semibold ${
-                                              totalDeptQty === item.quantity
+                                            className={`text-sm font-semibold ${totalDeptQty === item.quantity
                                                 ? "text-green-600"
                                                 : totalDeptQty > 0
                                                   ? "text-blue-600"
                                                   : "text-gray-500"
-                                            }`}
+                                              }`}
                                           >
                                             {totalDeptQty} of {item.quantity}{" "}
                                             assigned

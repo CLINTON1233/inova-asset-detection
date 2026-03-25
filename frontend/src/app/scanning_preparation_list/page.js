@@ -709,7 +709,7 @@ export default function ScanningPreparationListPage() {
                     </th>
                     <th className="sp-th text-left">Progress</th>
                     <th className="sp-th text-center">Actions</th>
-                   </tr>
+                  </tr>
                 </thead>
                 <tbody>
                   {filteredSessions.map((session, idx) => {
@@ -732,13 +732,12 @@ export default function ScanningPreparationListPage() {
                               </div>
                               <div className="text-xs text-gray-400 mt-0.5">
                                 <span
-                                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                    session.type === "device"
-                                      ? "bg-blue-100 text-blue-700"
-                                      : session.type === "material"
-                                        ? "bg-green-100 text-green-700"
-                                        : "bg-gray-100 text-gray-700"
-                                  }`}
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${session.type === "device"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : session.type === "material"
+                                      ? "bg-green-100 text-green-700"
+                                      : "bg-gray-100 text-gray-700"
+                                    }`}
                                 >
                                   {session.type === "device"
                                     ? "Device"
