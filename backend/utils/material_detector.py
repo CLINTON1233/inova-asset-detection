@@ -22,6 +22,8 @@ def detect_materials_from_image(image_path):
     try:
         model = init_material_detector()
         
+        print(f"Processing material image: {image_path}")  # Debugging
+        
         os.makedirs(RESULT_FOLDER, exist_ok=True)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -38,6 +40,8 @@ def detect_materials_from_image(image_path):
             imgsz=640
         )
         
+        print(f"YOLO results: {results}")  # Debugging
+        
         result_dir = os.path.join(RESULT_FOLDER, result_name)
         result_image_path = None
         
@@ -45,30 +49,37 @@ def detect_materials_from_image(image_path):
             files = [f for f in os.listdir(result_dir) if f.endswith(('.jpg', '.jpeg', '.png'))]
             if files:
                 result_image_path = os.path.join(result_dir, files[0])
+                print(f"Result image saved: {result_image_path}")  # Debugging
         
         detected_items = []
         
         for r in results:
-            for box in r.boxes:
-                cls_id = int(box.cls[0])
-                cls_name = model.names[cls_id]
-                confidence = float(box.conf[0])
-                bbox = box.xyxy[0].tolist()
-                
-                material_id = f"MAT-{unique_id}-{len(detected_items)+1:03d}"
-                
-                detected_items.append({
-                    "id": material_id,
-                    "asset_type": cls_name.capitalize(),
-                    "category": "Material",
-                    "confidence": round(confidence, 3),
-                    "scan_code": "",
-                    "bbox": bbox,
-                    "location": "",
-                    "timestamp": timestamp,
-                    "status": "material_detected",
-                    "needs_scan_code": True
-                })
+            print(f"Number of boxes detected: {len(r.boxes) if r.boxes else 0}")  # Debugging
+            if r.boxes:
+                for box in r.boxes:
+                    cls_id = int(box.cls[0])
+                    cls_name = model.names[cls_id]
+                    confidence = float(box.conf[0])
+                    bbox = box.xyxy[0].tolist()
+                    
+                    print(f"Detected: {cls_name} with confidence {confidence}")  # Debugging
+                    
+                    material_id = f"MAT-{unique_id}-{len(detected_items)+1:03d}"
+                    
+                    detected_items.append({
+                        "id": material_id,
+                        "asset_type": cls_name.capitalize(),
+                        "category": "Material",
+                        "confidence": round(confidence, 3),
+                        "scan_code": "",
+                        "bbox": bbox,
+                        "location": "",
+                        "timestamp": timestamp,
+                        "status": "material_detected",
+                        "needs_scan_code": True
+                    })
+        
+        print(f"Total materials detected: {len(detected_items)}")  # Debugging
         
         return {
             "success": True,
@@ -81,6 +92,8 @@ def detect_materials_from_image(image_path):
         
     except Exception as e:
         print(f"Material detection error: {e}")
+        import traceback
+        traceback.print_exc()  # Debugging
         return {
             "success": False,
             "detected_items": [],

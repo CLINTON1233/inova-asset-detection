@@ -149,160 +149,57 @@ export default function FullscreenCamera({
     }
   }, [selectedCamera]);
 
-  const captureAndDetect = async () => {
-    if (isDetecting || hasDetectedRef.current || !videoRef.current || !isCameraReady) return;
+const captureAndDetect = async () => {
+  if (isDetecting || hasDetectedRef.current || !videoRef.current || !isCameraReady) return;
 
-    const video = videoRef.current;
-    if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+  const video = videoRef.current;
+  if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
 
-    setIsDetecting(true);
-    hasDetectedRef.current = true;
+  setIsDetecting(true);
+  hasDetectedRef.current = true;
 
-    try {
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
 
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      const imageData = canvas.toDataURL("image/jpeg", 0.8);
+    const imageData = canvas.toDataURL("image/jpeg", 0.8);
 
-      // MODIFIKASI: Pilih endpoint berdasarkan mode
-      const endpoint =
-        mode === "device"
-          ? API_ENDPOINTS.DETECT_CAMERA
-          : mode === "material"
-          ? API_ENDPOINTS.MATERIAL_DETECT_CAMERA
-          : API_ENDPOINTS.SERIAL_DETECT_CAMERA;
+    // PERBAIKAN: Pilih endpoint berdasarkan mode
+    let endpoint;
+    if (mode === "device") {
+      endpoint = API_ENDPOINTS.DETECT_CAMERA;
+    } else if (mode === "material") {
+      endpoint = API_ENDPOINTS.MATERIAL_DETECT_CAMERA;
+    } else {
+      endpoint = API_ENDPOINTS.SERIAL_DETECT_CAMERA;
+    }
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_data: imageData }),
-      });
+    console.log("Calling endpoint:", endpoint, "with mode:", mode); // Debugging
 
-      const result = await response.json();
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image_data: imageData }),
+    });
 
-      if (result.success) {
-        // MODIFIKASI: Deteksi untuk mode device
-        if (mode === "device" && result.detected_items?.length > 0) {
-          const detectedItem = result.detected_items[0];
+    const result = await response.json();
+    console.log("Detection result:", result); // Debugging
 
-          if (sessionData) {
-            const detectedAssetType = detectedItem.asset_type?.toLowerCase() || "";
-            const detectedCategory = detectedItem.category || "";
-
-            const matchingItems = sessionData.items.filter((item) => {
-              const itemName = item.item_name?.toLowerCase() || "";
-              return (
-                itemName.includes(detectedAssetType) ||
-                detectedAssetType.includes(itemName) ||
-                (detectedCategory === "Perangkat" && itemName.includes("laptop")) ||
-                (detectedCategory === "Perangkat" && itemName.includes("pc")) ||
-                (detectedCategory === "Perangkat" && itemName.includes("komputer")) ||
-                (detectedCategory === "Perangkat" && itemName.includes("monitor")) ||
-                (detectedCategory === "Material" && itemName.includes("kabel"))
-              );
-            });
-
-            if (matchingItems.length === 0) {
-              Swal.fire({
-                title: "Item Tidak Sesuai!",
-                html: `
-                  <div class="text-center">
-                    <div class="mx-auto mb-3 w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                      <svg class="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                      </svg>
-                    </div>
-                    <p class="text-lg font-semibold text-gray-800 mb-2">Detected: ${detectedItem.asset_type}</p>
-                    <p class="text-sm text-gray-600">Item yang discan tidak sesuai dengan session ini.</p>
-                    <div class="mt-4 p-3 bg-gray-100 rounded-lg text-left">
-                      <p class="text-xs font-semibold text-gray-700 mb-2">Items in this session:</p>
-                      <ul class="text-xs text-gray-600 space-y-1">
-                        ${sessionData.items.map((item) => `<li>• ${item.item_name} (${item.brand || "No brand"})</li>`).join("")}
-                      </ul>
-                    </div>
-                  </div>
-                `,
-                icon: "warning",
-                confirmButtonText: "OK",
-                customClass: {
-                  popup: "rounded-xl",
-                  confirmButton: "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-                },
-                didClose: () => {
-                  setIsDetecting(false);
-                  hasDetectedRef.current = false;
-                },
-              });
-              return;
-            }
-          }
-
-          onDetect({
-            type: "device",
-            data: detectedItem,
-            result: result,
-          });
-
-          setTimeout(() => {
-            onClose();
-          }, 500);
-        } 
-        // MODIFIKASI: Deteksi untuk mode material
-        else if (mode === "material" && result.detected_items?.length > 0) {
+    if (result.success) {
+      // PERBAIKAN: Deteksi untuk mode material
+      if (mode === "material") {
+        if (result.detected_items && result.detected_items.length > 0) {
           const detectedItem = result.detected_items[0];
           
-          if (sessionData) {
-            const detectedAssetType = detectedItem.asset_type?.toLowerCase() || "";
-            
-            const matchingItems = sessionData.items.filter((item) => {
-              const itemName = (item.material_name || item.item_name || "")?.toLowerCase() || "";
-              return (
-                itemName.includes(detectedAssetType) ||
-                detectedAssetType.includes(itemName)
-              );
-            });
-            
-            if (matchingItems.length === 0) {
-              Swal.fire({
-                title: "Material Tidak Sesuai!",
-                html: `
-                  <div class="text-center">
-                    <div class="mx-auto mb-3 w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                      <svg class="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                      </svg>
-                    </div>
-                    <p class="text-lg font-semibold text-gray-800 mb-2">Detected: ${detectedItem.asset_type}</p>
-                    <p class="text-sm text-gray-600">Material yang discan tidak sesuai dengan session ini.</p>
-                    <div class="mt-4 p-3 bg-gray-100 rounded-lg text-left">
-                      <p class="text-xs font-semibold text-gray-700 mb-2">Materials in this session:</p>
-                      <ul class="text-xs text-gray-600 space-y-1">
-                        ${sessionData.items.map((item) => `<li>• ${item.material_name || item.item_name}</li>`).join("")}
-                      </ul>
-                    </div>
-                  </div>
-                `,
-                icon: "warning",
-                confirmButtonText: "OK",
-                customClass: {
-                  popup: "rounded-xl",
-                  confirmButton: "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-                },
-                didClose: () => {
-                  setIsDetecting(false);
-                  hasDetectedRef.current = false;
-                },
-              });
-              return;
-            }
-          }
+          // Log untuk debugging
+          console.log("Material detected:", detectedItem);
           
           onDetect({
-            type: "device", // Tetap menggunakan type "device" karena akan diproses di scanning page sebagai material
+            type: "device", // Tetap kirim sebagai "device" karena diproses di scanning page
             data: detectedItem,
             result: result,
           });
@@ -310,30 +207,65 @@ export default function FullscreenCamera({
           setTimeout(() => {
             onClose();
           }, 500);
-        } 
-        else if (mode === "serial" && result.serial_detections?.length > 0) {
-          const validSerials = result.serial_detections.filter(
-            (s) => s.is_valid,
-          );
-
-          if (validSerials.length > 0) {
-            const bestSerial = validSerials[0];
-
-            onDetect({
-              type: "serial",
-              data: bestSerial,
-              result: result,
-            });
-
-            setTimeout(() => {
-              onClose();
-            }, 500);
-          } else {
+        } else {
+          Swal.fire({
+            title: "No Material Detected",
+            text: "No material detected. Please try again with a clearer image.",
+            icon: "info",
+            confirmButtonText: "Try Again",
+            customClass: {
+              popup: "rounded-xl",
+              confirmButton: "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+            },
+            didClose: () => {
+              setIsDetecting(false);
+              hasDetectedRef.current = false;
+            },
+          });
+        }
+      } 
+      // Deteksi untuk mode device
+      else if (mode === "device" && result.detected_items?.length > 0) {
+        const detectedItem = result.detected_items[0];
+        
+        if (sessionData) {
+          const detectedAssetType = detectedItem.asset_type?.toLowerCase() || "";
+          const detectedCategory = detectedItem.category || "";
+          
+          const matchingItems = sessionData.items.filter((item) => {
+            const itemName = (item.device_name || item.item_name || "")?.toLowerCase() || "";
+            return (
+              itemName.includes(detectedAssetType) ||
+              detectedAssetType.includes(itemName) ||
+              (detectedCategory === "Perangkat" && itemName.includes("laptop")) ||
+              (detectedCategory === "Perangkat" && itemName.includes("pc")) ||
+              (detectedCategory === "Perangkat" && itemName.includes("komputer")) ||
+              (detectedCategory === "Perangkat" && itemName.includes("monitor"))
+            );
+          });
+          
+          if (matchingItems.length === 0) {
             Swal.fire({
-              title: "No Valid Serial",
-              text: "No valid serial number detected. Please try again.",
+              title: "Item Tidak Sesuai!",
+              html: `
+                <div class="text-center">
+                  <div class="mx-auto mb-3 w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                    <svg class="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                  </div>
+                  <p class="text-lg font-semibold text-gray-800 mb-2">Detected: ${detectedItem.asset_type}</p>
+                  <p class="text-sm text-gray-600">Item yang discan tidak sesuai dengan session ini.</p>
+                  <div class="mt-4 p-3 bg-gray-100 rounded-lg text-left">
+                    <p class="text-xs font-semibold text-gray-700 mb-2">Items in this session:</p>
+                    <ul class="text-xs text-gray-600 space-y-1">
+                      ${sessionData.items.map((item) => `<li>• ${item.device_name || item.item_name} (${item.brand || "No brand"})</li>`).join("")}
+                    </ul>
+                  </div>
+                </div>
+              `,
               icon: "warning",
-              confirmButtonText: "Try Again",
+              confirmButtonText: "OK",
               customClass: {
                 popup: "rounded-xl",
                 confirmButton: "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
@@ -343,16 +275,43 @@ export default function FullscreenCamera({
                 hasDetectedRef.current = false;
               },
             });
+            return;
           }
+        }
+        
+        onDetect({
+          type: "device",
+          data: detectedItem,
+          result: result,
+        });
+        
+        setTimeout(() => {
+          onClose();
+        }, 500);
+      } 
+      // Deteksi untuk mode serial
+      else if (mode === "serial" && result.serial_detections?.length > 0) {
+        const validSerials = result.serial_detections.filter(
+          (s) => s.is_valid,
+        );
+        
+        if (validSerials.length > 0) {
+          const bestSerial = validSerials[0];
+          
+          onDetect({
+            type: "serial",
+            data: bestSerial,
+            result: result,
+          });
+          
+          setTimeout(() => {
+            onClose();
+          }, 500);
         } else {
           Swal.fire({
-            title: "No Detection",
-            text: mode === "device"
-              ? "No device detected. Please try again."
-              : mode === "material"
-              ? "No material detected. Please try again."
-              : "No serial number detected. Please try again.",
-            icon: "info",
+            title: "No Valid Serial",
+            text: "No valid serial number detected. Please try again.",
+            icon: "warning",
             confirmButtonText: "Try Again",
             customClass: {
               popup: "rounded-xl",
@@ -366,10 +325,14 @@ export default function FullscreenCamera({
         }
       } else {
         Swal.fire({
-          title: "Detection Failed",
-          text: result.message || "Failed to detect",
-          icon: "error",
-          confirmButtonText: "OK",
+          title: "No Detection",
+          text: mode === "device"
+            ? "No device detected. Please try again."
+            : mode === "material"
+            ? "No material detected. Please try again."
+            : "No serial number detected. Please try again.",
+          icon: "info",
+          confirmButtonText: "Try Again",
           customClass: {
             popup: "rounded-xl",
             confirmButton: "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
@@ -380,11 +343,10 @@ export default function FullscreenCamera({
           },
         });
       }
-    } catch (error) {
-      console.error("Detection error:", error);
+    } else {
       Swal.fire({
-        title: "Error",
-        text: "Failed to connect to server",
+        title: "Detection Failed",
+        text: result.message || "Failed to detect",
         icon: "error",
         confirmButtonText: "OK",
         customClass: {
@@ -396,10 +358,27 @@ export default function FullscreenCamera({
           hasDetectedRef.current = false;
         },
       });
-    } finally {
-      setIsDetecting(false);
     }
-  };
+  } catch (error) {
+    console.error("Detection error:", error);
+    Swal.fire({
+      title: "Error",
+      text: "Failed to connect to server",
+      icon: "error",
+      confirmButtonText: "OK",
+      customClass: {
+        popup: "rounded-xl",
+        confirmButton: "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+      },
+      didClose: () => {
+        setIsDetecting(false);
+        hasDetectedRef.current = false;
+      },
+    });
+  } finally {
+    setIsDetecting(false);
+  }
+};
 
   const toggleCamera = async () => {
     setFacingMode((prev) => (prev === "environment" ? "user" : "environment"));
