@@ -296,3 +296,53 @@ def check_serial_exists():
     finally:
         if conn:
             conn.close()
+            
+@scan_results_bp.route('/api/scan-results/check-scan-code', methods=['GET'])
+def check_scan_code_exists():
+    """Memeriksa apakah scan code sudah ada di database"""
+    conn = None
+    try:
+        scan_code = request.args.get('code', '')
+        
+        if not scan_code:
+            return jsonify({
+                'success': False,
+                'exists': False,
+                'error': 'Scan code is required'
+            }), 400
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Cek di scan_results_materials
+        cur.execute("""
+            SELECT COUNT(*) FROM scan_results_materials 
+            WHERE scan_code = %s
+        """, (scan_code,))
+        material_count = cur.fetchone()[0]
+        
+        # Cek juga di materials_items_preparation yang sudah di-scan
+        cur.execute("""
+            SELECT COUNT(*) FROM materials_items_preparation 
+            WHERE scan_code = %s AND status = 'scanned'
+        """, (scan_code,))
+        item_count = cur.fetchone()[0]
+        
+        exists = material_count > 0 or item_count > 0
+        
+        return jsonify({
+            'success': True,
+            'exists': exists,
+            'message': 'Scan code check completed'
+        })
+        
+    except Exception as e:
+        print(f"Error checking scan code exists: {e}")
+        return jsonify({
+            'success': False,
+            'exists': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()

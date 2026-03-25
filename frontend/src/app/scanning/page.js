@@ -171,17 +171,17 @@ export default function SerialScanningPage() {
   };
 
   const checkScanCodeExists = async (scanCode) => {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/scan-results/check-scan-code?code=${encodeURIComponent(scanCode)}`,
-      );
-      const result = await response.json();
-      return result.exists;
-    } catch (error) {
-      console.error("Error checking scan code:", error);
-      return false;
-    }
-  };
+  try {
+    const response = await fetch(
+      API_ENDPOINTS.SCAN_RESULTS_CHECK_SCAN_CODE(scanCode)
+    );
+    const result = await response.json();
+    return result.exists;
+  } catch (error) {
+    console.error("Error checking scan code:", error);
+    return false;
+  }
+};
 
   const saveManualScanCode = async (scanCode, targetItem, availableItem) => {
     if (!scanCode || scanCode.trim() === "") {
