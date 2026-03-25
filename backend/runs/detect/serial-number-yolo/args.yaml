@@ -1,7 +1,7 @@
 task: detect
 mode: train
-model: yolov8s.pt
-data: /content/Detector-Serial-Number-12/data.yaml
+model: yolov8n.pt
+data: /content/Detector-Serial-Number-13/data.yaml
 epochs: 80
 time: null
 patience: 100
