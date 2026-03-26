@@ -172,7 +172,6 @@ def create_devices_items_preparation_table(conn):
                 user_id INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
                 item_number VARCHAR(50),
                 serial_number VARCHAR(100),
-                scan_code VARCHAR(100),
                 status VARCHAR(50) DEFAULT 'pending',
                 scanned_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
                 scanned_at TIMESTAMP,
