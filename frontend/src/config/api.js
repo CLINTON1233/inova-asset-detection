@@ -14,6 +14,10 @@ export const API_ENDPOINTS = {
   // Material Detection
   MATERIAL_DETECT_CAMERA: `${API_BASE_URL}/api/detect/material/camera`,
 
+  // Scan Code Detection 
+  SCAN_CODE_DETECT_CAMERA: `${API_BASE_URL}/api/scan-code/detect/camera`,
+  SCAN_CODE_VALIDATE: `${API_BASE_URL}/api/scan-code/validate`,
+
   // OCR
   OCR_EXTRACT_SERIAL: `${API_BASE_URL}/api/ocr/extract-serial`,
   OCR_VALIDATE_SERIAL: `${API_BASE_URL}/api/ocr/validate-serial`,

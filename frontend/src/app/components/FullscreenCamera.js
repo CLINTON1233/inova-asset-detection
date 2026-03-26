@@ -24,11 +24,15 @@ export default function FullscreenCamera({
 
   const getAvailableCameras = async () => {
     try {
-      const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
-      tempStream.getTracks().forEach(track => track.stop());
+      const tempStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+      });
+      tempStream.getTracks().forEach((track) => track.stop());
 
       const devices = await navigator.mediaDevices.enumerateDevices();
-      let videoDevices = devices.filter(device => device.kind === "videoinput");
+      let videoDevices = devices.filter(
+        (device) => device.kind === "videoinput",
+      );
 
       videoDevices = videoDevices.sort((a, b) => {
         const aLabel = a.label.toLowerCase();
@@ -49,8 +53,16 @@ export default function FullscreenCamera({
         if (isAVirtual && !isBVirtual) return 1;
         if (!isAVirtual && isBVirtual) return -1;
 
-        const aIsBuiltIn = aLabel.includes("integrated") || aLabel.includes("webcam") || aLabel.includes("hd") || aLabel.includes("camera");
-        const bIsBuiltIn = bLabel.includes("integrated") || bLabel.includes("webcam") || bLabel.includes("hd") || bLabel.includes("camera");
+        const aIsBuiltIn =
+          aLabel.includes("integrated") ||
+          aLabel.includes("webcam") ||
+          aLabel.includes("hd") ||
+          aLabel.includes("camera");
+        const bIsBuiltIn =
+          bLabel.includes("integrated") ||
+          bLabel.includes("webcam") ||
+          bLabel.includes("hd") ||
+          bLabel.includes("camera");
 
         if (aIsBuiltIn && !bIsBuiltIn) return -1;
         if (!aIsBuiltIn && bIsBuiltIn) return 1;
@@ -64,7 +76,6 @@ export default function FullscreenCamera({
         console.log("Selected default camera:", videoDevices[0].label);
         setSelectedCamera(videoDevices[0].deviceId);
       }
-
     } catch (err) {
       console.error("Failed to get camera devices:", err);
     }
@@ -72,7 +83,7 @@ export default function FullscreenCamera({
 
   const startCamera = async () => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach((track) => track.stop());
     }
 
     try {
@@ -83,7 +94,7 @@ export default function FullscreenCamera({
           video: {
             deviceId: { exact: selectedCamera },
             width: { ideal: 1280 },
-            height: { ideal: 720 }
+            height: { ideal: 720 },
           },
           audio: false,
         };
@@ -149,173 +160,289 @@ export default function FullscreenCamera({
     }
   }, [selectedCamera]);
 
-const captureAndDetect = async () => {
-  if (isDetecting || hasDetectedRef.current || !videoRef.current || !isCameraReady) return;
+  const captureAndDetect = async () => {
+    if (
+      isDetecting ||
+      hasDetectedRef.current ||
+      !videoRef.current ||
+      !isCameraReady
+    )
+      return;
 
-  const video = videoRef.current;
-  if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+    const video = videoRef.current;
+    if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
 
-  setIsDetecting(true);
-  hasDetectedRef.current = true;
+    setIsDetecting(true);
+    hasDetectedRef.current = true;
 
-  try {
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
 
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const imageData = canvas.toDataURL("image/jpeg", 0.8);
+      const imageData = canvas.toDataURL("image/jpeg", 0.8);
 
-    // PERBAIKAN: Pilih endpoint berdasarkan mode
-    let endpoint;
-    if (mode === "device") {
-      endpoint = API_ENDPOINTS.DETECT_CAMERA;
-    } else if (mode === "material") {
-      endpoint = API_ENDPOINTS.MATERIAL_DETECT_CAMERA;
-    } else {
-      endpoint = API_ENDPOINTS.SERIAL_DETECT_CAMERA;
-    }
+      // MODIFIKASI: Pilih endpoint berdasarkan mode
+      const endpoint =
+        mode === "device"
+          ? API_ENDPOINTS.DETECT_CAMERA
+          : mode === "material"
+            ? API_ENDPOINTS.MATERIAL_DETECT_CAMERA
+            : API_ENDPOINTS.SERIAL_DETECT_CAMERA;
 
-    console.log("Calling endpoint:", endpoint, "with mode:", mode); // Debugging
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_data: imageData }),
+      });
 
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image_data: imageData }),
-    });
+      const result = await response.json();
 
-    const result = await response.json();
-    console.log("Detection result:", result); // Debugging
-
-    if (result.success) {
-      // PERBAIKAN: Deteksi untuk mode material
-      if (mode === "material") {
-        if (result.detected_items && result.detected_items.length > 0) {
+      if (result.success) {
+        // MODIFIKASI: Deteksi untuk mode device
+        if (mode === "device" && result.detected_items?.length > 0) {
           const detectedItem = result.detected_items[0];
-          
-          // Log untuk debugging
-          console.log("Material detected:", detectedItem);
-          
+
+          if (sessionData) {
+            const detectedAssetType =
+              detectedItem.asset_type?.toLowerCase() || "";
+            const detectedCategory = detectedItem.category || "";
+
+            const matchingItems = sessionData.items.filter((item) => {
+              const itemName = item.item_name?.toLowerCase() || "";
+              return (
+                itemName.includes(detectedAssetType) ||
+                detectedAssetType.includes(itemName) ||
+                (detectedCategory === "Perangkat" &&
+                  itemName.includes("laptop")) ||
+                (detectedCategory === "Perangkat" && itemName.includes("pc")) ||
+                (detectedCategory === "Perangkat" &&
+                  itemName.includes("komputer")) ||
+                (detectedCategory === "Perangkat" &&
+                  itemName.includes("monitor")) ||
+                (detectedCategory === "Material" && itemName.includes("kabel"))
+              );
+            });
+
+            if (matchingItems.length === 0) {
+              Swal.fire({
+                title: "Item Tidak Sesuai!",
+                html: `
+                  <div class="text-center">
+                    <div class="mx-auto mb-3 w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                      <svg class="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                      </svg>
+                    </div>
+                    <p class="text-lg font-semibold text-gray-800 mb-2">Detected: ${detectedItem.asset_type}</p>
+                    <p class="text-sm text-gray-600">Item yang discan tidak sesuai dengan session ini.</p>
+                    <div class="mt-4 p-3 bg-gray-100 rounded-lg text-left">
+                      <p class="text-xs font-semibold text-gray-700 mb-2">Items in this session:</p>
+                      <ul class="text-xs text-gray-600 space-y-1">
+                        ${sessionData.items.map((item) => `<li>• ${item.item_name} (${item.brand || "No brand"})</li>`).join("")}
+                      </ul>
+                    </div>
+                  </div>
+                `,
+                icon: "warning",
+                confirmButtonText: "OK",
+                customClass: {
+                  popup: "rounded-xl",
+                  confirmButton:
+                    "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+                },
+                didClose: () => {
+                  setIsDetecting(false);
+                  hasDetectedRef.current = false;
+                },
+              });
+              return;
+            }
+          }
+
           onDetect({
-            type: "device", // Tetap kirim sebagai "device" karena diproses di scanning page
+            type: "device",
             data: detectedItem,
             result: result,
           });
-          
+
           setTimeout(() => {
             onClose();
           }, 500);
-        } else {
-          Swal.fire({
-            title: "No Material Detected",
-            text: "No material detected. Please try again with a clearer image.",
-            icon: "info",
-            confirmButtonText: "Try Again",
-            customClass: {
-              popup: "rounded-xl",
-              confirmButton: "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-            },
-            didClose: () => {
-              setIsDetecting(false);
-              hasDetectedRef.current = false;
-            },
-          });
         }
-      } 
-      // Deteksi untuk mode device
-      else if (mode === "device" && result.detected_items?.length > 0) {
-        const detectedItem = result.detected_items[0];
-        
-        if (sessionData) {
-          const detectedAssetType = detectedItem.asset_type?.toLowerCase() || "";
-          const detectedCategory = detectedItem.category || "";
-          
-          const matchingItems = sessionData.items.filter((item) => {
-            const itemName = (item.device_name || item.item_name || "")?.toLowerCase() || "";
-            return (
-              itemName.includes(detectedAssetType) ||
-              detectedAssetType.includes(itemName) ||
-              (detectedCategory === "Perangkat" && itemName.includes("laptop")) ||
-              (detectedCategory === "Perangkat" && itemName.includes("pc")) ||
-              (detectedCategory === "Perangkat" && itemName.includes("komputer")) ||
-              (detectedCategory === "Perangkat" && itemName.includes("monitor"))
-            );
+        // MODIFIKASI: Deteksi untuk mode material
+        else if (mode === "material" && result.detected_items?.length > 0) {
+          const detectedItem = result.detected_items[0];
+
+          if (sessionData) {
+            const detectedAssetType =
+              detectedItem.asset_type?.toLowerCase() || "";
+
+            const matchingItems = sessionData.items.filter((item) => {
+              const itemName =
+                (item.material_name || item.item_name || "")?.toLowerCase() ||
+                "";
+              return (
+                itemName.includes(detectedAssetType) ||
+                detectedAssetType.includes(itemName)
+              );
+            });
+
+            if (matchingItems.length === 0) {
+              Swal.fire({
+                title: "Material Tidak Sesuai!",
+                html: `
+                  <div class="text-center">
+                    <div class="mx-auto mb-3 w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                      <svg class="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                      </svg>
+                    </div>
+                    <p class="text-lg font-semibold text-gray-800 mb-2">Detected: ${detectedItem.asset_type}</p>
+                    <p class="text-sm text-gray-600">Material yang discan tidak sesuai dengan session ini.</p>
+                    <div class="mt-4 p-3 bg-gray-100 rounded-lg text-left">
+                      <p class="text-xs font-semibold text-gray-700 mb-2">Materials in this session:</p>
+                      <ul class="text-xs text-gray-600 space-y-1">
+                        ${sessionData.items.map((item) => `<li>• ${item.material_name || item.item_name}</li>`).join("")}
+                      </ul>
+                    </div>
+                  </div>
+                `,
+                icon: "warning",
+                confirmButtonText: "OK",
+                customClass: {
+                  popup: "rounded-xl",
+                  confirmButton:
+                    "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+                },
+                didClose: () => {
+                  setIsDetecting(false);
+                  hasDetectedRef.current = false;
+                },
+              });
+              return;
+            }
+          }
+
+          onDetect({
+            type: "device", // Tetap menggunakan type "device" karena akan diproses di scanning page sebagai material
+            data: detectedItem,
+            result: result,
           });
-          
-          if (matchingItems.length === 0) {
+
+          setTimeout(() => {
+            onClose();
+          }, 500);
+        } 
+        else if (
+          mode === "scan_code" &&
+          result.scan_code_detections?.length > 0
+        ) {
+          const validDetections = result.scan_code_detections.filter(
+            (s) => s.is_valid,
+          );
+
+          if (validDetections.length > 0) {
+            const bestDetection = validDetections[0];
+
+            onDetect({
+              type: "scan_code",
+              data: bestDetection,
+              result: result,
+            });
+
+            setTimeout(() => {
+              onClose();
+            }, 500);
+          } else if (result.scan_code_detections.length > 0) {
+            // Ada deteksi tapi tidak valid
+            const invalidDetection = result.scan_code_detections[0];
             Swal.fire({
-              title: "Item Tidak Sesuai!",
-              html: `
-                <div class="text-center">
-                  <div class="mx-auto mb-3 w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                    <svg class="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                    </svg>
-                  </div>
-                  <p class="text-lg font-semibold text-gray-800 mb-2">Detected: ${detectedItem.asset_type}</p>
-                  <p class="text-sm text-gray-600">Item yang discan tidak sesuai dengan session ini.</p>
-                  <div class="mt-4 p-3 bg-gray-100 rounded-lg text-left">
-                    <p class="text-xs font-semibold text-gray-700 mb-2">Items in this session:</p>
-                    <ul class="text-xs text-gray-600 space-y-1">
-                      ${sessionData.items.map((item) => `<li>• ${item.device_name || item.item_name} (${item.brand || "No brand"})</li>`).join("")}
-                    </ul>
-                  </div>
-                </div>
-              `,
+              title: "Invalid Scan Code",
+              html: `<p class="text-lg font-semibold text-red-600">${invalidDetection.detected_text || "Unknown"}</p>
+             <p class="text-sm text-gray-600 mt-2">${invalidDetection.validation_message || "This scan code format is not recognized."}</p>
+             <p class="text-xs text-gray-500 mt-3">Valid formats: IT-MT-XX-XXXX where XX is material code</p>`,
               icon: "warning",
-              confirmButtonText: "OK",
+              confirmButtonText: "Try Again",
               customClass: {
                 popup: "rounded-xl",
-                confirmButton: "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+                confirmButton:
+                  "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
               },
               didClose: () => {
                 setIsDetecting(false);
                 hasDetectedRef.current = false;
               },
             });
-            return;
+          } else {
+            Swal.fire({
+              title: "No Scan Code Detected",
+              text: "No scan code detected. Please try again with a clearer image.",
+              icon: "info",
+              confirmButtonText: "Try Again",
+              customClass: {
+                popup: "rounded-xl",
+                confirmButton:
+                  "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+              },
+              didClose: () => {
+                setIsDetecting(false);
+                hasDetectedRef.current = false;
+              },
+            });
           }
-        }
-        
-        onDetect({
-          type: "device",
-          data: detectedItem,
-          result: result,
-        });
-        
-        setTimeout(() => {
-          onClose();
-        }, 500);
-      } 
-      // Deteksi untuk mode serial
-      else if (mode === "serial" && result.serial_detections?.length > 0) {
-        const validSerials = result.serial_detections.filter(
-          (s) => s.is_valid,
-        );
-        
-        if (validSerials.length > 0) {
-          const bestSerial = validSerials[0];
-          
-          onDetect({
-            type: "serial",
-            data: bestSerial,
-            result: result,
-          });
-          
-          setTimeout(() => {
-            onClose();
-          }, 500);
+        } else if (mode === "serial" && result.serial_detections?.length > 0) {
+          const validSerials = result.serial_detections.filter(
+            (s) => s.is_valid,
+          );
+
+          if (validSerials.length > 0) {
+            const bestSerial = validSerials[0];
+
+            onDetect({
+              type: "serial",
+              data: bestSerial,
+              result: result,
+            });
+
+            setTimeout(() => {
+              onClose();
+            }, 500);
+          } else {
+            Swal.fire({
+              title: "No Valid Serial",
+              text: "No valid serial number detected. Please try again.",
+              icon: "warning",
+              confirmButtonText: "Try Again",
+              customClass: {
+                popup: "rounded-xl",
+                confirmButton:
+                  "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+              },
+              didClose: () => {
+                setIsDetecting(false);
+                hasDetectedRef.current = false;
+              },
+            });
+          }
         } else {
           Swal.fire({
-            title: "No Valid Serial",
-            text: "No valid serial number detected. Please try again.",
-            icon: "warning",
+            title: "No Detection",
+            text:
+              mode === "device"
+                ? "No device detected. Please try again."
+                : mode === "material"
+                  ? "No material detected. Please try again."
+                  : "No serial number detected. Please try again.",
+            icon: "info",
             confirmButtonText: "Try Again",
             customClass: {
               popup: "rounded-xl",
-              confirmButton: "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+              confirmButton:
+                "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
             },
             didClose: () => {
               setIsDetecting(false);
@@ -325,17 +452,14 @@ const captureAndDetect = async () => {
         }
       } else {
         Swal.fire({
-          title: "No Detection",
-          text: mode === "device"
-            ? "No device detected. Please try again."
-            : mode === "material"
-            ? "No material detected. Please try again."
-            : "No serial number detected. Please try again.",
-          icon: "info",
-          confirmButtonText: "Try Again",
+          title: "Detection Failed",
+          text: result.message || "Failed to detect",
+          icon: "error",
+          confirmButtonText: "OK",
           customClass: {
             popup: "rounded-xl",
-            confirmButton: "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+            confirmButton:
+              "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
           },
           didClose: () => {
             setIsDetecting(false);
@@ -343,42 +467,27 @@ const captureAndDetect = async () => {
           },
         });
       }
-    } else {
+    } catch (error) {
+      console.error("Detection error:", error);
       Swal.fire({
-        title: "Detection Failed",
-        text: result.message || "Failed to detect",
+        title: "Error",
+        text: "Failed to connect to server",
         icon: "error",
         confirmButtonText: "OK",
         customClass: {
           popup: "rounded-xl",
-          confirmButton: "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
+          confirmButton:
+            "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
         },
         didClose: () => {
           setIsDetecting(false);
           hasDetectedRef.current = false;
         },
       });
+    } finally {
+      setIsDetecting(false);
     }
-  } catch (error) {
-    console.error("Detection error:", error);
-    Swal.fire({
-      title: "Error",
-      text: "Failed to connect to server",
-      icon: "error",
-      confirmButtonText: "OK",
-      customClass: {
-        popup: "rounded-xl",
-        confirmButton: "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-      },
-      didClose: () => {
-        setIsDetecting(false);
-        hasDetectedRef.current = false;
-      },
-    });
-  } finally {
-    setIsDetecting(false);
-  }
-};
+  };
 
   const toggleCamera = async () => {
     setFacingMode((prev) => (prev === "environment" ? "user" : "environment"));
@@ -404,19 +513,23 @@ const captureAndDetect = async () => {
         </button>
 
         <div className="text-white/90 text-sm font-medium tracking-wide">
-          {mode === "device" ? "Scan Device" : mode === "material" ? "Scan Material" : "Scan Code"}
+          {mode === "device"
+            ? "Scan Device"
+            : mode === "material"
+              ? "Scan Material"
+              : "Scan Code"}
         </div>
 
         {availableCameras.length > 1 && (
           <select
             onChange={(e) => handleCameraSelect(e.target.value)}
-            value={selectedCamera || ''}
+            value={selectedCamera || ""}
             className="bg-black/40 hover:bg-black/60 backdrop-blur text-white/90 text-xs rounded-lg px-2 py-1.5 border border-white/30 focus:outline-none focus:border-blue-500 transition-all duration-200 cursor-pointer max-w-[140px] truncate"
           >
             {availableCameras.map((cam) => {
               let label = cam.label || `Camera ${cam.deviceId.slice(0, 5)}`;
               if (label.length > 20) {
-                label = label.slice(0, 18) + '...';
+                label = label.slice(0, 18) + "...";
               }
               return (
                 <option key={cam.deviceId} value={cam.deviceId}>
@@ -427,9 +540,7 @@ const captureAndDetect = async () => {
           </select>
         )}
 
-        {availableCameras.length <= 1 && (
-          <div className="w-20"></div>
-        )}
+        {availableCameras.length <= 1 && <div className="w-20"></div>}
       </div>
 
       {/* Video Preview */}
@@ -458,7 +569,9 @@ const captureAndDetect = async () => {
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
             <div className="text-center">
               <div className="w-14 h-14 border-3 border-white/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-3"></div>
-              <p className="text-white text-base font-medium tracking-wide">Mendeteksi...</p>
+              <p className="text-white text-base font-medium tracking-wide">
+                Mendeteksi...
+              </p>
             </div>
           </div>
         )}
@@ -467,7 +580,9 @@ const captureAndDetect = async () => {
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
             <div className="text-center">
               <div className="w-12 h-12 border-3 border-white/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-3"></div>
-              <p className="text-white text-sm tracking-wide">Menyalakan kamera...</p>
+              <p className="text-white text-sm tracking-wide">
+                Menyalakan kamera...
+              </p>
             </div>
           </div>
         )}
@@ -490,7 +605,9 @@ const captureAndDetect = async () => {
                   ></path>
                 </svg>
               </div>
-              <p className="text-lg font-medium text-white mb-2">Kamera Error</p>
+              <p className="text-lg font-medium text-white mb-2">
+                Kamera Error
+              </p>
               <p className="text-sm text-gray-300">{cameraError}</p>
               <button
                 onClick={onClose}
@@ -521,8 +638,8 @@ const captureAndDetect = async () => {
           {mode === "device"
             ? "Arahkan kamera ke perangkat yang akan discan"
             : mode === "material"
-            ? "Arahkan kamera ke material yang akan discan"
-            : "Arahkan kamera ke barcode atau serial number"}
+              ? "Arahkan kamera ke material yang akan discan"
+              : "Arahkan kamera ke barcode atau serial number"}
         </p>
       </div>
 

@@ -125,7 +125,8 @@ export default function ScanningPreparationListPage() {
           }
 
           // PASTIKAN TYPE TERSIMPAN DENGAN BENAR
-          const sessionType = session.type || (session.category_id === 1 ? 'device' : 'material');
+          const sessionType =
+            session.type || (session.category_id === 1 ? "device" : "material");
 
           // Tentukan display name berdasarkan tipe
           let displayName = session.checking_name;
@@ -732,12 +733,13 @@ export default function ScanningPreparationListPage() {
                               </div>
                               <div className="text-xs text-gray-400 mt-0.5">
                                 <span
-                                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${session.type === "device"
-                                    ? "bg-blue-100 text-blue-700"
-                                    : session.type === "material"
-                                      ? "bg-green-100 text-green-700"
-                                      : "bg-gray-100 text-gray-700"
-                                    }`}
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                    session.type === "device"
+                                      ? "bg-blue-100 text-blue-700"
+                                      : session.type === "material"
+                                        ? "bg-green-100 text-green-700"
+                                        : "bg-gray-100 text-gray-700"
+                                  }`}
                                 >
                                   {session.type === "device"
                                     ? "Device"
@@ -804,7 +806,7 @@ export default function ScanningPreparationListPage() {
                             <button
                               onClick={() =>
                                 router.push(
-                                  `/scanning?prep_id=${session.id_preparation}`,
+                                  `/scanning?prep_id=${session.id_preparation}&type=${session.type}`,
                                 )
                               }
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"

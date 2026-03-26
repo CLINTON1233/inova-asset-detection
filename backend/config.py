@@ -19,6 +19,7 @@ API_PORT = int(os.getenv('API_PORT', '5001'))
 DEVICE_MODEL_PATH = os.getenv('DEVICE_MODEL_PATH', 'models/devices/best.pt')
 SERIAL_MODEL_PATH = os.getenv('SERIAL_MODEL_PATH', 'models/serial-number/best.pt')
 MATERIAL_MODEL_PATH = os.getenv('MATERIAL_MODEL_PATH', 'models/materials/best.pt')
+SCAN_CODE_MODEL_PATH = os.getenv('SCAN_CODE_MODEL_PATH', 'models/scan-code/best.pt')
 
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
 RESULT_FOLDER = os.getenv('RESULT_FOLDER', 'static/results')

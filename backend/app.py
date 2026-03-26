@@ -17,6 +17,7 @@ from routes.auth import auth_bp
 from routes.detection import detection_bp
 from routes.location import location_bp
 from routes.serial_detection import serial_bp
+from routes.scan_code_detection import scan_code_bp
 from routes.serial_ocr import ocr_bp 
 from routes.scanning_preparation import scanning_prep_bp
 from routes.department import department_bp 
@@ -27,6 +28,7 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(detection_bp)
 app.register_blueprint(location_bp)
 app.register_blueprint(serial_bp)
+app.register_blueprint(scan_code_bp)
 app.register_blueprint(ocr_bp)
 app.register_blueprint(scanning_prep_bp)
 app.register_blueprint(department_bp) 
