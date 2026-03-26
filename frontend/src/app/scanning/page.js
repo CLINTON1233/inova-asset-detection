@@ -85,84 +85,85 @@ export default function SerialScanningPage() {
     </div>
   );
 
-const loadAvailableSessions = async () => {
-  setLoadingSessions(true);
-  setLoadingMessage("Loading sessions...");
+  const loadAvailableSessions = async () => {
+    setLoadingSessions(true);
+    setLoadingMessage("Loading sessions...");
 
-  try {
-    const response = await fetch(API_ENDPOINTS.SCANNING_PREP_LIST_ALL, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+    try {
+      const response = await fetch(API_ENDPOINTS.SCANNING_PREP_LIST_ALL, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const contentType = response.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-      const text = await response.text();
-      console.error("Response is not JSON:", text.substring(0, 200));
-      throw new Error("Server returned non-JSON response");
-    }
-
-    const result = await response.json();
-    console.log("Available sessions:", result);
-
-    if (result.success) {
-      // PASTIKAN SETIAP SESSION MEMILIKI TYPE
-      const sessionsWithType = result.data.map((session) => ({
-        ...session,
-        type: session.type || (session.category_id === 1 ? "device" : "material")
-      }));
-      
-      // Filter hanya session yang statusnya pending atau in-progress
-      const activeSessions = sessionsWithType.filter(
-        (s) => s.status === "pending" || s.status === "in-progress",
-      );
-      setAvailableSessions(activeSessions);
-
-      if (activeSessions.length > 0) {
-        setShowSessionSelector(true);
-      } else {
-        Swal.fire({
-          title: "No Active Sessions",
-          text: "There are no active scanning sessions. Please create a new session or select from preparation list.",
-          icon: "info",
-          confirmButtonText: "Go to Preparation List",
-          showCancelButton: true,
-          cancelButtonText: "Create New",
-        }).then((result) => {
-          if (result.isConfirmed) {
-            router.push("/scanning_preparation_list");
-          } else {
-            router.push("/create_scanning_preparation");
-          }
-        });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    } else {
-      throw new Error(
-        result.message || result.error || "Failed to load sessions",
-      );
+
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        console.error("Response is not JSON:", text.substring(0, 200));
+        throw new Error("Server returned non-JSON response");
+      }
+
+      const result = await response.json();
+      console.log("Available sessions:", result);
+
+      if (result.success) {
+        // PASTIKAN SETIAP SESSION MEMILIKI TYPE
+        const sessionsWithType = result.data.map((session) => ({
+          ...session,
+          type:
+            session.type || (session.category_id === 1 ? "device" : "material"),
+        }));
+
+        // Filter hanya session yang statusnya pending atau in-progress
+        const activeSessions = sessionsWithType.filter(
+          (s) => s.status === "pending" || s.status === "in-progress",
+        );
+        setAvailableSessions(activeSessions);
+
+        if (activeSessions.length > 0) {
+          setShowSessionSelector(true);
+        } else {
+          Swal.fire({
+            title: "No Active Sessions",
+            text: "There are no active scanning sessions. Please create a new session or select from preparation list.",
+            icon: "info",
+            confirmButtonText: "Go to Preparation List",
+            showCancelButton: true,
+            cancelButtonText: "Create New",
+          }).then((result) => {
+            if (result.isConfirmed) {
+              router.push("/scanning_preparation_list");
+            } else {
+              router.push("/create_scanning_preparation");
+            }
+          });
+        }
+      } else {
+        throw new Error(
+          result.message || result.error || "Failed to load sessions",
+        );
+      }
+    } catch (error) {
+      console.error("Failed to load sessions:", error);
+      Swal.fire({
+        title: "Error!",
+        text:
+          error.message ||
+          "Failed to load scanning sessions. Please check if backend server is running.",
+        icon: "error",
+        confirmButtonColor: "#1e40af",
+      });
+    } finally {
+      setLoadingSessions(false);
+      setLoadingMessage("");
+      setLoadingSubMessage("");
     }
-  } catch (error) {
-    console.error("Failed to load sessions:", error);
-    Swal.fire({
-      title: "Error!",
-      text:
-        error.message ||
-        "Failed to load scanning sessions. Please check if backend server is running.",
-      icon: "error",
-      confirmButtonColor: "#1e40af",
-    });
-  } finally {
-    setLoadingSessions(false);
-    setLoadingMessage("");
-    setLoadingSubMessage("");
-  }
-};
+  };
 
   const checkSerialExists = async (serialNumber) => {
     try {
@@ -292,152 +293,160 @@ const loadAvailableSessions = async () => {
     }
   }, [searchParams]);
 
-const loadPreparation = async (prepId) => {
-  setLoading(true);
-  setLoadingMessage("Loading");
+  const loadPreparation = async (prepId) => {
+    setLoading(true);
+    setLoadingMessage("Loading");
 
-  try {
-    // Pertama, coba dapatkan type dari URL parameter
-    const urlType = searchParams.get("type");
-    console.log("URL type param:", urlType);
-    
-    let response;
-    let data;
-    let prepType = null;
-    
-    // Jika ada type di URL, langsung panggil endpoint yang sesuai
-    if (urlType === "device") {
-      console.log("Loading device preparation with ID:", prepId);
-      response = await fetch(API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId));
-      data = await response.json();
-      if (data.success) {
-        prepType = "device";
-      }
-    } else if (urlType === "material") {
-      console.log("Loading material preparation with ID:", prepId);
-      response = await fetch(API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId));
-      data = await response.json();
-      if (data.success) {
-        prepType = "material";
-      }
-    }
-    
-    // Jika tidak ada type di URL atau gagal, coba deteksi otomatis
-    if (!prepType) {
-      console.log("Auto-detecting preparation type...");
-      response = await fetch(API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId));
-      data = await response.json();
-      
-      if (data.success) {
-        prepType = "device";
-      } else {
-        response = await fetch(API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId));
+    try {
+      // Pertama, coba dapatkan type dari URL parameter
+      const urlType = searchParams.get("type");
+      console.log("URL type param:", urlType);
+
+      let response;
+      let data;
+      let prepType = null;
+
+      // Jika ada type di URL, langsung panggil endpoint yang sesuai
+      if (urlType === "device") {
+        console.log("Loading device preparation with ID:", prepId);
+        response = await fetch(
+          API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId),
+        );
+        data = await response.json();
+        if (data.success) {
+          prepType = "device";
+        }
+      } else if (urlType === "material") {
+        console.log("Loading material preparation with ID:", prepId);
+        response = await fetch(
+          API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId),
+        );
         data = await response.json();
         if (data.success) {
           prepType = "material";
         }
       }
-    }
 
-    if (data && data.success && prepType) {
-      console.log("Loaded preparation type:", prepType);
-      console.log("Loaded data:", data.data);
-      
-      setCurrentPreparation({ ...data.data, type: prepType });
-
-      let progressResponse;
-      if (prepType === "device") {
-        progressResponse = await fetch(
-          API_ENDPOINTS.DEVICES_SCANNING_PREP_PROGRESS(prepId),
+      // Jika tidak ada type di URL atau gagal, coba deteksi otomatis
+      if (!prepType) {
+        console.log("Auto-detecting preparation type...");
+        response = await fetch(
+          API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId),
         );
-      } else {
-        progressResponse = await fetch(
-          API_ENDPOINTS.MATERIALS_SCANNING_PREP_PROGRESS(prepId),
-        );
-      }
-      const progressData = await progressResponse.json();
+        data = await response.json();
 
-      const progress = {};
-      if (progressData.success) {
-        progressData.data.progress.forEach((item) => {
-          progress[item.id_item] = {
-            total: item.quantity,
-            scanned: item.scanned,
-            items: [],
-            item_name: item.item_name,
-            brand: item.brand,
-            model: item.model,
-            uom: item.uom,
-          };
-        });
-      }
-
-      const scannedItems = [];
-      if (progressData.success && progressData.data.scan_results) {
-        progressData.data.scan_results.forEach((scan) => {
-          const item = data.data.items.find(
-            (i) => i.id_item === scan.scanning_item_id,
+        if (data.success) {
+          prepType = "device";
+        } else {
+          response = await fetch(
+            API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId),
           );
+          data = await response.json();
+          if (data.success) {
+            prepType = "material";
+          }
+        }
+      }
 
-          scannedItems.push({
-            id: scan.id_scan,
-            jenisAset:
-              scan.scan_value ||
-              (item ? item.device_name || item.material_name : "Unknown"),
-            kategori: prepType === "device" ? "Perangkat" : "Material",
-            brand: item ? item.brand || "N/A" : "Unknown",
-            confidencePercent: 85,
-            status:
-              scan.serial_number || scan.scan_code
-                ? "serial_scanned"
-                : scan.status === "completed"
-                  ? "Submitted"
-                  : "device_detected",
-            nomorSeri: scan.serial_number || scan.scan_code || "",
-            timestamp: scan.scanned_at,
-            tanggal: scan.scanned_at
-              ? new Date(scan.scanned_at).toLocaleDateString("id-ID")
-              : new Date().toLocaleDateString("id-ID"),
-            waktu: scan.scanned_at
-              ? new Date(scan.scanned_at).toLocaleTimeString("id-ID")
-              : new Date().toLocaleTimeString("id-ID"),
-            item_id: scan.scanning_item_id,
-            preparation_id: parseInt(prepId),
-            preparation_name: data.data.checking_name,
-            lokasi: data.data.location_name,
-            lokasiLabel: data.data.location_name,
-            scan_id: scan.id_scan,
-            item_preparation_id: scan.item_preparation_id,
-            submitted: scan.status === "completed",
+      if (data && data.success && prepType) {
+        console.log("Loaded preparation type:", prepType);
+        console.log("Loaded data:", data.data);
+
+        setCurrentPreparation({ ...data.data, type: prepType });
+
+        let progressResponse;
+        if (prepType === "device") {
+          progressResponse = await fetch(
+            API_ENDPOINTS.DEVICES_SCANNING_PREP_PROGRESS(prepId),
+          );
+        } else {
+          progressResponse = await fetch(
+            API_ENDPOINTS.MATERIALS_SCANNING_PREP_PROGRESS(prepId),
+          );
+        }
+        const progressData = await progressResponse.json();
+
+        const progress = {};
+        if (progressData.success) {
+          progressData.data.progress.forEach((item) => {
+            progress[item.id_item] = {
+              total: item.quantity,
+              scanned: item.scanned,
+              items: [],
+              item_name: item.item_name,
+              brand: item.brand,
+              model: item.model,
+              uom: item.uom,
+            };
           });
-        });
-      }
+        }
 
-      setScanningProgress(progress);
+        const scannedItems = [];
+        if (progressData.success && progressData.data.scan_results) {
+          progressData.data.scan_results.forEach((scan) => {
+            const item = data.data.items.find(
+              (i) => i.id_item === scan.scanning_item_id,
+            );
 
-      if (scannedItems.length > 0) {
-        setCheckHistory(scannedItems);
-        localStorage.setItem(
-          "scanCheckHistory",
-          JSON.stringify(scannedItems),
-        );
+            scannedItems.push({
+              id: scan.id_scan,
+              jenisAset:
+                scan.scan_value ||
+                (item ? item.device_name || item.material_name : "Unknown"),
+              kategori: prepType === "device" ? "Perangkat" : "Material",
+              brand: item ? item.brand || "N/A" : "Unknown",
+              confidencePercent: 85,
+              status:
+                scan.serial_number || scan.scan_code
+                  ? "serial_scanned"
+                  : scan.status === "completed"
+                    ? "Submitted"
+                    : "device_detected",
+              nomorSeri: scan.serial_number || scan.scan_code || "",
+              timestamp: scan.scanned_at,
+              tanggal: scan.scanned_at
+                ? new Date(scan.scanned_at).toLocaleDateString("id-ID")
+                : new Date().toLocaleDateString("id-ID"),
+              waktu: scan.scanned_at
+                ? new Date(scan.scanned_at).toLocaleTimeString("id-ID")
+                : new Date().toLocaleTimeString("id-ID"),
+              item_id: scan.scanning_item_id,
+              preparation_id: parseInt(prepId),
+              preparation_name: data.data.checking_name,
+              lokasi: data.data.location_name,
+              lokasiLabel: data.data.location_name,
+              scan_id: scan.id_scan,
+              item_preparation_id: scan.item_preparation_id,
+              submitted: scan.status === "completed",
+            });
+          });
+        }
+
+        setScanningProgress(progress);
+
+        if (scannedItems.length > 0) {
+          setCheckHistory(scannedItems);
+          localStorage.setItem(
+            "scanCheckHistory",
+            JSON.stringify(scannedItems),
+          );
+        }
+      } else {
+        throw new Error("Preparation not found");
       }
-    } else {
-      throw new Error("Preparation not found");
+    } catch (error) {
+      console.error("Error loading preparation:", error);
+      Swal.fire({
+        title: "Error!",
+        text: "Failed to load scanning session",
+        icon: "error",
+      }).then(() => router.push("/scanning"));
+    } finally {
+      setLoading(false);
+      setLoadingMessage("");
+      setLoadingSubMessage("");
     }
-  } catch (error) {
-    console.error("Error loading preparation:", error);
-    Swal.fire({
-      title: "Error!",
-      text: "Failed to load scanning session",
-      icon: "error",
-    }).then(() => router.push("/scanning"));
-  } finally {
-    setLoading(false);
-    setLoadingMessage("");
-    setLoadingSubMessage("");
-  }
-};
+  };
 
   const validateScanCodeFormat = async (scanCode, materialType) => {
     try {
@@ -457,41 +466,47 @@ const loadPreparation = async (prepId) => {
     }
   };
 
-const handleCameraDetection = async (detection) => {
-  if (detection.type === "device") {
-    const deviceData = detection.data;
-    if (currentPreparation) {
-      const isMaterialSession = currentPreparation.type === "material";
-      const detectedAssetType = deviceData.asset_type?.toLowerCase() || "";
-      const detectedCategory = deviceData.category || "";
+  const handleCameraDetection = async (detection) => {
+    if (detection.type === "device") {
+      const deviceData = detection.data;
+      if (currentPreparation) {
+        const isMaterialSession = currentPreparation.type === "material";
+        const detectedAssetType = deviceData.asset_type?.toLowerCase() || "";
+        const detectedCategory = deviceData.category || "";
 
-      // PERBAIKAN: Matching berdasarkan item_name yang ada di preparation
-      let matchingItems = [];
+        // PERBAIKAN: Matching berdasarkan item_name yang ada di preparation
+        let matchingItems = [];
 
-      if (isMaterialSession) {
-        // Untuk material, cari berdasarkan material_name
-        matchingItems = currentPreparation.items.filter((item) => {
-          const itemName = (item.material_name || item.item_name || "")?.toLowerCase() || "";
-          // Cocokkan persis dengan nama item yang ada di preparation
-          return itemName === detectedAssetType || 
-                 itemName.includes(detectedAssetType) ||
-                 detectedAssetType.includes(itemName);
-        });
-      } else {
-        // Untuk device, cari berdasarkan device_name
-        matchingItems = currentPreparation.items.filter((item) => {
-          const itemName = (item.device_name || item.item_name || "")?.toLowerCase() || "";
-          return itemName === detectedAssetType ||
-                 itemName.includes(detectedAssetType) ||
-                 detectedAssetType.includes(itemName);
-        });
-      }
+        if (isMaterialSession) {
+          // Untuk material, cari berdasarkan material_name
+          matchingItems = currentPreparation.items.filter((item) => {
+            const itemName =
+              (item.material_name || item.item_name || "")?.toLowerCase() || "";
+            // Cocokkan persis dengan nama item yang ada di preparation
+            return (
+              itemName === detectedAssetType ||
+              itemName.includes(detectedAssetType) ||
+              detectedAssetType.includes(itemName)
+            );
+          });
+        } else {
+          // Untuk device, cari berdasarkan device_name
+          matchingItems = currentPreparation.items.filter((item) => {
+            const itemName =
+              (item.device_name || item.item_name || "")?.toLowerCase() || "";
+            return (
+              itemName === detectedAssetType ||
+              itemName.includes(detectedAssetType) ||
+              detectedAssetType.includes(itemName)
+            );
+          });
+        }
 
-      if (matchingItems.length === 0) {
-        // Tampilkan pesan bahwa item tidak sesuai dengan session
-        Swal.fire({
-          title: "Item Not Found in Session!",
-          html: `
+        if (matchingItems.length === 0) {
+          // Tampilkan pesan bahwa item tidak sesuai dengan session
+          Swal.fire({
+            title: "Item Not Found in Session!",
+            html: `
             <div class="text-center">
               <p class="text-lg font-semibold text-red-600 mb-2">Detected: ${deviceData.asset_type}</p>
               <p class="text-sm text-gray-600">This item is not listed in the current scanning session.</p>
@@ -503,369 +518,369 @@ const handleCameraDetection = async (detection) => {
               </div>
             </div>
           `,
-          icon: "error",
-          confirmButtonText: "OK",
-        });
-        return;
-      }
-
-      const targetItem = matchingItems[0];
-      const progress = scanningProgress[targetItem.id_item];
-
-      if (progress && progress.scanned >= progress.total) {
-        Swal.fire({
-          title: "Kuota Penuh",
-          text: `Target ${targetItem.device_name || targetItem.material_name} sudah tercapai`,
-          icon: "warning",
-        });
-        return;
-      }
-
-      let availableItem = null;
-      try {
-        const isDevicePrep = currentPreparation.type === "device";
-        const endpoint = isDevicePrep
-          ? API_ENDPOINTS.DEVICES_ITEMS_PREPARATION_AVAILABLE(
-              currentPreparation.id_preparation,
-              targetItem.id_item,
-            )
-          : API_ENDPOINTS.MATERIALS_ITEMS_PREPARATION_AVAILABLE(
-              currentPreparation.id_preparation,
-              targetItem.id_item,
-            );
-
-        const response = await fetch(endpoint);
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          if (errorData.all_scanned) {
-            Swal.fire({
-              title: "Kuota Penuh",
-              text: `Target ${targetItem.device_name || targetItem.material_name} sudah tercapai (semua item sudah di-scan)`,
-              icon: "warning",
-            });
-            return;
-          }
-          throw new Error(errorData.error || "No available item");
-        }
-
-        const result = await response.json();
-        if (result.success && result.data) {
-          availableItem = result.data;
-        }
-      } catch (error) {
-        console.error("Error fetching available item:", error);
-        if (error.message === "No available item") {
-          Swal.fire({
-            title: "No Items Left",
-            text: `No remaining items for ${targetItem.device_name || targetItem.material_name} to scan`,
-            icon: "info",
+            icon: "error",
+            confirmButtonText: "OK",
           });
           return;
         }
-      }
 
-      const isDevice = currentPreparation.type === "device";
-      const createEndpoint = isDevice
-        ? API_ENDPOINTS.SCAN_RESULTS_CREATE_DEVICE
-        : API_ENDPOINTS.SCAN_RESULTS_CREATE_MATERIAL;
+        const targetItem = matchingItems[0];
+        const progress = scanningProgress[targetItem.id_item];
 
-      const scanResultData = {
-        item_preparation_id: availableItem?.id_item_preparation || null,
-        user_id: 1,
-        scan_category: isDevice ? "Devices" : "Materials",
-        scan_value: deviceData.asset_type,
-        ...(isDevice ? { serial_number: null } : { scan_code: null }),
-        detection_data: {
-          bounding_box: deviceData.bounding_box || null,
-          photo_proof: deviceData.photo_proof || null,
-          confidence: deviceData.confidence || 0.85,
-          asset_type: deviceData.asset_type,
-          category: deviceData.category,
-        },
-        status: "pending",
-        notes: `${isDevice ? "Device" : "Material"} detected: ${deviceData.asset_type}`,
-      };
-
-      const savedResult = await saveScanResult(scanResultData, isDevice);
-
-      const scanItem = {
-        id:
-          deviceData.id ||
-          `SCAN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        jenisAset:
-          targetItem.device_name ||
-          targetItem.material_name ||
-          deviceData.asset_type,
-        kategori: isDevice ? "Perangkat" : "Material",
-        brand: targetItem.brand || deviceData.brand || "Unknown",
-        confidencePercent: Math.round((deviceData.confidence || 0.85) * 100),
-        status: "device_detected",
-        timestamp: new Date().toISOString(),
-        tanggal: new Date().toLocaleDateString("id-ID"),
-        waktu: new Date().toLocaleTimeString("id-ID", {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        }),
-        needsSerialScan: isDevice,
-        item_id: targetItem.id_item,
-        preparation_id: currentPreparation?.id_preparation,
-        preparation_name: currentPreparation?.checking_name,
-        lokasi: currentPreparation?.location_name || "",
-        lokasiLabel: currentPreparation?.location_name || "",
-        scan_id: savedResult.success ? savedResult.scan_id : null,
-        item_preparation_id: availableItem?.id_item_preparation || null,
-      };
-
-      setPendingDevice(scanItem);
-      setCheckHistory((prev) => [scanItem, ...prev]);
-      setScanningProgress((prev) => {
-        const np = { ...prev };
-        if (np[targetItem.id_item]) {
-          np[targetItem.id_item] = {
-            ...np[targetItem.id_item],
-            scanned: Math.min(
-              np[targetItem.id_item].scanned + 1,
-              np[targetItem.id_item].total,
-            ),
-            items: [...(np[targetItem.id_item].items || []), scanItem.id],
-          };
+        if (progress && progress.scanned >= progress.total) {
+          Swal.fire({
+            title: "Kuota Penuh",
+            text: `Target ${targetItem.device_name || targetItem.material_name} sudah tercapai`,
+            icon: "warning",
+          });
+          return;
         }
-        return np;
-      });
 
-      const itemName = targetItem.device_name || targetItem.material_name;
+        let availableItem = null;
+        try {
+          const isDevicePrep = currentPreparation.type === "device";
+          const endpoint = isDevicePrep
+            ? API_ENDPOINTS.DEVICES_ITEMS_PREPARATION_AVAILABLE(
+                currentPreparation.id_preparation,
+                targetItem.id_item,
+              )
+            : API_ENDPOINTS.MATERIALS_ITEMS_PREPARATION_AVAILABLE(
+                currentPreparation.id_preparation,
+                targetItem.id_item,
+              );
 
-      if (isDevice) {
-        Swal.fire({
-          title: "Device Detected!",
-          html: `<p class="text-lg font-semibold">${itemName}</p>
+          const response = await fetch(endpoint);
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            if (errorData.all_scanned) {
+              Swal.fire({
+                title: "Kuota Penuh",
+                text: `Target ${targetItem.device_name || targetItem.material_name} sudah tercapai (semua item sudah di-scan)`,
+                icon: "warning",
+              });
+              return;
+            }
+            throw new Error(errorData.error || "No available item");
+          }
+
+          const result = await response.json();
+          if (result.success && result.data) {
+            availableItem = result.data;
+          }
+        } catch (error) {
+          console.error("Error fetching available item:", error);
+          if (error.message === "No available item") {
+            Swal.fire({
+              title: "No Items Left",
+              text: `No remaining items for ${targetItem.device_name || targetItem.material_name} to scan`,
+              icon: "info",
+            });
+            return;
+          }
+        }
+
+        const isDevice = currentPreparation.type === "device";
+        const createEndpoint = isDevice
+          ? API_ENDPOINTS.SCAN_RESULTS_CREATE_DEVICE
+          : API_ENDPOINTS.SCAN_RESULTS_CREATE_MATERIAL;
+
+        const scanResultData = {
+          item_preparation_id: availableItem?.id_item_preparation || null,
+          user_id: 1,
+          scan_category: isDevice ? "Devices" : "Materials",
+          scan_value: deviceData.asset_type,
+          ...(isDevice ? { serial_number: null } : { scan_code: null }),
+          detection_data: {
+            bounding_box: deviceData.bounding_box || null,
+            photo_proof: deviceData.photo_proof || null,
+            confidence: deviceData.confidence || 0.85,
+            asset_type: deviceData.asset_type,
+            category: deviceData.category,
+          },
+          status: "pending",
+          notes: `${isDevice ? "Device" : "Material"} detected: ${deviceData.asset_type}`,
+        };
+
+        const savedResult = await saveScanResult(scanResultData, isDevice);
+
+        const scanItem = {
+          id:
+            deviceData.id ||
+            `SCAN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          jenisAset:
+            targetItem.device_name ||
+            targetItem.material_name ||
+            deviceData.asset_type,
+          kategori: isDevice ? "Perangkat" : "Material",
+          brand: targetItem.brand || deviceData.brand || "Unknown",
+          confidencePercent: Math.round((deviceData.confidence || 0.85) * 100),
+          status: "device_detected",
+          timestamp: new Date().toISOString(),
+          tanggal: new Date().toLocaleDateString("id-ID"),
+          waktu: new Date().toLocaleTimeString("id-ID", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          }),
+          needsSerialScan: isDevice,
+          item_id: targetItem.id_item,
+          preparation_id: currentPreparation?.id_preparation,
+          preparation_name: currentPreparation?.checking_name,
+          lokasi: currentPreparation?.location_name || "",
+          lokasiLabel: currentPreparation?.location_name || "",
+          scan_id: savedResult.success ? savedResult.scan_id : null,
+          item_preparation_id: availableItem?.id_item_preparation || null,
+        };
+
+        setPendingDevice(scanItem);
+        setCheckHistory((prev) => [scanItem, ...prev]);
+        setScanningProgress((prev) => {
+          const np = { ...prev };
+          if (np[targetItem.id_item]) {
+            np[targetItem.id_item] = {
+              ...np[targetItem.id_item],
+              scanned: Math.min(
+                np[targetItem.id_item].scanned + 1,
+                np[targetItem.id_item].total,
+              ),
+              items: [...(np[targetItem.id_item].items || []), scanItem.id],
+            };
+          }
+          return np;
+        });
+
+        const itemName = targetItem.device_name || targetItem.material_name;
+
+        if (isDevice) {
+          Swal.fire({
+            title: "Device Detected!",
+            html: `<p class="text-lg font-semibold">${itemName}</p>
                  <p class="text-sm text-gray-600">Brand: ${targetItem.brand || "Unknown"} &nbsp;|&nbsp; Confidence: ${Math.round((deviceData.confidence || 0.85) * 100)}%</p>
                  <p class="text-sm text-blue-600 mt-2">Scan serial number?</p>`,
-          icon: "success",
-          showCancelButton: true,
-          confirmButtonText: "Scan Serial",
-          cancelButtonText: "Skip",
-        }).then((result) => {
-          if (result.isConfirmed) {
-            setCameraMode("serial");
-            setIsCameraOpen(true);
-          } else if (result.dismiss === Swal.DismissReason.cancel) {
-            setIsCameraOpen(false);
-            if (scanItem.scan_id) {
-              const updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(
-                scanItem.scan_id,
+            icon: "success",
+            showCancelButton: true,
+            confirmButtonText: "Scan Serial",
+            cancelButtonText: "Skip",
+          }).then((result) => {
+            if (result.isConfirmed) {
+              setCameraMode("serial");
+              setIsCameraOpen(true);
+            } else if (result.dismiss === Swal.DismissReason.cancel) {
+              setIsCameraOpen(false);
+              if (scanItem.scan_id) {
+                const updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(
+                  scanItem.scan_id,
+                );
+                fetch(updateEndpoint, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    status: "completed",
+                    notes: "Device detected, serial scan skipped",
+                  }),
+                });
+              }
+            }
+          });
+        } else {
+          Swal.fire({
+            title: "Material Detected!",
+            html: `<p class="text-lg font-semibold">${itemName}</p>
+           <p class="text-sm text-gray-600">Vendor: ${targetItem.vendor || "Unknown"} &nbsp;|&nbsp; UOM: ${targetItem.uom || "PCS"}</p>
+           <p class="text-sm text-green-600 mt-2">Scan the scan code?</p>`,
+            icon: "success",
+            showCancelButton: true,
+            confirmButtonText: "Scan Code",
+            cancelButtonText: "Skip",
+          }).then((result) => {
+            if (result.isConfirmed) {
+              setCameraMode("scan_code");
+              setIsCameraOpen(true);
+            } else {
+              setIsCameraOpen(false);
+              if (scanItem.scan_id) {
+                const updateEndpoint =
+                  API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(scanItem.scan_id);
+                fetch(updateEndpoint, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    status: "completed",
+                    notes: "Material detected, scan code skipped",
+                  }),
+                });
+              }
+            }
+          });
+        }
+      }
+    } else if (detection.type === "serial") {
+      const serialData = detection.data;
+      const targetItem = selectedItemForSerial || pendingDevice;
+
+      if (targetItem) {
+        const exists = await checkSerialExists(serialData.detected_text);
+        if (exists) {
+          Swal.fire({
+            title: "Serial Number Already Exists!",
+            text: `Serial number "${serialData.detected_text}" has already been used. Please use a different serial number.`,
+            icon: "warning",
+          });
+          setIsCameraOpen(false);
+          setSelectedItemForSerial(null);
+          return;
+        }
+
+        if (targetItem.scan_id) {
+          const updateData = {
+            serial_number: serialData.detected_text,
+            status: "serial_scanned",
+            scanned_by: 1,
+            scanned_at: new Date().toISOString(),
+            notes: `Serial number detected: ${serialData.detected_text}`,
+          };
+
+          try {
+            await fetch(
+              API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(targetItem.scan_id),
+              {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(updateData),
+              },
+            );
+
+            if (targetItem.item_preparation_id) {
+              await fetch(
+                `${API_BASE_URL}/api/devices/items-preparation/${targetItem.item_preparation_id}`,
+                {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ status: "scanned" }),
+                },
               );
-              fetch(updateEndpoint, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  status: "completed",
-                  notes: "Device detected, serial scan skipped",
-                }),
-              });
             }
-          }
-        });
-      } else {
-        Swal.fire({
-          title: "Material Detected!",
-          html: `<p class="text-lg font-semibold">${itemName}</p>
-                 <p class="text-sm text-gray-600">Vendor: ${targetItem.vendor || "Unknown"} &nbsp;|&nbsp; UOM: ${targetItem.uom || "PCS"}</p>
-                 <p class="text-sm text-green-600 mt-2">Scan the scan code?</p>`,
-          icon: "success",
-          showCancelButton: true,
-          confirmButtonText: "Scan Code",
-          cancelButtonText: "Skip",
-        }).then((result) => {
-          if (result.isConfirmed) {
-            setCameraMode("scan_code");
-            setIsCameraOpen(true);
-          } else {
-            setIsCameraOpen(false);
-            if (scanItem.scan_id) {
-              const updateEndpoint =
-                API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(scanItem.scan_id);
-              fetch(updateEndpoint, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  status: "completed",
-                  notes: "Material detected, scan code skipped",
-                }),
-              });
-            }
-          }
-        });
-      }
-    }
-  } else if (detection.type === "serial") {
-    const serialData = detection.data;
-    const targetItem = selectedItemForSerial || pendingDevice;
 
-    if (targetItem) {
-      const exists = await checkSerialExists(serialData.detected_text);
-      if (exists) {
-        Swal.fire({
-          title: "Serial Number Already Exists!",
-          text: `Serial number "${serialData.detected_text}" has already been used. Please use a different serial number.`,
-          icon: "warning",
-        });
-        setIsCameraOpen(false);
-        setSelectedItemForSerial(null);
-        return;
-      }
-
-      if (targetItem.scan_id) {
-        const updateData = {
-          serial_number: serialData.detected_text,
-          status: "serial_scanned",
-          scanned_by: 1,
-          scanned_at: new Date().toISOString(),
-          notes: `Serial number detected: ${serialData.detected_text}`,
-        };
-
-        try {
-          await fetch(
-            API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(targetItem.scan_id),
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(updateData),
-            },
-          );
-
-          if (targetItem.item_preparation_id) {
-            await fetch(
-              `${API_BASE_URL}/api/devices/items-preparation/${targetItem.item_preparation_id}`,
-              {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status: "scanned" }),
-              },
-            );
-          }
-
-          setCheckHistory((prev) =>
-            prev.map((item) =>
-              item.id === targetItem.id
-                ? {
-                    ...item,
-                    nomorSeri: serialData.detected_text,
-                    status: "serial_scanned",
-                    confidencePercent: Math.round(
-                      (serialData.confidence || 0.9) * 100,
-                    ),
-                  }
-                : item,
-            ),
-          );
-
-          Swal.fire({
-            title: "Serial Detected!",
-            html: `<p class="text-xl font-mono text-blue-600 font-bold">${serialData.detected_text}</p><p class="text-sm text-gray-500 mt-2">Serial number saved successfully!</p>`,
-            icon: "success",
-          });
-        } catch (error) {
-          console.error("Error updating scan result:", error);
-          Swal.fire({
-            title: "Error!",
-            text: "Failed to save serial number",
-            icon: "error",
-          });
-        }
-      }
-
-      setPendingDevice(null);
-      setSelectedItemForSerial(null);
-      setIsCameraOpen(false);
-    }
-  } else if (detection.type === "scan_code") {
-    const scanCodeData = detection.data;
-    const targetItem = selectedItemForSerial || pendingDevice;
-
-    if (targetItem) {
-      const exists = await checkScanCodeExists(scanCodeData.detected_text);
-      if (exists) {
-        Swal.fire({
-          title: "Scan Code Already Exists!",
-          text: `Scan code "${scanCodeData.detected_text}" has already been used. Please use a different code.`,
-          icon: "warning",
-        });
-        setIsCameraOpen(false);
-        setSelectedItemForSerial(null);
-        return;
-      }
-
-      if (targetItem.scan_id) {
-        const updateData = {
-          scan_code: scanCodeData.detected_text,
-          status: "serial_scanned",
-          scanned_by: 1,
-          scanned_at: new Date().toISOString(),
-          notes: `Scan code detected: ${scanCodeData.detected_text}`,
-        };
-
-        try {
-          await fetch(
-            API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(targetItem.scan_id),
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(updateData),
-            },
-          );
-
-          if (targetItem.item_preparation_id) {
-            await fetch(
-              API_ENDPOINTS.MATERIALS_ITEMS_PREPARATION_UPDATE(
-                targetItem.item_preparation_id,
+            setCheckHistory((prev) =>
+              prev.map((item) =>
+                item.id === targetItem.id
+                  ? {
+                      ...item,
+                      nomorSeri: serialData.detected_text,
+                      status: "serial_scanned",
+                      confidencePercent: Math.round(
+                        (serialData.confidence || 0.9) * 100,
+                      ),
+                    }
+                  : item,
               ),
+            );
+
+            Swal.fire({
+              title: "Serial Detected!",
+              html: `<p class="text-xl font-mono text-blue-600 font-bold">${serialData.detected_text}</p><p class="text-sm text-gray-500 mt-2">Serial number saved successfully!</p>`,
+              icon: "success",
+            });
+          } catch (error) {
+            console.error("Error updating scan result:", error);
+            Swal.fire({
+              title: "Error!",
+              text: "Failed to save serial number",
+              icon: "error",
+            });
+          }
+        }
+
+        setPendingDevice(null);
+        setSelectedItemForSerial(null);
+        setIsCameraOpen(false);
+      }
+    } else if (detection.type === "scan_code") {
+      const scanCodeData = detection.data;
+      const targetItem = selectedItemForSerial || pendingDevice;
+
+      if (targetItem) {
+        const exists = await checkScanCodeExists(scanCodeData.detected_text);
+        if (exists) {
+          Swal.fire({
+            title: "Scan Code Already Exists!",
+            text: `Scan code "${scanCodeData.detected_text}" has already been used. Please use a different code.`,
+            icon: "warning",
+          });
+          setIsCameraOpen(false);
+          setSelectedItemForSerial(null);
+          return;
+        }
+
+        if (targetItem.scan_id) {
+          const updateData = {
+            scan_code: scanCodeData.detected_text,
+            status: "serial_scanned",
+            scanned_by: 1,
+            scanned_at: new Date().toISOString(),
+            notes: `Scan code detected: ${scanCodeData.detected_text}`,
+          };
+
+          try {
+            await fetch(
+              API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(targetItem.scan_id),
               {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status: "scanned" }),
+                body: JSON.stringify(updateData),
               },
             );
+
+            if (targetItem.item_preparation_id) {
+              await fetch(
+                API_ENDPOINTS.MATERIALS_ITEMS_PREPARATION_UPDATE(
+                  targetItem.item_preparation_id,
+                ),
+                {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ status: "scanned" }),
+                },
+              );
+            }
+
+            setCheckHistory((prev) =>
+              prev.map((item) =>
+                item.id === targetItem.id
+                  ? {
+                      ...item,
+                      nomorSeri: scanCodeData.detected_text,
+                      status: "serial_scanned",
+                      confidencePercent: Math.round(
+                        (scanCodeData.confidence || 0.9) * 100,
+                      ),
+                    }
+                  : item,
+              ),
+            );
+
+            Swal.fire({
+              title: "Scan Code Detected!",
+              html: `<p class="text-xl font-mono text-green-600 font-bold">${scanCodeData.detected_text}</p><p class="text-sm text-gray-500 mt-2">Scan code saved successfully!</p>`,
+              icon: "success",
+            });
+          } catch (error) {
+            console.error("Error updating scan result:", error);
+            Swal.fire({
+              title: "Error!",
+              text: "Failed to save scan code",
+              icon: "error",
+            });
           }
-
-          setCheckHistory((prev) =>
-            prev.map((item) =>
-              item.id === targetItem.id
-                ? {
-                    ...item,
-                    nomorSeri: scanCodeData.detected_text,
-                    status: "serial_scanned",
-                    confidencePercent: Math.round(
-                      (scanCodeData.confidence || 0.9) * 100,
-                    ),
-                  }
-                : item,
-            ),
-          );
-
-          Swal.fire({
-            title: "Scan Code Detected!",
-            html: `<p class="text-xl font-mono text-green-600 font-bold">${scanCodeData.detected_text}</p><p class="text-sm text-gray-500 mt-2">Scan code saved successfully!</p>`,
-            icon: "success",
-          });
-        } catch (error) {
-          console.error("Error updating scan result:", error);
-          Swal.fire({
-            title: "Error!",
-            text: "Failed to save scan code",
-            icon: "error",
-          });
         }
-      }
 
-      setPendingDevice(null);
-      setSelectedItemForSerial(null);
-      setIsCameraOpen(false);
+        setPendingDevice(null);
+        setSelectedItemForSerial(null);
+        setIsCameraOpen(false);
+      }
     }
-  }
-};
+  };
 
   const saveScanResult = async (scanData, isDevice = true) => {
     try {
@@ -1560,179 +1575,183 @@ const handleCameraDetection = async (detection) => {
   const overallPct =
     totalTarget > 0 ? Math.round((totalScanned / totalTarget) * 100) : 0;
 
-const SessionSelectorModal = () => {
-  if (!showSessionSelector) return null;
+  const SessionSelectorModal = () => {
+    if (!showSessionSelector) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-xl">
-        <div className="p-5 border-b border-gray-100 flex justify-between items-center">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Select Scanning Session
-          </h2>
-          <button
-            onClick={() => setShowSessionSelector(false)}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-xl">
+          <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Select Scanning Session
+            </h2>
+            <button
+              onClick={() => setShowSessionSelector(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
-        <div className="p-5 overflow-y-auto max-h-[60vh]">
-          {loadingSessions ? (
-            <div className="py-12 text-center">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-sm text-gray-600 font-medium">Loading</p>
-            </div>
-          ) : availableSessions.length === 0 ? (
-            <div className="py-10 text-center">
-              <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-600 font-medium mb-1">
-                No active sessions
-              </p>
-              <p className="text-sm text-gray-400 mb-4">
-                Create a new session or go to preparation list
-              </p>
-              <div className="flex gap-2 justify-center">
-                <button
-                  onClick={() => router.push("/create_scanning_preparation")}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" /> New Session
-                </button>
-                <button
-                  onClick={() => router.push("/scanning_preparation_list")}
-                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition"
-                >
-                  View All Sessions
-                </button>
+          <div className="p-5 overflow-y-auto max-h-[60vh]">
+            {loadingSessions ? (
+              <div className="py-12 text-center">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-sm text-gray-600 font-medium">Loading</p>
               </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {availableSessions.map((session) => {
-                const totalItems = session.items?.length || 0;
-                const totalQty =
-                  session.items?.reduce(
-                    (sum, i) => sum + (i.quantity || 0),
-                    0,
-                  ) || 0;
-                const scannedCount =
-                  session.items?.reduce(
-                    (sum, i) => sum + (i.scanned_count || 0),
-                    0,
-                  ) || 0;
-                const progress =
-                  totalQty > 0
-                    ? Math.round((scannedCount / totalQty) * 100)
-                    : 0;
-
-                // PERBAIKAN: Buat key yang unik dengan menggabungkan type dan id_preparation
-                const uniqueKey = `${session.type || "unknown"}_${session.id_preparation}`;
-
-                return (
-                  <div
-                    key={uniqueKey}
-                    className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition cursor-pointer"
-                    onClick={() => {
-                      setShowSessionSelector(false);
-                      router.push(
-                        `/scanning?prep_id=${session.id_preparation}`,
-                      );
-                    }}
+            ) : availableSessions.length === 0 ? (
+              <div className="py-10 text-center">
+                <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-600 font-medium mb-1">
+                  No active sessions
+                </p>
+                <p className="text-sm text-gray-400 mb-4">
+                  Create a new session or go to preparation list
+                </p>
+                <div className="flex gap-2 justify-center">
+                  <button
+                    onClick={() => router.push("/create_scanning_preparation")}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center gap-2"
                   >
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-gray-900">
-                            {session.checking_name}
-                          </h3>
-                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-                            session.type === "device" 
-                              ? "bg-blue-100 text-blue-700" 
-                              : "bg-green-100 text-green-700"
-                          }`}>
-                            {session.type === "device" ? "Device" : "Material"}
+                    <Plus className="w-4 h-4" /> New Session
+                  </button>
+                  <button
+                    onClick={() => router.push("/scanning_preparation_list")}
+                    className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition"
+                  >
+                    View All Sessions
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {availableSessions.map((session) => {
+                  const totalItems = session.items?.length || 0;
+                  const totalQty =
+                    session.items?.reduce(
+                      (sum, i) => sum + (i.quantity || 0),
+                      0,
+                    ) || 0;
+                  const scannedCount =
+                    session.items?.reduce(
+                      (sum, i) => sum + (i.scanned_count || 0),
+                      0,
+                    ) || 0;
+                  const progress =
+                    totalQty > 0
+                      ? Math.round((scannedCount / totalQty) * 100)
+                      : 0;
+
+                  // PERBAIKAN: Buat key yang unik dengan menggabungkan type dan id_preparation
+                  const uniqueKey = `${session.type || "unknown"}_${session.id_preparation}`;
+
+                  return (
+                    <div
+                      key={uniqueKey}
+                      className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition cursor-pointer"
+                      onClick={() => {
+                        setShowSessionSelector(false);
+                        router.push(
+                          `/scanning?prep_id=${session.id_preparation}`,
+                        );
+                      }}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-gray-900">
+                              {session.checking_name}
+                            </h3>
+                            <span
+                              className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                                session.type === "device"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : "bg-green-100 text-green-700"
+                              }`}
+                            >
+                              {session.type === "device"
+                                ? "Device"
+                                : "Material"}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {session.checking_number} •{" "}
+                            {session.location_name || "No location"}
+                          </p>
+                        </div>
+                        <span
+                          className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            session.status === "pending"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}
+                        >
+                          {session.status === "pending"
+                            ? "Pending"
+                            : "In Progress"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
+                        <div>
+                          <span className="text-gray-400">Items:</span>
+                          <span className="ml-1 font-semibold text-gray-700">
+                            {totalItems} types
                           </span>
                         </div>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {session.checking_number} •{" "}
-                          {session.location_name || "No location"}
-                        </p>
+                        <div>
+                          <span className="text-gray-400">Quantity:</span>
+                          <span className="ml-1 font-semibold text-gray-700">
+                            {totalQty} total
+                          </span>
+                        </div>
                       </div>
-                      <span
-                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          session.status === "pending"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-blue-100 text-blue-700"
-                        }`}
-                      >
-                        {session.status === "pending"
-                          ? "Pending"
-                          : "In Progress"}
-                      </span>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
-                      <div>
-                        <span className="text-gray-400">Items:</span>
-                        <span className="ml-1 font-semibold text-gray-700">
-                          {totalItems} types
-                        </span>
+                      <div className="mt-3">
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-gray-500">Progress</span>
+                          <span className="font-semibold text-gray-700">
+                            {progress}%
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-600 rounded-full"
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-gray-400">Quantity:</span>
-                        <span className="ml-1 font-semibold text-gray-700">
-                          {totalQty} total
-                        </span>
+
+                      <div className="mt-3 flex justify-end">
+                        <button className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                          Select Session <ChevronRight className="w-3 h-3" />
+                        </button>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
-                    <div className="mt-3">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-500">Progress</span>
-                        <span className="font-semibold text-gray-700">
-                          {progress}%
-                        </span>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-600 rounded-full"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-3 flex justify-end">
-                      <button className="text-xs text-blue-600 font-medium flex items-center gap-1">
-                        Select Session <ChevronRight className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-between">
-          <button
-            onClick={() => router.push("/scanning_preparation_list")}
-            className="text-sm text-gray-600 hover:text-gray-900"
-          >
-            View All Sessions
-          </button>
-          <button
-            onClick={() => router.push("/create_scanning_preparation")}
-            className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-1"
-          >
-            <Plus className="w-3.5 h-3.5" /> New Session
-          </button>
+          <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-between">
+            <button
+              onClick={() => router.push("/scanning_preparation_list")}
+              className="text-sm text-gray-600 hover:text-gray-900"
+            >
+              View All Sessions
+            </button>
+            <button
+              onClick={() => router.push("/create_scanning_preparation")}
+              className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-1"
+            >
+              <Plus className="w-3.5 h-3.5" /> New Session
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
   if (loading || loadingSessions) {
     return (

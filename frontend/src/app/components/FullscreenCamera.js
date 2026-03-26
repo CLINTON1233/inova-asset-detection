@@ -185,13 +185,14 @@ export default function FullscreenCamera({
 
       const imageData = canvas.toDataURL("image/jpeg", 0.8);
 
-      // MODIFIKASI: Pilih endpoint berdasarkan mode
-      const endpoint =
-        mode === "device"
-          ? API_ENDPOINTS.DETECT_CAMERA
-          : mode === "material"
-            ? API_ENDPOINTS.MATERIAL_DETECT_CAMERA
-            : API_ENDPOINTS.SERIAL_DETECT_CAMERA;
+  const endpoint =
+  mode === "device"
+    ? API_ENDPOINTS.DETECT_CAMERA
+    : mode === "material"
+      ? API_ENDPOINTS.MATERIAL_DETECT_CAMERA
+      : mode === "scan_code"
+        ? API_ENDPOINTS.SCAN_CODE_DETECT_CAMERA
+        : API_ENDPOINTS.SERIAL_DETECT_CAMERA;
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -336,8 +337,7 @@ export default function FullscreenCamera({
           setTimeout(() => {
             onClose();
           }, 500);
-        } 
-        else if (
+        } else if (
           mode === "scan_code" &&
           result.scan_code_detections?.length > 0
         ) {

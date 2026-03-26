@@ -14,7 +14,7 @@ export const API_ENDPOINTS = {
   // Material Detection
   MATERIAL_DETECT_CAMERA: `${API_BASE_URL}/api/detect/material/camera`,
 
-  // Scan Code Detection 
+  // Scan Code Detection
   SCAN_CODE_DETECT_CAMERA: `${API_BASE_URL}/api/scan-code/detect/camera`,
   SCAN_CODE_VALIDATE: `${API_BASE_URL}/api/scan-code/validate`,
 
@@ -104,7 +104,7 @@ export const API_ENDPOINTS = {
   // Check Serial Number & Scan Code
   SCAN_RESULTS_CHECK_SERIAL: (serial) =>
     `${API_BASE_URL}/api/scan-results/check-serial?serial=${encodeURIComponent(serial)}`,
-  SCAN_RESULTS_CHECK_SCAN_CODE: (code) => 
+  SCAN_RESULTS_CHECK_SCAN_CODE: (code) =>
     `${API_BASE_URL}/api/scan-results/check-scan-code?code=${encodeURIComponent(code)}`,
 
   // Validations
