@@ -138,9 +138,9 @@ export default function ScanningPreparationListPage() {
 
           return {
             ...session,
-            type: sessionType, // <-- PASTIKAN INI ADA
-            status,
-            progress,
+            type: sessionType,
+            status: session.status,
+            progress: session.progress,
             totalItems,
             totalQty,
             category_name: session.category_name || "General",
