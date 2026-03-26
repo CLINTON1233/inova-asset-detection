@@ -22,7 +22,7 @@ from routes.serial_ocr import ocr_bp
 from routes.scanning_preparation import scanning_prep_bp
 from routes.department import department_bp 
 from routes.scan_results import scan_results_bp
-from routes.validation import validation_bp 
+from routes.validation import validation_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(detection_bp)

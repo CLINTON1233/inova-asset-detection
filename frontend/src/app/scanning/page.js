@@ -1264,120 +1264,173 @@ export default function SerialScanningPage() {
     });
   };
 
-  const handleSubmitSingle = async (item) => {
-    showSubmitSingleModal(item, async () => {
-      setIsSubmitting(true);
-      try {
-        const response = await fetch(API_ENDPOINTS.LOCATION_ASSIGN_MULTIPLE, {
+const handleSubmitSingle = async (item) => {
+  showSubmitSingleModal(item, async () => {
+    setIsSubmitting(true);
+    try {
+      // 1. Update status scan result menjadi "submitted"
+      let updateEndpoint;
+      if (item.kategori === "Perangkat") {
+        updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(item.scan_id);
+      } else {
+        updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(item.scan_id);
+      }
+
+      await fetch(updateEndpoint, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "submitted" }),
+      });
+
+      // 2. Create validation record
+      const validationData = {
+        scan_id: item.kategori === "Perangkat" ? item.scan_id : null,
+        scan_material_id: item.kategori === "Material" ? item.scan_id : null,
+        item_preparation_id: item.item_preparation_id,
+        material_item_preparation_id: item.kategori === "Material" ? item.item_preparation_id : null,
+        user_id: 1,
+      };
+
+      const validationResponse = await fetch(API_ENDPOINTS.VALIDATIONS_CREATE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validationData),
+      });
+
+      const validationResult = await validationResponse.json();
+
+      if (validationResult.success) {
+        // 3. Update local state
+        setCheckHistory((prev) =>
+          prev.map((p) =>
+            p.id === item.id
+              ? { ...p, submitted: true, status: "Submitted", validation_id: validationResult.validation_id }
+              : p,
+          ),
+        );
+
+        Swal.fire({
+          title: "Success!",
+          text: `${item.jenisAset} submitted for validation.`,
+          icon: "success",
+          confirmButtonColor: "#2563eb",
+        }).then(() => {
+          // Redirect ke halaman validation
+          router.push("/validation-verification");
+        });
+      } else {
+        throw new Error(validationResult.error || "Failed to create validation");
+      }
+    } catch (error) {
+      console.error("Submit error:", error);
+      Swal.fire({
+        title: "Error!",
+        text: error.message || "Failed to submit item",
+        icon: "error",
+        confirmButtonColor: "#1e40af",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  });
+};
+
+const handleSubmitAll = async () => {
+  const itemsToSubmit = checkHistory.filter(
+    (item) => item.status !== "Submitted" && item.lokasi,
+  );
+
+  if (itemsToSubmit.length === 0) {
+    Swal.fire({
+      title: "No Items",
+      text: "All submitted or no location set.",
+      icon: "info",
+    });
+    return;
+  }
+
+  showSubmitAllModal(itemsToSubmit, async () => {
+    setIsSubmittingAll(true);
+    try {
+      const submittedItems = [];
+
+      for (const item of itemsToSubmit) {
+        // 1. Update status scan result
+        let updateEndpoint;
+        if (item.kategori === "Perangkat") {
+          updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(item.scan_id);
+        } else {
+          updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(item.scan_id);
+        }
+
+        await fetch(updateEndpoint, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "submitted" }),
+        });
+
+        // 2. Create validation record
+        const validationData = {
+          scan_id: item.kategori === "Perangkat" ? item.scan_id : null,
+          scan_material_id: item.kategori === "Material" ? item.scan_id : null,
+          item_preparation_id: item.item_preparation_id,
+          material_item_preparation_id: item.kategori === "Material" ? item.item_preparation_id : null,
+          user_id: 1,
+        };
+
+        const validationResponse = await fetch(API_ENDPOINTS.VALIDATIONS_CREATE, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            asset_ids: [item.id],
-            location_code: item.lokasi,
-            scanned_by: "Scanner User",
-            notes: `Scanned via scanning page - ${item.jenisAset}`,
-          }),
+          body: JSON.stringify(validationData),
         });
-        const result = await response.json();
-        if (result.success) {
+
+        const validationResult = await validationResponse.json();
+
+        if (validationResult.success) {
+          submittedItems.push({ ...item, validation_id: validationResult.validation_id });
+          
+          // Update local state
           setCheckHistory((prev) =>
             prev.map((p) =>
               p.id === item.id
-                ? { ...p, submitted: true, status: "Submitted" }
+                ? { ...p, submitted: true, status: "Submitted", validation_id: validationResult.validation_id }
                 : p,
             ),
           );
-          Swal.fire({
-            title: "Success!",
-            text: `${item.jenisAset} submitted.`,
-            icon: "success",
-          });
-        } else {
-          Swal.fire({ title: "Failed", text: result.message, icon: "error" });
         }
-      } catch {
-        Swal.fire({
-          title: "Error",
-          text: "Failed to connect to server.",
-          icon: "error",
-        });
-      } finally {
-        setIsSubmitting(false);
       }
-    });
-  };
 
-  const handleSubmitAll = async () => {
-    const itemsToSubmit = checkHistory.filter(
-      (item) => item.status !== "Submitted" && item.lokasi,
-    );
-
-    if (itemsToSubmit.length === 0) {
+      if (submittedItems.length > 0) {
+        Swal.fire({
+          title: "Success!",
+          text: `${submittedItems.length} items submitted for validation.`,
+          icon: "success",
+          confirmButtonColor: "#2563eb",
+        }).then(() => {
+          // Redirect ke halaman validation
+          router.push("/validation-verification");
+        });
+      } else {
+        Swal.fire({
+          title: "Error!",
+          text: "No items were submitted successfully",
+          icon: "error",
+          confirmButtonColor: "#1e40af",
+        });
+      }
+    } catch (error) {
+      console.error("Submit all error:", error);
       Swal.fire({
-        title: "No Items",
-        text: "All submitted or no location set.",
-        icon: "info",
+        title: "Error!",
+        text: error.message || "Failed to submit items",
+        icon: "error",
+        confirmButtonColor: "#1e40af",
       });
-      return;
+    } finally {
+      setIsSubmittingAll(false);
     }
-
-    showSubmitAllModal(itemsToSubmit, async () => {
-      setIsSubmittingAll(true);
-      try {
-        const results = [];
-
-        for (const item of itemsToSubmit) {
-          const validationData = {
-            scan_id: item.scan_id,
-            user_id: 1,
-            validation_status: "pending",
-            validation_notes: `Submitted from scanning page - ${item.jenisAset}`,
-            location: item.lokasi,
-          };
-
-          const response = await fetch(API_ENDPOINTS.VALIDATIONS_CREATE, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(validationData),
-          });
-
-          const result = await response.json();
-          if (result.success) {
-            results.push(result);
-
-            setCheckHistory((prev) =>
-              prev.map((p) =>
-                p.id === item.id
-                  ? {
-                      ...p,
-                      submitted: true,
-                      status: "Submitted",
-                      validation_id: result.validation_id,
-                    }
-                  : p,
-              ),
-            );
-          }
-        }
-
-        if (results.length > 0) {
-          Swal.fire({
-            title: "Success!",
-            text: `${results.length} items submitted for validation`,
-            icon: "success",
-          });
-        }
-      } catch (error) {
-        Swal.fire({
-          title: "Error",
-          text: error.message || "Failed to submit items",
-          icon: "error",
-        });
-      } finally {
-        setIsSubmittingAll(false);
-      }
-    });
-  };
+  });
+};
 
   const handleDeleteData = async (item) => {
     showDeleteItemModal(item, async () => {

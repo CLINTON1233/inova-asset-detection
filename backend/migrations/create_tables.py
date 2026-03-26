@@ -455,13 +455,14 @@ def create_validations_table(conn):
     """Tabel validations - verifikasi sebelum masuk ke assets"""
     try:
         cur = conn.cursor()
+        
         cur.execute("""
             CREATE TABLE IF NOT EXISTS validations (
                 id_validation SERIAL PRIMARY KEY,
-                scan_id INTEGER REFERENCES scan_results_devices(id_scan) ON DELETE CASCADE,
-                scan_material_id INTEGER REFERENCES scan_results_materials(id_scan) ON DELETE CASCADE,
-                item_preparation_id INTEGER REFERENCES devices_items_preparation(id_item_preparation) ON DELETE CASCADE,
-                material_item_preparation_id INTEGER REFERENCES materials_items_preparation(id_item_preparation) ON DELETE CASCADE,
+                scan_id INTEGER REFERENCES scan_results_devices(id_scan) ON DELETE SET NULL,
+                scan_material_id INTEGER REFERENCES scan_results_materials(id_scan) ON DELETE SET NULL,
+                item_preparation_id INTEGER REFERENCES devices_items_preparation(id_item_preparation) ON DELETE SET NULL,
+                material_item_preparation_id INTEGER REFERENCES materials_items_preparation(id_item_preparation) ON DELETE SET NULL,
                 user_id INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
                 asset_id INTEGER REFERENCES assets(id_assets) ON DELETE SET NULL,
                 validation_status VARCHAR(50) DEFAULT 'pending',
@@ -475,13 +476,30 @@ def create_validations_table(conn):
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        
+        # Add missing columns if they don't exist
+        cur.execute("""
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                              WHERE table_name='validations' AND column_name='rejection_reason') THEN
+                    ALTER TABLE validations ADD COLUMN rejection_reason TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                              WHERE table_name='validations' AND column_name='is_approved') THEN
+                    ALTER TABLE validations ADD COLUMN is_approved BOOLEAN DEFAULT FALSE;
+                END IF;
+            END $$;
+        """)
+        
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_scan ON validations(scan_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_scan_material ON validations(scan_material_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_item_prep ON validations(item_preparation_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_material_item_prep ON validations(material_item_preparation_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_status ON validations(validation_status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_approved ON validations(is_approved)")
         conn.commit()
-        print("✓ Tabel validations berhasil dibuat")
+        print("✓ Tabel validations berhasil dibuat/diperbarui")
     except Exception as e:
         conn.rollback()
         print(f"Error creating validations table: {e}")
