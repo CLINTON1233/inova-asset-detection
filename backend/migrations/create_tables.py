@@ -377,6 +377,8 @@ def create_scan_results_devices_table(conn):
                 is_valid BOOLEAN DEFAULT FALSE,
                 status VARCHAR(50) DEFAULT 'pending',
                 notes TEXT,
+                photo_data TEXT,
+                photo_url TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -410,6 +412,8 @@ def create_scan_results_materials_table(conn):
                 is_valid BOOLEAN DEFAULT FALSE,
                 status VARCHAR(50) DEFAULT 'pending',
                 notes TEXT,
+                photo_data TEXT,
+                photo_url TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)

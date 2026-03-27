@@ -21,7 +21,7 @@ export default function FullscreenCamera({
   const [availableCameras, setAvailableCameras] = useState([]);
   const [selectedCamera, setSelectedCamera] = useState(null);
   const [isCameraReady, setIsCameraReady] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(null); 
+  const [errorMessage, setErrorMessage] = useState(null);
 
   const getAvailableCameras = async () => {
     try {
@@ -167,7 +167,7 @@ export default function FullscreenCamera({
     setErrorMessage({ title, message });
     setIsDetecting(false);
     hasDetectedRef.current = false;
-    
+
     // Auto clear error after 3 seconds
     setTimeout(() => {
       setErrorMessage(null);
@@ -198,7 +198,9 @@ export default function FullscreenCamera({
       const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+      // Simpan foto untuk dikirim
       const imageData = canvas.toDataURL("image/jpeg", 0.8);
+      const photoData = imageData;
 
       const endpoint =
         mode === "device"
@@ -256,13 +258,14 @@ export default function FullscreenCamera({
             type: "device",
             data: detectedItem,
             result: result,
+            photo_data: photoData,
           });
 
           setTimeout(() => {
             onClose();
           }, 500);
-        } 
-        // MODIFIKASI: Deteksi untuk mode material
+        }
+
         else if (mode === "material" && result.detected_items?.length > 0) {
           const detectedItem = result.detected_items[0];
 
@@ -270,13 +273,10 @@ export default function FullscreenCamera({
           console.log("Session data:", sessionData);
 
           if (sessionData) {
-            const detectedAssetType =
-              detectedItem.asset_type?.toLowerCase() || "";
+            const detectedAssetType = detectedItem.asset_type?.toLowerCase() || "";
 
             const matchingItems = sessionData.items.filter((item) => {
-              const itemName =
-                (item.material_name || item.item_name || "")?.toLowerCase() ||
-                "";
+              const itemName = (item.material_name || item.item_name || "")?.toLowerCase() || "";
               return (
                 itemName === detectedAssetType ||
                 itemName.includes(detectedAssetType) ||
@@ -297,12 +297,14 @@ export default function FullscreenCamera({
             type: "device",
             data: detectedItem,
             result: result,
+            photo_data: photoData,
           });
 
           setTimeout(() => {
             onClose();
           }, 500);
-        } 
+        }
+
         // Deteksi Scan Code
         else if (
           mode === "scan_code" &&
@@ -336,7 +338,7 @@ export default function FullscreenCamera({
               "No scan code detected. Please try again with a clearer image."
             );
           }
-        } 
+        }
         // Deteksi Serial Number
         else if (mode === "serial" && result.serial_detections?.length > 0) {
           const validSerials = result.serial_detections.filter(
@@ -361,7 +363,7 @@ export default function FullscreenCamera({
               "No valid serial number detected. Please try again."
             );
           }
-        } 
+        }
         // Tidak ada deteksi
         else {
           showErrorInCamera(

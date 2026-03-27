@@ -33,6 +33,12 @@ import LayoutDashboard from "../components/LayoutDashboard";
 import ProtectedPage from "../components/ProtectedPage";
 import FullscreenCamera from "../components/FullscreenCamera";
 import API_BASE_URL, { API_ENDPOINTS } from "../../config/api";
+import {
+  showDeleteItemModal,
+  showDeleteAllModal,
+  showSubmitSingleModal,
+  showSubmitAllModal,
+} from "../components/ScanningModal";
 
 export default function SerialScanningPage() {
   const router = useRouter();
@@ -416,6 +422,8 @@ export default function SerialScanningPage() {
                   lokasiLabel: data.data.location_name,
                   scan_id: scan.id_scan,
                   item_preparation_id: scan.item_preparation_id,
+
+                  photo_url: scan.photo_url || null,
                   submitted: scan.status === "submitted",
                 });
               }
@@ -483,6 +491,7 @@ export default function SerialScanningPage() {
   const handleCameraDetection = async (detection) => {
     if (detection.type === "device") {
       const deviceData = detection.data;
+      const photoData = detection.photo_data;
       if (currentPreparation) {
         const isMaterialSession = currentPreparation.type === "material";
         const detectedAssetType = deviceData.asset_type?.toLowerCase() || "";
@@ -611,18 +620,14 @@ export default function SerialScanningPage() {
           },
           status: "pending",
           notes: `${isDevice ? "Device" : "Material"} detected: ${deviceData.asset_type}`,
+          photo_data: photoData,
         };
 
         const savedResult = await saveScanResult(scanResultData, isDevice);
 
         const scanItem = {
-          id:
-            deviceData.id ||
-            `SCAN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          jenisAset:
-            targetItem.device_name ||
-            targetItem.material_name ||
-            deviceData.asset_type,
+          id: deviceData.id || `SCAN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          jenisAset: targetItem.device_name || targetItem.material_name || deviceData.asset_type,
           kategori: isDevice ? "Perangkat" : "Material",
           brand: targetItem.brand || deviceData.brand || "Unknown",
           confidencePercent: Math.round((deviceData.confidence || 0.85) * 100),
@@ -642,6 +647,8 @@ export default function SerialScanningPage() {
           lokasiLabel: currentPreparation?.location_name || "",
           scan_id: savedResult.success ? savedResult.scan_id : null,
           item_preparation_id: availableItem?.id_item_preparation || null,
+          photo_url: savedResult.photo_url || null,
+          photo_data: detection.photo_data || null,
         };
 
         setPendingDevice(scanItem);
@@ -2787,32 +2794,25 @@ export default function SerialScanningPage() {
                     <thead>
                       <tr style={{ background: "#f8fafc" }}>
                         {[
+                          "Photo",
                           "Asset ID",
                           "Type",
                           "Category",
-                          currentPreparation?.type === "material"
-                            ? "Vendor"
-                            : "Brand",
-                          currentPreparation?.type === "material"
-                            ? "Scan Code"
-                            : "Serial",
+                          currentPreparation?.type === "material" ? "Vendor" : "Brand",
+                          currentPreparation?.type === "material" ? "Scan Code" : "Serial",
                           "Confidence",
                           "Status",
                           "Time",
                           "",
                         ].map((h) => (
-                          <th
-                            key={h}
-                            className="px-4 py-3 text-left"
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 600,
-                              color: "#6b7280",
-                              textTransform: "uppercase",
-                              letterSpacing: ".06em",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
+                          <th key={h} className="px-4 py-3 text-left" style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: "#6b7280",
+                            textTransform: "uppercase",
+                            letterSpacing: ".06em",
+                            whiteSpace: "nowrap",
+                          }}>
                             {h}
                           </th>
                         ))}
@@ -2826,6 +2826,40 @@ export default function SerialScanningPage() {
                             key={item.id}
                             className="history-row border-t border-gray-50"
                           >
+
+                            <td className="px-4 py-3">
+                              {item.photo_url ? (
+                                <img
+                                  src={item.photo_url}
+                                  alt="Scan result"
+                                  className="w-10 h-10 object-cover rounded-lg cursor-pointer hover:opacity-80 transition"
+                                  onError={(e) => {
+                                    console.error("Image failed to load:", item.photo_url);
+                                    e.target.style.display = 'none';
+                                    e.target.parentElement.innerHTML = '<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center"><svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg></div>';
+                                  }}
+                                  onClick={() => {
+                                    Swal.fire({
+                                      imageUrl: item.photo_url,
+                                      imageAlt: "Scan Result",
+                                      title: "Scan Result Photo",
+                                      imageWidth: 400,
+                                      imageHeight: "auto",
+                                      confirmButtonColor: "#2563eb",
+                                      customClass: {
+                                        popup: "rounded-xl",
+                                        confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg"
+                                      }
+                                    });
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                                  <Camera className="w-5 h-5 text-gray-400" />
+                                </div>
+                              )}
+                            </td>
+
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2.5">
                                 <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">

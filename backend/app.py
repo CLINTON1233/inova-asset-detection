@@ -1,5 +1,7 @@
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_cors import CORS
+import os
+from config import UPLOAD_FOLDER, SCAN_PHOTOS_FOLDER  
 import os
 
 app = Flask(__name__)
@@ -12,6 +14,14 @@ CORS(app,
 
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '27cdc60e29397b35b746d68e8c55b703267367cf2d084aa9')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+
+# Simpan folder ke config
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['SCAN_PHOTOS_FOLDER'] = SCAN_PHOTOS_FOLDER
+
+# Buat folder jika belum ada
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config['SCAN_PHOTOS_FOLDER'], exist_ok=True)
 
 # Routes
 from routes.auth import auth_bp
@@ -40,6 +50,25 @@ app.register_blueprint(validation_bp)
 @app.route('/')
 def root():
     return {"message": "Welcome to INOVA API", "status": "running"}
+
+# PERBAIKAN: Route untuk serve file uploads
+@app.route('/uploads/<path:filename>')
+def serve_uploads(filename):
+    try:
+        # Cari file di folder uploads
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    except Exception as e:
+        print(f"Error serving file: {e}")
+        return {"error": "File not found"}, 404
+
+# PERBAIKAN: Route untuk serve file scan_photos
+@app.route('/uploads/scan_photos/<path:filename>')
+def serve_scan_photos(filename):
+    try:
+        return send_from_directory(app.config['SCAN_PHOTOS_FOLDER'], filename)
+    except Exception as e:
+        print(f"Error serving scan photo: {e}")
+        return {"error": "File not found"}, 404
 
 @app.route('/api')
 def api_info():

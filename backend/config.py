@@ -21,7 +21,9 @@ SERIAL_MODEL_PATH = os.getenv('SERIAL_MODEL_PATH', 'models/serial-number/best.pt
 MATERIAL_MODEL_PATH = os.getenv('MATERIAL_MODEL_PATH', 'models/materials/best.pt')
 SCAN_CODE_MODEL_PATH = os.getenv('SCAN_CODE_MODEL_PATH', 'models/scan-code/best.pt')
 
+# Konfigurasi folder upload
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
+SCAN_PHOTOS_FOLDER = os.path.join(UPLOAD_FOLDER, 'scan_photos') 
 RESULT_FOLDER = os.getenv('RESULT_FOLDER', 'static/results')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 

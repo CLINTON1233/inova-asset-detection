@@ -1,4 +1,3 @@
-// src/components/AuthGuard.js
 'use client';
 
 import { useEffect } from 'react';

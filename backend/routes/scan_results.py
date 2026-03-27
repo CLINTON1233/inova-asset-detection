@@ -1,9 +1,12 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from utils.database import get_db_connection
 import psycopg2.extras
 import json
 from datetime import datetime
 import traceback
+import base64
+import uuid
+import os
 
 scan_results_bp = Blueprint('scan_results', __name__)
 
@@ -15,6 +18,47 @@ def handle_error(e, msg="Error"):
 def get_conn():
     return get_db_connection()
 
+def save_photo_base64(image_data):
+    """Menyimpan foto dari base64 ke file dan mengembalikan URL"""
+    try:
+        if not image_data:
+            return None, None
+        
+        # Jika sudah berupa URL atau path, langsung return
+        if image_data.startswith('/uploads/') or image_data.startswith('http'):
+            return image_data, image_data
+        
+        # Parse base64
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
+        
+        # Decode base64
+        image_bytes = base64.b64decode(image_data)
+        
+        # Generate filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        filename = f"scan_{timestamp}_{unique_id}.jpg"
+        
+        # Gunakan folder uploads/scan_photos
+        upload_folder = os.path.join(os.getcwd(), 'uploads', 'scan_photos')
+        os.makedirs(upload_folder, exist_ok=True)
+        
+        filepath = os.path.join(upload_folder, filename)
+        
+        # Save file
+        with open(filepath, 'wb') as f:
+            f.write(image_bytes)
+
+        url = f"/uploads/scan_photos/{filename}"
+        print(f"Photo saved at: {filepath}")
+        print(f"Photo URL: {url}")
+        return url, image_data
+        
+    except Exception as e:
+        print(f"Error saving photo: {e}")
+        return None, None
+
 # ==================== CREATE ====================
 @scan_results_bp.route('/api/scan-results/create-device', methods=['POST'])
 def create_scan_result_device():
@@ -25,12 +69,18 @@ def create_scan_result_device():
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
+        # Save photo if exists
+        photo_url = None
+        photo_data = None
+        if data.get('photo_data'):
+            photo_url, photo_data = save_photo_base64(data.get('photo_data'))
+        
         cur.execute("""
             INSERT INTO scan_results_devices (
                 item_preparation_id, user_id, scanned_by, scanned_at,
                 scan_category, scan_value, serial_number,
-                detection_data, status, notes
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                detection_data, status, notes, photo_data, photo_url
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id_scan
         """, (
             data.get('item_preparation_id'),
@@ -42,7 +92,9 @@ def create_scan_result_device():
             data.get('serial_number'),
             json.dumps(data.get('detection_data', {})),
             data.get('status', 'pending'),
-            data.get('notes')
+            data.get('notes'),
+            photo_data,
+            photo_url
         ))
         
         scan_id = cur.fetchone()[0]
@@ -55,12 +107,13 @@ def create_scan_result_device():
             """, (data.get('scanned_by', data.get('user_id', 1)), data.get('scanned_at', datetime.now()), data.get('item_preparation_id')))
         
         conn.commit()
-        return jsonify({'success': True, 'scan_id': scan_id, 'message': 'Device scan result saved successfully'}), 201
+        return jsonify({'success': True, 'scan_id': scan_id, 'photo_url': photo_url, 'message': 'Device scan result saved successfully'}), 201
         
     except Exception as e:
         return handle_error(e, "Error in create_scan_result_device")
     finally:
         if 'conn' in locals() and conn: conn.close()
+
 
 @scan_results_bp.route('/api/scan-results/create-material', methods=['POST'])
 def create_scan_result_material():
@@ -71,12 +124,18 @@ def create_scan_result_material():
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
+        # Save photo if exists
+        photo_url = None
+        photo_data = None
+        if data.get('photo_data'):
+            photo_url, photo_data = save_photo_base64(data.get('photo_data'))
+        
         cur.execute("""
             INSERT INTO scan_results_materials (
                 item_preparation_id, user_id, scanned_by, scanned_at,
                 scan_category, scan_value, scan_code,
-                detection_data, status, notes
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                detection_data, status, notes, photo_data, photo_url
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id_scan
         """, (
             data.get('item_preparation_id'),
@@ -88,7 +147,9 @@ def create_scan_result_material():
             data.get('scan_code'),
             json.dumps(data.get('detection_data', {})),
             data.get('status', 'pending'),
-            data.get('notes')
+            data.get('notes'),
+            photo_data,
+            photo_url
         ))
         
         scan_id = cur.fetchone()[0]
@@ -101,7 +162,7 @@ def create_scan_result_material():
             """, (data.get('scanned_by', data.get('user_id', 1)), data.get('scanned_at', datetime.now()), data.get('item_preparation_id')))
         
         conn.commit()
-        return jsonify({'success': True, 'scan_id': scan_id, 'message': 'Material scan result saved successfully'}), 201
+        return jsonify({'success': True, 'scan_id': scan_id, 'photo_url': photo_url, 'message': 'Material scan result saved successfully'}), 201
         
     except Exception as e:
         return handle_error(e, "Error in create_scan_result_material")
