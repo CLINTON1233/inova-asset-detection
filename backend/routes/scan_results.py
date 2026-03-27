@@ -1,348 +1,225 @@
 from flask import Blueprint, request, jsonify
-from utils.scan_results_model import ScanResultsModel
 from utils.database import get_db_connection
 import psycopg2.extras
+import json
+from datetime import datetime
 import traceback
 
 scan_results_bp = Blueprint('scan_results', __name__)
 
+def handle_error(e, msg="Error"):
+    print(f"{msg}: {e}")
+    print(traceback.format_exc())
+    return jsonify({'success': False, 'error': str(e)}), 500
+
+def get_conn():
+    return get_db_connection()
+
+# ==================== CREATE ====================
 @scan_results_bp.route('/api/scan-results/create-device', methods=['POST'])
 def create_scan_result_device():
-    """Menyimpan hasil scan device ke database"""
     try:
         data = request.json
-        print("="*50)
-        print("Saving DEVICE scan result:", data)
+        print("="*50, "\nSaving DEVICE scan result:", data)
         
-        result = ScanResultsModel.create_scan_result_device(data)
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
-        if result['success']:
-            return jsonify(result), 201
-        else:
-            return jsonify(result), 400
-            
+        cur.execute("""
+            INSERT INTO scan_results_devices (
+                item_preparation_id, user_id, scanned_by, scanned_at,
+                scan_category, scan_value, serial_number,
+                detection_data, status, notes
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id_scan
+        """, (
+            data.get('item_preparation_id'),
+            data.get('user_id', 1),
+            data.get('scanned_by', data.get('user_id', 1)),
+            data.get('scanned_at', datetime.now()),
+            data.get('scan_category'),
+            data.get('scan_value'),
+            data.get('serial_number'),
+            json.dumps(data.get('detection_data', {})),
+            data.get('status', 'pending'),
+            data.get('notes')
+        ))
+        
+        scan_id = cur.fetchone()[0]
+        
+        if data.get('item_preparation_id'):
+            cur.execute("""
+                UPDATE devices_items_preparation 
+                SET status = 'scanned', scanned_by = %s, scanned_at = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id_item_preparation = %s
+            """, (data.get('scanned_by', data.get('user_id', 1)), data.get('scanned_at', datetime.now()), data.get('item_preparation_id')))
+        
+        conn.commit()
+        return jsonify({'success': True, 'scan_id': scan_id, 'message': 'Device scan result saved successfully'}), 201
+        
     except Exception as e:
-        print("Error in create_scan_result_device:", str(e))
-        print(traceback.format_exc())
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return handle_error(e, "Error in create_scan_result_device")
+    finally:
+        if 'conn' in locals() and conn: conn.close()
 
 @scan_results_bp.route('/api/scan-results/create-material', methods=['POST'])
 def create_scan_result_material():
-    """Menyimpan hasil scan material ke database"""
     try:
         data = request.json
-        print("="*50)
-        print("Saving MATERIAL scan result:", data)
+        print("="*50, "\nSaving MATERIAL scan result:", data)
         
-        result = ScanResultsModel.create_scan_result_material(data)
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
-        if result['success']:
-            return jsonify(result), 201
-        else:
-            return jsonify(result), 400
-            
+        cur.execute("""
+            INSERT INTO scan_results_materials (
+                item_preparation_id, user_id, scanned_by, scanned_at,
+                scan_category, scan_value, scan_code,
+                detection_data, status, notes
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id_scan
+        """, (
+            data.get('item_preparation_id'),
+            data.get('user_id', 1),
+            data.get('scanned_by', data.get('user_id', 1)),
+            data.get('scanned_at', datetime.now()),
+            data.get('scan_category'),
+            data.get('scan_value'),
+            data.get('scan_code'),
+            json.dumps(data.get('detection_data', {})),
+            data.get('status', 'pending'),
+            data.get('notes')
+        ))
+        
+        scan_id = cur.fetchone()[0]
+        
+        if data.get('item_preparation_id'):
+            cur.execute("""
+                UPDATE materials_items_preparation 
+                SET status = 'scanned', scanned_by = %s, scanned_at = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id_item_preparation = %s
+            """, (data.get('scanned_by', data.get('user_id', 1)), data.get('scanned_at', datetime.now()), data.get('item_preparation_id')))
+        
+        conn.commit()
+        return jsonify({'success': True, 'scan_id': scan_id, 'message': 'Material scan result saved successfully'}), 201
+        
     except Exception as e:
-        print("Error in create_scan_result_material:", str(e))
-        print(traceback.format_exc())
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return handle_error(e, "Error in create_scan_result_material")
+    finally:
+        if 'conn' in locals() and conn: conn.close()
+
+# ==================== UPDATE ====================
+def update_scan_result(table, scan_id, data, allowed_fields):
+    try:
+        updates = [(f, data[f]) for f in allowed_fields if f in data]
+        if not updates:
+            return jsonify({'success': False, 'error': 'No fields to update'}), 400
+        
+        conn = get_conn()
+        cur = conn.cursor()
+        query = f"UPDATE {table} SET {', '.join([f'{f} = %s' for f, _ in updates])} WHERE id_scan = %s"
+        cur.execute(query, [v for _, v in updates] + [scan_id])
+        conn.commit()
+        return jsonify({'success': True, 'message': f'Scan result updated successfully'})
+        
+    except Exception as e:
+        return handle_error(e, f"Error updating {table}")
+    finally:
+        if 'conn' in locals() and conn: conn.close()
 
 @scan_results_bp.route('/api/scan-results/device/<int:scan_id>', methods=['PUT'])
 def update_scan_result_device(scan_id):
-    """Update scan result device"""
-    try:
-        data = request.json
-        result = ScanResultsModel.update_scan_result_device(scan_id, data)
-        
-        if result['success']:
-            return jsonify(result)
-        else:
-            return jsonify(result), 400
-            
-    except Exception as e:
-        print("Error in update_scan_result_device:", str(e))
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+    return update_scan_result('scan_results_devices', scan_id, request.json, ['is_valid', 'status', 'notes', 'serial_number'])
 
 @scan_results_bp.route('/api/scan-results/material/<int:scan_id>', methods=['PUT'])
 def update_scan_result_material(scan_id):
-    """Update scan result material"""
+    return update_scan_result('scan_results_materials', scan_id, request.json, ['is_valid', 'status', 'notes', 'scan_code'])
+
+# ==================== DELETE ====================
+def delete_scan_result(table, scan_id, prep_table, prep_id_field):
+    conn = None
     try:
-        data = request.json
-        result = ScanResultsModel.update_scan_result_material(scan_id, data)
+        conn = get_conn()
+        cur = conn.cursor()
         
-        if result['success']:
-            return jsonify(result)
-        else:
-            return jsonify(result), 400
-            
+        cur.execute(f"SELECT id_scan, item_preparation_id FROM {table} WHERE id_scan = %s", (scan_id,))
+        scan = cur.fetchone()
+        if not scan:
+            return jsonify({'success': False, 'error': 'Scan result not found'}), 404
+        
+        item_prep_id = scan[1] if len(scan) > 1 else None
+        
+        cur.execute(f"DELETE FROM {table} WHERE id_scan = %s", (scan_id,))
+        
+        if item_prep_id:
+            cur.execute(f"SELECT COUNT(*) FROM {table} WHERE item_preparation_id = %s", (item_prep_id,))
+            if cur.fetchone()[0] == 0:
+                cur.execute(f"""
+                    UPDATE {prep_table} 
+                    SET status = 'pending', scanned_by = NULL, scanned_at = NULL, updated_at = CURRENT_TIMESTAMP
+                    WHERE {prep_id_field} = %s
+                """, (item_prep_id,))
+        
+        conn.commit()
+        return jsonify({'success': True, 'message': f'Scan result deleted successfully'})
+        
     except Exception as e:
-        print("Error in update_scan_result_material:", str(e))
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        if conn: conn.rollback()
+        return handle_error(e, f"Error deleting from {table}")
+    finally:
+        if conn: conn.close()
 
 @scan_results_bp.route('/api/scan-results/device/<int:scan_id>', methods=['DELETE'])
 def delete_scan_result_device(scan_id):
-    """Menghapus scan result device dari database"""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        # Cek apakah scan result exists
-        cur.execute("SELECT id_scan, item_preparation_id FROM scan_results_devices WHERE id_scan = %s", (scan_id,))
-        scan = cur.fetchone()
-        
-        if not scan:
-            return jsonify({
-                'success': False,
-                'error': 'Scan result not found'
-            }), 404
-        
-        item_preparation_id = scan[1] if len(scan) > 1 else None
-        
-        # Delete scan result
-        cur.execute("DELETE FROM scan_results_devices WHERE id_scan = %s", (scan_id,))
-    
-        # Update items_preparation status jika tidak ada scan lain
-        if item_preparation_id:
-            cur.execute("""
-                SELECT COUNT(*) FROM scan_results_devices 
-                WHERE item_preparation_id = %s
-            """, (item_preparation_id,))
-            remaining_scans = cur.fetchone()[0]
-            
-            if remaining_scans == 0:
-                cur.execute("""
-                    UPDATE devices_items_preparation 
-                    SET status = 'pending', 
-                        scanned_by = NULL,
-                        scanned_at = NULL,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE id_item_preparation = %s
-                """, (item_preparation_id,))
-        
-        conn.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': 'Device scan result deleted successfully'
-        })
-        
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        print(f"Error in delete_scan_result_device: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-    finally:
-        if conn:
-            conn.close()
+    return delete_scan_result('scan_results_devices', scan_id, 'devices_items_preparation', 'id_item_preparation')
 
 @scan_results_bp.route('/api/scan-results/material/<int:scan_id>', methods=['DELETE'])
 def delete_scan_result_material(scan_id):
-    """Menghapus scan result material dari database"""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        # Cek apakah scan result exists
-        cur.execute("SELECT id_scan, item_preparation_id FROM scan_results_materials WHERE id_scan = %s", (scan_id,))
-        scan = cur.fetchone()
-        
-        if not scan:
-            return jsonify({
-                'success': False,
-                'error': 'Scan result not found'
-            }), 404
-        
-        item_preparation_id = scan[1] if len(scan) > 1 else None
-        
-        # Delete scan result
-        cur.execute("DELETE FROM scan_results_materials WHERE id_scan = %s", (scan_id,))
-    
-        # Update items_preparation status jika tidak ada scan lain
-        if item_preparation_id:
-            cur.execute("""
-                SELECT COUNT(*) FROM scan_results_materials 
-                WHERE item_preparation_id = %s
-            """, (item_preparation_id,))
-            remaining_scans = cur.fetchone()[0]
-            
-            if remaining_scans == 0:
-                cur.execute("""
-                    UPDATE materials_items_preparation 
-                    SET status = 'pending', 
-                        scanned_by = NULL,
-                        scanned_at = NULL,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE id_item_preparation = %s
-                """, (item_preparation_id,))
-        
-        conn.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': 'Material scan result deleted successfully'
-        })
-        
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        print(f"Error in delete_scan_result_material: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-    finally:
-        if conn:
-            conn.close()
-            
-@scan_results_bp.route('/check-scan-code', methods=['GET'])
-def check_scan_code():
-    """Cek apakah scan code sudah digunakan"""
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        scan_code = request.args.get('code')
-        if not scan_code:
-            return jsonify({'success': False, 'error': 'No scan code provided'}), 400
-        
-        cur.execute("""
-            SELECT EXISTS(
-                SELECT 1 FROM scan_results_materials WHERE scan_code = %s
-                UNION
-                SELECT 1 FROM materials_items_preparation WHERE scan_code = %s AND status = 'scanned'
-            ) as exists
-        """, (scan_code, scan_code))
-        
-        result = cur.fetchone()
-        exists = result[0] if result else False
-        
-        return jsonify({
-            'success': True,
-            'exists': exists
-        })
-        
-    except Exception as e:
-        print(f"Error checking scan code: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-    finally:
-        if conn:
-            conn.close()
+    return delete_scan_result('scan_results_materials', scan_id, 'materials_items_preparation', 'id_item_preparation')
 
+# ==================== CHECK ====================
 @scan_results_bp.route('/api/scan-results/check-serial', methods=['GET'])
 def check_serial_exists():
-    """Memeriksa apakah serial number sudah ada di database"""
-    conn = None
+    serial = request.args.get('serial')
+    if not serial:
+        return jsonify({'success': False, 'exists': False, 'error': 'Serial number is required'}), 400
+    
     try:
-        serial_number = request.args.get('serial', '')
-        
-        if not serial_number:
-            return jsonify({
-                'success': False,
-                'exists': False,
-                'error': 'Serial number is required'
-            }), 400
-        
-        conn = get_db_connection()
+        conn = get_conn()
         cur = conn.cursor()
         
-        # Cek di scan_results_devices
-        cur.execute("""
-            SELECT COUNT(*) FROM scan_results_devices 
-            WHERE serial_number = %s
-        """, (serial_number,))
+        cur.execute("SELECT COUNT(*) FROM scan_results_devices WHERE serial_number = %s", (serial,))
         device_count = cur.fetchone()[0]
         
-        # Cek di scan_results_materials (untuk scan_code)
-        cur.execute("""
-            SELECT COUNT(*) FROM scan_results_materials 
-            WHERE scan_code = %s
-        """, (serial_number,))
+        cur.execute("SELECT COUNT(*) FROM scan_results_materials WHERE scan_code = %s", (serial,))
         material_count = cur.fetchone()[0]
         
-        exists = device_count > 0 or material_count > 0
-        
-        return jsonify({
-            'success': True,
-            'exists': exists,
-            'message': 'Serial number check completed'
-        })
+        return jsonify({'success': True, 'exists': device_count > 0 or material_count > 0})
         
     except Exception as e:
-        print(f"Error checking serial exists: {e}")
-        return jsonify({
-            'success': False,
-            'exists': False,
-            'error': str(e)
-        }), 500
+        return handle_error(e, "Error checking serial")
     finally:
-        if conn:
-            conn.close()
-            
+        if 'conn' in locals() and conn: conn.close()
+
 @scan_results_bp.route('/api/scan-results/check-scan-code', methods=['GET'])
 def check_scan_code_exists():
-    """Memeriksa apakah scan code sudah ada di database"""
-    conn = None
+    code = request.args.get('code')
+    if not code:
+        return jsonify({'success': False, 'exists': False, 'error': 'Scan code is required'}), 400
+    
     try:
-        scan_code = request.args.get('code', '')
-        
-        if not scan_code:
-            return jsonify({
-                'success': False,
-                'exists': False,
-                'error': 'Scan code is required'
-            }), 400
-        
-        conn = get_db_connection()
+        conn = get_conn()
         cur = conn.cursor()
         
-        # Cek di scan_results_materials
-        cur.execute("""
-            SELECT COUNT(*) FROM scan_results_materials 
-            WHERE scan_code = %s
-        """, (scan_code,))
+        cur.execute("SELECT COUNT(*) FROM scan_results_materials WHERE scan_code = %s", (code,))
         material_count = cur.fetchone()[0]
         
-        # Cek juga di materials_items_preparation yang sudah di-scan
-        cur.execute("""
-            SELECT COUNT(*) FROM materials_items_preparation 
-            WHERE scan_code = %s AND status = 'scanned'
-        """, (scan_code,))
+        cur.execute("SELECT COUNT(*) FROM materials_items_preparation WHERE scan_code = %s AND status = 'scanned'", (code,))
         item_count = cur.fetchone()[0]
         
-        exists = material_count > 0 or item_count > 0
-        
-        return jsonify({
-            'success': True,
-            'exists': exists,
-            'message': 'Scan code check completed'
-        })
+        return jsonify({'success': True, 'exists': material_count > 0 or item_count > 0})
         
     except Exception as e:
-        print(f"Error checking scan code exists: {e}")
-        return jsonify({
-            'success': False,
-            'exists': False,
-            'error': str(e)
-        }), 500
+        return handle_error(e, "Error checking scan code")
     finally:
-        if conn:
-            conn.close()
+        if 'conn' in locals() and conn: conn.close()
