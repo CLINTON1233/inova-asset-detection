@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   CheckCircle,
@@ -36,6 +36,8 @@ import {
 import { useRouter } from "next/navigation";
 import LayoutDashboard from "../components/LayoutDashboard";
 import ProtectedPage from "../components/ProtectedPage";
+import API_BASE_URL, { API_ENDPOINTS } from "../../config/api";
+import Swal from "sweetalert2";
 
 // ─── Inline Donut Component ─────────────────────────────────────────────────
 const InlineDonut = ({ pct, color, size = 100, stroke = 10 }) => {
@@ -81,11 +83,109 @@ const InlineDonut = ({ pct, color, size = 100, stroke = 10 }) => {
 };
 
 export default function DashboardPage() {
-  // Statistik
+  const router = useRouter();
+  const [sessions, setSessions] = useState([]);
+  const [scanResults, setScanResults] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [recentChecks, setRecentChecks] = useState([]);
+
+  // Fetch all sessions and scan results
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    try {
+      // Fetch all scanning sessions
+      const sessionsResponse = await fetch(API_ENDPOINTS.SCANNING_PREP_LIST_ALL, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      const sessionsResult = await sessionsResponse.json();
+
+      if (sessionsResult.success) {
+        const sessionsWithType = sessionsResult.data.map((session) => ({
+          ...session,
+          type: session.type || (session.category_id === 1 ? "device" : "material"),
+          totalQty: session.totalQty || session.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) || 0,
+          totalScanned: session.items?.reduce((sum, i) => sum + (i.scanned_count || 0), 0) || 0,
+        }));
+        setSessions(sessionsWithType);
+
+        // Build recent checks from sessions
+        const allScanResults = [];
+        for (const session of sessionsWithType) {
+          if (session.items) {
+            for (const item of session.items) {
+              if (item.scanned_count > 0) {
+                allScanResults.push({
+                  id: `${session.type === "device" ? "DEV" : "MAT"}-${session.id_preparation}-${item.id_item}`,
+                  jenisAset: item.device_name || item.material_name || item.item_name,
+                  kategori: session.type === "device" ? "Perangkat" : "Material",
+                  lokasi: session.location_name || "Unknown",
+                  status: item.scanned_count === item.quantity ? "Valid" : "Tertunda",
+                  tanggal: new Date(session.checking_date).toLocaleDateString("id-ID"),
+                  waktu: new Date().toLocaleTimeString("id-ID"),
+                  nomorSeri: item.scanned_count > 0 ? "Scanned" : "-",
+                  barcode: item.scanned_count > 0 ? "Scanned" : "-",
+                });
+              }
+            }
+          }
+        }
+        setRecentChecks(allScanResults.slice(0, 5));
+      }
+
+      // Fetch scan results from localStorage or API
+      const storedHistory = localStorage.getItem("scanCheckHistory");
+      if (storedHistory) {
+        const history = JSON.parse(storedHistory);
+        setScanResults(history);
+      }
+
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+      Swal.fire({
+        title: "Error!",
+        text: "Failed to load dashboard data",
+        icon: "error",
+        confirmButtonColor: "#1e40af",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calculate statistics from sessions
+  const totalSessions = sessions.length;
+  const totalDevices = sessions.filter(s => s.type === "device").length;
+  const totalMaterials = sessions.filter(s => s.type === "material").length;
+  
+  const totalItems = sessions.reduce((sum, s) => sum + (s.totalItems || 0), 0);
+  const totalQuantity = sessions.reduce((sum, s) => sum + (s.totalQty || 0), 0);
+  const totalScanned = sessions.reduce((sum, s) => sum + (s.totalScanned || 0), 0);
+  
+  const pendingSessions = sessions.filter(s => s.status === "pending").length;
+  const inProgressSessions = sessions.filter(s => s.status === "in-progress").length;
+  const completedSessions = sessions.filter(s => s.status === "completed").length;
+  
+  const validAssets = totalScanned;
+  const pendingAssets = totalQuantity - totalScanned;
+  const errorAssets = 0; // Placeholder, bisa diambil dari validations nanti
+  
+  const validPct = totalQuantity > 0 ? (validAssets / totalQuantity) * 100 : 0;
+  const errorPct = totalQuantity > 0 ? (errorAssets / totalQuantity) * 100 : 0;
+  const pendingPct = totalQuantity > 0 ? (pendingAssets / totalQuantity) * 100 : 0;
+  
+  const scanSuccessRate = totalQuantity > 0 ? (validAssets / totalQuantity) * 100 : 0;
+  const todayScanned = 0; // Placeholder, bisa dihitung dari scan results hari ini
+
+  // Statistik untuk KPI
   const stats = [
     {
       label: "Total IT Assets",
-      value: 245,
+      value: totalQuantity,
       icon: Box,
       color: "bg-blue-600",
       trend: 12,
@@ -95,7 +195,7 @@ export default function DashboardPage() {
     },
     {
       label: "Verified Today",
-      value: 18,
+      value: todayScanned,
       icon: CheckCircle,
       color: "bg-green-600",
       trend: 3,
@@ -105,107 +205,107 @@ export default function DashboardPage() {
     },
     {
       label: "Pending Inspections",
-      value: 15,
+      value: pendingAssets,
       icon: AlertTriangle,
       color: "bg-blue-400",
       trend: 2,
       change: "down",
       description: "Awaiting Validation",
-      pct: 76,
+      pct: pendingPct,
     },
     {
       label: "Serial/Barcode Errors",
-      value: 7,
+      value: errorAssets,
       icon: QrCode,
       color: "bg-red-600",
       trend: 1,
       change: "up",
       description: "Requires Re-Scanning",
-      pct: 12,
+      pct: errorPct,
     },
   ];
 
-  // Data Grafik Aktivitas
-  const chartData = [
-    { name: "Mon", Valid: 8, Error: 2, Tertunda: 3 },
-    { name: "Tue", Valid: 12, Error: 1, Tertunda: 2 },
-    { name: "Wed", Valid: 15, Error: 0, Tertunda: 5 },
-    { name: "Thu", Valid: 10, Error: 3, Tertunda: 4 },
-    { name: "Fri", Valid: 14, Error: 1, Tertunda: 2 },
-  ];
+  // Data Grafik Aktivitas (dari sessions per hari)
+  const getWeeklyData = () => {
+    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const weeklyData = days.map(day => ({
+      name: day,
+      Valid: 0,
+      Tertunda: 0,
+      Error: 0,
+    }));
+
+    sessions.forEach(session => {
+      const date = new Date(session.checking_date);
+      const dayName = days[date.getDay() === 0 ? 6 : date.getDay() - 1];
+      const dayData = weeklyData.find(d => d.name === dayName);
+      if (dayData) {
+        const scanned = session.totalScanned || 0;
+        const pending = (session.totalQty || 0) - scanned;
+        dayData.Valid += scanned;
+        dayData.Tertunda += pending;
+      }
+    });
+
+    return weeklyData;
+  };
+
+  const chartData = getWeeklyData();
 
   // Ringkasan Status Aset
   const assetStatusData = [
-    { name: "Valid", value: 185, color: "#2563eb" },
-    { name: "Pending", value: 38, color: "#6366f1" },
-    { name: "Error", value: 22, color: "#dc2626" },
+    { name: "Valid", value: validAssets, color: "#2563eb" },
+    { name: "Pending", value: pendingAssets, color: "#6366f1" },
+    { name: "Error", value: errorAssets, color: "#dc2626" },
   ];
 
-  // Riwayat Pengecekan Terbaru
-  const recentChecks = [
-    {
-      id: "PC-IT-2025-001",
-      jenisAset: "Komputer",
-      kategori: "Perangkat",
-      lokasi: "Infrastruktur & Jaringan",
-      status: "Valid",
-      tanggal: "2025-10-28",
-      waktu: "14:30:15",
-      nomorSeri: "NS-PC-887632",
-    },
-    {
-      id: "MAT-KBL-045",
-      jenisAset: "Kabel RJ45",
-      kategori: "Material",
-      lokasi: "Workshop 2",
-      status: "Valid",
-      tanggal: "2025-10-28",
-      waktu: "14:25:40",
-      barcode: "BC-RJ45-554321",
-    },
-    {
-      id: "SRV-NET-012",
-      jenisAset: "Server",
-      kategori: "Perangkat",
-      lokasi: "Ruang Server L3",
-      status: "Valid",
-      tanggal: "2025-10-28",
-      waktu: "14:18:22",
-      nomorSeri: "NS-SRV-992345",
-    },
-    {
-      id: "MAT-TRK-987",
-      jenisAset: "Trunking",
-      kategori: "Material",
-      lokasi: "Kantor Utama L1",
-      status: "Tertunda",
-      tanggal: "2025-10-28",
-      waktu: "14:10:05",
-      barcode: "BC-TRK-773216",
-    },
-    {
-      id: "CCTV-SEC-003",
-      jenisAset: "CCTV",
-      kategori: "Perangkat",
-      lokasi: "Pintu Gerbang",
-      status: "Error",
-      tanggal: "2025-10-28",
-      waktu: "14:05:33",
-      nomorSeri: "NS-CCTV-661234",
-    },
-  ];
+  // Distribusi Jenis Aset dari sessions
+  const getAssetTypeDistribution = () => {
+    const typeMap = new Map();
+    
+    sessions.forEach(session => {
+      if (session.items) {
+        session.items.forEach(item => {
+          let category = "";
+          if (session.type === "device") {
+            const deviceName = (item.device_name || "").toLowerCase();
+            if (deviceName.includes("laptop") || deviceName.includes("pc") || deviceName.includes("komputer")) {
+              category = "Komputer & Laptop";
+            } else if (deviceName.includes("monitor") || deviceName.includes("display")) {
+              category = "Monitor & Display";
+            } else if (deviceName.includes("server") || deviceName.includes("switch") || deviceName.includes("router")) {
+              category = "Perangkat Jaringan";
+            } else if (deviceName.includes("keyboard") || deviceName.includes("mouse")) {
+              category = "Periferal";
+            } else {
+              category = "Perangkat Lainnya";
+            }
+          } else {
+            const materialName = (item.material_name || "").toLowerCase();
+            if (materialName.includes("kabel") || materialName.includes("cable")) {
+              category = "Kabel";
+            } else if (materialName.includes("connector") || materialName.includes("rj45")) {
+              category = "Konektor";
+            } else if (materialName.includes("trunking") || materialName.includes("pipa")) {
+              category = "Instalasi";
+            } else {
+              category = "Material Lainnya";
+            }
+          }
+          
+          const qty = item.quantity || 0;
+          typeMap.set(category, (typeMap.get(category) || 0) + qty);
+        });
+      }
+    });
+    
+    return Array.from(typeMap.entries())
+      .map(([name, jumlah]) => ({ name, jumlah }))
+      .sort((a, b) => b.jumlah - a.jumlah);
+  };
 
-  // Distribusi Jenis Aset
-  const assetTypeData = [
-    { name: "Periferal (Keyboard, Mouse, Monitor)", jumlah: 75 },
-    { name: "Komputer & Laptop", jumlah: 52 },
-    { name: "Perangkat Jaringan (Server, Switch)", jumlah: 48 },
-    { name: "Material (Kabel, RJ45, Trunking, Pipa)", jumlah: 45 },
-    { name: "Keamanan (CCTV, Webcam, Speaker)", jumlah: 25 },
-  ].sort((a, b) => b.jumlah - a.jumlah);
-
+  const assetTypeData = getAssetTypeDistribution();
   const totalAset = assetTypeData.reduce((sum, item) => sum + item.jumlah, 0);
-  const router = useRouter();
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -236,7 +336,7 @@ export default function DashboardPage() {
     if (active && payload && payload.length) {
       const data = payload[0];
       const total = assetStatusData.reduce((sum, item) => sum + item.value, 0);
-      const percentage = ((data.value / total) * 100).toFixed(1);
+      const percentage = total > 0 ? ((data.value / total) * 100).toFixed(1) : 0;
 
       return (
         <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
@@ -250,10 +350,20 @@ export default function DashboardPage() {
     return null;
   };
 
-  // Hitung persentase untuk donut
-  const validPct = (assetStatusData[0].value / totalAset) * 100;
-  const errorPct = (assetStatusData[2].value / totalAset) * 100;
-  const scanSuccessRate = 95; // Contoh angka
+  if (loading) {
+    return (
+      <ProtectedPage>
+        <LayoutDashboard>
+          <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600 font-medium">Loading dashboard...</p>
+            </div>
+          </div>
+        </LayoutDashboard>
+      </ProtectedPage>
+    );
+  }
 
   return (
     <ProtectedPage>
@@ -303,7 +413,6 @@ export default function DashboardPage() {
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
                   IT Assets Inventory System
                 </h1>
-                {/* <span className="period-badge">Real-time Monitoring</span> */}
               </div>
               <p className="text-sm text-gray-500 mt-1">
                 Automatic Validation of IT Asset Serial Numbers or Barcodes
@@ -324,25 +433,25 @@ export default function DashboardPage() {
                       title: "Valid Assets",
                       pct: validPct,
                       color: "#2563eb",
-                      sub: `${assetStatusData[0].value} of ${totalAset} assets`,
+                      sub: `${validAssets} of ${totalQuantity} assets`,
                     },
                     {
-                      title: "Error Rate",
-                      pct: errorPct,
-                      color: "#dc2626",
-                      sub: `${assetStatusData[2].value} assets need attention`,
+                      title: "Pending",
+                      pct: pendingPct,
+                      color: "#f59e0b",
+                      sub: `${pendingAssets} assets need scanning`,
                     },
                     {
                       title: "Scan Success",
                       pct: scanSuccessRate,
                       color: "#10b981",
-                      sub: "98% accuracy rate",
+                      sub: `${Math.round(scanSuccessRate)}% accuracy rate`,
                     },
                     {
-                      title: "Today's Scan",
-                      pct: 92,
-                      color: "#f59e0b",
-                      sub: "18 assets verified",
+                      title: "Completed Sessions",
+                      pct: totalSessions > 0 ? (completedSessions / totalSessions) * 100 : 0,
+                      color: "#6366f1",
+                      sub: `${completedSessions} of ${totalSessions} sessions`,
                     },
                   ].map((d, i) => (
                     <div key={i} className="donut-card">
@@ -361,7 +470,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* ── Row 2: Quick Actions dengan Style Baru ── */}
+              {/* ── Row 2: Quick Actions ── */}
               <div className="card p-5">
                 <p className="section-title flex items-center gap-2">
                   <ScanLine className="w-4 h-4" /> Start Asset Checking
@@ -542,36 +651,41 @@ export default function DashboardPage() {
 
               {/* ── Row 4: Asset Distribution ── */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                {/* Asset Type Distribution - Diperluas dengan style sederhana */}
                 <div className="card p-5 lg:col-span-2">
                   <p className="section-title">Asset Type Distribution</p>
                   <div className="space-y-4">
-                    {assetTypeData.map((item, index) => {
-                      const percentage = (item.jumlah / totalAset) * 100;
-                      return (
-                        <div key={index}>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="text-gray-600">{item.name}</span>
-                            <span className="font-semibold text-gray-900">
-                              {item.jumlah}{" "}
-                              <span className="text-xs text-gray-500 font-normal">
-                                ({percentage.toFixed(1)}%)
+                    {assetTypeData.length > 0 ? (
+                      assetTypeData.map((item, index) => {
+                        const percentage = totalAset > 0 ? (item.jumlah / totalAset) * 100 : 0;
+                        return (
+                          <div key={index}>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-gray-600">{item.name}</span>
+                              <span className="font-semibold text-gray-900">
+                                {item.jumlah}{" "}
+                                <span className="text-xs text-gray-500 font-normal">
+                                  ({percentage.toFixed(1)}%)
+                                </span>
                               </span>
-                            </span>
+                            </div>
+                            <div className="w-full bg-gray-100 rounded-full h-2">
+                              <div
+                                className="h-2 rounded-full transition-all duration-500"
+                                style={{
+                                  width: `${percentage}%`,
+                                  background:
+                                    percentage > 50 ? "#10b981" : "#2563eb",
+                                }}
+                              />
+                            </div>
                           </div>
-                          <div className="w-full bg-gray-100 rounded-full h-2">
-                            <div
-                              className="h-2 rounded-full transition-all duration-500"
-                              style={{
-                                width: `${percentage}%`,
-                                background:
-                                  percentage > 50 ? "#10b981" : "#2563eb",
-                              }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        No asset data available
+                      </div>
+                    )}
                   </div>
 
                   {/* Summary Box */}
@@ -626,56 +740,65 @@ export default function DashboardPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {recentChecks.map((row, index) => (
-                        <tr
-                          key={index}
-                          className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
-                        >
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
-                                {getCategoryIcon(row.kategori)}
+                      {recentChecks.length > 0 ? (
+                        recentChecks.map((row, index) => (
+                          <tr
+                            key={index}
+                            className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                          >
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                                  {getCategoryIcon(row.kategori)}
+                                </div>
+                                <span className="font-semibold text-gray-900">
+                                  {row.id}
+                                </span>
                               </div>
-                              <span className="font-semibold text-gray-900">
-                                {row.id}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-xs text-gray-600">
-                            {row.jenisAset}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`px-2 py-0.5 text-xs font-semibold rounded-full ${row.kategori === "Perangkat"
-                                ? "bg-blue-100 text-blue-700"
-                                : "bg-green-100 text-green-700"
+                            </td>
+                            <td className="px-4 py-3 text-xs text-gray-600">
+                              {row.jenisAset}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
+                                  row.kategori === "Perangkat"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-green-100 text-green-700"
                                 }`}
-                            >
-                              {row.kategori === "Perangkat"
-                                ? "Device"
-                                : "Material"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-xs text-gray-600">
-                            {row.lokasi}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(row.status)}`}
-                            >
-                              {row.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="text-xs text-gray-600">
-                              {row.tanggal}
-                            </div>
-                            <div className="text-xs text-gray-400">
-                              {row.waktu}
-                            </div>
+                              >
+                                {row.kategori === "Perangkat"
+                                  ? "Device"
+                                  : "Material"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-xs text-gray-600">
+                              {row.lokasi}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(row.status)}`}
+                              >
+                                {row.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="text-xs text-gray-600">
+                                {row.tanggal}
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                {row.waktu}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={6} className="text-center py-8 text-gray-500">
+                            No scan history available
                           </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -720,25 +843,30 @@ export default function DashboardPage() {
                   {/* Detail Summary */}
                   <div className="border-t border-gray-100 pt-3">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                      Status Breakdown
+                      Session Breakdown
                     </p>
-                    {assetStatusData.map((item) => (
-                      <div
-                        key={item.name}
-                        className="flex justify-between items-center py-2 text-sm border-b border-gray-50 last:border-0"
-                      >
-                        <span className="text-gray-500 flex items-center gap-1.5">
-                          <span
-                            className="w-1.5 h-1.5 rounded-full"
-                            style={{ backgroundColor: item.color }}
-                          />
-                          {item.name}
-                        </span>
-                        <span className="font-bold text-gray-900">
-                          {item.value}
-                        </span>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center py-2 text-sm border-b border-gray-50">
+                        <span className="text-gray-500">Total Sessions</span>
+                        <span className="font-bold text-gray-900">{totalSessions}</span>
                       </div>
-                    ))}
+                      <div className="flex justify-between items-center py-2 text-sm border-b border-gray-50">
+                        <span className="text-gray-500">Device Sessions</span>
+                        <span className="font-bold text-gray-900">{totalDevices}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 text-sm border-b border-gray-50">
+                        <span className="text-gray-500">Material Sessions</span>
+                        <span className="font-bold text-gray-900">{totalMaterials}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 text-sm border-b border-gray-50">
+                        <span className="text-gray-500">In Progress</span>
+                        <span className="font-bold text-gray-900">{inProgressSessions}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 text-sm">
+                        <span className="text-gray-500">Completed</span>
+                        <span className="font-bold text-gray-900">{completedSessions}</span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Quick Actions */}
