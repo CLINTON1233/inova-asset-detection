@@ -1,10 +1,11 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app 
 import bcrypt
-from datetime import datetime
+from datetime import datetime, timedelta
 from utils.database import get_db_connection
 import secrets
+import jwt 
 
-# Buat Blueprint untuk auth routes
+active_tokens = {}
 auth_bp = Blueprint('auth', __name__, url_prefix='/api')
 
 @auth_bp.route('/register', methods=['POST'])
@@ -119,7 +120,6 @@ def update_profile():
     cursor = None
     
     try:
-        # Check authentication
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({
@@ -161,7 +161,6 @@ def update_profile():
         
         user_id = data['user_id']
         
-        # Check if username or email already exists for other users
         check_query = """
             SELECT id_user, username, email, no_badge 
             FROM users 
@@ -186,7 +185,6 @@ def update_profile():
                 'message': f'{", ".join(conflict_fields)} already exists for another user'
             }), 409
         
-        # Update user profile (tanpa phone karena tidak ada di database)
         update_query = """
             UPDATE users 
             SET username = %s, 
@@ -251,7 +249,6 @@ def change_password():
     cursor = None
     
     try:
-        # Check authentication
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):
             return jsonify({
@@ -287,7 +284,6 @@ def change_password():
         
         user_id = data['user_id']
         
-        # Get current user's password
         get_user_query = "SELECT password FROM users WHERE id_user = %s"
         cursor.execute(get_user_query, (user_id,))
         user = cursor.fetchone()
@@ -297,18 +293,15 @@ def change_password():
                 'success': False,
                 'message': 'User not found'
             }), 404
-        
-        # Verify current password
+
         if not bcrypt.checkpw(data['current_password'].encode('utf-8'), user[0].encode('utf-8')):
             return jsonify({
                 'success': False,
                 'message': 'Current password is incorrect'
             }), 401
-        
-        # Hash new password
+
         hashed_password = bcrypt.hashpw(data['new_password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
-        # Update password
         update_query = """
             UPDATE users 
             SET password = %s, 
@@ -383,15 +376,16 @@ def login():
                 'message': 'Invalid email/username or password'
             }), 401
         
-        token = secrets.token_hex(32)
+        token = jwt.encode({
+            'user_id': user[0],
+            'username': user[1],
+            'exp': datetime.utcnow() + timedelta(hours=24)
+        }, app.config['SECRET_KEY'], algorithm='HS256')
         
-        try:
-            update_query = "UPDATE users SET updated_at = %s WHERE id_user = %s"
-            cursor.execute(update_query, (datetime.now(), user[0]))
-            conn.commit()
-        except Exception as e:
-            print(f"ℹ Note: updated_at update failed: {e}")
-            conn.rollback()
+        active_tokens[token] = {
+            'user_id': user[0],
+            'created_at': datetime.now()
+        }
         
         print(f" User logged in successfully: {user[1]}")
         
@@ -401,12 +395,13 @@ def login():
             'token': token,
             'user': {
                 'id': user[0],
-                'name': user[1],  # Tambahkan ini
+                'name': user[1],
                 'username': user[1],
                 'email': user[2],
                 'no_badge': user[4],
                 'department': user[5],
-                'status': user[6]
+                'status': user[6],
+                'role': 'karyawan'  
             }
         }), 200
         
@@ -473,8 +468,44 @@ def protected():
     
     token = auth_header.split(' ')[1]
     
+    try:
+        payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        if token not in active_tokens:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid or expired token'
+            }), 401
+            
+        return jsonify({
+            'success': True,
+            'message': 'Access granted',
+            'user_id': payload['user_id'],
+            'username': payload['username']
+        }), 200
+        
+    except jwt.ExpiredSignatureError:
+        if token in active_tokens:
+            del active_tokens[token]
+        return jsonify({
+            'success': False,
+            'message': 'Token has expired'
+        }), 401
+    except jwt.InvalidTokenError:
+        return jsonify({
+            'success': False,
+            'message': 'Invalid token'
+        }), 401
+
+@auth_bp.route('/logout', methods=['POST'])
+def logout():
+    auth_header = request.headers.get('Authorization')
+    
+    if auth_header and auth_header.startswith('Bearer '):
+        token = auth_header.split(' ')[1]
+        if token in active_tokens:
+            del active_tokens[token]
+    
     return jsonify({
         'success': True,
-        'message': 'Access granted',
-        'data': 'Protected resource'
+        'message': 'Logged out successfully'
     }), 200

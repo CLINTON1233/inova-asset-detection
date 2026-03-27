@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { API_ENDPOINTS } from "../../config/api";
 
 const AuthContext = createContext();
 
@@ -12,69 +13,96 @@ export function AuthProvider({ children }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    checkAuth();
+    validateToken();
   }, []);
 
   useEffect(() => {
-    // Redirect ke login jika tidak authenticated dan mencoba akses protected route
     if (!loading) {
       checkRouteAccess();
     }
-  }, [pathname, loading]);
+  }, [pathname, loading, user]);
 
-  const checkAuth = () => {
+  const validateToken = async () => {
     try {
-      const userData = localStorage.getItem("user_data");
       const token = localStorage.getItem("auth_token");
+      const userData = localStorage.getItem("user_data");
 
-      if (userData && token) {
+      if (!token || !userData) {
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(API_ENDPOINTS.HEALTH_CHECK?.replace('/health', '/protected') || 'http://localhost:5001/api/protected', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
         setUser(JSON.parse(userData));
+      } else {
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("user_data");
+        localStorage.removeItem("remember_me");
+        setUser(null);
       }
     } catch (error) {
-      console.error("Error checking auth:", error);
-      localStorage.removeItem("user_data");
+      console.error("Error validating token:", error);
       localStorage.removeItem("auth_token");
+      localStorage.removeItem("user_data");
+      localStorage.removeItem("remember_me");
+      setUser(null);
     } finally {
       setLoading(false);
     }
   };
 
   const checkRouteAccess = () => {
-    // Routes yang boleh diakses tanpa login
     const publicRoutes = ["/login", "/register", "/forgot-password"];
 
     if (loading) return;
-
-    // Jika user belum login dan mencoba akses protected route
     if (!user && !publicRoutes.includes(pathname)) {
       router.push("/login");
       return;
     }
 
-    // Jika user sudah login tapi mencoba akses login/register
     if (user && (pathname === "/login" || pathname === "/register")) {
       router.push("/dashboard");
       return;
     }
   };
 
-  const login = (userData, token) => {
+  const login = async (userData, token) => {
     setUser(userData);
     localStorage.setItem("user_data", JSON.stringify(userData));
     localStorage.setItem("auth_token", token);
+    document.cookie = `auth_token=${token}; path=/; max-age=86400`;
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem("user_data");
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("remember_me");
-
-    // Clear cookies juga
-    document.cookie =
-      "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
-
-    router.push("/login");
+  const logout = async () => {
+    try {
+      const token = localStorage.getItem("auth_token");
+      if (token) {
+        await fetch('http://localhost:5001/api/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      setUser(null);
+      localStorage.removeItem("user_data");
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("remember_me");
+      document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+      router.push("/login");
+    }
   };
 
   const value = {
