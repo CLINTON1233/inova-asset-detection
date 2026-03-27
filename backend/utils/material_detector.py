@@ -65,13 +65,17 @@ def detect_materials_from_image(image_path):
                     
                     print(f"Detected: {cls_name} with confidence {confidence}")
                     
+                    # PERBAIKAN: Pastikan asset_type dan category dikirim dengan benar
                     material_id = f"MAT-{unique_id}-{len(detected_items)+1:03d}"
                     
                     detected_items.append({
                         "id": material_id,
-                        "asset_type": cls_name.capitalize(),
+                        "asset_type": cls_name,  # Tidak perlu capitalize agar matching lebih mudah
                         "category": "Material",
                         "confidence": round(confidence, 3),
+                        "brand": "",  # Tambahkan brand untuk material
+                        "vendor": "",  # Tambahkan vendor
+                        "uom": "PCS",  # Tambahkan UOM default
                         "scan_code": "",
                         "bbox": bbox,
                         "location": "",

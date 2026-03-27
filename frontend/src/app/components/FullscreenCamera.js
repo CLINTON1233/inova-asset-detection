@@ -185,14 +185,14 @@ export default function FullscreenCamera({
 
       const imageData = canvas.toDataURL("image/jpeg", 0.8);
 
-  const endpoint =
-  mode === "device"
-    ? API_ENDPOINTS.DETECT_CAMERA
-    : mode === "material"
-      ? API_ENDPOINTS.MATERIAL_DETECT_CAMERA
-      : mode === "scan_code"
-        ? API_ENDPOINTS.SCAN_CODE_DETECT_CAMERA
-        : API_ENDPOINTS.SERIAL_DETECT_CAMERA;
+      const endpoint =
+        mode === "device"
+          ? API_ENDPOINTS.DETECT_CAMERA
+          : mode === "material"
+            ? API_ENDPOINTS.MATERIAL_DETECT_CAMERA
+            : mode === "scan_code"
+              ? API_ENDPOINTS.SCAN_CODE_DETECT_CAMERA
+              : API_ENDPOINTS.SERIAL_DETECT_CAMERA;
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -273,10 +273,11 @@ export default function FullscreenCamera({
           setTimeout(() => {
             onClose();
           }, 500);
-        }
-        // MODIFIKASI: Deteksi untuk mode material
-        else if (mode === "material" && result.detected_items?.length > 0) {
+        } else if (mode === "material" && result.detected_items?.length > 0) {
           const detectedItem = result.detected_items[0];
+
+          console.log("Material detected:", detectedItem);
+          console.log("Session data:", sessionData);
 
           if (sessionData) {
             const detectedAssetType =
@@ -287,6 +288,7 @@ export default function FullscreenCamera({
                 (item.material_name || item.item_name || "")?.toLowerCase() ||
                 "";
               return (
+                itemName === detectedAssetType ||
                 itemName.includes(detectedAssetType) ||
                 detectedAssetType.includes(itemName)
               );
@@ -296,22 +298,22 @@ export default function FullscreenCamera({
               Swal.fire({
                 title: "Material Tidak Sesuai!",
                 html: `
-                  <div class="text-center">
-                    <div class="mx-auto mb-3 w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                      <svg class="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                      </svg>
-                    </div>
-                    <p class="text-lg font-semibold text-gray-800 mb-2">Detected: ${detectedItem.asset_type}</p>
-                    <p class="text-sm text-gray-600">Material yang discan tidak sesuai dengan session ini.</p>
-                    <div class="mt-4 p-3 bg-gray-100 rounded-lg text-left">
-                      <p class="text-xs font-semibold text-gray-700 mb-2">Materials in this session:</p>
-                      <ul class="text-xs text-gray-600 space-y-1">
-                        ${sessionData.items.map((item) => `<li>• ${item.material_name || item.item_name}</li>`).join("")}
-                      </ul>
-                    </div>
-                  </div>
-                `,
+          <div class="text-center">
+            <div class="mx-auto mb-3 w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+              <svg class="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+              </svg>
+            </div>
+            <p class="text-lg font-semibold text-gray-800 mb-2">Detected: ${detectedItem.asset_type}</p>
+            <p class="text-sm text-gray-600">Material yang discan tidak sesuai dengan session ini.</p>
+            <div class="mt-4 p-3 bg-gray-100 rounded-lg text-left">
+              <p class="text-xs font-semibold text-gray-700 mb-2">Materials in this session:</p>
+              <ul class="text-xs text-gray-600 space-y-1">
+                ${sessionData.items.map((item) => `<li>• ${item.material_name || item.item_name}</li>`).join("")}
+              </ul>
+            </div>
+          </div>
+        `,
                 icon: "warning",
                 confirmButtonText: "OK",
                 customClass: {
@@ -328,8 +330,10 @@ export default function FullscreenCamera({
             }
           }
 
+          // Kirim ke handler dengan struktur yang benar
+          // PERUBAHAN: Kirim sebagai type "device" agar diproses di handleCameraDetection
           onDetect({
-            type: "device", // Tetap menggunakan type "device" karena akan diproses di scanning page sebagai material
+            type: "device", // Tetap gunakan "device" karena akan diproses sebagai material di scanning page
             data: detectedItem,
             result: result,
           });

@@ -1068,19 +1068,36 @@ def get_materials_scanning_preparation(prep_id):
         
         prep_dict = dict(preparation)
         
-        # Get items
+        # Get items dengan informasi quantity yang benar
         cur.execute("""
-            SELECT si.*, 
-                   COALESCE(
-                       json_agg(
-                           json_build_object(
-                               'department_id', d.id_department,
-                               'department_name', d.department_name,
-                               'quantity', id.quantity
-                           )
-                       ) FILTER (WHERE id.id_item_department IS NOT NULL),
-                       '[]'
-                   ) as departments
+            SELECT 
+                si.id_item,
+                si.material_name as item_name,
+                si.material_detail as specifications,
+                si.quantity,
+                si.uom,
+                si.vendor,
+                si.project_name,
+                si.status,
+                si.created_at,
+                COALESCE(
+                    (
+                        SELECT COUNT(*) 
+                        FROM materials_items_preparation mip 
+                        WHERE mip.scanning_item_id = si.id_item 
+                        AND mip.status = 'scanned'
+                    ), 0
+                ) as scanned_count,
+                COALESCE(
+                    json_agg(
+                        json_build_object(
+                            'department_id', d.id_department,
+                            'department_name', d.department_name,
+                            'quantity', id.quantity
+                        )
+                    ) FILTER (WHERE id.id_item_department IS NOT NULL),
+                    '[]'::json
+                ) as departments
             FROM materials_scanning_items si
             LEFT JOIN materials_item_departments id ON si.id_item = id.scanning_item_id
             LEFT JOIN departments d ON id.department_id = d.id_department
@@ -1175,7 +1192,7 @@ def get_materials_scanning_preparations():
             total_items = len(items)
             total_qty = sum(item.get('quantity', 0) for item in items)
             
-            # PERBAIKAN: Hitung scanned_count dari scan_results_materials
+            # Hitung scanned_count dari scan_results_materials
             cur.execute("""
                 SELECT COUNT(DISTINCT sr.id_scan) as scanned_count
                 FROM scan_results_materials sr
@@ -1214,7 +1231,7 @@ def get_materials_scanning_preparations():
             prep_dict['scannedCount'] = total_scanned
             prep_dict['progress'] = progress
             prep_dict['status'] = status
-            prep_dict['type'] = 'material'
+            prep_dict['type'] = 'material'  # Tambahkan type
             
             result.append(prep_dict)
         
@@ -1236,6 +1253,93 @@ def get_materials_scanning_preparations():
         if conn:
             conn.close()
 
+@scanning_prep_bp.route('/api/materials/scanning-preparation/<int:prep_id>/progress', methods=['GET'])
+def get_materials_preparation_progress(prep_id):
+    """Mendapatkan progress scanning untuk preparation Materials"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        # Get all scanning items
+        cur.execute("""
+            SELECT si.id_item, si.material_name as item_name, si.quantity, si.uom
+            FROM materials_scanning_items si
+            WHERE si.preparation_id = %s
+        """, (prep_id,))
+        
+        items = cur.fetchall()
+        
+        # Get all scan results for this preparation
+        cur.execute("""
+            SELECT 
+                sr.id_scan,
+                sr.item_preparation_id,
+                sr.scanned_at,
+                sr.scan_category,
+                sr.scan_value,
+                sr.scan_code,
+                sr.status,
+                ip.scanning_item_id,
+                ip.item_number,
+                si.id_item,
+                si.material_name as item_name,
+                si.quantity as item_quantity,
+                si.uom
+            FROM scan_results_materials sr
+            LEFT JOIN materials_items_preparation ip ON sr.item_preparation_id = ip.id_item_preparation
+            LEFT JOIN materials_scanning_items si ON ip.scanning_item_id = si.id_item
+            WHERE si.preparation_id = %s OR ip.preparation_id = %s
+            ORDER BY sr.scanned_at DESC
+        """, (prep_id, prep_id))
+        
+        scan_results = cur.fetchall()
+        
+        # Build progress data
+        progress = []
+        total_scanned = 0
+        total_target = 0
+        
+        for item in items:
+            scanned_count = 0
+            for scan in scan_results:
+                if scan['scanning_item_id'] == item['id_item']:
+                    scanned_count += 1
+            total_scanned += scanned_count
+            total_target += item['quantity']
+            
+            progress.append({
+                'id_item': item['id_item'],
+                'item_name': item['item_name'],
+                'quantity': item['quantity'],
+                'uom': item['uom'],
+                'scanned': scanned_count,
+                'percentage': int((scanned_count / item['quantity']) * 100) if item['quantity'] > 0 else 0
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'progress': progress,
+                'scan_results': [dict(row) for row in scan_results],
+                'total_scanned': total_scanned,
+                'total_target': total_target,
+                'overall_percentage': int((total_scanned / total_target) * 100) if total_target > 0 else 0,
+                'type': 'material'
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error in get_materials_preparation_progress: {e}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+            
 # ==================== ENDPOINT UNTUK GET ALL (DEVICES + MATERIALS) ====================
 @scanning_prep_bp.route('/api/scanning-preparation/list-all', methods=['GET'])
 def get_all_scanning_preparations():
