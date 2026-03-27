@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 import base64
 import re
-from utils.serial_detector import extract_serial_fast
+from routes.serial_detection import extract_serial_fast
 
 ocr_bp = Blueprint('ocr', __name__, url_prefix='/api/ocr')
 
