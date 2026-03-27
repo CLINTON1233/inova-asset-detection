@@ -21,6 +21,7 @@ export default function FullscreenCamera({
   const [availableCameras, setAvailableCameras] = useState([]);
   const [selectedCamera, setSelectedCamera] = useState(null);
   const [isCameraReady, setIsCameraReady] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null); 
 
   const getAvailableCameras = async () => {
     try {
@@ -125,6 +126,7 @@ export default function FullscreenCamera({
       }
 
       setCameraError(null);
+      setErrorMessage(null);
       hasDetectedRef.current = false;
     } catch (err) {
       console.error("Failed to access camera:", err);
@@ -151,6 +153,7 @@ export default function FullscreenCamera({
         streamRef.current = null;
       }
       setIsCameraReady(false);
+      setErrorMessage(null);
     };
   }, [isOpen]);
 
@@ -159,6 +162,17 @@ export default function FullscreenCamera({
       startCamera();
     }
   }, [selectedCamera]);
+
+  const showErrorInCamera = (title, message) => {
+    setErrorMessage({ title, message });
+    setIsDetecting(false);
+    hasDetectedRef.current = false;
+    
+    // Auto clear error after 3 seconds
+    setTimeout(() => {
+      setErrorMessage(null);
+    }, 3000);
+  };
 
   const captureAndDetect = async () => {
     if (
@@ -174,6 +188,7 @@ export default function FullscreenCamera({
 
     setIsDetecting(true);
     hasDetectedRef.current = true;
+    setErrorMessage(null);
 
     try {
       const canvas = document.createElement("canvas");
@@ -229,37 +244,10 @@ export default function FullscreenCamera({
             });
 
             if (matchingItems.length === 0) {
-              Swal.fire({
-                title: "Item Tidak Sesuai!",
-                html: `
-                  <div class="text-center">
-                    <div class="mx-auto mb-3 w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                      <svg class="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                      </svg>
-                    </div>
-                    <p class="text-lg font-semibold text-gray-800 mb-2">Detected: ${detectedItem.asset_type}</p>
-                    <p class="text-sm text-gray-600">Item yang discan tidak sesuai dengan session ini.</p>
-                    <div class="mt-4 p-3 bg-gray-100 rounded-lg text-left">
-                      <p class="text-xs font-semibold text-gray-700 mb-2">Items in this session:</p>
-                      <ul class="text-xs text-gray-600 space-y-1">
-                        ${sessionData.items.map((item) => `<li>• ${item.item_name} (${item.brand || "No brand"})</li>`).join("")}
-                      </ul>
-                    </div>
-                  </div>
-                `,
-                icon: "warning",
-                confirmButtonText: "OK",
-                customClass: {
-                  popup: "rounded-xl",
-                  confirmButton:
-                    "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-                },
-                didClose: () => {
-                  setIsDetecting(false);
-                  hasDetectedRef.current = false;
-                },
-              });
+              showErrorInCamera(
+                "Item Not Found!",
+                `Detected: ${detectedItem.asset_type} is not in current session`
+              );
               return;
             }
           }
@@ -273,7 +261,9 @@ export default function FullscreenCamera({
           setTimeout(() => {
             onClose();
           }, 500);
-        } else if (mode === "material" && result.detected_items?.length > 0) {
+        } 
+        // MODIFIKASI: Deteksi untuk mode material
+        else if (mode === "material" && result.detected_items?.length > 0) {
           const detectedItem = result.detected_items[0];
 
           console.log("Material detected:", detectedItem);
@@ -295,45 +285,16 @@ export default function FullscreenCamera({
             });
 
             if (matchingItems.length === 0) {
-              Swal.fire({
-                title: "Material Tidak Sesuai!",
-                html: `
-          <div class="text-center">
-            <div class="mx-auto mb-3 w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-              <svg class="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-              </svg>
-            </div>
-            <p class="text-lg font-semibold text-gray-800 mb-2">Detected: ${detectedItem.asset_type}</p>
-            <p class="text-sm text-gray-600">Material yang discan tidak sesuai dengan session ini.</p>
-            <div class="mt-4 p-3 bg-gray-100 rounded-lg text-left">
-              <p class="text-xs font-semibold text-gray-700 mb-2">Materials in this session:</p>
-              <ul class="text-xs text-gray-600 space-y-1">
-                ${sessionData.items.map((item) => `<li>• ${item.material_name || item.item_name}</li>`).join("")}
-              </ul>
-            </div>
-          </div>
-        `,
-                icon: "warning",
-                confirmButtonText: "OK",
-                customClass: {
-                  popup: "rounded-xl",
-                  confirmButton:
-                    "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-                },
-                didClose: () => {
-                  setIsDetecting(false);
-                  hasDetectedRef.current = false;
-                },
-              });
+              showErrorInCamera(
+                "Material Not Found!",
+                `Detected: ${detectedItem.asset_type} is not in current session`
+              );
               return;
             }
           }
 
-          // Kirim ke handler dengan struktur yang benar
-          // PERUBAHAN: Kirim sebagai type "device" agar diproses di handleCameraDetection
           onDetect({
-            type: "device", // Tetap gunakan "device" karena akan diproses sebagai material di scanning page
+            type: "device",
             data: detectedItem,
             result: result,
           });
@@ -341,7 +302,9 @@ export default function FullscreenCamera({
           setTimeout(() => {
             onClose();
           }, 500);
-        } else if (
+        } 
+        // Deteksi Scan Code
+        else if (
           mode === "scan_code" &&
           result.scan_code_detections?.length > 0
         ) {
@@ -362,43 +325,20 @@ export default function FullscreenCamera({
               onClose();
             }, 500);
           } else if (result.scan_code_detections.length > 0) {
-            // Ada deteksi tapi tidak valid
             const invalidDetection = result.scan_code_detections[0];
-            Swal.fire({
-              title: "Invalid Scan Code",
-              html: `<p class="text-lg font-semibold text-red-600">${invalidDetection.detected_text || "Unknown"}</p>
-             <p class="text-sm text-gray-600 mt-2">${invalidDetection.validation_message || "This scan code format is not recognized."}</p>
-             <p class="text-xs text-gray-500 mt-3">Valid formats: IT-MT-XX-XXXX where XX is material code</p>`,
-              icon: "warning",
-              confirmButtonText: "Try Again",
-              customClass: {
-                popup: "rounded-xl",
-                confirmButton:
-                  "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-              },
-              didClose: () => {
-                setIsDetecting(false);
-                hasDetectedRef.current = false;
-              },
-            });
+            showErrorInCamera(
+              "Invalid Scan Code",
+              `${invalidDetection.detected_text || "Unknown"} - ${invalidDetection.validation_message || "Format not recognized"}`
+            );
           } else {
-            Swal.fire({
-              title: "No Scan Code Detected",
-              text: "No scan code detected. Please try again with a clearer image.",
-              icon: "info",
-              confirmButtonText: "Try Again",
-              customClass: {
-                popup: "rounded-xl",
-                confirmButton:
-                  "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-              },
-              didClose: () => {
-                setIsDetecting(false);
-                hasDetectedRef.current = false;
-              },
-            });
+            showErrorInCamera(
+              "No Scan Code Detected",
+              "No scan code detected. Please try again with a clearer image."
+            );
           }
-        } else if (mode === "serial" && result.serial_detections?.length > 0) {
+        } 
+        // Deteksi Serial Number
+        else if (mode === "serial" && result.serial_detections?.length > 0) {
           const validSerials = result.serial_detections.filter(
             (s) => s.is_valid,
           );
@@ -416,78 +356,35 @@ export default function FullscreenCamera({
               onClose();
             }, 500);
           } else {
-            Swal.fire({
-              title: "No Valid Serial",
-              text: "No valid serial number detected. Please try again.",
-              icon: "warning",
-              confirmButtonText: "Try Again",
-              customClass: {
-                popup: "rounded-xl",
-                confirmButton:
-                  "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-              },
-              didClose: () => {
-                setIsDetecting(false);
-                hasDetectedRef.current = false;
-              },
-            });
+            showErrorInCamera(
+              "No Valid Serial",
+              "No valid serial number detected. Please try again."
+            );
           }
-        } else {
-          Swal.fire({
-            title: "No Detection",
-            text:
-              mode === "device"
-                ? "No device detected. Please try again."
-                : mode === "material"
-                  ? "No material detected. Please try again."
-                  : "No serial number detected. Please try again.",
-            icon: "info",
-            confirmButtonText: "Try Again",
-            customClass: {
-              popup: "rounded-xl",
-              confirmButton:
-                "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-            },
-            didClose: () => {
-              setIsDetecting(false);
-              hasDetectedRef.current = false;
-            },
-          });
+        } 
+        // Tidak ada deteksi
+        else {
+          showErrorInCamera(
+            "No Detection",
+            mode === "device"
+              ? "No device detected. Please try again."
+              : mode === "material"
+                ? "No material detected. Please try again."
+                : "No code detected. Please try again."
+          );
         }
       } else {
-        Swal.fire({
-          title: "Detection Failed",
-          text: result.message || "Failed to detect",
-          icon: "error",
-          confirmButtonText: "OK",
-          customClass: {
-            popup: "rounded-xl",
-            confirmButton:
-              "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-          },
-          didClose: () => {
-            setIsDetecting(false);
-            hasDetectedRef.current = false;
-          },
-        });
+        showErrorInCamera(
+          "Detection Failed",
+          result.message || "Failed to detect"
+        );
       }
     } catch (error) {
       console.error("Detection error:", error);
-      Swal.fire({
-        title: "Error",
-        text: "Failed to connect to server",
-        icon: "error",
-        confirmButtonText: "OK",
-        customClass: {
-          popup: "rounded-xl",
-          confirmButton:
-            "px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700",
-        },
-        didClose: () => {
-          setIsDetecting(false);
-          hasDetectedRef.current = false;
-        },
-      });
+      showErrorInCamera(
+        "Connection Error",
+        "Failed to connect to server. Please check your connection."
+      );
     } finally {
       setIsDetecting(false);
     }
@@ -557,6 +454,33 @@ export default function FullscreenCamera({
           className="absolute inset-0 w-full h-full object-cover"
         />
 
+        {/* Error Message Overlay */}
+        {errorMessage && (
+          <div className="absolute inset-0 bg-black/80 flex items-center justify-center backdrop-blur-sm z-20">
+            <div className="text-center max-w-sm mx-4 p-6 bg-red-500/20 rounded-2xl border border-red-500/50">
+              <div className="mx-auto mb-3 w-12 h-12 bg-red-500/30 rounded-full flex items-center justify-center">
+                <svg
+                  className="w-6 h-6 text-red-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </div>
+              <p className="text-lg font-semibold text-white mb-2">
+                {errorMessage.title}
+              </p>
+              <p className="text-sm text-gray-300">{errorMessage.message}</p>
+            </div>
+          </div>
+        )}
+
         {/* Scanning Overlay */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="relative w-[75%] h-[55%]">
@@ -569,29 +493,29 @@ export default function FullscreenCamera({
           </div>
         </div>
 
-        {isDetecting && (
+        {isDetecting && !errorMessage && (
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
             <div className="text-center">
               <div className="w-14 h-14 border-3 border-white/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-3"></div>
               <p className="text-white text-base font-medium tracking-wide">
-                Mendeteksi...
+                Detecting...
               </p>
             </div>
           </div>
         )}
 
-        {!isCameraReady && !cameraError && (
+        {!isCameraReady && !cameraError && !errorMessage && (
           <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
             <div className="text-center">
               <div className="w-12 h-12 border-3 border-white/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-3"></div>
               <p className="text-white text-sm tracking-wide">
-                Menyalakan kamera...
+                Starting camera...
               </p>
             </div>
           </div>
         )}
 
-        {cameraError && (
+        {cameraError && !errorMessage && (
           <div className="absolute inset-0 bg-black/90 flex items-center justify-center p-6">
             <div className="text-center max-w-sm">
               <div className="mx-auto mb-4 w-14 h-14 bg-yellow-500/20 rounded-full flex items-center justify-center">
@@ -610,21 +534,21 @@ export default function FullscreenCamera({
                 </svg>
               </div>
               <p className="text-lg font-medium text-white mb-2">
-                Kamera Error
+                Camera Error
               </p>
               <p className="text-sm text-gray-300">{cameraError}</p>
               <button
                 onClick={onClose}
                 className="mt-5 px-5 py-2 bg-blue-600 hover:bg-blue-700 rounded-full text-white text-sm font-medium transition-colors"
               >
-                Tutup
+                Close
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {!isDetecting && !cameraError && isCameraReady && (
+      {!isDetecting && !cameraError && isCameraReady && !errorMessage && (
         <div className="absolute bottom-8 left-0 right-0 flex justify-center">
           <button
             onClick={captureAndDetect}
@@ -640,10 +564,10 @@ export default function FullscreenCamera({
       <div className="absolute bottom-24 left-0 right-0 text-center">
         <p className="text-white/60 text-xs tracking-wide font-normal">
           {mode === "device"
-            ? "Arahkan kamera ke perangkat yang akan discan"
+            ? "Point camera at the device to scan"
             : mode === "material"
-              ? "Arahkan kamera ke material yang akan discan"
-              : "Arahkan kamera ke barcode atau serial number"}
+              ? "Point camera at the material to scan"
+              : "Point camera at the barcode or serial number"}
         </p>
       </div>
 
