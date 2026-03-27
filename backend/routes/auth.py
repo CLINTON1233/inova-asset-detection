@@ -376,11 +376,14 @@ def login():
                 'message': 'Invalid email/username or password'
             }), 401
         
+        # PERBAIKAN: Gunakan current_app, bukan app
+        secret_key = current_app.config.get('SECRET_KEY', '27cdc60e29397b35b746d68e8c55b703267367cf2d084aa9')
+        
         token = jwt.encode({
             'user_id': user[0],
             'username': user[1],
             'exp': datetime.utcnow() + timedelta(hours=24)
-        }, app.config['SECRET_KEY'], algorithm='HS256')
+        }, secret_key, algorithm='HS256')
         
         active_tokens[token] = {
             'user_id': user[0],
@@ -407,6 +410,8 @@ def login():
         
     except Exception as e:
         print(f" Login error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'message': f'Internal server error: {str(e)}'
@@ -469,7 +474,9 @@ def protected():
     token = auth_header.split(' ')[1]
     
     try:
-        payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        secret_key = current_app.config.get('SECRET_KEY', '27cdc60e29397b35b746d68e8c55b703267367cf2d084aa9')
+        payload = jwt.decode(token, secret_key, algorithms=['HS256'])
+        
         if token not in active_tokens:
             return jsonify({
                 'success': False,
@@ -495,6 +502,12 @@ def protected():
             'success': False,
             'message': 'Invalid token'
         }), 401
+    except Exception as e:
+        print(f"Protected error: {e}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
 
 @auth_bp.route('/logout', methods=['POST'])
 def logout():

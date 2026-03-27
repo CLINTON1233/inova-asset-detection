@@ -33,17 +33,6 @@ import LayoutDashboard from "../components/LayoutDashboard";
 import ProtectedPage from "../components/ProtectedPage";
 import FullscreenCamera from "../components/FullscreenCamera";
 import API_BASE_URL, { API_ENDPOINTS } from "../../config/api";
-import {
-  SerialScanningModal,
-  showDeviceSelectionModal,
-  showDeleteItemModal,
-  showDeleteAllModal,
-  showSubmitSingleModal,
-  showSubmitAllModal,
-  showSuccessDetectionModal,
-  showSerialDetectedModal,
-  showManualProcessingSuccessModal,
-} from "../components/ScanningModal";
 
 export default function SerialScanningPage() {
   const router = useRouter();
@@ -563,13 +552,13 @@ export default function SerialScanningPage() {
           const isDevicePrep = currentPreparation.type === "device";
           const endpoint = isDevicePrep
             ? API_ENDPOINTS.DEVICES_ITEMS_PREPARATION_AVAILABLE(
-                currentPreparation.id_preparation,
-                targetItem.id_item,
-              )
+              currentPreparation.id_preparation,
+              targetItem.id_item,
+            )
             : API_ENDPOINTS.MATERIALS_ITEMS_PREPARATION_AVAILABLE(
-                currentPreparation.id_preparation,
-                targetItem.id_item,
-              );
+              currentPreparation.id_preparation,
+              targetItem.id_item,
+            );
 
           const response = await fetch(endpoint);
 
@@ -788,13 +777,13 @@ export default function SerialScanningPage() {
               prev.map((item) =>
                 item.id === targetItem.id
                   ? {
-                      ...item,
-                      nomorSeri: serialData.detected_text,
-                      status: "serial_scanned",
-                      confidencePercent: Math.round(
-                        (serialData.confidence || 0.9) * 100,
-                      ),
-                    }
+                    ...item,
+                    nomorSeri: serialData.detected_text,
+                    status: "serial_scanned",
+                    confidencePercent: Math.round(
+                      (serialData.confidence || 0.9) * 100,
+                    ),
+                  }
                   : item,
               ),
             );
@@ -871,13 +860,13 @@ export default function SerialScanningPage() {
               prev.map((item) =>
                 item.id === targetItem.id
                   ? {
-                      ...item,
-                      nomorSeri: scanCodeData.detected_text,
-                      status: "serial_scanned",
-                      confidencePercent: Math.round(
-                        (scanCodeData.confidence || 0.9) * 100,
-                      ),
-                    }
+                    ...item,
+                    nomorSeri: scanCodeData.detected_text,
+                    status: "serial_scanned",
+                    confidencePercent: Math.round(
+                      (scanCodeData.confidence || 0.9) * 100,
+                    ),
+                  }
                   : item,
               ),
             );
@@ -930,14 +919,14 @@ export default function SerialScanningPage() {
       confirmButtonText: "Save",
       cancelButtonText: "Cancel",
       buttonsStyling: false,
-  customClass: {
-  popup: "rounded-xl p-6",
-  confirmButton:
-    "px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700",
-  cancelButton:
-    "px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 ml-2",
-  actions: "flex justify-center gap-2 mt-4",
-},
+      customClass: {
+        popup: "rounded-xl p-6",
+        confirmButton:
+          "px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700",
+        cancelButton:
+          "px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 ml-2",
+        actions: "flex justify-center gap-2 mt-4",
+      },
       preConfirm: () => {
         const inputValue = document.getElementById("manual-input").value;
         if (!inputValue || inputValue.trim() === "") {
@@ -1000,11 +989,11 @@ export default function SerialScanningPage() {
               prev.map((i) =>
                 i.id === item.id
                   ? {
-                      ...i,
-                      nomorSeri: inputValue,
-                      status: "serial_scanned",
-                      confidencePercent: 100,
-                    }
+                    ...i,
+                    nomorSeri: inputValue,
+                    status: "serial_scanned",
+                    confidencePercent: 100,
+                  }
                   : i,
               ),
             );
@@ -1069,11 +1058,11 @@ export default function SerialScanningPage() {
               prev.map((i) =>
                 i.id === item.id
                   ? {
-                      ...i,
-                      nomorSeri: inputValue,
-                      status: "serial_scanned",
-                      confidencePercent: 100,
-                    }
+                    ...i,
+                    nomorSeri: inputValue,
+                    status: "serial_scanned",
+                    confidencePercent: 100,
+                  }
                   : i,
               ),
             );
@@ -1585,11 +1574,11 @@ export default function SerialScanningPage() {
             prev.map((p) =>
               p.id === item.id
                 ? {
-                    ...p,
-                    submitted: true,
-                    status: "Submitted",
-                    validation_id: validationResult.validation_id,
-                  }
+                  ...p,
+                  submitted: true,
+                  status: "Submitted",
+                  validation_id: validationResult.validation_id,
+                }
                 : p,
             ),
           );
@@ -1693,11 +1682,11 @@ export default function SerialScanningPage() {
               prev.map((p) =>
                 p.id === item.id
                   ? {
-                      ...p,
-                      submitted: true,
-                      status: "Submitted",
-                      validation_id: validationResult.validation_id,
-                    }
+                    ...p,
+                    submitted: true,
+                    status: "Submitted",
+                    validation_id: validationResult.validation_id,
+                  }
                   : p,
               ),
             );
@@ -2020,11 +2009,10 @@ export default function SerialScanningPage() {
                               {session.checking_name}
                             </h3>
                             <span
-                              className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-                                session.type === "device"
-                                  ? "bg-blue-100 text-blue-700"
-                                  : "bg-green-100 text-green-700"
-                              }`}
+                              className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${session.type === "device"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-green-100 text-green-700"
+                                }`}
                             >
                               {session.type === "device"
                                 ? "Device"
@@ -2037,11 +2025,10 @@ export default function SerialScanningPage() {
                           </p>
                         </div>
                         <span
-                          className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            session.status === "pending"
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-blue-100 text-blue-700"
-                          }`}
+                          className={`px-2 py-1 text-xs font-semibold rounded-full ${session.status === "pending"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-blue-100 text-blue-700"
+                            }`}
                         >
                           {session.status === "pending"
                             ? "Pending"

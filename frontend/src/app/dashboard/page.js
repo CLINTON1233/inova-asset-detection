@@ -161,23 +161,23 @@ export default function DashboardPage() {
   const totalSessions = sessions.length;
   const totalDevices = sessions.filter(s => s.type === "device").length;
   const totalMaterials = sessions.filter(s => s.type === "material").length;
-  
+
   const totalItems = sessions.reduce((sum, s) => sum + (s.totalItems || 0), 0);
   const totalQuantity = sessions.reduce((sum, s) => sum + (s.totalQty || 0), 0);
   const totalScanned = sessions.reduce((sum, s) => sum + (s.totalScanned || 0), 0);
-  
+
   const pendingSessions = sessions.filter(s => s.status === "pending").length;
   const inProgressSessions = sessions.filter(s => s.status === "in-progress").length;
   const completedSessions = sessions.filter(s => s.status === "completed").length;
-  
+
   const validAssets = totalScanned;
   const pendingAssets = totalQuantity - totalScanned;
   const errorAssets = 0; // Placeholder, bisa diambil dari validations nanti
-  
+
   const validPct = totalQuantity > 0 ? (validAssets / totalQuantity) * 100 : 0;
   const errorPct = totalQuantity > 0 ? (errorAssets / totalQuantity) * 100 : 0;
   const pendingPct = totalQuantity > 0 ? (pendingAssets / totalQuantity) * 100 : 0;
-  
+
   const scanSuccessRate = totalQuantity > 0 ? (validAssets / totalQuantity) * 100 : 0;
   const todayScanned = 0; // Placeholder, bisa dihitung dari scan results hari ini
 
@@ -214,7 +214,7 @@ export default function DashboardPage() {
       pct: pendingPct,
     },
     {
-      label: "Serial/Barcode Errors",
+      label: "Serial/Scan Code Errors",
       value: errorAssets,
       icon: QrCode,
       color: "bg-red-600",
@@ -262,7 +262,7 @@ export default function DashboardPage() {
   // Distribusi Jenis Aset dari sessions
   const getAssetTypeDistribution = () => {
     const typeMap = new Map();
-    
+
     sessions.forEach(session => {
       if (session.items) {
         session.items.forEach(item => {
@@ -292,13 +292,13 @@ export default function DashboardPage() {
               category = "Material Lainnya";
             }
           }
-          
+
           const qty = item.quantity || 0;
           typeMap.set(category, (typeMap.get(category) || 0) + qty);
         });
       }
     });
-    
+
     return Array.from(typeMap.entries())
       .map(([name, jumlah]) => ({ name, jumlah }))
       .sort((a, b) => b.jumlah - a.jumlah);
@@ -761,11 +761,10 @@ export default function DashboardPage() {
                             </td>
                             <td className="px-4 py-3">
                               <span
-                                className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
-                                  row.kategori === "Perangkat"
+                                className={`px-2 py-0.5 text-xs font-semibold rounded-full ${row.kategori === "Perangkat"
                                     ? "bg-blue-100 text-blue-700"
                                     : "bg-green-100 text-green-700"
-                                }`}
+                                  }`}
                               >
                                 {row.kategori === "Perangkat"
                                   ? "Device"
