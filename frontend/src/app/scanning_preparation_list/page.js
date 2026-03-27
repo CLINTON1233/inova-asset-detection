@@ -13,7 +13,6 @@ import {
   Clock,
   Search,
   RefreshCw,
-  FileSpreadsheet,
   ArrowUp,
   Edit,
   ArrowDown,
@@ -22,9 +21,10 @@ import {
   ChevronDown,
   X,
   Trash2,
+  Cpu,
+  Cable,
 } from "lucide-react";
 import Swal from "sweetalert2";
-import * as XLSX from "xlsx";
 import API_BASE_URL, { API_ENDPOINTS } from "../../config/api";
 
 export default function ScanningPreparationListPage() {
@@ -34,9 +34,9 @@ export default function ScanningPreparationListPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [sorting, setSorting] = useState({ id: "created_at", desc: true });
   const [mounted, setMounted] = useState(false);
-  const [showExportDropdown, setShowExportDropdown] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -45,6 +45,8 @@ export default function ScanningPreparationListPage() {
 
   useEffect(() => {
     let filtered = [...sessions];
+    
+    // Filter berdasarkan search term
     if (searchTerm) {
       filtered = filtered.filter(
         (s) =>
@@ -55,9 +57,18 @@ export default function ScanningPreparationListPage() {
             .includes(searchTerm.toLowerCase()),
       );
     }
+    
+    // Filter berdasarkan status
     if (statusFilter !== "all") {
       filtered = filtered.filter((s) => s.status === statusFilter);
     }
+    
+    // Filter berdasarkan tipe (Device/Material)
+    if (typeFilter !== "all") {
+      filtered = filtered.filter((s) => s.type === typeFilter);
+    }
+    
+    // Sorting
     if (sorting.id) {
       filtered.sort((a, b) => {
         let aVal = a[sorting.id];
@@ -71,8 +82,9 @@ export default function ScanningPreparationListPage() {
         return 0;
       });
     }
+    
     setFilteredSessions(filtered);
-  }, [searchTerm, statusFilter, sessions, sorting]);
+  }, [searchTerm, statusFilter, typeFilter, sessions, sorting]);
 
   const fetchSessions = async () => {
     setLoading(true);
@@ -124,17 +136,8 @@ export default function ScanningPreparationListPage() {
             else if (progress > 0) status = "in-progress";
           }
 
-          // PASTIKAN TYPE TERSIMPAN DENGAN BENAR
           const sessionType =
             session.type || (session.category_id === 1 ? "device" : "material");
-
-          // Tentukan display name berdasarkan tipe
-          let displayName = session.checking_name;
-          if (sessionType === "device") {
-            displayName = `[Device] ${session.checking_name}`;
-          } else if (sessionType === "material") {
-            displayName = `[Material] ${session.checking_name}`;
-          }
 
           return {
             ...session,
@@ -147,7 +150,6 @@ export default function ScanningPreparationListPage() {
             location_name: session.location_name || "No location",
             uniqueCode:
               session.checking_number || `SESS-${session.id_preparation}`,
-            display_name: displayName,
           };
         });
         setSessions(sessionsWithDetails);
@@ -178,6 +180,8 @@ export default function ScanningPreparationListPage() {
     inProgress: sessions.filter((s) => s.status === "in-progress").length,
     completed: sessions.filter((s) => s.status === "completed").length,
     totalItems: sessions.reduce((sum, s) => sum + (s.totalItems || 0), 0),
+    devices: sessions.filter((s) => s.type === "device").length,
+    materials: sessions.filter((s) => s.type === "material").length,
   };
 
   const handleSort = (columnId) => {
@@ -243,35 +247,6 @@ export default function ScanningPreparationListPage() {
     });
   };
 
-  const exportToExcel = (exportType = "current") => {
-    try {
-      const data = (exportType === "all" ? sessions : filteredSessions).map(
-        (s) => ({
-          "Session Name": s.checking_name,
-          "Session Number": s.checking_number,
-          Category: s.category_name,
-          Location: s.location_name,
-          "Items Count": s.totalItems,
-          "Total Quantity": s.totalQty,
-          Progress: `${s.progress || 0}%`,
-          Status: s.status,
-          "Checking Date": formatDate(s.checking_date),
-        }),
-      );
-      if (!data.length) {
-        Swal.fire("No Data", "No data to export", "info");
-        return;
-      }
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Sessions");
-      XLSX.writeFile(wb, `scanning_sessions_${exportType}_${Date.now()}.xlsx`);
-      setShowExportDropdown(false);
-    } catch {
-      Swal.fire("Error", "Failed to export", "error");
-    }
-  };
-
   const handleDelete = async (prepId, checkingName, type) => {
     try {
       const result = await Swal.fire({
@@ -289,7 +264,6 @@ export default function ScanningPreparationListPage() {
       if (result.isConfirmed) {
         setLoading(true);
 
-        // Pilih endpoint berdasarkan tipe
         let deleteEndpoint;
         if (type === "device") {
           deleteEndpoint = API_ENDPOINTS.DEVICES_SCANNING_PREP_DELETE(prepId);
@@ -360,10 +334,16 @@ export default function ScanningPreparationListPage() {
       accent: "#2563eb",
     },
     {
-      title: "Pending",
-      value: stats.pending,
-      sub: "Awaiting scan",
-      accent: "#f59e0b",
+      title: "Devices",
+      value: stats.devices,
+      sub: "Device sessions",
+      accent: "#3b82f6",
+    },
+    {
+      title: "Materials",
+      value: stats.materials,
+      sub: "Material sessions",
+      accent: "#10b981",
     },
     {
       title: "In Progress",
@@ -376,12 +356,6 @@ export default function ScanningPreparationListPage() {
       value: stats.completed,
       sub: "Sessions done",
       accent: "#10b981",
-    },
-    {
-      title: "Total Items",
-      value: stats.totalItems,
-      sub: "Items prepared",
-      accent: "#8b5cf6",
     },
   ];
 
@@ -469,23 +443,23 @@ export default function ScanningPreparationListPage() {
         }
         .delete-btn:hover { background: #b91c1c; }
 
-      .new-session-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: #1e40af;
-        color: #fff;
-        padding: 7px 16px;
-        border-radius: 8px;
-        font-size: 12px;
-        font-weight: 600;
-        transition: background 0.15s;
-        border: none;
-        cursor: pointer;
-        white-space: nowrap;
-        box-shadow: 0 1px 3px rgba(30,64,175,0.3);
-      }
-      .new-session-btn:hover { background: #1d3a9e; }
+        .new-session-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          background: #1e40af;
+          color: #fff;
+          padding: 7px 16px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+          transition: background 0.15s;
+          border: none;
+          cursor: pointer;
+          white-space: nowrap;
+          box-shadow: 0 1px 3px rgba(30,64,175,0.3);
+        }
+        .new-session-btn:hover { background: #1d3a9e; }
 
         .prog-track { background: #e5e7eb; border-radius: 99px; height: 5px; }
         .prog-fill  { background: #3b82f6; border-radius: 99px; height: 5px; transition: width 0.3s; }
@@ -558,12 +532,28 @@ export default function ScanningPreparationListPage() {
               )}
             </div>
 
+            {/* Dropdown Filter Tipe Device/Material */}
+            <div className="relative">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer min-w-[130px]"
+              >
+                <option value="all">All Types</option>
+                <option value="device">Devices</option>
+                <option value="material">Materials</option>
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+            </div>
+
+            {/* Dropdown Filter Status */}
             <div className="relative">
               <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
+                className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer min-w-[130px]"
               >
                 <option value="all">All Status</option>
                 <option value="pending">Pending</option>
@@ -584,41 +574,6 @@ export default function ScanningPreparationListPage() {
                 />
                 Refresh
               </button>
-
-              <div className="relative">
-                <button
-                  onClick={() => setShowExportDropdown(!showExportDropdown)}
-                  className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  Export
-                  <ChevronDown className="w-3 h-3" />
-                </button>
-                {showExportDropdown && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setShowExportDropdown(false)}
-                    />
-                    <div className="absolute right-0 mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
-                      <button
-                        onClick={() => exportToExcel("current")}
-                        className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                      >
-                        <FileSpreadsheet className="w-4 h-4 text-emerald-600" />{" "}
-                        Export Current ({filteredSessions.length})
-                      </button>
-                      <button
-                        onClick={() => exportToExcel("all")}
-                        className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                      >
-                        <FileSpreadsheet className="w-4 h-4 text-blue-600" />{" "}
-                        Export All ({sessions.length})
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
             </div>
           </div>
 
@@ -657,10 +612,11 @@ export default function ScanningPreparationListPage() {
                 onClick={() => {
                   setSearchTerm("");
                   setStatusFilter("all");
+                  setTypeFilter("all");
                 }}
                 className="text-sm text-blue-600 hover:underline"
               >
-                Clear filters
+                Clear all filters
               </button>
             </div>
           ) : (
@@ -715,7 +671,6 @@ export default function ScanningPreparationListPage() {
                 <tbody>
                   {filteredSessions.map((session, idx) => {
                     const sc = getStatusConfig(session.status);
-                    // Buat key yang unik dengan menggabungkan type dan id_preparation
                     const uniqueKey = `${session.type || "unknown"}_${session.id_preparation}`;
                     return (
                       <tr key={uniqueKey} className="sp-row transition-colors">
@@ -816,7 +771,6 @@ export default function ScanningPreparationListPage() {
                               <span className="hidden sm:inline">Scan</span>
                             </button>
 
-                            {/* Ganti link edit untuk menyertakan type */}
                             <button
                               onClick={() =>
                                 router.push(
@@ -830,7 +784,6 @@ export default function ScanningPreparationListPage() {
                               <span className="hidden sm:inline">Edit</span>
                             </button>
 
-                            {/* Pastikan tombol delete mengirimkan type yang benar */}
                             <button
                               onClick={() =>
                                 handleDelete(
@@ -868,8 +821,11 @@ export default function ScanningPreparationListPage() {
                   {sessions.length}
                 </span>{" "}
                 sessions
+                {typeFilter !== "all" && (
+                  <span className="text-gray-400"> · {typeFilter === "device" ? "Devices" : "Materials"}</span>
+                )}
                 {statusFilter !== "all" && (
-                  <span className="text-gray-400"> · {statusFilter}</span>
+                  <span className="text-gray-400"> · {statusFilter === "pending" ? "Pending" : statusFilter === "in-progress" ? "In Progress" : "Completed"}</span>
                 )}
                 {searchTerm && (
                   <span className="text-gray-400"> · "{searchTerm}"</span>
