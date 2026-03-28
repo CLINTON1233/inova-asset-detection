@@ -41,7 +41,9 @@ def save_photo_base64(image_data):
         filename = f"scan_{timestamp}_{unique_id}.jpg"
         
         # Gunakan folder uploads/scan_photos
-        upload_folder = os.path.join(os.getcwd(), 'uploads', 'scan_photos')
+        # PERBAIKAN: Gunakan path absolut yang benar
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        upload_folder = os.path.join(base_dir, 'uploads', 'scan_photos')
         os.makedirs(upload_folder, exist_ok=True)
         
         filepath = os.path.join(upload_folder, filename)
@@ -49,7 +51,9 @@ def save_photo_base64(image_data):
         # Save file
         with open(filepath, 'wb') as f:
             f.write(image_bytes)
-
+        
+        # PERBAIKAN: Pastikan URL yang dikembalikan bisa diakses
+        # Gunakan URL yang sesuai dengan route di app.py
         url = f"/uploads/scan_photos/{filename}"
         print(f"Photo saved at: {filepath}")
         print(f"Photo URL: {url}")
@@ -57,6 +61,8 @@ def save_photo_base64(image_data):
         
     except Exception as e:
         print(f"Error saving photo: {e}")
+        import traceback
+        traceback.print_exc()
         return None, None
 
 # ==================== CREATE ====================
@@ -74,7 +80,9 @@ def create_scan_result_device():
         photo_data = None
         if data.get('photo_data'):
             photo_url, photo_data = save_photo_base64(data.get('photo_data'))
+            print(f"Saved photo URL: {photo_url}")
         
+        # PERBAIKAN: Pastikan photo_url disimpan di database
         cur.execute("""
             INSERT INTO scan_results_devices (
                 item_preparation_id, user_id, scanned_by, scanned_at,
@@ -94,7 +102,7 @@ def create_scan_result_device():
             data.get('status', 'pending'),
             data.get('notes'),
             photo_data,
-            photo_url
+            photo_url  
         ))
         
         scan_id = cur.fetchone()[0]

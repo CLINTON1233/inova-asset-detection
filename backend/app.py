@@ -51,21 +51,26 @@ app.register_blueprint(validation_bp)
 def root():
     return {"message": "Welcome to INOVA API", "status": "running"}
 
-# PERBAIKAN: Route untuk serve file uploads
 @app.route('/uploads/<path:filename>')
 def serve_uploads(filename):
+    """Serve uploaded files"""
     try:
-        # Cari file di folder uploads
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+        upload_folder = os.path.join(os.getcwd(), 'uploads')
+        if not os.path.exists(upload_folder):
+            os.makedirs(upload_folder, exist_ok=True)
+        return send_from_directory(upload_folder, filename)
     except Exception as e:
         print(f"Error serving file: {e}")
         return {"error": "File not found"}, 404
 
-# PERBAIKAN: Route untuk serve file scan_photos
 @app.route('/uploads/scan_photos/<path:filename>')
 def serve_scan_photos(filename):
+    """Serve scan photos files"""
     try:
-        return send_from_directory(app.config['SCAN_PHOTOS_FOLDER'], filename)
+        photo_folder = os.path.join(os.getcwd(), 'uploads', 'scan_photos')
+        if not os.path.exists(photo_folder):
+            os.makedirs(photo_folder, exist_ok=True)
+        return send_from_directory(photo_folder, filename)
     except Exception as e:
         print(f"Error serving scan photo: {e}")
         return {"error": "File not found"}, 404

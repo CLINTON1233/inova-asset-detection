@@ -383,10 +383,8 @@ export default function SerialScanningPage() {
           console.log("Set scanningProgress:", progress);
 
           const scannedItems = [];
-          if (
-            progressData.data.scan_results &&
-            progressData.data.scan_results.length > 0
-          ) {
+
+          if (progressData.data.scan_results && progressData.data.scan_results.length > 0) {
             progressData.data.scan_results.forEach((scan) => {
               const item = data.data.items.find(
                 (i) => i.id_item === scan.scanning_item_id,
@@ -395,26 +393,15 @@ export default function SerialScanningPage() {
               if (item) {
                 scannedItems.push({
                   id: scan.id_scan,
-                  jenisAset:
-                    scan.scan_value ||
-                    item.device_name ||
-                    item.material_name ||
-                    "Unknown",
+                  jenisAset: scan.scan_value || item.device_name || item.material_name || "Unknown",
                   kategori: prepType === "device" ? "Perangkat" : "Material",
                   brand: item.brand || item.vendor || "Unknown",
                   confidencePercent: 85,
-                  status:
-                    scan.serial_number || scan.scan_code
-                      ? "serial_scanned"
-                      : "device_detected",
+                  status: scan.serial_number || scan.scan_code ? "serial_scanned" : "device_detected",
                   nomorSeri: scan.serial_number || scan.scan_code || "",
                   timestamp: scan.scanned_at,
-                  tanggal: scan.scanned_at
-                    ? new Date(scan.scanned_at).toLocaleDateString("id-ID")
-                    : new Date().toLocaleDateString("id-ID"),
-                  waktu: scan.scanned_at
-                    ? new Date(scan.scanned_at).toLocaleTimeString("id-ID")
-                    : new Date().toLocaleTimeString("id-ID"),
+                  tanggal: scan.scanned_at ? new Date(scan.scanned_at).toLocaleDateString("id-ID") : new Date().toLocaleDateString("id-ID"),
+                  waktu: scan.scanned_at ? new Date(scan.scanned_at).toLocaleTimeString("id-ID") : new Date().toLocaleTimeString("id-ID"),
                   item_id: scan.scanning_item_id,
                   preparation_id: parseInt(prepId),
                   preparation_name: data.data.checking_name,
@@ -422,7 +409,6 @@ export default function SerialScanningPage() {
                   lokasiLabel: data.data.location_name,
                   scan_id: scan.id_scan,
                   item_preparation_id: scan.item_preparation_id,
-
                   photo_url: scan.photo_url || null,
                   submitted: scan.status === "submitted",
                 });
@@ -2826,11 +2812,10 @@ export default function SerialScanningPage() {
                             key={item.id}
                             className="history-row border-t border-gray-50"
                           >
-
                             <td className="px-4 py-3">
                               {item.photo_url ? (
                                 <img
-                                  src={item.photo_url}
+                                  src={item.photo_url.startsWith('http') ? item.photo_url : `http://localhost:5001${item.photo_url}`}
                                   alt="Scan result"
                                   className="w-10 h-10 object-cover rounded-lg cursor-pointer hover:opacity-80 transition"
                                   onError={(e) => {
@@ -2840,9 +2825,9 @@ export default function SerialScanningPage() {
                                   }}
                                   onClick={() => {
                                     Swal.fire({
-                                      imageUrl: item.photo_url,
+                                      imageUrl: item.photo_url.startsWith('http') ? item.photo_url : `http://localhost:5001${item.photo_url}`,
                                       imageAlt: "Scan Result",
-                                      title: "Scan Result Photo",
+                                      title: "Scan Result Preview",
                                       imageWidth: 400,
                                       imageHeight: "auto",
                                       confirmButtonColor: "#2563eb",

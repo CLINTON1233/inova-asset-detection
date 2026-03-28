@@ -580,7 +580,6 @@ def get_devices_preparation_progress(prep_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
-        # Get all scanning items
         cur.execute("""
             SELECT si.id_item, si.device_name as item_name, si.brand, si.model, si.quantity
             FROM devices_scanning_items si
@@ -588,8 +587,7 @@ def get_devices_preparation_progress(prep_id):
         """, (prep_id,))
         
         items = cur.fetchall()
-        
-        # Get all scan results for this preparation
+
         cur.execute("""
             SELECT 
                 sr.id_scan,
@@ -600,6 +598,7 @@ def get_devices_preparation_progress(prep_id):
                 sr.serial_number,
                 sr.status,
                 sr.is_valid,
+                sr.photo_url,  
                 ip.scanning_item_id,
                 ip.item_number,
                 si.id_item,
@@ -1260,8 +1259,7 @@ def get_materials_preparation_progress(prep_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        
-        # Get all scanning items
+ 
         cur.execute("""
             SELECT si.id_item, si.material_name as item_name, si.quantity, si.uom
             FROM materials_scanning_items si
@@ -1269,8 +1267,7 @@ def get_materials_preparation_progress(prep_id):
         """, (prep_id,))
         
         items = cur.fetchall()
-        
-        # Get all scan results for this preparation
+    
         cur.execute("""
             SELECT 
                 sr.id_scan,
@@ -1280,6 +1277,7 @@ def get_materials_preparation_progress(prep_id):
                 sr.scan_value,
                 sr.scan_code,
                 sr.status,
+                sr.photo_url,  -- TAMBAHKAN INI
                 ip.scanning_item_id,
                 ip.item_number,
                 si.id_item,
@@ -1295,7 +1293,6 @@ def get_materials_preparation_progress(prep_id):
         
         scan_results = cur.fetchall()
         
-        # Build progress data
         progress = []
         total_scanned = 0
         total_target = 0
