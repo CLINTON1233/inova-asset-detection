@@ -2,123 +2,272 @@ from flask import Blueprint, request, jsonify
 from utils.database import get_db_connection
 import psycopg2.extras
 from datetime import datetime
-import random
-import string
 import traceback
 
 validation_bp = Blueprint('validation', __name__)
 
-def handle_error(e, msg="Error"):
-    print(f"{msg}: {e}")
-    print(traceback.format_exc())
-    return jsonify({'success': False, 'error': str(e)}), 500
-
 def get_conn():
     return get_db_connection()
 
-def generate_unique_code():
-    """Generate unique code untuk validation"""
-    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-    return f"VAL-{timestamp}-{random_str}"
+# ==================== GET VALIDATIONS ====================
+@validation_bp.route('/api/validations', methods=['GET'])
+def get_validations():
+    """Mendapatkan daftar validations"""
+    conn = None
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        # Ambil validations dari devices dan materials
+        cur.execute("""
+            SELECT 
+                v.id_validation,
+                v.unique_code,
+                v.validation_status,
+                v.validation_notes,
+                v.is_approved,
+                v.rejection_reason,
+                v.created_at,
+                v.validated_at,
+                COALESCE(v.scan_id, v.scan_material_id) as scan_id,
+                CASE 
+                    WHEN v.scan_id IS NOT NULL THEN 'device'
+                    WHEN v.scan_material_id IS NOT NULL THEN 'material'
+                    ELSE 'unknown'
+                END as validation_type,
+                
+                -- Device info
+                srd.serial_number,
+                srd.scan_value as device_name,
+                srd.photo_url as device_photo,
+                
+                -- Material info
+                srm.scan_code,
+                srm.scan_value as material_name,
+                srm.photo_url as material_photo,
+                
+                -- Preparation info
+                dsp.checking_number as device_checking_number,
+                dsp.checking_name as device_checking_name,
+                msp.checking_number as material_checking_number,
+                msp.checking_name as material_checking_name,
+                l.location_name,
+                u.username as created_by_name,
+                vu.username as validated_by_name
+            FROM validations v
+            LEFT JOIN scan_results_devices srd ON v.scan_id = srd.id_scan
+            LEFT JOIN scan_results_materials srm ON v.scan_material_id = srm.id_scan
+            LEFT JOIN devices_items_preparation dip ON v.item_preparation_id = dip.id_item_preparation
+            LEFT JOIN materials_items_preparation mip ON v.material_item_preparation_id = mip.id_item_preparation
+            LEFT JOIN devices_scanning_preparations dsp ON dip.preparation_id = dsp.id_preparation
+            LEFT JOIN materials_scanning_preparations msp ON mip.preparation_id = msp.id_preparation
+            LEFT JOIN locations l ON COALESCE(dsp.location_id, msp.location_id) = l.id_location
+            LEFT JOIN users u ON v.user_id = u.id_user
+            LEFT JOIN users vu ON v.validated_by = vu.id_user
+            ORDER BY v.created_at DESC
+        """)
+        
+        validations = cur.fetchall()
+        
+        result = []
+        for val in validations:
+            val_dict = dict(val)
+            
+            # Tentukan tipe dan data yang relevan
+            if val_dict['validation_type'] == 'device':
+                val_dict['item_name'] = val_dict.get('device_name')
+                val_dict['serial_or_code'] = val_dict.get('serial_number')
+                val_dict['checking_number'] = val_dict.get('device_checking_number')
+                val_dict['checking_name'] = val_dict.get('device_checking_name')
+                val_dict['photo_url'] = val_dict.get('device_photo')
+            else:
+                val_dict['item_name'] = val_dict.get('material_name')
+                val_dict['serial_or_code'] = val_dict.get('scan_code')
+                val_dict['checking_number'] = val_dict.get('material_checking_number')
+                val_dict['checking_name'] = val_dict.get('material_checking_name')
+                val_dict['photo_url'] = val_dict.get('material_photo')
+            
+            result.append(val_dict)
+        
+        return jsonify({
+            'success': True,
+            'data': result,
+            'count': len(result)
+        })
+        
+    except Exception as e:
+        print(f"Error getting validations: {e}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
 
-# ==================== CREATE ====================
+@validation_bp.route('/api/validations/<int:validation_id>/detail', methods=['GET'])
+def get_validation_detail(validation_id):
+    """Mendapatkan detail validation berdasarkan ID"""
+    conn = None
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        cur.execute("""
+            SELECT 
+                v.*,
+                COALESCE(v.scan_id, v.scan_material_id) as scan_id,
+                CASE 
+                    WHEN v.scan_id IS NOT NULL THEN 'device'
+                    WHEN v.scan_material_id IS NOT NULL THEN 'material'
+                    ELSE 'unknown'
+                END as validation_type,
+                -- Device info
+                srd.serial_number,
+                srd.scan_value as device_name,
+                srd.detection_data as device_detection,
+                srd.photo_url as device_photo,
+                -- Material info
+                srm.scan_code,
+                srm.scan_value as material_name,
+                srm.detection_data as material_detection,
+                srm.photo_url as material_photo,
+                -- Preparation info
+                dsp.checking_number as device_checking_number,
+                dsp.checking_name as device_checking_name,
+                dsp.checking_date as device_checking_date,
+                msp.checking_number as material_checking_number,
+                msp.checking_name as material_checking_name,
+                msp.checking_date as material_checking_date,
+                l.location_name,
+                l.id_location,
+                u.username as created_by_name,
+                vu.username as validated_by_name
+            FROM validations v
+            LEFT JOIN scan_results_devices srd ON v.scan_id = srd.id_scan
+            LEFT JOIN scan_results_materials srm ON v.scan_material_id = srm.id_scan
+            LEFT JOIN devices_items_preparation dip ON v.item_preparation_id = dip.id_item_preparation
+            LEFT JOIN materials_items_preparation mip ON v.material_item_preparation_id = mip.id_item_preparation
+            LEFT JOIN devices_scanning_preparations dsp ON dip.preparation_id = dsp.id_preparation
+            LEFT JOIN materials_scanning_preparations msp ON mip.preparation_id = msp.id_preparation
+            LEFT JOIN locations l ON COALESCE(dsp.location_id, msp.location_id) = l.id_location
+            LEFT JOIN users u ON v.user_id = u.id_user
+            LEFT JOIN users vu ON v.validated_by = vu.id_user
+            WHERE v.id_validation = %s
+        """, (validation_id,))
+        
+        validation = cur.fetchone()
+        
+        if not validation:
+            return jsonify({
+                'success': False,
+                'error': 'Validation not found'
+            }), 404
+        
+        result = dict(validation)
+        
+        # Tentukan tipe dan data yang relevan
+        if result['validation_type'] == 'device':
+            result['item_name'] = result.get('device_name')
+            result['serial_or_code'] = result.get('serial_number')
+            result['checking_number'] = result.get('device_checking_number')
+            result['checking_name'] = result.get('device_checking_name')
+            result['checking_date'] = result.get('device_checking_date')
+            result['detection_data'] = result.get('device_detection')
+            result['photo_url'] = result.get('device_photo')
+        else:
+            result['item_name'] = result.get('material_name')
+            result['serial_or_code'] = result.get('scan_code')
+            result['checking_number'] = result.get('material_checking_number')
+            result['checking_name'] = result.get('material_checking_name')
+            result['checking_date'] = result.get('material_checking_date')
+            result['detection_data'] = result.get('material_detection')
+            result['photo_url'] = result.get('material_photo')
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+        
+    except Exception as e:
+        print(f"Error getting validation detail: {e}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+# ==================== CREATE VALIDATION ====================
 @validation_bp.route('/api/validations/create', methods=['POST'])
 def create_validation():
-    """Membuat record validasi dari scan result"""
+    """Membuat record validation baru"""
+    conn = None
     try:
         data = request.json
-        scan_id = data.get('scan_id')
-        user_id = data.get('user_id', 1)
-        
-        if not scan_id:
-            return jsonify({'success': False, 'error': 'scan_id is required'}), 400
+        print("Creating validation:", data)
         
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
-        # Get scan result data (support both devices & materials)
-        cur.execute("""
-            SELECT sr.*, sp.checking_name, sp.checking_number
-            FROM (
-                SELECT id_scan, preparation_id, item_preparation_id, asset_id,
-                       user_id, scan_category, scan_value, serial_number, scan_code,
-                       detection_data, status, is_valid, notes, created_at,
-                       NULL as asset_name, NULL as brand, NULL as model, NULL as category_id
-                FROM scan_results_devices
-                UNION ALL
-                SELECT id_scan, preparation_id, item_preparation_id, asset_id,
-                       user_id, scan_category, scan_value, serial_number, scan_code,
-                       detection_data, status, is_valid, notes, created_at,
-                       scan_value as asset_name, NULL as brand, NULL as model, NULL as category_id
-                FROM scan_results_materials
-            ) sr
-            LEFT JOIN scanning_preparations sp ON sr.preparation_id = sp.id_preparation
-            WHERE sr.id_scan = %s
-        """, (scan_id,))
+        # Generate unique code
+        scan_id = data.get('scan_id')
+        scan_material_id = data.get('scan_material_id')
         
-        scan = cur.fetchone()
-        if not scan:
-            return jsonify({'success': False, 'error': 'Scan result not found'}), 404
+        unique_code = None
+        checking_number = None
         
-        unique_code = generate_unique_code()
+        if scan_id:
+            # Cari checking_number dari device
+            cur.execute("""
+                SELECT dsp.checking_number
+                FROM scan_results_devices srd
+                LEFT JOIN devices_items_preparation dip ON srd.item_preparation_id = dip.id_item_preparation
+                LEFT JOIN devices_scanning_preparations dsp ON dip.preparation_id = dsp.id_preparation
+                WHERE srd.id_scan = %s
+            """, (scan_id,))
+            result = cur.fetchone()
+            if result:
+                checking_number = result['checking_number']
+        elif scan_material_id:
+            # Cari checking_number dari material
+            cur.execute("""
+                SELECT msp.checking_number
+                FROM scan_results_materials srm
+                LEFT JOIN materials_items_preparation mip ON srm.item_preparation_id = mip.id_item_preparation
+                LEFT JOIN materials_scanning_preparations msp ON mip.preparation_id = msp.id_preparation
+                WHERE srm.id_scan = %s
+            """, (scan_material_id,))
+            result = cur.fetchone()
+            if result:
+                checking_number = result['checking_number']
+        
+        unique_code = checking_number or f"VAL-{scan_id or scan_material_id}"
         
         cur.execute("""
             INSERT INTO validations (
-                scan_id, preparation_id, item_preparation_id, asset_id,
-                user_id, validation_status, validation_notes, validated_by,
-                validated_at, unique_code, is_approved, rejection_reason
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                scan_id, scan_material_id, item_preparation_id, 
+                material_item_preparation_id, user_id, unique_code,
+                validation_status, created_at
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id_validation
         """, (
-            scan_id,
-            scan['preparation_id'],
-            scan['item_preparation_id'],
-            scan['asset_id'],
-            user_id,
-            data.get('validation_status', 'pending'),
-            data.get('validation_notes'),
-            data.get('validated_by', user_id),
-            datetime.now() if data.get('validation_status') != 'pending' else None,
+            data.get('scan_id'),
+            data.get('scan_material_id'),
+            data.get('item_preparation_id'),
+            data.get('material_item_preparation_id'),
+            data.get('user_id', 1),
             unique_code,
-            data.get('is_approved', False),
-            data.get('rejection_reason')
+            'pending',
+            datetime.now()
         ))
         
         validation_id = cur.fetchone()[0]
-        
-        # Update scan_result status
-        if data.get('validation_status') != 'pending':
-            table = 'scan_results_devices' if scan['scan_category'] == 'device' else 'scan_results_materials'
-            cur.execute(f"""
-                UPDATE {table} 
-                SET status = 'validated', is_valid = %s
-                WHERE id_scan = %s
-            """, (data.get('is_approved', False), scan_id))
-        
-        # If approved, create asset
-        if data.get('is_approved') and data.get('validation_status') == 'approved':
-            cur.execute("""
-                INSERT INTO assets (
-                    category_id, asset_name, serial_number, scan_code, lokasi, status
-                ) VALUES (%s, %s, %s, %s, %s, %s)
-                RETURNING id_assets
-            """, (
-                scan.get('category_id'),
-                scan.get('asset_name') or scan.get('scan_value'),
-                scan.get('serial_number'),
-                scan.get('scan_code'),
-                data.get('location', 'Unknown'),
-                'active'
-            ))
-            
-            asset_id = cur.fetchone()[0]
-            
-            table = 'scan_results_devices' if scan['scan_category'] == 'device' else 'scan_results_materials'
-            cur.execute(f"UPDATE {table} SET asset_id = %s WHERE id_scan = %s", (asset_id, scan_id))
-            cur.execute("UPDATE validations SET asset_id = %s WHERE id_validation = %s", (asset_id, validation_id))
-        
         conn.commit()
+        
         return jsonify({
             'success': True,
             'validation_id': validation_id,
@@ -127,236 +276,178 @@ def create_validation():
         }), 201
         
     except Exception as e:
-        return handle_error(e, "Error in create_validation")
+        if conn:
+            conn.rollback()
+        print(f"Error creating validation: {e}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
     finally:
-        if 'conn' in locals() and conn: conn.close()
+        if conn:
+            conn.close()
 
-# ==================== UPDATE ====================
+# ==================== UPDATE VALIDATION ====================
 @validation_bp.route('/api/validations/<int:validation_id>', methods=['PUT'])
 def update_validation(validation_id):
-    """Update validation status"""
+    """Update status validation (approve/reject)"""
+    conn = None
     try:
         data = request.json
+        print(f"Updating validation {validation_id}:", data)
         
         conn = get_conn()
         cur = conn.cursor()
         
-        updates = []
-        values = []
+        validation_status = data.get('validation_status')
+        is_approved = data.get('is_approved')
+        rejection_reason = data.get('rejection_reason')
+        validation_notes = data.get('validation_notes')
+        validated_by = data.get('validated_by', 1)
         
-        for field in ['validation_status', 'validation_notes', 'is_approved', 'rejection_reason']:
-            if field in data:
-                updates.append(f"{field} = %s")
-                values.append(data[field])
-        
-        if data.get('validation_status') and data['validation_status'] != 'pending':
-            updates.append("validated_at = %s")
-            values.append(datetime.now())
-        
-        if not updates:
-            return jsonify({'success': False, 'error': 'No fields to update'}), 400
-        
-        values.append(validation_id)
-        cur.execute(f"UPDATE validations SET {', '.join(updates)} WHERE id_validation = %s", values)
-        
-        # Get scan_id and scan_category to update scan_result
         cur.execute("""
-            SELECT v.scan_id, sr.scan_category 
-            FROM validations v
-            LEFT JOIN (
-                SELECT id_scan, 'device' as scan_category FROM scan_results_devices
-                UNION ALL
-                SELECT id_scan, 'material' as scan_category FROM scan_results_materials
-            ) sr ON v.scan_id = sr.id_scan
-            WHERE v.id_validation = %s
-        """, (validation_id,))
-        result = cur.fetchone()
+            UPDATE validations 
+            SET validation_status = %s,
+                is_approved = %s,
+                rejection_reason = %s,
+                validation_notes = %s,
+                validated_by = %s,
+                validated_at = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id_validation = %s
+            RETURNING id_validation
+        """, (
+            validation_status,
+            is_approved,
+            rejection_reason,
+            validation_notes,
+            validated_by,
+            datetime.now(),
+            validation_id
+        ))
         
-        if result:
-            scan_id, scan_category = result
-            table = 'scan_results_devices' if scan_category == 'device' else 'scan_results_materials'
+        updated = cur.fetchone()
+        
+        if not updated:
+            return jsonify({
+                'success': False,
+                'error': 'Validation not found'
+            }), 404
+        
+        # Jika approved, update status di preparation
+        if is_approved:
+            # Update status di devices_scanning_preparations atau materials_scanning_preparations
+            cur.execute("""
+                SELECT scan_id, scan_material_id FROM validations WHERE id_validation = %s
+            """, (validation_id,))
+            val = cur.fetchone()
             
-            if data.get('validation_status') == 'approved':
-                cur.execute(f"UPDATE {table} SET status = 'validated', is_valid = TRUE WHERE id_scan = %s", (scan_id,))
-            elif data.get('validation_status') == 'rejected':
-                cur.execute(f"UPDATE {table} SET status = 'rejected', is_valid = FALSE WHERE id_scan = %s", (scan_id,))
+            if val and val[0]:  # device
+                cur.execute("""
+                    UPDATE devices_scanning_preparations dsp
+                    SET validation_status = 'approved', updated_at = CURRENT_TIMESTAMP
+                    FROM devices_items_preparation dip
+                    JOIN scan_results_devices srd ON dip.id_item_preparation = srd.item_preparation_id
+                    WHERE dsp.id_preparation = dip.preparation_id
+                    AND srd.id_scan = %s
+                """, (val[0],))
+            elif val and val[1]:  # material
+                cur.execute("""
+                    UPDATE materials_scanning_preparations msp
+                    SET validation_status = 'approved', updated_at = CURRENT_TIMESTAMP
+                    FROM materials_items_preparation mip
+                    JOIN scan_results_materials srm ON mip.id_item_preparation = srm.item_preparation_id
+                    WHERE msp.id_preparation = mip.preparation_id
+                    AND srm.id_scan = %s
+                """, (val[1],))
         
         conn.commit()
-        return jsonify({'success': True, 'message': 'Validation updated successfully'})
-        
-    except Exception as e:
-        return handle_error(e, "Error in update_validation")
-    finally:
-        if 'conn' in locals() and conn: conn.close()
-
-# ==================== GET ====================
-@validation_bp.route('/api/validations', methods=['GET'])
-def get_validations():
-    """Mendapatkan daftar validations"""
-    try:
-        status = request.args.get('status', 'all')
-        
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        
-        query = """
-            SELECT v.*, 
-                   COALESCE(sr.scan_value, sr_d.scan_value) as scan_value,
-                   COALESCE(sr.serial_number, sr_d.serial_number) as serial_number,
-                   COALESCE(sr.scan_code, sr_d.scan_code) as scan_code,
-                   COALESCE(sr.asset_name, sr_d.scan_value) as asset_name,
-                   sr_d.brand, sr_d.model, sr_d.confidence,
-                   sp.checking_name, sp.checking_number,
-                   l.location_name,
-                   u.username as scanned_by_name,
-                   vu.username as validated_by_name
-            FROM validations v
-            LEFT JOIN scan_results_materials sr ON v.scan_id = sr.id_scan
-            LEFT JOIN scan_results_devices sr_d ON v.scan_id = sr_d.id_scan
-            LEFT JOIN scanning_preparations sp ON v.preparation_id = sp.id_preparation
-            LEFT JOIN locations l ON sp.location_id = l.id_location
-            LEFT JOIN users u ON COALESCE(sr.user_id, sr_d.user_id) = u.id_user
-            LEFT JOIN users vu ON v.validated_by = vu.id_user
-        """
-        
-        params = []
-        if status and status != 'all':
-            query += " WHERE v.validation_status = %s"
-            params.append(status)
-        
-        query += " ORDER BY v.created_at DESC"
-        
-        cur.execute(query, params)
-        results = cur.fetchall()
         
         return jsonify({
             'success': True,
-            'data': [dict(row) for row in results],
-            'total': len(results)
+            'message': f'Validation {validation_status} successfully'
         })
         
     except Exception as e:
-        return handle_error(e, "Error in get_validations")
+        if conn:
+            conn.rollback()
+        print(f"Error updating validation: {e}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
     finally:
-        if 'conn' in locals() and conn: conn.close()
+        if conn:
+            conn.close()
 
-@validation_bp.route('/api/validations/<int:validation_id>/detail', methods=['GET'])
-def get_validation_detail(validation_id):
-    """Mendapatkan detail validation"""
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        
-        cur.execute("""
-            SELECT v.*, 
-                   COALESCE(sr.scan_value, sr_d.scan_value) as scan_value,
-                   COALESCE(sr.serial_number, sr_d.serial_number) as serial_number,
-                   COALESCE(sr.scan_code, sr_d.scan_code) as scan_code,
-                   COALESCE(sr.asset_name, sr_d.scan_value) as asset_name,
-                   sr_d.brand, sr_d.model, sr_d.specifications, sr_d.confidence,
-                   COALESCE(sr.photo_proof, sr_d.photo_proof) as photo_proof,
-                   COALESCE(sr.scan_time, sr_d.scan_time) as scan_time,
-                   sp.checking_name, sp.checking_number, sp.checking_date,
-                   l.location_name, l.id_location,
-                   u.username as scanned_by_name,
-                   vu.username as validated_by_name,
-                   ip.item_number, ip.status as item_status
-            FROM validations v
-            LEFT JOIN scan_results_materials sr ON v.scan_id = sr.id_scan
-            LEFT JOIN scan_results_devices sr_d ON v.scan_id = sr_d.id_scan
-            LEFT JOIN scanning_preparations sp ON v.preparation_id = sp.id_preparation
-            LEFT JOIN locations l ON sp.location_id = l.id_location
-            LEFT JOIN users u ON COALESCE(sr.user_id, sr_d.user_id) = u.id_user
-            LEFT JOIN users vu ON v.validated_by = vu.id_user
-            LEFT JOIN items_preparation ip ON v.item_preparation_id = ip.id_item_preparation
-            WHERE v.id_validation = %s
-        """, (validation_id,))
-        
-        result = cur.fetchone()
-        
-        if not result:
-            return jsonify({'success': False, 'error': 'Validation not found'}), 404
-        
-        return jsonify({'success': True, 'data': dict(result)})
-        
-    except Exception as e:
-        return handle_error(e, "Error in get_validation_detail")
-    finally:
-        if 'conn' in locals() and conn: conn.close()
-
-# ==================== BULK ====================
+# ==================== BULK UPDATE ====================
 @validation_bp.route('/api/validations/bulk', methods=['POST'])
-def bulk_validate():
-    """Bulk validation untuk multiple items"""
+def bulk_update_validations():
+    """Bulk update validations (approve/reject multiple)"""
+    conn = None
     try:
         data = request.json
         validation_ids = data.get('validation_ids', [])
-        validation_data = data.get('data', {})
+        action = data.get('action')  # 'approve' or 'reject'
+        rejection_reason = data.get('rejection_reason')
+        validated_by = data.get('validated_by', 1)
         
         if not validation_ids:
-            return jsonify({'success': False, 'error': 'validation_ids is required'}), 400
+            return jsonify({
+                'success': False,
+                'error': 'No validation IDs provided'
+            }), 400
         
         conn = get_conn()
         cur = conn.cursor()
         
-        success_count = 0
-        failed_count = 0
-        errors = []
+        validation_status = 'approved' if action == 'approve' else 'rejected'
+        is_approved = action == 'approve'
         
-        for validation_id in validation_ids:
-            try:
-                updates = []
-                values = []
-                
-                for field in ['validation_status', 'validation_notes', 'is_approved', 'rejection_reason']:
-                    if field in validation_data:
-                        updates.append(f"{field} = %s")
-                        values.append(validation_data[field])
-                
-                if validation_data.get('validation_status') and validation_data['validation_status'] != 'pending':
-                    updates.append("validated_at = %s")
-                    values.append(datetime.now())
-                
-                if updates:
-                    values.append(validation_id)
-                    cur.execute(f"UPDATE validations SET {', '.join(updates)} WHERE id_validation = %s", values)
-                    
-                    # Update scan_result status
-                    cur.execute("""
-                        SELECT v.scan_id, COALESCE(sr.scan_category, sr_d.scan_category) as scan_category
-                        FROM validations v
-                        LEFT JOIN scan_results_materials sr ON v.scan_id = sr.id_scan
-                        LEFT JOIN scan_results_devices sr_d ON v.scan_id = sr_d.id_scan
-                        WHERE v.id_validation = %s
-                    """, (validation_id,))
-                    result = cur.fetchone()
-                    
-                    if result:
-                        scan_id, scan_category = result
-                        table = 'scan_results_devices' if scan_category == 'device' else 'scan_results_materials'
-                        
-                        if validation_data.get('validation_status') == 'approved':
-                            cur.execute(f"UPDATE {table} SET status = 'validated', is_valid = TRUE WHERE id_scan = %s", (scan_id,))
-                        elif validation_data.get('validation_status') == 'rejected':
-                            cur.execute(f"UPDATE {table} SET status = 'rejected', is_valid = FALSE WHERE id_scan = %s", (scan_id,))
-                
-                success_count += 1
-                
-            except Exception as e:
-                failed_count += 1
-                errors.append({'validation_id': validation_id, 'error': str(e)})
+        updated_count = 0
+        
+        for val_id in validation_ids:
+            cur.execute("""
+                UPDATE validations 
+                SET validation_status = %s,
+                    is_approved = %s,
+                    rejection_reason = %s,
+                    validated_by = %s,
+                    validated_at = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id_validation = %s
+                RETURNING id_validation
+            """, (
+                validation_status,
+                is_approved,
+                rejection_reason if not is_approved else None,
+                validated_by,
+                datetime.now(),
+                val_id
+            ))
+            
+            if cur.fetchone():
+                updated_count += 1
         
         conn.commit()
         
         return jsonify({
             'success': True,
-            'success_count': success_count,
-            'failed_count': failed_count,
-            'errors': errors if errors else None,
-            'message': f'{success_count} items validated successfully, {failed_count} failed'
+            'message': f'{updated_count} validations {validation_status}',
+            'updated_count': updated_count
         })
         
     except Exception as e:
-        return handle_error(e, "Error in bulk_validate")
+        if conn:
+            conn.rollback()
+        print(f"Error bulk updating validations: {e}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
     finally:
-        if 'conn' in locals() and conn: conn.close()
+        if conn:
+            conn.close()

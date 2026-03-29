@@ -83,15 +83,16 @@ export default function LayoutDashboard({ children, activeMenu }) {
 
   const menuItems = [
     { icon: Home, label: "Home", hasDropdown: false, href: "/dashboard" },
-    { 
-      icon: ScanLine, 
+    {
+      icon: ScanLine,
       label: "Assets Scanning",  // Perhatikan: "Assets Scanning" dengan "s"
-      hasDropdown: true, 
+      hasDropdown: true,
       href: "#",
       submenu: [
         { icon: Plus, label: "Create Preparation", href: "/create_scanning_preparation" },
         { icon: List, label: "Preparation List", href: "/scanning_preparation_list" },
-        { icon: ScanLine, label: "Start Scanning", href: "/scanning" }
+        { icon: ScanLine, label: "Start Scanning", href: "/scanning" },
+        { icon: CheckCircle, label: "Validation & Verification", href: "/validation_verification" }
       ]
     },
     {
@@ -294,9 +295,8 @@ export default function LayoutDashboard({ children, activeMenu }) {
                 <User className="w-4 h-4" />
                 <span>{user.username}</span>
                 <ChevronDown
-                  className={`w-4 h-4 transition-transform ${
-                    userDropdownOpen ? "rotate-180" : ""
-                  }`}
+                  className={`w-4 h-4 transition-transform ${userDropdownOpen ? "rotate-180" : ""
+                    }`}
                 />
               </button>
 
@@ -375,17 +375,15 @@ export default function LayoutDashboard({ children, activeMenu }) {
                 return (
                   <div key={index} className="relative" ref={scanDropdownRef}>
                     <button
-                      className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition ${
-                        isActive ? "bg-blue-700" : ""
-                      }`}
+                      className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition ${isActive ? "bg-blue-700" : ""
+                        }`}
                       onClick={() => setScanDropdownOpen(!scanDropdownOpen)}
                     >
                       <item.icon className="w-4 h-4" />
                       <span>{item.label}</span>
                       <ChevronDown
-                        className={`w-3 h-3 transition-transform ${
-                          scanDropdownOpen ? "rotate-180" : ""
-                        }`}
+                        className={`w-3 h-3 transition-transform ${scanDropdownOpen ? "rotate-180" : ""
+                          }`}
                       />
                     </button>
 
@@ -412,9 +410,8 @@ export default function LayoutDashboard({ children, activeMenu }) {
               return (
                 <button
                   key={index}
-                  className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition ${
-                    isActive ? "bg-blue-700" : ""
-                  }`}
+                  className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition ${isActive ? "bg-blue-700" : ""
+                    }`}
                   onClick={() => {
                     if (item.href) {
                       router.push(item.href);
@@ -478,9 +475,8 @@ export default function LayoutDashboard({ children, activeMenu }) {
                 >
                   <span>Account</span>
                   <ChevronDown
-                    className={`w-3 h-3 ml-1 transition-transform ${
-                      userDropdownOpen ? "rotate-180" : ""
-                    }`}
+                    className={`w-3 h-3 ml-1 transition-transform ${userDropdownOpen ? "rotate-180" : ""
+                      }`}
                   />
                 </button>
               </div>
@@ -538,13 +534,12 @@ export default function LayoutDashboard({ children, activeMenu }) {
                   activeMenu !== undefined
                     ? index === activeMenu
                     : index === activeMenuIndex;
-                
+
                 return (
                   <div key={index}>
                     <button
-                      className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition w-full ${
-                        isActive ? "bg-blue-700" : ""
-                      }`}
+                      className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition w-full ${isActive ? "bg-blue-700" : ""
+                        }`}
                       onClick={() => {
                         // Untuk mobile - Assets Scanning
                         if (item.label === "Assets Scanning") {
@@ -563,9 +558,8 @@ export default function LayoutDashboard({ children, activeMenu }) {
                       <span>{item.label}</span>
                       {item.hasDropdown && (
                         <ChevronDown
-                          className={`w-3 h-3 ml-auto transition-transform ${
-                            scanDropdownOpen && item.label === "Assets Scanning" ? "rotate-180" : ""
-                          }`}
+                          className={`w-3 h-3 ml-auto transition-transform ${scanDropdownOpen && item.label === "Assets Scanning" ? "rotate-180" : ""
+                            }`}
                         />
                       )}
                     </button>

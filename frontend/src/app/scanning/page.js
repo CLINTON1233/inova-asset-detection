@@ -1583,7 +1583,7 @@ export default function SerialScanningPage() {
             confirmButtonColor: "#2563eb",
           }).then(() => {
             // Redirect ke halaman validation
-            router.push("/validation-verification");
+            router.push("/validation_verification");
           });
         } else {
           throw new Error(
@@ -1694,7 +1694,7 @@ export default function SerialScanningPage() {
             confirmButtonColor: "#2563eb",
           }).then(() => {
             // Redirect ke halaman validation
-            router.push("/validation-verification");
+            router.push("/validation_verification");
           });
         } else {
           Swal.fire({
