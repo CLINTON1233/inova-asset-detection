@@ -54,6 +54,7 @@ export default function ValidationVerificationPage() {
   const [detailModal, setDetailModal] = useState(null);
   const [sorting, setSorting] = useState({ id: "created_at", desc: true });
   const [mounted, setMounted] = useState(false);
+  const [showCheckboxes, setShowCheckboxes] = useState(false);
   const [stats, setStats] = useState({
     pending: 0,
     approved: 0,
@@ -67,6 +68,13 @@ export default function ValidationVerificationPage() {
     setMounted(true);
     loadValidations();
   }, []);
+
+  const toggleCheckboxMode = () => {
+    setShowCheckboxes(!showCheckboxes);
+    if (showCheckboxes) {
+      setSelectedItems([]);
+    }
+  };
 
   const loadValidations = async () => {
     setLoading(true);
@@ -699,8 +707,8 @@ export default function ValidationVerificationPage() {
               </div>
 
               <div className="flex items-center gap-2 ml-auto">
-                {/* Bulk Actions */}
-                {selectedItems.length > 0 && (
+                {/* Bulk Actions - Hanya muncul jika ada item yang dipilih */}
+                {showCheckboxes && selectedItems.length > 0 && (
                   <>
                     <span className="text-xs text-gray-500 font-medium">
                       {selectedItems.length} selected
@@ -730,6 +738,15 @@ export default function ValidationVerificationPage() {
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
                   Refresh
+                </button>
+                <button
+                  onClick={toggleCheckboxMode}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${showCheckboxes
+                      ? 'bg-gray-500 text-white hover:bg-gray-600'
+                      : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                >
+                  {showCheckboxes ? 'Cancel' : 'Multi Select'}
                 </button>
               </div>
             </div>
@@ -775,14 +792,16 @@ export default function ValidationVerificationPage() {
                 <table className="min-w-full">
                   <thead>
                     <tr>
-                      <th className="vv-th w-10 text-center">
-                        <input
-                          type="checkbox"
-                          checked={selectedItems.length === filteredValidations.length && filteredValidations.length > 0}
-                          onChange={handleSelectAll}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                      </th>
+                      {showCheckboxes && (
+                        <th className="vv-th w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.length === filteredValidations.length && filteredValidations.length > 0}
+                            onChange={handleSelectAll}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                        </th>
+                      )}
                       <th className="vv-th text-left">Photo</th>
                       <th className="vv-th text-left" onClick={() => handleSort("item_name")}>
                         <span className="flex items-center">Item {getSortIcon("item_name")}</span>
@@ -813,15 +832,17 @@ export default function ValidationVerificationPage() {
 
                       return (
                         <tr key={validation.id_validation} className="vv-row transition-colors">
-                          <td className="vv-td text-center">
-                            <input
-                              type="checkbox"
-                              checked={selectedItems.includes(validation.id_validation)}
-                              onChange={() => handleSelectItem(validation.id_validation)}
-                              disabled={validation.validation_status !== "pending"}
-                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
-                            />
-                          </td>
+                          {showCheckboxes && (
+                            <td className="vv-td text-center">
+                              <input
+                                type="checkbox"
+                                checked={selectedItems.includes(validation.id_validation)}
+                                onChange={() => handleSelectItem(validation.id_validation)}
+                                disabled={validation.validation_status !== "pending"}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                              />
+                            </td>
+                          )}
                           <td className="vv-td">
                             {photoUrl ? (
                               <img
@@ -1044,13 +1065,14 @@ export default function ValidationVerificationPage() {
 
               <div className="p-5 overflow-y-auto max-h-[calc(90vh-140px)] space-y-4">
                 {detailModal.photo_url && (
-                  <div className="bg-gray-100 rounded-lg p-2 flex justify-center">
+                  <div className="rounded-lg overflow-hidden bg-gray-100 max-h-64">
                     <img
                       src={detailModal.photo_url.startsWith('http') ? detailModal.photo_url : `http://localhost:5001${detailModal.photo_url}`}
                       alt="Scan result"
-                      className="max-w-full max-h-48 rounded-lg object-contain"
+                      className="w-full h-full object-contain"
                       onError={(e) => {
                         e.target.style.display = 'none';
+                        e.target.parentElement.innerHTML = '<div class="w-full h-40 bg-gray-100 rounded-lg flex items-center justify-center"><Camera className="w-10 h-10 text-gray-400" /></div>';
                       }}
                     />
                   </div>
@@ -1099,14 +1121,50 @@ export default function ValidationVerificationPage() {
                   </div>
                 )}
 
-                {detailModal.detection_data && (
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500 mb-1">Detection Data</p>
-                    <pre className="text-xs font-mono text-gray-600 whitespace-pre-wrap">
-                      {JSON.stringify(detailModal.detection_data, null, 2)}
-                    </pre>
-                  </div>
-                )}
+                {detailModal.detection_data && (() => {
+                  // Parse detection data jika string
+                  let detectionData = detailModal.detection_data;
+                  if (typeof detectionData === 'string') {
+                    try {
+                      detectionData = JSON.parse(detectionData);
+                    } catch (e) {
+                      return null;
+                    }
+                  }
+
+                  // Format confidence ke persen
+                  const confidencePercent = detectionData.confidence
+                    ? Math.round(detectionData.confidence * 100)
+                    : null;
+
+                  return (
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <p className="text-xs text-gray-500 mb-2">Detection Result</p>
+                      <div className="space-y-2">
+                        {detectionData.asset_type && (
+                          <div>
+                            <p className="text-xs text-gray-400">Detected Asset</p>
+                            <p className="text-sm font-medium text-gray-800">{detectionData.asset_type}</p>
+                          </div>
+                        )}
+                        {detectionData.category && (
+                          <div>
+                            <p className="text-xs text-gray-400">Category</p>
+                            <p className="text-sm font-medium text-gray-800">
+                              {detectionData.category === "Perangkat" ? "Device" : detectionData.category}
+                            </p>
+                          </div>
+                        )}
+                        {confidencePercent !== null && (
+                          <div>
+                            <p className="text-xs text-gray-400">Confidence Level</p>
+                            <p className="text-sm font-medium text-gray-800">{confidencePercent}%</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {(detailModal.validation_notes || detailModal.rejection_reason) && (
                   <div className={`rounded-lg p-3 ${detailModal.validation_status === 'rejected' ? 'bg-red-50 border border-red-100' : 'bg-emerald-50 border border-emerald-100'}`}>

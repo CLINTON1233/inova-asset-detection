@@ -85,11 +85,11 @@ const InlineDonut = ({ pct, color, size = 100, stroke = 10 }) => {
 export default function DashboardPage() {
   const router = useRouter();
   const [sessions, setSessions] = useState([]);
-  const [scanResults, setScanResults] = useState([]);
+  const [validations, setValidations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [recentChecks, setRecentChecks] = useState([]);
 
-  // Fetch all sessions and scan results
+  // Fetch all data
   useEffect(() => {
     fetchDashboardData();
   }, []);
@@ -97,52 +97,63 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // Fetch all scanning sessions
+      // 1. Fetch all scanning sessions
       const sessionsResponse = await fetch(API_ENDPOINTS.SCANNING_PREP_LIST_ALL, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
       });
       const sessionsResult = await sessionsResponse.json();
 
+      // 2. Fetch validations
+      const validationsResponse = await fetch(API_ENDPOINTS.VALIDATIONS_LIST, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      const validationsResult = await validationsResponse.json();
+
+      let sessionsData = [];
+      let validationsData = [];
+
       if (sessionsResult.success) {
-        const sessionsWithType = sessionsResult.data.map((session) => ({
+        sessionsData = sessionsResult.data.map((session) => ({
           ...session,
           type: session.type || (session.category_id === 1 ? "device" : "material"),
           totalQty: session.totalQty || session.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) || 0,
           totalScanned: session.items?.reduce((sum, i) => sum + (i.scanned_count || 0), 0) || 0,
+          totalItems: session.items?.length || 0,
+          status: session.status || "pending",
+          progress: session.progress || 0,
         }));
-        setSessions(sessionsWithType);
+        setSessions(sessionsData);
+      }
 
-        // Build recent checks from sessions
-        const allScanResults = [];
-        for (const session of sessionsWithType) {
-          if (session.items) {
-            for (const item of session.items) {
-              if (item.scanned_count > 0) {
-                allScanResults.push({
-                  id: `${session.type === "device" ? "DEV" : "MAT"}-${session.id_preparation}-${item.id_item}`,
-                  jenisAset: item.device_name || item.material_name || item.item_name,
-                  kategori: session.type === "device" ? "Perangkat" : "Material",
-                  lokasi: session.location_name || "Unknown",
-                  status: item.scanned_count === item.quantity ? "Valid" : "Tertunda",
-                  tanggal: new Date(session.checking_date).toLocaleDateString("id-ID"),
-                  waktu: new Date().toLocaleTimeString("id-ID"),
-                  nomorSeri: item.scanned_count > 0 ? "Scanned" : "-",
-                  barcode: item.scanned_count > 0 ? "Scanned" : "-",
-                });
-              }
+      if (validationsResult.success) {
+        validationsData = validationsResult.data || [];
+        setValidations(validationsData);
+      }
+
+      // Build recent checks from sessions scan results
+      const allScanResults = [];
+      for (const session of sessionsData) {
+        if (session.items && session.scan_results) {
+          for (const scan of session.scan_results) {
+            const item = session.items.find(i => i.id_item === scan.scanning_item_id);
+            if (item) {
+              allScanResults.push({
+                id: scan.id_scan,
+                jenisAset: item.device_name || item.material_name || item.item_name,
+                kategori: session.type === "device" ? "Perangkat" : "Material",
+                lokasi: session.location_name || "Unknown",
+                status: scan.status === "submitted" ? "Valid" : "Tertunda",
+                tanggal: scan.scanned_at ? new Date(scan.scanned_at).toLocaleDateString("id-ID") : new Date().toLocaleDateString("id-ID"),
+                waktu: scan.scanned_at ? new Date(scan.scanned_at).toLocaleTimeString("id-ID") : new Date().toLocaleTimeString("id-ID"),
+                nomorSeri: scan.serial_number || scan.scan_code || "-",
+              });
             }
           }
         }
-        setRecentChecks(allScanResults.slice(0, 5));
       }
-
-      // Fetch scan results from localStorage or API
-      const storedHistory = localStorage.getItem("scanCheckHistory");
-      if (storedHistory) {
-        const history = JSON.parse(storedHistory);
-        setScanResults(history);
-      }
+      setRecentChecks(allScanResults.slice(0, 5));
 
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
@@ -162,7 +173,6 @@ export default function DashboardPage() {
   const totalDevices = sessions.filter(s => s.type === "device").length;
   const totalMaterials = sessions.filter(s => s.type === "material").length;
 
-  const totalItems = sessions.reduce((sum, s) => sum + (s.totalItems || 0), 0);
   const totalQuantity = sessions.reduce((sum, s) => sum + (s.totalQty || 0), 0);
   const totalScanned = sessions.reduce((sum, s) => sum + (s.totalScanned || 0), 0);
 
@@ -170,16 +180,27 @@ export default function DashboardPage() {
   const inProgressSessions = sessions.filter(s => s.status === "in-progress").length;
   const completedSessions = sessions.filter(s => s.status === "completed").length;
 
-  const validAssets = totalScanned;
-  const pendingAssets = totalQuantity - totalScanned;
-  const errorAssets = 0; // Placeholder, bisa diambil dari validations nanti
+  // Statistics from validations
+  const totalValidations = validations.length;
+  const approvedValidations = validations.filter(v => v.validation_status === "approved").length;
+  const pendingValidations = validations.filter(v => v.validation_status === "pending").length;
+  const rejectedValidations = validations.filter(v => v.validation_status === "rejected").length;
 
-  const validPct = totalQuantity > 0 ? (validAssets / totalQuantity) * 100 : 0;
+  // Asset stats
+  const validAssets = approvedValidations;
+  const pendingAssets = totalQuantity - totalScanned;
+  const errorAssets = rejectedValidations;
+
+  const validPct = totalQuantity > 0 ? (totalScanned / totalQuantity) * 100 : 0;
   const errorPct = totalQuantity > 0 ? (errorAssets / totalQuantity) * 100 : 0;
   const pendingPct = totalQuantity > 0 ? (pendingAssets / totalQuantity) * 100 : 0;
 
-  const scanSuccessRate = totalQuantity > 0 ? (validAssets / totalQuantity) * 100 : 0;
-  const todayScanned = 0; // Placeholder, bisa dihitung dari scan results hari ini
+  const scanSuccessRate = totalScanned > 0 ? (approvedValidations / totalScanned) * 100 : 0;
+  const todayScanned = sessions.reduce((sum, s) => {
+    const today = new Date().toDateString();
+    const sessionDate = s.checking_date ? new Date(s.checking_date).toDateString() : null;
+    return sum + (sessionDate === today ? (s.totalScanned || 0) : 0);
+  }, 0);
 
   // Statistik untuk KPI
   const stats = [
@@ -247,16 +268,28 @@ export default function DashboardPage() {
       }
     });
 
+    // Tambahkan error data dari validations yang rejected
+    validations.forEach(validation => {
+      if (validation.validation_status === "rejected") {
+        const date = new Date(validation.created_at);
+        const dayName = days[date.getDay() === 0 ? 6 : date.getDay() - 1];
+        const dayData = weeklyData.find(d => d.name === dayName);
+        if (dayData) {
+          dayData.Error += 1;
+        }
+      }
+    });
+
     return weeklyData;
   };
 
   const chartData = getWeeklyData();
 
-  // Ringkasan Status Aset
+  // Ringkasan Status Aset dari validations
   const assetStatusData = [
-    { name: "Valid", value: validAssets, color: "#2563eb" },
-    { name: "Pending", value: pendingAssets, color: "#6366f1" },
-    { name: "Error", value: errorAssets, color: "#dc2626" },
+    { name: "Valid", value: approvedValidations, color: "#2563eb" },
+    { name: "Pending", value: pendingValidations, color: "#6366f1" },
+    { name: "Error", value: rejectedValidations, color: "#dc2626" },
   ];
 
   // Distribusi Jenis Aset dari sessions
@@ -433,7 +466,7 @@ export default function DashboardPage() {
                       title: "Valid Assets",
                       pct: validPct,
                       color: "#2563eb",
-                      sub: `${validAssets} of ${totalQuantity} assets`,
+                      sub: `${totalScanned} of ${totalQuantity} assets`,
                     },
                     {
                       title: "Pending",
@@ -762,8 +795,8 @@ export default function DashboardPage() {
                             <td className="px-4 py-3">
                               <span
                                 className={`px-2 py-0.5 text-xs font-semibold rounded-full ${row.kategori === "Perangkat"
-                                    ? "bg-blue-100 text-blue-700"
-                                    : "bg-green-100 text-green-700"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : "bg-green-100 text-green-700"
                                   }`}
                               >
                                 {row.kategori === "Perangkat"
