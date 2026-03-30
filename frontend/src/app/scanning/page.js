@@ -65,6 +65,7 @@ export default function SerialScanningPage() {
   const [showSessionSelector, setShowSessionSelector] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [selectedItemForSerial, setSelectedItemForSerial] = useState(null);
+  const [itemDetails, setItemDetails] = useState({});
 
   const LoadingSpinner = ({ message, subMessage }) => (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -79,6 +80,37 @@ export default function SerialScanningPage() {
       </div>
     </div>
   );
+
+  const fetchItemDetails = async (itemId, itemName, category) => {
+    if (itemDetails[itemId]) return itemDetails[itemId];
+
+    try {
+      // Cari item di currentPreparation
+      const item = currentPreparation?.items?.find(i => i.id_item === itemId);
+      if (!item) return null;
+
+      // Ambil departments dan receivers dari item
+      const departmentsList = item.departments || [];
+      const receiversList = item.receivers || [];
+      const projectName = item.project_name || "-";
+
+      const detail = {
+        departments: departmentsList,
+        receivers: receiversList,
+        project_name: projectName,
+        item_name: item.device_name || item.material_name || itemName,
+        brand: item.brand || item.vendor,
+        model: item.model,
+        uom: item.uom
+      };
+
+      setItemDetails(prev => ({ ...prev, [itemId]: detail }));
+      return detail;
+    } catch (error) {
+      console.error("Error fetching item details:", error);
+      return null;
+    }
+  };
 
   const loadAvailableSessions = async () => {
     setLoadingSessions(true);
@@ -2786,6 +2818,9 @@ export default function SerialScanningPage() {
                           "Category",
                           currentPreparation?.type === "material" ? "Vendor" : "Brand",
                           currentPreparation?.type === "material" ? "Scan Code" : "Serial",
+                          "Project",
+                          "Department",
+                          "Receiver",
                           "Confidence",
                           "Status",
                           "Time",
@@ -2807,6 +2842,12 @@ export default function SerialScanningPage() {
                     <tbody>
                       {checkHistory.map((item, idx) => {
                         const cfg = getStatusConfig(item.status);
+                        // Cari detail item dari currentPreparation
+                        const itemDetail = currentPreparation?.items?.find(i => i.id_item === item.item_id);
+                        const projectName = itemDetail?.project_name || "-";
+                        const departments = itemDetail?.departments || [];
+                        const receivers = itemDetail?.receivers || [];
+
                         return (
                           <tr
                             key={item.id}
@@ -2855,54 +2896,84 @@ export default function SerialScanningPage() {
                                 </span>
                               </div>
                             </td>
+
                             <td className="px-4 py-3 text-xs text-gray-600">
                               {item.jenisAset}
                             </td>
+
                             <td className="px-4 py-3">
                               <span
                                 style={{
-                                  background:
-                                    item.kategori === "Perangkat"
-                                      ? "#dbeafe"
-                                      : "#dcfce7",
-                                  color:
-                                    item.kategori === "Perangkat"
-                                      ? "#1d4ed8"
-                                      : "#15803d",
+                                  background: item.kategori === "Perangkat" ? "#dbeafe" : "#dcfce7",
+                                  color: item.kategori === "Perangkat" ? "#1d4ed8" : "#15803d",
                                   fontSize: 11,
                                   fontWeight: 500,
                                   padding: "3px 8px",
                                   borderRadius: 20,
                                 }}
                               >
-                                {item.kategori === "Perangkat"
-                                  ? "Device"
-                                  : "Material"}
+                                {item.kategori === "Perangkat" ? "Device" : "Material"}
                               </span>
                             </td>
+
                             <td className="px-4 py-3 text-xs text-gray-500">
                               {item.brand || "—"}
                             </td>
+
                             <td className="px-4 py-3">
                               <span className="font-mono text-xs text-gray-600">
                                 {item.nomorSeri || "—"}
                               </span>
                             </td>
+
+                            {/* Kolom Project */}
+                            <td className="px-4 py-3">
+                              <span className="text-xs text-gray-600">
+                                {projectName}
+                              </span>
+                            </td>
+
+                            {/* Kolom Department */}
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-1">
+                                {departments.length > 0 ? (
+                                  departments.slice(0, 2).map((d, i) => (
+                                    <span key={i} className="text-xs bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded-full">
+                                      {d.department_name}: {d.quantity}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="text-xs text-gray-400">—</span>
+                                )}
+                                {departments.length > 2 && (
+                                  <span className="text-xs text-gray-400">+{departments.length - 2}</span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Kolom Receiver */}
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-1">
+                                {receivers.length > 0 ? (
+                                  receivers.slice(0, 2).map((r, i) => (
+                                    <span key={i} className="text-xs bg-green-50 text-green-700 px-1.5 py-0.5 rounded-full">
+                                      {r.receiver_name || `Receiver ${r.receiver_id}`}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="text-xs text-gray-400">—</span>
+                                )}
+                                {receivers.length > 2 && (
+                                  <span className="text-xs text-gray-400">+{receivers.length - 2}</span>
+                                )}
+                              </div>
+                            </td>
+
                             <td className="px-4 py-3">
                               <span
                                 style={{
-                                  background:
-                                    item.confidencePercent >= 80
-                                      ? "#dcfce7"
-                                      : item.confidencePercent >= 60
-                                        ? "#fef9c3"
-                                        : "#fee2e2",
-                                  color:
-                                    item.confidencePercent >= 80
-                                      ? "#15803d"
-                                      : item.confidencePercent >= 60
-                                        ? "#854d0e"
-                                        : "#b91c1c",
+                                  background: item.confidencePercent >= 80 ? "#dcfce7" : item.confidencePercent >= 60 ? "#fef9c3" : "#fee2e2",
+                                  color: item.confidencePercent >= 80 ? "#15803d" : item.confidencePercent >= 60 ? "#854d0e" : "#b91c1c",
                                   fontSize: 11,
                                   fontWeight: 600,
                                   padding: "2px 8px",
@@ -2912,6 +2983,7 @@ export default function SerialScanningPage() {
                                 {item.confidencePercent || "—"}%
                               </span>
                             </td>
+
                             <td className="px-4 py-3">
                               <span
                                 style={{
@@ -2925,6 +2997,7 @@ export default function SerialScanningPage() {
                                 {cfg.label}
                               </span>
                             </td>
+
                             <td className="px-4 py-3">
                               <p className="text-xs text-gray-500">
                                 {item.tanggal}
@@ -2933,24 +3006,18 @@ export default function SerialScanningPage() {
                                 {item.waktu}
                               </p>
                             </td>
+
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-1">
-                                {item.status === "device_detected" &&
-                                  !item.nomorSeri && (
-                                    <button
-                                      onClick={() =>
-                                        handleScanSerialForItem(item)
-                                      }
-                                      className="w-7 h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white transition"
-                                      title={
-                                        item.kategori === "Perangkat"
-                                          ? "Scan Serial Number"
-                                          : "Scan Code"
-                                      }
-                                    >
-                                      <ScanLine className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
+                                {item.status === "device_detected" && !item.nomorSeri && (
+                                  <button
+                                    onClick={() => handleScanSerialForItem(item)}
+                                    className="w-7 h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white transition"
+                                    title={item.kategori === "Perangkat" ? "Scan Serial Number" : "Scan Code"}
+                                  >
+                                    <ScanLine className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                                 {item.status !== "Submitted" && item.lokasi && (
                                   <button
                                     onClick={() => handleSubmitSingle(item)}

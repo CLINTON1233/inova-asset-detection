@@ -59,6 +59,7 @@ export default function ValidationVerificationPage() {
   const [sorting, setSorting] = useState({ id: "created_at", desc: true });
   const [mounted, setMounted] = useState(false);
   const [showCheckboxes, setShowCheckboxes] = useState(false);
+  const [itemDetails, setItemDetails] = useState({});
   const [stats, setStats] = useState({
     pending: 0,
     approved: 0,
@@ -73,10 +74,70 @@ export default function ValidationVerificationPage() {
     loadValidations();
   }, []);
 
+  // Tambahkan useEffect untuk memuat item details setelah validations loaded
+  useEffect(() => {
+    const loadAllItemDetails = async () => {
+      if (validations.length > 0) {
+        for (const validation of validations) {
+          if (!itemDetails[validation.id_validation]) {
+            await fetchItemDetails(validation.id_validation, validation.validation_type);
+          }
+        }
+      }
+    };
+    loadAllItemDetails();
+  }, [validations]);
+
   const toggleCheckboxMode = () => {
     setShowCheckboxes(!showCheckboxes);
     if (showCheckboxes) {
       setSelectedItems([]);
+    }
+  };
+
+
+  const fetchItemDetails = async (itemId, type) => {
+    if (itemDetails[itemId]) return itemDetails[itemId];
+
+    try {
+      // Cari data dari validations list
+      const validation = validations.find(v => v.id_validation === itemId);
+      if (!validation) return null;
+
+      // Ambil detail dari database berdasarkan preparation_id dan item_id
+      let endpoint;
+      if (validation.validation_type === "device") {
+        endpoint = API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(validation.preparation_id);
+      } else {
+        endpoint = API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(validation.preparation_id);
+      }
+
+      const response = await fetch(endpoint);
+      const result = await response.json();
+
+      if (result.success) {
+        const data = result.data;
+        const item = data.items.find(i => i.id_item === validation.item_id);
+
+        if (item) {
+          const detail = {
+            project_name: item.project_name || "-",
+            departments: item.departments || [],
+            receivers: item.receivers || [],
+            item_name: item.device_name || item.material_name || item.item_name,
+            brand: item.brand || item.vendor,
+            model: item.model,
+            uom: item.uom
+          };
+
+          setItemDetails(prev => ({ ...prev, [itemId]: detail }));
+          return detail;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error("Error fetching item details:", error);
+      return null;
     }
   };
 
@@ -437,16 +498,16 @@ export default function ValidationVerificationPage() {
       ...(isApprove
         ? {}
         : {
-            input: "textarea",
-            inputPlaceholder: "Rejection reason for all selected items...",
-            inputLabel: "Rejection Reason",
-            inputValidator: (value) => {
-              if (!value || value.trim() === "") {
-                return "Please provide a rejection reason";
-              }
-              return null;
-            },
-          }),
+          input: "textarea",
+          inputPlaceholder: "Rejection reason for all selected items...",
+          inputLabel: "Rejection Reason",
+          inputValidator: (value) => {
+            if (!value || value.trim() === "") {
+              return "Please provide a rejection reason";
+            }
+            return null;
+          },
+        }),
     });
 
     if (result.isConfirmed) {
@@ -971,11 +1032,10 @@ export default function ValidationVerificationPage() {
                 </button>
                 <button
                   onClick={toggleCheckboxMode}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${
-                    showCheckboxes
-                      ? "bg-gray-500 text-white hover:bg-gray-600"
-                      : "border border-gray-200 text-gray-600 hover:bg-gray-50"
-                  }`}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${showCheckboxes
+                    ? "bg-gray-500 text-white hover:bg-gray-600"
+                    : "border border-gray-200 text-gray-600 hover:bg-gray-50"
+                    }`}
                 >
                   {showCheckboxes ? "Cancel" : "Multi Select"}
                 </button>
@@ -1022,77 +1082,44 @@ export default function ValidationVerificationPage() {
               <div className="overflow-x-auto">
                 <table className="min-w-full">
                   <thead>
-                    <tr>
+                    <tr style={{ background: "#f8fafc" }}>
                       {showCheckboxes && (
                         <th className="vv-th w-10 text-center">
                           <input
                             type="checkbox"
-                            checked={
-                              selectedItems.length ===
-                                filteredValidations.length &&
-                              filteredValidations.length > 0
-                            }
+                            checked={selectedItems.length === filteredValidations.length && filteredValidations.length > 0}
                             onChange={handleSelectAll}
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                           />
                         </th>
                       )}
                       <th className="vv-th text-left">Photo</th>
-                      <th
-                        className="vv-th text-left"
-                        onClick={() => handleSort("item_name")}
-                      >
-                        <span className="flex items-center">
-                          Item {getSortIcon("item_name")}
-                        </span>
+                      <th className="vv-th text-left" onClick={() => handleSort("item_name")}>
+                        <span className="flex items-center">Item {getSortIcon("item_name")}</span>
                       </th>
-                      <th
-                        className="vv-th text-left hidden md:table-cell"
-                        onClick={() => handleSort("serial_or_code")}
-                      >
-                        <span className="flex items-center">
-                          Code {getSortIcon("serial_or_code")}
-                        </span>
+                      <th className="vv-th text-left hidden md:table-cell" onClick={() => handleSort("serial_or_code")}>
+                        <span className="flex items-center">Code {getSortIcon("serial_or_code")}</span>
                       </th>
-                      <th
-                        className="vv-th text-left hidden lg:table-cell"
-                        onClick={() => handleSort("checking_name")}
-                      >
-                        <span className="flex items-center">
-                          Session {getSortIcon("checking_name")}
-                        </span>
+                      <th className="vv-th text-left hidden lg:table-cell" onClick={() => handleSort("checking_name")}>
+                        <span className="flex items-center">Session {getSortIcon("checking_name")}</span>
                       </th>
-                      <th
-                        className="vv-th text-left hidden lg:table-cell"
-                        onClick={() => handleSort("location_name")}
-                      >
-                        <span className="flex items-center">
-                          Location {getSortIcon("location_name")}
-                        </span>
+                      <th className="vv-th text-left hidden xl:table-cell">
+                        <span className="flex items-center">Project</span>
                       </th>
-                      <th
-                        className="vv-th text-left"
-                        onClick={() => handleSort("receiver_name")}
-                      >
-                        <span className="flex items-center">
-                          Receiver {getSortIcon("receiver_name")}
-                        </span>
+                      <th className="vv-th text-left hidden xl:table-cell">
+                        <span className="flex items-center">Department</span>
                       </th>
-                      <th
-                        className="vv-th text-left"
-                        onClick={() => handleSort("validation_status")}
-                      >
-                        <span className="flex items-center">
-                          Status {getSortIcon("validation_status")}
-                        </span>
+                      <th className="vv-th text-left hidden xl:table-cell">
+                        <span className="flex items-center">Receiver</span>
                       </th>
-                      <th
-                        className="vv-th text-left hidden xl:table-cell"
-                        onClick={() => handleSort("created_at")}
-                      >
-                        <span className="flex items-center">
-                          Submitted {getSortIcon("created_at")}
-                        </span>
+                      <th className="vv-th text-left" onClick={() => handleSort("receiver_name")}>
+                        <span className="flex items-center">Receiver Name {getSortIcon("receiver_name")}</span>
+                      </th>
+                      <th className="vv-th text-left" onClick={() => handleSort("validation_status")}>
+                        <span className="flex items-center">Status {getSortIcon("validation_status")}</span>
+                      </th>
+                      <th className="vv-th text-left hidden xl:table-cell" onClick={() => handleSort("created_at")}>
+                        <span className="flex items-center">Submitted {getSortIcon("created_at")}</span>
                       </th>
                       <th className="vv-th text-center">Actions</th>
                     </tr>
@@ -1103,24 +1130,28 @@ export default function ValidationVerificationPage() {
                       const StatusIcon = sc.icon;
                       const photoUrl = validation.photo_url;
 
+                      // Ambil detail dari itemDetails state, bukan menggunakan useState di dalam map
+                      const itemDetail = itemDetails[validation.id_validation];
+                      const projectName = itemDetail?.project_name || "-";
+                      const departments = itemDetail?.departments || [];
+                      const receivers = itemDetail?.receivers || [];
+
+                      // Gunakan useEffect di level komponen, bukan di dalam map
+                      // Tapi karena ini di dalam map, kita tidak bisa menggunakan useEffect
+                      // Sebagai gantinya, kita akan fetch detail di dalam useEffect yang sudah ada di komponen utama
+
+                      // Untuk sementara, kita bisa langsung menggunakan itemDetail yang sudah ada
+                      // dan memicu fetch jika belum ada di useEffect terpisah
+
                       return (
-                        <tr
-                          key={validation.id_validation}
-                          className="vv-row transition-colors"
-                        >
+                        <tr key={validation.id_validation} className="vv-row transition-colors">
                           {showCheckboxes && (
                             <td className="vv-td text-center">
                               <input
                                 type="checkbox"
-                                checked={selectedItems.includes(
-                                  validation.id_validation,
-                                )}
-                                onChange={() =>
-                                  handleSelectItem(validation.id_validation)
-                                }
-                                disabled={
-                                  validation.validation_status !== "pending"
-                                }
+                                checked={selectedItems.includes(validation.id_validation)}
+                                onChange={() => handleSelectItem(validation.id_validation)}
+                                disabled={validation.validation_status !== "pending"}
                                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
                               />
                             </td>
@@ -1128,18 +1159,12 @@ export default function ValidationVerificationPage() {
                           <td className="vv-td">
                             {photoUrl ? (
                               <img
-                                src={
-                                  photoUrl.startsWith("http")
-                                    ? photoUrl
-                                    : `http://localhost:5001${photoUrl}`
-                                }
+                                src={photoUrl.startsWith("http") ? photoUrl : `http://localhost:5001${photoUrl}`}
                                 alt="Scan result"
                                 className="w-10 h-10 rounded-lg object-cover cursor-pointer hover:opacity-80 transition"
                                 onClick={() => {
                                   Swal.fire({
-                                    imageUrl: photoUrl.startsWith("http")
-                                      ? photoUrl
-                                      : `http://localhost:5001${photoUrl}`,
+                                    imageUrl: photoUrl.startsWith("http") ? photoUrl : `http://localhost:5001${photoUrl}`,
                                     imageAlt: "Scan Result",
                                     title: "Scan Result Preview",
                                     imageWidth: 400,
@@ -1147,8 +1172,7 @@ export default function ValidationVerificationPage() {
                                     confirmButtonColor: "#2563eb",
                                     customClass: {
                                       popup: "rounded-xl",
-                                      confirmButton:
-                                        "px-4 py-2 bg-blue-600 text-white rounded-lg",
+                                      confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg",
                                     },
                                   });
                                 }}
@@ -1175,22 +1199,18 @@ export default function ValidationVerificationPage() {
                                 </div>
                                 <div className="mt-0.5">
                                   <span
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                      validation.validation_type === "device"
-                                        ? "bg-blue-100 text-blue-700"
-                                        : validation.validation_type ===
-                                            "material"
-                                          ? "bg-green-100 text-green-700"
-                                          : "bg-gray-100 text-gray-700"
-                                    }`}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${validation.validation_type === "device"
+                                      ? "bg-blue-100 text-blue-700"
+                                      : validation.validation_type === "material"
+                                        ? "bg-green-100 text-green-700"
+                                        : "bg-gray-100 text-gray-700"
+                                      }`}
                                   >
                                     {validation.validation_type === "device"
                                       ? "Device"
-                                      : validation.validation_type ===
-                                          "material"
+                                      : validation.validation_type === "material"
                                         ? "Material"
-                                        : validation.validation_type ||
-                                          "Unknown"}
+                                        : validation.validation_type || "Unknown"}
                                   </span>
                                 </div>
                               </div>
@@ -1209,54 +1229,84 @@ export default function ValidationVerificationPage() {
                               {validation.checking_number || "-"}
                             </div>
                           </td>
-                          <td className="vv-td hidden lg:table-cell">
-                            <div className="flex items-center gap-1.5">
-                              <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                              <span className="text-xs text-gray-600 truncate max-w-[140px]">
-                                {validation.location_name || "-"}
-                              </span>
+
+                          {/* Kolom Project */}
+                          <td className="vv-td hidden xl:table-cell">
+                            <span className="text-xs text-gray-600">
+                              {projectName}
+                            </span>
+                          </td>
+
+                          {/* Kolom Department */}
+                          <td className="vv-td hidden xl:table-cell">
+                            <div className="flex flex-wrap gap-1">
+                              {departments.length > 0 ? (
+                                departments.slice(0, 2).map((d, i) => (
+                                  <span key={i} className="text-xs bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded-full">
+                                    {d.department_name}: {d.quantity}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-xs text-gray-400">—</span>
+                              )}
+                              {departments.length > 2 && (
+                                <span className="text-xs text-gray-400">+{departments.length - 2}</span>
+                              )}
                             </div>
                           </td>
-                        <td className="vv-td">
-  <div className="flex items-center gap-2">
-    {validation.receiver_name ? (
-      <span className="text-sm text-gray-800 font-medium">
-        {validation.receiver_name}
-      </span>
-    ) : (
-      <span className="text-sm text-gray-400 italic">
-        Not set
-      </span>
-    )}
-    <button
-      onClick={() => handleAddReceiver(validation)}
-      className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition border ${
-        validation.receiver_name
-          ? 'border-amber-500 text-amber-600 hover:bg-amber-50'
-          : 'border-blue-500 text-blue-600 hover:bg-blue-50'
-      }`}
-      title={validation.receiver_name ? "Edit Receiver Name" : "Add Receiver Name"}
-    >
-      <Edit2 className="w-3 h-3" />
-      {validation.receiver_name ? "Edit" : "Add"}
-    </button>
-  </div>
-</td>
+
+                          {/* Kolom Receiver */}
+                          <td className="vv-td hidden xl:table-cell">
+                            <div className="flex flex-wrap gap-1">
+                              {receivers.length > 0 ? (
+                                receivers.slice(0, 2).map((r, i) => (
+                                  <span key={i} className="text-xs bg-green-50 text-green-700 px-1.5 py-0.5 rounded-full">
+                                    {r.receiver_name || `Receiver ${r.receiver_id}`}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-xs text-gray-400">—</span>
+                              )}
+                              {receivers.length > 2 && (
+                                <span className="text-xs text-gray-400">+{receivers.length - 2}</span>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="vv-td">
+                            <div className="flex items-center gap-2">
+                              {validation.receiver_name ? (
+                                <span className="text-sm text-gray-800 font-medium">
+                                  {validation.receiver_name}
+                                </span>
+                              ) : (
+                                <span className="text-sm text-gray-400 italic">Not set</span>
+                              )}
+                              <button
+                                onClick={() => handleAddReceiver(validation)}
+                                className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition border ${validation.receiver_name
+                                  ? "border-amber-500 text-amber-600 hover:bg-amber-50"
+                                  : "border-blue-500 text-blue-600 hover:bg-blue-50"
+                                  }`}
+                                title={validation.receiver_name ? "Edit Receiver Name" : "Add Receiver Name"}
+                              >
+                                <Edit2 className="w-3 h-3" />
+                                {validation.receiver_name ? "Edit" : "Add"}
+                              </button>
+                            </div>
+                          </td>
                           <td className="vv-td">
                             <span
                               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}
                             >
-                              <span
-                                className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`}
-                              />
+                              <span className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`} />
                               {sc.label}
                             </span>
-                            {validation.rejection_reason &&
-                              validation.validation_status === "rejected" && (
-                                <p className="text-xs text-red-500 mt-1 max-w-[160px] truncate">
-                                  {validation.rejection_reason}
-                                </p>
-                              )}
+                            {validation.rejection_reason && validation.validation_status === "rejected" && (
+                              <p className="text-xs text-red-500 mt-1 max-w-[160px] truncate">
+                                {validation.rejection_reason}
+                              </p>
+                            )}
                           </td>
                           <td className="vv-td hidden xl:table-cell">
                             <div className="flex items-center gap-1.5">
@@ -1269,40 +1319,37 @@ export default function ValidationVerificationPage() {
                               by {validation.created_by_name || "System"}
                             </div>
                           </td>
-                  <td className="vv-td text-center">
-  <div className="flex items-center justify-center gap-2">
-    <button
-      onClick={() => handleViewDetail(validation)}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition shadow-sm"
-      title="View Details"
-    >
-      <Eye className="w-3.5 h-3.5" />
-    
-    </button>
-    {validation.validation_status === "pending" && (
-      <>
-        <button
-          onClick={() => handleApprove(validation)}
-          disabled={isProcessing}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Approve"
-        >
-          <ThumbsUp className="w-3.5 h-3.5" />
-
-        </button>
-        <button
-          onClick={() => handleReject(validation)}
-          disabled={isProcessing}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Reject"
-        >
-          <ThumbsDown className="w-3.5 h-3.5" />
-  
-        </button>
-      </>
-    )}
-  </div>
-</td>
+                          <td className="vv-td text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => handleViewDetail(validation)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition shadow-sm"
+                                title="View Details"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              {validation.validation_status === "pending" && (
+                                <>
+                                  <button
+                                    onClick={() => handleApprove(validation)}
+                                    disabled={isProcessing}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Approve"
+                                  >
+                                    <ThumbsUp className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleReject(validation)}
+                                    disabled={isProcessing}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Reject"
+                                  >
+                                    <ThumbsDown className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       );
                     })}
@@ -1369,7 +1416,6 @@ export default function ValidationVerificationPage() {
           </div>
         </div>
 
-        {/* Detail Modal - Update untuk menampilkan receiver name */}
         {detailModal && (
           <div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
@@ -1476,6 +1522,42 @@ export default function ValidationVerificationPage() {
                   )}
                 </div>
 
+                {/* Project Information */}
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">Project</p>
+                  <p className="font-semibold text-gray-900 text-sm">
+                    {detailModal.project_name || "-"}
+                  </p>
+                </div>
+
+                {/* Department Distribution */}
+                {detailModal.departments && detailModal.departments.length > 0 && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500 mb-2">Department Distribution</p>
+                    <div className="flex flex-wrap gap-2">
+                      {detailModal.departments.map((dept, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-1 bg-gray-200 px-2 py-1 rounded-full text-xs">
+                          {dept.department_name}: {dept.quantity}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Receiver Assignments */}
+                {detailModal.receivers && detailModal.receivers.length > 0 && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500 mb-2">Receiver Assignments</p>
+                    <div className="space-y-1">
+                      {detailModal.receivers.map((rec, idx) => (
+                        <div key={idx} className="text-xs text-gray-600">
+                          {rec.receiver_name || `Receiver ${rec.receiver_id}`} - {rec.department_name}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-gray-50 rounded-lg p-3">
                   <p className="text-xs text-gray-500 mb-1">Receiver Name</p>
                   <div className="flex items-center justify-between">
@@ -1493,11 +1575,10 @@ export default function ValidationVerificationPage() {
                           receiver_name: detailModal.receiver_name,
                         });
                       }}
-                      className={`px-2 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1 ${
-                        detailModal.receiver_name
-                          ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
-                          : "bg-green-100 text-green-700 hover:bg-green-200"
-                      }`}
+                      className={`px-2 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1 ${detailModal.receiver_name
+                        ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                        : "bg-green-100 text-green-700 hover:bg-green-200"
+                        }`}
                     >
                       <Edit2 className="w-3 h-3" />
                       {detailModal.receiver_name ? "Edit" : "Add"}
@@ -1575,28 +1656,28 @@ export default function ValidationVerificationPage() {
 
                 {(detailModal.validation_notes ||
                   detailModal.rejection_reason) && (
-                  <div
-                    className={`rounded-lg p-3 ${detailModal.validation_status === "rejected" ? "bg-red-50 border border-red-100" : "bg-emerald-50 border border-emerald-100"}`}
-                  >
-                    <p className="text-xs font-semibold mb-1 text-gray-700">
-                      {detailModal.validation_status === "rejected"
-                        ? "Rejection Reason"
-                        : "Validation Notes"}
-                    </p>
-                    <p className="text-sm text-gray-800">
-                      {detailModal.validation_notes ||
-                        detailModal.rejection_reason}
-                    </p>
-                    {detailModal.validated_by_name && (
-                      <p className="text-xs text-gray-500 mt-2">
-                        Validated by {detailModal.validated_by_name} at{" "}
-                        {detailModal.validated_at
-                          ? new Date(detailModal.validated_at).toLocaleString()
-                          : "-"}
+                    <div
+                      className={`rounded-lg p-3 ${detailModal.validation_status === "rejected" ? "bg-red-50 border border-red-100" : "bg-emerald-50 border border-emerald-100"}`}
+                    >
+                      <p className="text-xs font-semibold mb-1 text-gray-700">
+                        {detailModal.validation_status === "rejected"
+                          ? "Rejection Reason"
+                          : "Validation Notes"}
                       </p>
-                    )}
-                  </div>
-                )}
+                      <p className="text-sm text-gray-800">
+                        {detailModal.validation_notes ||
+                          detailModal.rejection_reason}
+                      </p>
+                      {detailModal.validated_by_name && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          Validated by {detailModal.validated_by_name} at{" "}
+                          {detailModal.validated_at
+                            ? new Date(detailModal.validated_at).toLocaleString()
+                            : "-"}
+                        </p>
+                      )}
+                    </div>
+                  )}
               </div>
 
               <div className="p-5 border-t border-gray-100 flex justify-end gap-3">

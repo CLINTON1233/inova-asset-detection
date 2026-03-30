@@ -104,22 +104,19 @@ export default function ScanningPreparationListPage() {
       if (result.success) {
         const data = result.data;
 
-        // Extract departments, receivers, dan items dari data
         const departmentsList = [];
         const receiversList = [];
         const itemsList = [];
         let projectName = "-";
 
         data.items.forEach(item => {
-          // Ambil project name
           if (item.project_name && projectName === "-") {
             projectName = item.project_name;
           }
 
-          // Simpan item details
           itemsList.push({
-            name: type === "device" ? item.device_name : item.material_name,
-            detail: type === "device" ? item.device_detail : item.material_detail,
+            name: type === "device" ? item.device_name : item.item_name || item.material_name,
+            detail: type === "device" ? item.device_detail : item.specifications,
             quantity: item.quantity,
             brand: item.brand,
             model: item.model,
@@ -144,13 +141,13 @@ export default function ScanningPreparationListPage() {
             });
           }
 
-          // Receivers
+          // Receivers - sekarang menggunakan receiver_name dari backend
           if (item.receivers && item.receivers.length > 0) {
             item.receivers.forEach(r => {
               receiversList.push({
-                name: r.receiver_name || `Receiver ${r.receiver_id}`,
+                name: r.receiver_name || `Receiver ${r.receiver_id}`, // Gunakan receiver_name
                 department: r.department_name,
-                item_name: type === "device" ? item.device_name : item.material_name,
+                item_name: type === "device" ? item.device_name : item.item_name || item.material_name,
                 receiver_id: r.receiver_id
               });
             });

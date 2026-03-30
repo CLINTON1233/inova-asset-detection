@@ -772,20 +772,22 @@ def get_devices_scanning_preparation(prep_id):
         
         items = cur.fetchall()
         
-        # Get receivers untuk setiap item secara terpisah
+        # Get receivers untuk setiap item secara terpisah dengan nama receiver
         items_with_receivers = []
         for item in items:
             item_dict = dict(item)
             
-            # Ambil receivers untuk item ini
+            # Ambil receivers untuk item ini dengan join ke master_receivers untuk dapat nama
             cur.execute("""
                 SELECT 
                     dip.department_id,
                     d.department_name,
                     dip.receiver_id,
+                    mr.receiver_name,
                     ROW_NUMBER() OVER (PARTITION BY dip.department_id ORDER BY dip.id_item_preparation) - 1 as item_index
                 FROM devices_items_preparation dip
                 LEFT JOIN departments d ON dip.department_id = d.id_department
+                LEFT JOIN master_receivers mr ON dip.receiver_id = mr.id_receiver
                 WHERE dip.scanning_item_id = %s
                 AND dip.receiver_id IS NOT NULL
                 ORDER BY dip.department_id, dip.id_item_preparation
@@ -1392,20 +1394,22 @@ def get_materials_scanning_preparation(prep_id):
         
         items = cur.fetchall()
         
-        # Get receivers untuk setiap item secara terpisah
+        # Get receivers untuk setiap item secara terpisah dengan nama receiver
         items_with_receivers = []
         for item in items:
             item_dict = dict(item)
             
-            # Ambil receivers untuk item ini
+            # Ambil receivers untuk item ini dengan join ke master_receivers untuk dapat nama
             cur.execute("""
                 SELECT 
                     mip.department_id,
                     d.department_name,
                     mip.receiver_id,
+                    mr.receiver_name,
                     ROW_NUMBER() OVER (PARTITION BY mip.department_id ORDER BY mip.id_item_preparation) - 1 as item_index
                 FROM materials_items_preparation mip
                 LEFT JOIN departments d ON mip.department_id = d.id_department
+                LEFT JOIN master_receivers mr ON mip.receiver_id = mr.id_receiver
                 WHERE mip.scanning_item_id = %s
                 AND mip.receiver_id IS NOT NULL
                 ORDER BY mip.department_id, mip.id_item_preparation
