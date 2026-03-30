@@ -18,6 +18,8 @@ import {
   ChevronDown,
   ChevronUp,
   ArrowLeft,
+  User,
+  Copy,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import API_BASE_URL, { API_ENDPOINTS } from "../../config/api";
@@ -26,18 +28,20 @@ export default function EditScanningPreparationPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const prepId = searchParams.get("id");
-  const typeParam = searchParams.get("type"); // Ambil type dari URL
+  const typeParam = searchParams.get("type");
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [receivers, setReceivers] = useState([]);
+  const [receiversByDepartment, setReceiversByDepartment] = useState({});
   const [mounted, setMounted] = useState(false);
   const [expandedItems, setExpandedItems] = useState({});
-  const [sessionType, setSessionType] = useState(null); // 'device' atau 'material'
+  const [sessionType, setSessionType] = useState(null);
 
-  // UOM options untuk materials
   const uomOptions = [
     { code: "PCS", name: "Pieces" },
     { code: "UNIT", name: "Unit" },
@@ -63,9 +67,8 @@ export default function EditScanningPreparationPage() {
     fetchCategories();
     fetchLocations();
     fetchDepartments();
-
-    console.log("Prep ID:", prepId);
-    console.log("Type from URL:", typeParam);
+    fetchProjects();
+    fetchReceivers();
 
     if (!prepId) {
       Swal.fire("Error", "No preparation ID provided", "error").then(() => {
@@ -74,16 +77,13 @@ export default function EditScanningPreparationPage() {
       return;
     }
 
-    // Jika ada type di URL, langsung gunakan
     if (typeParam === "device" || typeParam === "material") {
       setSessionType(typeParam);
     } else {
-      // Jika tidak ada type, coba deteksi otomatis
       detectSessionType();
     }
   }, [prepId, typeParam]);
 
-  // Fetch data setelah sessionType ditentukan
   useEffect(() => {
     if (prepId && sessionType) {
       fetchPreparationData();
@@ -93,7 +93,6 @@ export default function EditScanningPreparationPage() {
   const detectSessionType = async () => {
     setFetching(true);
     try {
-      // Coba devices dulu
       let response = await fetch(API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId));
       let result = await response.json();
       
@@ -102,7 +101,6 @@ export default function EditScanningPreparationPage() {
         return;
       }
       
-      // Coba materials
       response = await fetch(API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId));
       result = await response.json();
       
@@ -207,6 +205,60 @@ export default function EditScanningPreparationPage() {
     }
   };
 
+  const fetchProjects = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.PROJECTS_LIST);
+      const data = await response.json();
+      if (data.success) {
+        setProjects(data.data || []);
+      } else {
+        setProjects([
+          { id_project: 1, project_name: "Gamma" },
+          { id_project: 2, project_name: "Nederwiek 2" },
+          { id_project: 3, project_name: "Overhead" },
+          { id_project: 4, project_name: "FPSO PETROBRAS P-84" },
+          { id_project: 5, project_name: "FPSO PETROBRAS P-85" },
+        ]);
+      }
+    } catch (error) {
+      console.error("Error fetching projects:", error);
+      setProjects([
+        { id_project: 1, project_name: "Gamma" },
+        { id_project: 2, project_name: "Nederwiek 2" },
+        { id_project: 3, project_name: "Overhead" },
+        { id_project: 4, project_name: "FPSO PETROBRAS P-84" },
+        { id_project: 5, project_name: "FPSO PETROBRAS P-85" },
+      ]);
+    }
+  };
+
+  const fetchReceivers = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.MASTER_RECEIVERS_LIST);
+      const data = await response.json();
+      if (data.success) {
+        setReceivers(data.data || []);
+        
+        const grouped = {};
+        data.data.forEach((receiver) => {
+          const deptId = receiver.department_id;
+          if (deptId) {
+            if (!grouped[deptId]) {
+              grouped[deptId] = [];
+            }
+            grouped[deptId].push(receiver);
+          }
+        });
+        setReceiversByDepartment(grouped);
+      } else {
+        setReceivers([]);
+      }
+    } catch (error) {
+      console.error("Error fetching receivers:", error);
+      setReceivers([]);
+    }
+  };
+
   const fetchPreparationData = async () => {
     setFetching(true);
     try {
@@ -229,7 +281,6 @@ export default function EditScanningPreparationPage() {
         const data = result.data;
         
         console.log("Data items:", data.items);
-        console.log("Session type from data:", data.type);
 
         setFormData({
           checking_name: data.checking_name || "",
@@ -239,39 +290,71 @@ export default function EditScanningPreparationPage() {
           remarks: data.remarks || "",
         });
 
-        // Format items berdasarkan tipe
         let formattedItems = [];
         
-        if (sessionType === "device") {
-          formattedItems = data.items.map((item, idx) => ({
-            id: `item-${Date.now()}-${idx}-${Math.random()}`,
-            device_name: item.device_name || "",
-            device_detail: item.device_detail || "",
-            brand: item.brand || "",
-            vendor: item.vendor || "",
-            model: item.model || "",
-            specifications: item.specifications || "",
-            quantity: item.quantity || 1,
-            departments: item.departments || [],
-            uom: "PCS",
-            material_name: "",
-            material_detail: "",
-            project_name: "",
-          }));
+   if (sessionType === "device") {
+  formattedItems = data.items.map((item, idx) => {
+    // Pastikan receivers memiliki struktur yang benar
+    const receiversList = (item.receivers || []).map((r, rIdx) => ({
+      department_id: r.department_id,
+      department_name: r.department_name,
+      receiver_id: r.receiver_id,
+      item_index: r.item_index !== undefined ? r.item_index : rIdx
+    }));
+    
+    return {
+      id: `item-${Date.now()}-${idx}-${Math.random()}`,
+      device_name: item.device_name || "",
+      device_detail: item.device_detail || "",
+      brand: item.brand || "",
+      vendor: item.vendor || "",
+      model: item.model || "",
+      specifications: item.specifications || "",
+      quantity: item.quantity || 1,
+      departments: (item.departments || []).map(d => ({
+        department_id: d.department_id,
+        department_name: d.department_name,
+        quantity: d.quantity
+      })),
+      receivers: receiversList,
+      project_id: item.project_id || "",
+      project_name: item.project_name || "",
+      uom: "PCS",
+      material_name: "",
+      material_detail: "",
+    };
+  });
+
         } else {
-          // MATERIALS - PASTIKAN FIELD YANG DIGUNAKAN SESUAI
           formattedItems = data.items.map((item, idx) => {
-            console.log("Processing material item:", item); // Debugging
+            console.log("Processing material item:", item);
+            
+            // Build departments array
+            const departmentsList = (item.departments || []).map(d => ({
+              department_id: d.department_id,
+              department_name: d.department_name,
+              quantity: d.quantity
+            }));
+            
+            // Build receivers array
+            const receiversList = (item.receivers || []).map((r, rIdx) => ({
+              department_id: r.department_id,
+              department_name: r.department_name,
+              receiver_id: r.receiver_id,
+              item_index: r.item_index || rIdx
+            }));
+            
             return {
               id: `item-${Date.now()}-${idx}-${Math.random()}`,
-              material_name: item.material_name || "",
-              material_detail: item.material_detail || item.specifications || "",
+              material_name: item.item_name || item.material_name || "",
+              material_detail: item.specifications || item.material_detail || "",
               quantity: parseFloat(item.quantity) || 1,
               uom: item.uom || "PCS",
               vendor: item.vendor || "",
+              project_id: item.project_id || "",
               project_name: item.project_name || "",
-              departments: item.departments || [],
-              // field device diisi kosong
+              departments: departmentsList,
+              receivers: receiversList,
               device_name: "",
               device_detail: "",
               brand: "",
@@ -281,7 +364,7 @@ export default function EditScanningPreparationPage() {
           });
         }
         
-        console.log("Formatted items:", formattedItems);
+        console.log("Formatted items with receivers:", formattedItems);
         setItems(formattedItems);
       } else {
         throw new Error(result?.error || "Failed to load preparation data");
@@ -314,8 +397,10 @@ export default function EditScanningPreparationPage() {
           quantity: 1,
           uom: "PCS",
           vendor: "",
+          project_id: "",
           project_name: "",
           departments: [],
+          receivers: [],
           device_name: "",
           device_detail: "",
           brand: "",
@@ -336,10 +421,12 @@ export default function EditScanningPreparationPage() {
           specifications: "",
           quantity: 1,
           departments: [],
+          receivers: [],
+          project_id: "",
+          project_name: "",
           uom: "PCS",
           material_name: "",
           material_detail: "",
-          project_name: "",
         },
       ]);
     }
@@ -373,93 +460,144 @@ export default function EditScanningPreparationPage() {
     }));
   };
 
-  const updateDepartmentQuantity = (itemId, departmentId, quantity) => {
-    const department = departments.find(
-      (d) => d.id_department === parseInt(departmentId),
-    );
-    const item = items.find((i) => i.id === itemId);
+  const getReceiversForDepartment = (departmentId) => {
+    return receiversByDepartment[departmentId] || [];
+  };
 
-    if (!item) return;
-
-    const newQuantity = parseFloat(quantity) || 0;
-    const currentTotal = item.departments.reduce(
-      (sum, d) => (d.department_id === departmentId ? sum : sum + d.quantity),
-      0,
-    );
-
-    if (currentTotal + newQuantity > item.quantity) {
-      const maxAllowed = item.quantity - currentTotal;
-      if (newQuantity > maxAllowed) {
-        const existingDept = item.departments.find(
-          (d) => d.department_id === departmentId,
-        );
-        if (existingDept) {
-          updateItem(
-            itemId,
-            "departments",
-            item.departments.map((d) =>
-              d.department_id === departmentId
-                ? { ...d, quantity: maxAllowed }
-                : d,
-            ),
+  const updateReceiverAssignment = (itemId, departmentId, receiverId, itemIndex) => {
+    setItems(
+      items.map((item) => {
+        if (item.id === itemId) {
+          const existingIndex = item.receivers.findIndex(
+            (r) => r.department_id === departmentId && r.item_index === itemIndex
           );
-        } else if (maxAllowed > 0) {
-          updateItem(itemId, "departments", [
+          
+          let newReceivers;
+          if (existingIndex >= 0) {
+            newReceivers = [...item.receivers];
+            newReceivers[existingIndex] = {
+              ...newReceivers[existingIndex],
+              receiver_id: receiverId ? parseInt(receiverId) : null,
+            };
+          } else {
+            const deptInfo = departments.find(d => d.id_department === departmentId);
+            newReceivers = [
+              ...item.receivers,
+              {
+                department_id: departmentId,
+                department_name: deptInfo?.department_name,
+                receiver_id: receiverId ? parseInt(receiverId) : null,
+                item_index: itemIndex,
+              },
+            ];
+          }
+          return { ...item, receivers: newReceivers };
+        }
+        return item;
+      }),
+    );
+  };
+
+const updateDepartmentQuantity = (itemId, departmentId, quantity) => {
+  const department = departments.find(
+    (d) => d.id_department === parseInt(departmentId),
+  );
+  
+  setItems(prevItems => 
+    prevItems.map(item => {
+      if (item.id !== itemId) return item;
+
+      const newQuantity = parseFloat(quantity) || 0;
+      
+      // Hitung total quantity yang sudah dialokasikan ke department lain
+      const totalOtherDepts = item.departments.reduce(
+        (sum, d) => d.department_id === parseInt(departmentId) ? sum : sum + d.quantity,
+        0
+      );
+      
+      // Hitung sisa quantity yang tersedia
+      const availableQty = item.quantity - totalOtherDepts;
+      
+      // Batasi quantity yang bisa dimasukkan
+      let finalQuantity = newQuantity;
+      if (newQuantity > availableQty) {
+        finalQuantity = availableQty;
+        Swal.fire({
+          title: "Warning!",
+          text: `Maximum available quantity for this department is ${availableQty}`,
+          icon: "warning",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
+
+      // Cek apakah department sudah ada
+      const existingDeptIndex = item.departments.findIndex(
+        (d) => d.department_id === parseInt(departmentId)
+      );
+
+      let newDepartments;
+      let newReceivers;
+
+      if (finalQuantity > 0) {
+        // Update atau tambah department
+        if (existingDeptIndex >= 0) {
+          newDepartments = [...item.departments];
+          newDepartments[existingDeptIndex] = {
+            ...newDepartments[existingDeptIndex],
+            quantity: finalQuantity
+          };
+        } else {
+          newDepartments = [
             ...item.departments,
             {
-              department_id: departmentId,
-              department_name: department.department_name,
-              quantity: maxAllowed,
-            },
-          ]);
+              department_id: parseInt(departmentId),
+              department_name: department?.department_name || `Department ${departmentId}`,
+              quantity: finalQuantity
+            }
+          ];
         }
-        return;
-      }
-    }
 
-    if (newQuantity > 0) {
-      const existingDept = item.departments.find(
-        (d) => d.department_id === departmentId,
-      );
-      if (existingDept) {
-        updateItem(
-          itemId,
-          "departments",
-          item.departments.map((d) =>
-            d.department_id === departmentId
-              ? { ...d, quantity: newQuantity }
-              : d,
-          ),
-        );
+        // Update receiver entries
+        newReceivers = [...item.receivers];
+        // Hapus receiver lama untuk department ini
+        newReceivers = newReceivers.filter(r => r.department_id !== parseInt(departmentId));
+        // Tambah receiver baru sesuai quantity
+        for (let i = 0; i < finalQuantity; i++) {
+          newReceivers.push({
+            department_id: parseInt(departmentId),
+            department_name: department?.department_name || `Department ${departmentId}`,
+            receiver_id: null,
+            item_index: i
+          });
+        }
       } else {
-        updateItem(itemId, "departments", [
-          ...item.departments,
-          {
-            department_id: departmentId,
-            department_name: department.department_name,
-            quantity: newQuantity,
-          },
-        ]);
+        // Hapus department
+        newDepartments = item.departments.filter(
+          (d) => d.department_id !== parseInt(departmentId)
+        );
+        // Hapus semua receiver untuk department ini
+        newReceivers = item.receivers.filter(
+          (r) => r.department_id !== parseInt(departmentId)
+        );
       }
-    } else {
-      updateItem(
-        itemId,
-        "departments",
-        item.departments.filter((d) => d.department_id !== departmentId),
-      );
-    }
-  };
 
-  const isDepartmentInputDisabled = (item, departmentId) => {
-    const totalAssigned = item.departments.reduce(
-      (sum, d) => sum + d.quantity,
-      0,
-    );
-    const currentDept = item.departments.find(
-      (d) => d.department_id === departmentId,
-    );
-    return totalAssigned >= item.quantity && !currentDept;
-  };
+      return {
+        ...item,
+        departments: newDepartments,
+        receivers: newReceivers
+      };
+    })
+  );
+};
+
+const isDepartmentInputDisabled = (item, departmentId) => {
+  const totalAssigned = item.departments.reduce(
+    (sum, d) => sum + (d.department_id === parseInt(departmentId) ? 0 : d.quantity),
+    0
+  );
+  return totalAssigned >= item.quantity;
+};
 
   const validateForm = () => {
     const errors = [];
@@ -479,17 +617,21 @@ export default function EditScanningPreparationPage() {
       }
       if (!item.quantity || item.quantity < 1)
         errors.push(`Item #${index + 1}: Quantity must be at least 1`);
-      if (item.departments.length > 0) {
-        const totalDeptQty = item.departments.reduce(
-          (sum, d) => sum + d.quantity,
-          0,
-        );
-        if (totalDeptQty > item.quantity) {
-          errors.push(
-            `Item #${index + 1}: Total department quantity (${totalDeptQty}) exceeds item quantity (${item.quantity})`,
+      
+      // Check each department has receiver selected for each item
+      item.departments.forEach((dept) => {
+        for (let i = 0; i < dept.quantity; i++) {
+          const receiver = item.receivers.find(
+            (r) => r.department_id === dept.department_id && r.item_index === i
           );
+          if (!receiver || !receiver.receiver_id) {
+            const deptName = departments.find(d => d.id_department === dept.department_id)?.department_name;
+            errors.push(
+              `Item #${index + 1}: Please select a receiver for department "${deptName}" item #${i + 1}`,
+            );
+          }
         }
-      }
+      });
     });
 
     return errors;
@@ -539,34 +681,49 @@ export default function EditScanningPreparationPage() {
       let payload;
 
       if (isMaterial) {
-        payload = {
-          checking_name: formData.checking_name,
-          category_id: 2, // Material category
-          location_id: parseInt(formData.location_id),
-          checking_date: formData.checking_date,
-          remarks: formData.remarks,
-          items: items.map(({ id, ...item }) => ({
+        // Build items with receivers for materials
+        const formattedItems = items.map((item) => {
+          // Build receivers list with item_index
+          const receiversList = item.receivers.map((r) => ({
+            department_id: r.department_id,
+            receiver_id: r.receiver_id,
+            item_index: r.item_index
+          }));
+          
+          return {
             item_name: item.material_name,
             specifications: item.material_detail,
             quantity: parseFloat(item.quantity),
+            uom: item.uom || "PCS",
+            vendor: item.vendor || "",
+            project_id: item.project_id ? parseInt(item.project_id) : null,
             departments: item.departments.map((d) => ({
               department_id: d.department_id,
               quantity: parseFloat(d.quantity),
             })),
-            uom: item.uom || "PCS",
-            vendor: item.vendor || "",
-            project_name: item.project_name || "",
-          })),
-          user_id: userId,
-        };
-      } else {
+            receivers: receiversList,
+          };
+        });
+        
         payload = {
           checking_name: formData.checking_name,
-          category_id: 1, // Device category
+          category_id: 2,
           location_id: parseInt(formData.location_id),
           checking_date: formData.checking_date,
           remarks: formData.remarks,
-          items: items.map(({ id, ...item }) => ({
+          items: formattedItems,
+          user_id: userId,
+        };
+      } else {
+        // Build items with receivers for devices
+        const formattedItems = items.map((item) => {
+          const receiversList = item.receivers.map((r) => ({
+            department_id: r.department_id,
+            receiver_id: r.receiver_id,
+            item_index: r.item_index
+          }));
+          
+          return {
             device_name: item.device_name,
             device_detail: item.device_detail,
             brand: item.brand,
@@ -574,16 +731,27 @@ export default function EditScanningPreparationPage() {
             model: item.model,
             specifications: item.specifications,
             quantity: parseInt(item.quantity),
+            project_id: item.project_id ? parseInt(item.project_id) : null,
             departments: item.departments.map((d) => ({
               department_id: d.department_id,
               quantity: parseInt(d.quantity),
             })),
-          })),
+            receivers: receiversList,
+          };
+        });
+        
+        payload = {
+          checking_name: formData.checking_name,
+          category_id: 1,
+          location_id: parseInt(formData.location_id),
+          checking_date: formData.checking_date,
+          remarks: formData.remarks,
+          items: formattedItems,
           user_id: userId,
         };
       }
 
-      console.log("Updating with payload:", payload);
+      console.log("Updating with payload:", JSON.stringify(payload, null, 2));
 
       const endpoint = isMaterial
         ? API_ENDPOINTS.MATERIALS_SCANNING_PREP_UPDATE(prepId)
@@ -882,20 +1050,21 @@ export default function EditScanningPreparationPage() {
                         </div>
 
                         <div>
-                          <Label>Project Name</Label>
-                          <input
-                            type="text"
-                            value={item.project_name || ""}
+                          <Label>Project</Label>
+                          <select
+                            value={item.project_id || ""}
                             onChange={(e) =>
-                              updateItem(
-                                item.id,
-                                "project_name",
-                                e.target.value,
-                              )
+                              updateItem(item.id, "project_id", e.target.value)
                             }
-                            className={inputCls}
-                            placeholder="e.g. FPSO Project, GAMMA Project"
-                          />
+                            className={selectCls}
+                          >
+                            <option value="">Select Project</option>
+                            {projects.map((project) => (
+                              <option key={project.id_project} value={project.id_project}>
+                                {project.project_name}
+                              </option>
+                            ))}
+                          </select>
                         </div>
 
                         {/* Department Distribution */}
@@ -1023,6 +1192,104 @@ export default function EditScanningPreparationPage() {
                             </div>
                           )}
                         </div>
+
+                        {/* Receiver Assignment Section for Materials */}
+                        {item.departments.length > 0 && (
+                          <div className="col-span-1 md:col-span-2 lg:col-span-4 mt-4 pt-4 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-2">
+                                <User className="w-4 h-4 text-green-600" />
+                                <h4 className="text-sm font-semibold text-gray-800">
+                                  Receiver Assignment
+                                </h4>
+                                <span className="text-xs text-gray-500">
+                                  (Select receiver for each item)
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-4">
+                              {item.departments.map((dept) => {
+                                const deptInfo = departments.find(d => d.id_department === dept.department_id);
+                                const availableReceivers = getReceiversForDepartment(dept.department_id);
+                                
+                                const receiverEntries = [];
+                                for (let i = 0; i < dept.quantity; i++) {
+                                  const receiver = item.receivers.find(
+                                    (r) => r.department_id === dept.department_id && r.item_index === i
+                                  );
+                                  receiverEntries.push({
+                                    index: i,
+                                    receiver: receiver
+                                  });
+                                }
+                                
+                                return (
+                                  <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                    <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
+                                      <div className="flex items-center gap-2">
+                                        <Users className="w-4 h-4 text-gray-600" />
+                                        <span className="text-sm font-semibold text-gray-800">
+                                          {deptInfo?.department_name || `Department ${dept.department_id}`}
+                                        </span>
+                                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                          Total: {dept.quantity} item(s)
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="p-4 space-y-3">
+                                      {receiverEntries.map((entry) => {
+                                        const receiver = entry.receiver;
+                                        return (
+                                          <div key={`${dept.department_id}-${entry.index}`} className="receiver-item">
+                                            <div className="flex items-center gap-2 mb-2">
+                                              <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                                                Item #{entry.index + 1}
+                                              </span>
+                                            </div>
+                                            <div>
+                                              <select
+                                                value={receiver?.receiver_id || ""}
+                                                onChange={(e) =>
+                                                  updateReceiverAssignment(
+                                                    item.id,
+                                                    dept.department_id,
+                                                    e.target.value,
+                                                    entry.index
+                                                  )
+                                                }
+                                                className={selectCls}
+                                              >
+                                                <option value="">Select Receiver</option>
+                                                {availableReceivers.map((rec) => (
+                                                  <option key={rec.id_receiver} value={rec.id_receiver}>
+                                                    {rec.receiver_name} - {rec.receiver_title}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                              <Hint>Receiver for item #{entry.index + 1}</Hint>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              
+                              <div className="p-3 bg-blue-50 rounded-lg">
+                                <p className="text-xs text-blue-700">
+                                  <strong>Total distributed:</strong> {item.departments.reduce((sum, d) => sum + d.quantity, 0)} of {item.quantity}
+                                </p>
+                                {item.departments.reduce((sum, d) => sum + d.quantity, 0) < item.quantity && (
+                                  <p className="text-xs text-orange-600 mt-1">
+                                    <strong>Remaining:</strong> {item.quantity - item.departments.reduce((sum, d) => sum + d.quantity, 0)} items unassigned
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       // FORM UNTUK DEVICES
@@ -1131,7 +1398,25 @@ export default function EditScanningPreparationPage() {
                           <Hint>Number of items to scan</Hint>
                         </div>
 
-                        {/* Department Distribution */}
+                        <div>
+                          <Label>Project</Label>
+                          <select
+                            value={item.project_id || ""}
+                            onChange={(e) =>
+                              updateItem(item.id, "project_id", e.target.value)
+                            }
+                            className={selectCls}
+                          >
+                            <option value="">Select Project</option>
+                            {projects.map((project) => (
+                              <option key={project.id_project} value={project.id_project}>
+                                {project.project_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Department Distribution for Devices */}
                         <div className="col-span-1 md:col-span-2 lg:col-span-4">
                           <div className="flex items-center justify-between mt-2">
                             <Label>Department Distribution</Label>
@@ -1256,6 +1541,104 @@ export default function EditScanningPreparationPage() {
                             </div>
                           )}
                         </div>
+
+                        {/* Receiver Assignment Section for Devices */}
+                        {item.departments.length > 0 && (
+                          <div className="col-span-1 md:col-span-2 lg:col-span-4 mt-4 pt-4 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-2">
+                                <User className="w-4 h-4 text-green-600" />
+                                <h4 className="text-sm font-semibold text-gray-800">
+                                  Receiver Assignment
+                                </h4>
+                                <span className="text-xs text-gray-500">
+                                  (Select receiver for each item)
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-4">
+                              {item.departments.map((dept) => {
+                                const deptInfo = departments.find(d => d.id_department === dept.department_id);
+                                const availableReceivers = getReceiversForDepartment(dept.department_id);
+                                
+                                const receiverEntries = [];
+                                for (let i = 0; i < dept.quantity; i++) {
+                                  const receiver = item.receivers.find(
+                                    (r) => r.department_id === dept.department_id && r.item_index === i
+                                  );
+                                  receiverEntries.push({
+                                    index: i,
+                                    receiver: receiver
+                                  });
+                                }
+                                
+                                return (
+                                  <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                    <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
+                                      <div className="flex items-center gap-2">
+                                        <Users className="w-4 h-4 text-gray-600" />
+                                        <span className="text-sm font-semibold text-gray-800">
+                                          {deptInfo?.department_name || `Department ${dept.department_id}`}
+                                        </span>
+                                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                          Total: {dept.quantity} item(s)
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="p-4 space-y-3">
+                                      {receiverEntries.map((entry) => {
+                                        const receiver = entry.receiver;
+                                        return (
+                                          <div key={`${dept.department_id}-${entry.index}`} className="receiver-item">
+                                            <div className="flex items-center gap-2 mb-2">
+                                              <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                                                Item #{entry.index + 1}
+                                              </span>
+                                            </div>
+                                            <div>
+                                              <select
+                                                value={receiver?.receiver_id || ""}
+                                                onChange={(e) =>
+                                                  updateReceiverAssignment(
+                                                    item.id,
+                                                    dept.department_id,
+                                                    e.target.value,
+                                                    entry.index
+                                                  )
+                                                }
+                                                className={selectCls}
+                                              >
+                                                <option value="">Select Receiver</option>
+                                                {availableReceivers.map((rec) => (
+                                                  <option key={rec.id_receiver} value={rec.id_receiver}>
+                                                    {rec.receiver_name} - {rec.receiver_title}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                              <Hint>Receiver for item #{entry.index + 1}</Hint>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              
+                              <div className="p-3 bg-blue-50 rounded-lg">
+                                <p className="text-xs text-blue-700">
+                                  <strong>Total distributed:</strong> {item.departments.reduce((sum, d) => sum + d.quantity, 0)} of {item.quantity}
+                                </p>
+                                {item.departments.reduce((sum, d) => sum + d.quantity, 0) < item.quantity && (
+                                  <p className="text-xs text-orange-600 mt-1">
+                                    <strong>Remaining:</strong> {item.quantity - item.departments.reduce((sum, d) => sum + d.quantity, 0)} items unassigned
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

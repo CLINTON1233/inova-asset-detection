@@ -342,7 +342,7 @@ def create_devices_scanning_preparation():
             
 @scanning_prep_bp.route('/api/devices/scanning-preparation/<int:prep_id>', methods=['PUT'])
 def update_devices_scanning_preparation(prep_id):
-    """Update persiapan scanning untuk Devices"""
+    """Update persiapan scanning untuk Devices dengan receiver_id"""
     conn = None
     try:
         data = request.json
@@ -400,7 +400,6 @@ def update_devices_scanning_preparation(prep_id):
             }), 404
         
         # Delete existing items and related data
-        # First, get all scanning_item_ids to delete related data
         cur.execute("""
             SELECT id_item FROM devices_scanning_items 
             WHERE preparation_id = %s
@@ -422,12 +421,21 @@ def update_devices_scanning_preparation(prep_id):
         # Create new items
         for idx, item in enumerate(items):
             quantity = item.get('quantity', 1)
+            project_id = item.get('project_id')
+            
+            # Get project_name jika ada
+            project_name = None
+            if project_id:
+                cur.execute("SELECT project_name FROM projects WHERE id_project = %s", (project_id,))
+                proj = cur.fetchone()
+                if proj:
+                    project_name = proj['project_name']
             
             # Insert ke devices_scanning_items
             cur.execute("""
                 INSERT INTO devices_scanning_items
-                (preparation_id, device_name, device_detail, brand, vendor, model, specifications, quantity, user_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                (preparation_id, device_name, device_detail, brand, vendor, model, specifications, quantity, user_id, project_name)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id_item
             """, (
                 prep_id,
@@ -438,7 +446,8 @@ def update_devices_scanning_preparation(prep_id):
                 item.get('model', ''),
                 item.get('specifications', ''),
                 quantity,
-                user_id
+                user_id,
+                project_name
             ))
             
             scanning_item_id = cur.fetchone()[0]
@@ -456,11 +465,21 @@ def update_devices_scanning_preparation(prep_id):
                             DO UPDATE SET quantity = EXCLUDED.quantity
                         """, (scanning_item_id, dept['department_id'], dept['quantity']))
             
+            # Get receiver mapping from frontend
+            receivers = item.get('receivers', [])
+            receiver_map = {}
+            for rcvr in receivers:
+                if rcvr.get('department_id') and rcvr.get('receiver_id'):
+                    key = f"{rcvr.get('department_id')}_{rcvr.get('item_index', 0)}"
+                    receiver_map[key] = rcvr.get('receiver_id')
+            
             # Create individual items
             dept_allocation = {}
             for dept in departments:
                 if dept.get('department_id') and dept.get('quantity', 0) > 0:
                     dept_allocation[dept['department_id']] = dept['quantity']
+            
+            dept_counter = {}
             
             for sub_idx in range(quantity):
                 assigned_dept = None
@@ -472,23 +491,33 @@ def update_devices_scanning_preparation(prep_id):
                 
                 item_number = generate_item_number(prep_id, idx, sub_idx)
                 
+                # Get receiver_id for this specific item
+                receiver_id = None
+                if assigned_dept:
+                    dept_counter[assigned_dept] = dept_counter.get(assigned_dept, 0) + 1
+                    item_index_for_dept = dept_counter[assigned_dept] - 1
+                    key = f"{assigned_dept}_{item_index_for_dept}"
+                    receiver_id = receiver_map.get(key)
+                
                 cur.execute("""
                     INSERT INTO devices_items_preparation
-                    (scanning_item_id, preparation_id, item_number, status, department_id, user_id)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    (scanning_item_id, preparation_id, item_number, status, department_id, user_id, project_name, receiver_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     scanning_item_id,
                     prep_id,
                     item_number,
                     'pending',
                     assigned_dept,
-                    user_id
+                    user_id,
+                    project_name,
+                    receiver_id
                 ))
                 
                 total_items_created += 1
         
         conn.commit()
-        print(f"Updated {total_items_created} individual device items")
+        print(f"Updated {total_items_created} individual device items with receivers")
         
         return jsonify({
             'success': True,
@@ -681,7 +710,7 @@ def get_devices_scanning_preparations():
             
 @scanning_prep_bp.route('/api/devices/scanning-preparation/<int:prep_id>', methods=['GET'])
 def get_devices_scanning_preparation(prep_id):
-    """Mendapatkan detail persiapan scanning untuk Devices"""
+    """Mendapatkan detail persiapan scanning untuk Devices dengan receivers"""
     conn = None
     try:
         conn = get_db_connection()
@@ -709,19 +738,30 @@ def get_devices_scanning_preparation(prep_id):
         
         prep_dict = dict(preparation)
         
-        # Get items
+        # Get items dengan departments
         cur.execute("""
-            SELECT si.*, 
-                   COALESCE(
-                       json_agg(
-                           json_build_object(
-                               'department_id', d.id_department,
-                               'department_name', d.department_name,
-                               'quantity', id.quantity
-                           )
-                       ) FILTER (WHERE id.id_item_department IS NOT NULL),
-                       '[]'
-                   ) as departments
+            SELECT 
+                si.id_item,
+                si.device_name,
+                si.device_detail,
+                si.brand,
+                si.vendor,
+                si.model,
+                si.specifications,
+                si.quantity,
+                si.project_name,
+                si.status,
+                si.created_at,
+                COALESCE(
+                    json_agg(
+                        DISTINCT jsonb_build_object(
+                            'department_id', d.id_department,
+                            'department_name', d.department_name,
+                            'quantity', id.quantity
+                        )
+                    ) FILTER (WHERE id.id_item_department IS NOT NULL),
+                    '[]'::json
+                ) as departments
             FROM devices_scanning_items si
             LEFT JOIN devices_item_departments id ON si.id_item = id.scanning_item_id
             LEFT JOIN departments d ON id.department_id = d.id_department
@@ -731,7 +771,32 @@ def get_devices_scanning_preparation(prep_id):
         """, (prep_id,))
         
         items = cur.fetchall()
-        prep_dict['items'] = [dict(item) for item in items]
+        
+        # Get receivers untuk setiap item secara terpisah
+        items_with_receivers = []
+        for item in items:
+            item_dict = dict(item)
+            
+            # Ambil receivers untuk item ini
+            cur.execute("""
+                SELECT 
+                    dip.department_id,
+                    d.department_name,
+                    dip.receiver_id,
+                    ROW_NUMBER() OVER (PARTITION BY dip.department_id ORDER BY dip.id_item_preparation) - 1 as item_index
+                FROM devices_items_preparation dip
+                LEFT JOIN departments d ON dip.department_id = d.id_department
+                WHERE dip.scanning_item_id = %s
+                AND dip.receiver_id IS NOT NULL
+                ORDER BY dip.department_id, dip.id_item_preparation
+            """, (item_dict['id_item'],))
+            
+            receivers = cur.fetchall()
+            item_dict['receivers'] = [dict(r) for r in receivers] if receivers else []
+            
+            items_with_receivers.append(item_dict)
+        
+        prep_dict['items'] = items_with_receivers
         prep_dict['type'] = 'device'
         
         return jsonify({
@@ -1022,7 +1087,7 @@ def create_materials_scanning_preparation():
             
 @scanning_prep_bp.route('/api/materials/scanning-preparation/<int:prep_id>', methods=['PUT'])
 def update_materials_scanning_preparation(prep_id):
-    """Update persiapan scanning untuk Materials"""
+    """Update persiapan scanning untuk Materials dengan receiver_id"""
     conn = None
     try:
         data = request.json
@@ -1103,8 +1168,16 @@ def update_materials_scanning_preparation(prep_id):
             quantity = item.get('quantity', 1)
             uom = item.get('uom', 'PCS')
             vendor = item.get('vendor', '')
-            project_name = item.get('project_name', '')
+            project_id = item.get('project_id')
             material_detail = item.get('specifications', '')
+            
+            # Get project_name jika ada
+            project_name = None
+            if project_id:
+                cur.execute("SELECT project_name FROM projects WHERE id_project = %s", (project_id,))
+                proj = cur.fetchone()
+                if proj:
+                    project_name = proj['project_name']
             
             # Insert ke materials_scanning_items
             cur.execute("""
@@ -1138,11 +1211,21 @@ def update_materials_scanning_preparation(prep_id):
                             DO UPDATE SET quantity = EXCLUDED.quantity
                         """, (scanning_item_id, dept['department_id'], dept['quantity']))
             
+            # Get receiver mapping from frontend
+            receivers = item.get('receivers', [])
+            receiver_map = {}
+            for rcvr in receivers:
+                if rcvr.get('department_id') and rcvr.get('receiver_id'):
+                    key = f"{rcvr.get('department_id')}_{rcvr.get('item_index', 0)}"
+                    receiver_map[key] = rcvr.get('receiver_id')
+            
             # Create individual items
             dept_allocation = {}
             for dept in departments:
                 if dept.get('department_id') and dept.get('quantity', 0) > 0:
                     dept_allocation[dept['department_id']] = dept['quantity']
+            
+            dept_counter = {}
             
             for sub_idx in range(int(quantity) if quantity >= 1 else 1):
                 assigned_dept = None
@@ -1156,10 +1239,18 @@ def update_materials_scanning_preparation(prep_id):
                 
                 item_number = generate_item_number(prep_id, idx, sub_idx)
                 
+                # Get receiver_id for this specific item
+                receiver_id = None
+                if assigned_dept:
+                    dept_counter[assigned_dept] = dept_counter.get(assigned_dept, 0) + 1
+                    item_index_for_dept = dept_counter[assigned_dept] - 1
+                    key = f"{assigned_dept}_{item_index_for_dept}"
+                    receiver_id = receiver_map.get(key)
+                
                 cur.execute("""
                     INSERT INTO materials_items_preparation
-                    (scanning_item_id, preparation_id, item_number, quantity, uom, vendor, project_name, status, department_id, user_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (scanning_item_id, preparation_id, item_number, quantity, uom, vendor, project_name, status, department_id, user_id, receiver_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     scanning_item_id,
                     prep_id,
@@ -1170,13 +1261,14 @@ def update_materials_scanning_preparation(prep_id):
                     project_name,
                     'pending',
                     assigned_dept,
-                    user_id
+                    user_id,
+                    receiver_id
                 ))
                 
                 total_items_created += 1
         
         conn.commit()
-        print(f"Updated {total_items_created} individual material items")
+        print(f"Updated {total_items_created} individual material items with receivers")
         
         return jsonify({
             'success': True,
@@ -1240,7 +1332,7 @@ def delete_materials_scanning_preparation(prep_id):
 # ==================== ENDPOINT DETAIL UNTUK MATERIALS ====================
 @scanning_prep_bp.route('/api/materials/scanning-preparation/<int:prep_id>', methods=['GET'])
 def get_materials_scanning_preparation(prep_id):
-    """Mendapatkan detail persiapan scanning untuk Materials"""
+    """Mendapatkan detail persiapan scanning untuk Materials dengan receivers"""
     conn = None
     try:
         conn = get_db_connection()
@@ -1268,7 +1360,7 @@ def get_materials_scanning_preparation(prep_id):
         
         prep_dict = dict(preparation)
         
-        # Get items dengan informasi quantity yang benar
+        # Get items dengan departments
         cur.execute("""
             SELECT 
                 si.id_item,
@@ -1281,16 +1373,8 @@ def get_materials_scanning_preparation(prep_id):
                 si.status,
                 si.created_at,
                 COALESCE(
-                    (
-                        SELECT COUNT(*) 
-                        FROM materials_items_preparation mip 
-                        WHERE mip.scanning_item_id = si.id_item 
-                        AND mip.status = 'scanned'
-                    ), 0
-                ) as scanned_count,
-                COALESCE(
                     json_agg(
-                        json_build_object(
+                        DISTINCT jsonb_build_object(
                             'department_id', d.id_department,
                             'department_name', d.department_name,
                             'quantity', id.quantity
@@ -1307,7 +1391,32 @@ def get_materials_scanning_preparation(prep_id):
         """, (prep_id,))
         
         items = cur.fetchall()
-        prep_dict['items'] = [dict(item) for item in items]
+        
+        # Get receivers untuk setiap item secara terpisah
+        items_with_receivers = []
+        for item in items:
+            item_dict = dict(item)
+            
+            # Ambil receivers untuk item ini
+            cur.execute("""
+                SELECT 
+                    mip.department_id,
+                    d.department_name,
+                    mip.receiver_id,
+                    ROW_NUMBER() OVER (PARTITION BY mip.department_id ORDER BY mip.id_item_preparation) - 1 as item_index
+                FROM materials_items_preparation mip
+                LEFT JOIN departments d ON mip.department_id = d.id_department
+                WHERE mip.scanning_item_id = %s
+                AND mip.receiver_id IS NOT NULL
+                ORDER BY mip.department_id, mip.id_item_preparation
+            """, (item_dict['id_item'],))
+            
+            receivers = cur.fetchall()
+            item_dict['receivers'] = [dict(r) for r in receivers] if receivers else []
+            
+            items_with_receivers.append(item_dict)
+        
+        prep_dict['items'] = items_with_receivers
         prep_dict['type'] = 'material'
         
         return jsonify({
