@@ -14,12 +14,12 @@ import {
   FileText,
   Box,
   Loader2,
-  Building2,
   Users,
   ChevronDown,
   ChevronUp,
   Copy,
   Layers,
+  User,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import API_BASE_URL, { API_ENDPOINTS } from "../../config/api";
@@ -30,9 +30,17 @@ export default function ScanningPreparationPage() {
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [receivers, setReceivers] = useState([]);
+  const [receiversByDepartment, setReceiversByDepartment] = useState({});
+  const [masterDevices, setMasterDevices] = useState([]);
+  const [masterMaterials, setMasterMaterials] = useState([]);
   const [mounted, setMounted] = useState(false);
   const [expandedItems, setExpandedItems] = useState({});
-  const [selectedCategory, setSelectedCategory] = useState({});
+  const [showDeviceDropdown, setShowDeviceDropdown] = useState({});
+  const [showMaterialDropdown, setShowMaterialDropdown] = useState({});
+  const [searchDeviceTerm, setSearchDeviceTerm] = useState({});
+  const [searchMaterialTerm, setSearchMaterialTerm] = useState({});
 
   // Multiple sessions state
   const [sessions, setSessions] = useState([
@@ -57,10 +65,11 @@ export default function ScanningPreparationPage() {
           specifications: "",
           quantity: 1,
           departments: [],
+          receivers: [], // Store receiver assignments
           uom: "PCS",
           material_name: "",
           material_detail: "",
-          project_name: "",
+          project_id: "",
         },
       ],
     },
@@ -71,6 +80,10 @@ export default function ScanningPreparationPage() {
     fetchCategories();
     fetchLocations();
     fetchDepartments();
+    fetchProjects();
+    fetchReceivers();
+    fetchMasterDevices();
+    fetchMasterMaterials();
   }, []);
 
   function generateCheckingNumber() {
@@ -131,56 +144,163 @@ export default function ScanningPreparationPage() {
           }
           return acc;
         }, []);
-        console.log("Unique departments:", uniqueDepts);
         setDepartments(uniqueDepts);
       } else {
         setDepartments([
           { id_department: 1, department_name: "IT" },
           { id_department: 2, department_name: "HR" },
-          { id_department: 3, department_name: "Finance" },
-          { id_department: 4, department_name: "Contract" },
-          { id_department: 5, department_name: "Procurement" },
-          { id_department: 6, department_name: "Marketing" },
-          { id_department: 7, department_name: "Engineering" },
-          { id_department: 8, department_name: "HSE" },
-          { id_department: 9, department_name: "Security & IYM" },
-          { id_department: 10, department_name: "Planning" },
-          { id_department: 11, department_name: "Warehouse" },
-          { id_department: 12, department_name: "Work & Shipwright" },
-          { id_department: 13, department_name: "Structure" },
-          { id_department: 14, department_name: "Piping" },
-          { id_department: 15, department_name: "E & I" },
-          { id_department: 16, department_name: "Machinery" },
-          { id_department: 17, department_name: "QA/QC" },
-          { id_department: 18, department_name: "PMT GAMMA" },
-          { id_department: 19, department_name: "PMT NEDERWIEK2" },
-          { id_department: 20, department_name: "PMT FPSO PETROBRAS" },
         ]);
       }
     } catch (error) {
       console.error("Error fetching departments:", error);
-      setDepartments([
-        { id_department: 1, department_name: "IT" },
-        { id_department: 2, department_name: "HR" },
-        { id_department: 3, department_name: "Finance" },
-        { id_department: 4, department_name: "Contract" },
-        { id_department: 5, department_name: "Procurement" },
-        { id_department: 6, department_name: "Marketing" },
-        { id_department: 7, department_name: "Engineering" },
-        { id_department: 8, department_name: "HSE" },
-        { id_department: 9, department_name: "Security & IYM" },
-        { id_department: 10, department_name: "Planning" },
-        { id_department: 11, department_name: "Warehouse" },
-        { id_department: 12, department_name: "Work & Shipwright" },
-        { id_department: 13, department_name: "Structure" },
-        { id_department: 14, department_name: "Piping" },
-        { id_department: 15, department_name: "E & I" },
-        { id_department: 16, department_name: "Machinery" },
-        { id_department: 17, department_name: "QA/QC" },
-        { id_department: 18, department_name: "PMT GAMMA" },
-        { id_department: 19, department_name: "PMT NEDERWIEK2" },
-        { id_department: 20, department_name: "PMT FPSO PETROBRAS" },
+    }
+  };
+
+  const fetchProjects = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.PROJECTS_LIST);
+      const data = await response.json();
+      if (data.success) {
+        setProjects(data.data || []);
+      } else {
+        setProjects([
+          { id_project: 1, project_name: "Gamma" },
+          { id_project: 2, project_name: "Nederwiek 2" },
+          { id_project: 3, project_name: "Overhead" },
+          { id_project: 4, project_name: "FPSO PETROBRAS P-84" },
+          { id_project: 5, project_name: "FPSO PETROBRAS P-85" },
+        ]);
+      }
+    } catch (error) {
+      console.error("Error fetching projects:", error);
+      setProjects([
+        { id_project: 1, project_name: "Gamma" },
+        { id_project: 2, project_name: "Nederwiek 2" },
+        { id_project: 3, project_name: "Overhead" },
+        { id_project: 4, project_name: "FPSO PETROBRAS P-84" },
+        { id_project: 5, project_name: "FPSO PETROBRAS P-85" },
       ]);
+    }
+  };
+
+  // Add new receiver entry (bisa untuk department yang sama atau beda)
+const addReceiverEntry = (sessionId, itemId, departmentId) => {
+  setSessions((prev) =>
+    prev.map((session) => {
+      if (session.id === sessionId) {
+        return {
+          ...session,
+          items: session.items.map((item) => {
+            if (item.id === itemId) {
+              const deptInfo = departments.find(d => d.id_department === departmentId);
+              return {
+                ...item,
+                receivers: [
+                  ...item.receivers,
+                  {
+                    department_id: departmentId,
+                    department_name: deptInfo?.department_name,
+                    receiver_id: "",
+                    quantity: 1,
+                  },
+                ],
+              };
+            }
+            return item;
+          }),
+        };
+      }
+      return session;
+    }),
+  );
+};
+
+// Update receiver quantity
+const updateReceiverQuantity = (sessionId, itemId, receiverIndex, quantity) => {
+  setSessions((prev) =>
+    prev.map((session) => {
+      if (session.id === sessionId) {
+        return {
+          ...session,
+          items: session.items.map((item) => {
+            if (item.id === itemId) {
+              const newReceivers = [...item.receivers];
+              const newQuantity = parseInt(quantity) || 0;
+              newReceivers[receiverIndex] = {
+                ...newReceivers[receiverIndex],
+                quantity: newQuantity,
+              };
+              return { ...item, receivers: newReceivers };
+            }
+            return item;
+          }),
+        };
+      }
+      return session;
+    }),
+  );
+};
+
+// Get total receiver quantity
+const getTotalReceiverQty = (item) => {
+  return item.receivers.reduce((sum, r) => sum + (r.quantity || 0), 0);
+};
+
+// Get available departments for adding receiver
+const getAvailableDepartments = (item) => {
+  const assignedDeptIds = item.receivers.map(r => r.department_id);
+  return departments.filter(dept => !assignedDeptIds.includes(dept.id_department));
+};
+
+  const fetchReceivers = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.MASTER_RECEIVERS_LIST);
+      const data = await response.json();
+      if (data.success) {
+        setReceivers(data.data || []);
+        
+        // Group receivers by department
+        const grouped = {};
+        data.data.forEach((receiver) => {
+          const deptId = receiver.department_id;
+          if (deptId) {
+            if (!grouped[deptId]) {
+              grouped[deptId] = [];
+            }
+            grouped[deptId].push(receiver);
+          }
+        });
+        setReceiversByDepartment(grouped);
+      } else {
+        setReceivers([]);
+      }
+    } catch (error) {
+      console.error("Error fetching receivers:", error);
+      setReceivers([]);
+    }
+  };
+
+  const fetchMasterDevices = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.MASTER_DEVICES_LIST);
+      const data = await response.json();
+      if (data.success) {
+        setMasterDevices(data.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching master devices:", error);
+    }
+  };
+
+  const fetchMasterMaterials = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.MASTER_MATERIALS_LIST);
+      const data = await response.json();
+      if (data.success) {
+        setMasterMaterials(data.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching master materials:", error);
     }
   };
 
@@ -194,6 +314,130 @@ export default function ScanningPreparationPage() {
     { code: "METER", name: "Meter" },
     { code: "KG", name: "Kilogram" },
   ];
+
+  // Filter devices based on search term
+  const getFilteredDevices = (itemId) => {
+    const searchTerm = searchDeviceTerm[itemId] || "";
+    if (!searchTerm) return masterDevices;
+    return masterDevices.filter(device =>
+      device.device_name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  };
+
+  // Filter materials based on search term
+  const getFilteredMaterials = (itemId) => {
+    const searchTerm = searchMaterialTerm[itemId] || "";
+    if (!searchTerm) return masterMaterials;
+    return masterMaterials.filter(material =>
+      material.material_name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  };
+
+  // Get receivers for a specific department
+  const getReceiversForDepartment = (departmentId) => {
+    return receiversByDepartment[departmentId] || [];
+  };
+
+ const updateReceiverAssignment = (sessionId, itemId, departmentId, receiverId, itemIndex) => {
+  setSessions((prev) =>
+    prev.map((session) => {
+      if (session.id === sessionId) {
+        return {
+          ...session,
+          items: session.items.map((item) => {
+            if (item.id === itemId) {
+              const existingIndex = item.receivers.findIndex(
+                (r) => r.department_id === departmentId && r.item_index === itemIndex
+              );
+              
+              let newReceivers;
+              if (existingIndex >= 0) {
+                newReceivers = [...item.receivers];
+                newReceivers[existingIndex] = {
+                  ...newReceivers[existingIndex],
+                  receiver_id: parseInt(receiverId),
+                };
+              } else {
+                const deptInfo = departments.find(d => d.id_department === departmentId);
+                newReceivers = [
+                  ...item.receivers,
+                  {
+                    department_id: departmentId,
+                    department_name: deptInfo?.department_name,
+                    receiver_id: parseInt(receiverId),
+                    item_index: itemIndex,
+                  },
+                ];
+              }
+              return { ...item, receivers: newReceivers };
+            }
+            return item;
+          }),
+        };
+      }
+      return session;
+    }),
+  );
+};
+
+  // Initialize receivers based on departments that have quantity
+  const initializeReceivers = (sessionId, itemId, departmentId) => {
+    setSessions((prev) =>
+      prev.map((session) => {
+        if (session.id === sessionId) {
+          return {
+            ...session,
+            items: session.items.map((item) => {
+              if (item.id === itemId) {
+                // Check if receiver for this department already exists
+                const exists = item.receivers.some(r => r.department_id === departmentId);
+                if (!exists) {
+                  const deptInfo = departments.find(d => d.id_department === departmentId);
+                  return {
+                    ...item,
+                    receivers: [
+                      ...item.receivers,
+                      {
+                        department_id: departmentId,
+                        department_name: deptInfo?.department_name,
+                        receiver_id: "",
+                        quantity: 0,
+                      },
+                    ],
+                  };
+                }
+              }
+              return item;
+            }),
+          };
+        }
+        return session;
+      }),
+    );
+  };
+
+  // Remove receiver entry
+  const removeReceiverEntry = (sessionId, itemId, departmentId) => {
+    setSessions((prev) =>
+      prev.map((session) => {
+        if (session.id === sessionId) {
+          return {
+            ...session,
+            items: session.items.map((item) => {
+              if (item.id === itemId) {
+                return {
+                  ...item,
+                  receivers: item.receivers.filter(r => r.department_id !== departmentId),
+                };
+              }
+              return item;
+            }),
+          };
+        }
+        return session;
+      }),
+    );
+  };
 
   // Session management functions
   const addNewSession = () => {
@@ -218,10 +462,11 @@ export default function ScanningPreparationPage() {
           specifications: "",
           quantity: 1,
           departments: [],
+          receivers: [],
           uom: "PCS",
           material_name: "",
           material_detail: "",
-          project_name: "",
+          project_id: "",
         },
       ],
     };
@@ -300,10 +545,11 @@ export default function ScanningPreparationPage() {
                 specifications: "",
                 quantity: 1,
                 departments: [],
+                receivers: [],
                 uom: "PCS",
                 material_name: "",
                 material_detail: "",
-                project_name: "",
+                project_id: "",
               },
             ],
           }
@@ -358,63 +604,33 @@ export default function ScanningPreparationPage() {
     }));
   };
 
-  const updateDepartmentQuantity = (
-    sessionId,
-    itemId,
-    departmentId,
-    quantity,
-  ) => {
-    const department = departments.find(
-      (d) => d.id_department === departmentId,
-    );
+const updateDepartmentQuantity = (
+  sessionId,
+  itemId,
+  departmentId,
+  quantity,
+) => {
+  const department = departments.find(
+    (d) => d.id_department === departmentId,
+  );
 
-    setSessions((prev) =>
-      prev.map((session) => {
-        if (session.id === sessionId) {
-          return {
-            ...session,
-            items: session.items.map((item) => {
-              if (item.id === itemId) {
-                const newQuantity = parseFloat(quantity) || 0;
-                const currentTotal = item.departments.reduce(
-                  (sum, d) =>
-                    d.department_id === departmentId ? sum : sum + d.quantity,
-                  0,
-                );
+  setSessions((prev) =>
+    prev.map((session) => {
+      if (session.id === sessionId) {
+        return {
+          ...session,
+          items: session.items.map((item) => {
+            if (item.id === itemId) {
+              const newQuantity = parseFloat(quantity) || 0;
+              const currentTotal = item.departments.reduce(
+                (sum, d) =>
+                  d.department_id === departmentId ? sum : sum + d.quantity,
+                0,
+              );
 
-                if (currentTotal + newQuantity > item.quantity) {
-                  const maxAllowed = item.quantity - currentTotal;
-                  if (newQuantity > maxAllowed) {
-                    const existingDept = item.departments.find(
-                      (d) => d.department_id === departmentId,
-                    );
-                    if (existingDept) {
-                      return {
-                        ...item,
-                        departments: item.departments.map((d) =>
-                          d.department_id === departmentId
-                            ? { ...d, quantity: maxAllowed }
-                            : d,
-                        ),
-                      };
-                    } else if (maxAllowed > 0) {
-                      return {
-                        ...item,
-                        departments: [
-                          ...item.departments,
-                          {
-                            department_id: departmentId,
-                            department_name: department.department_name,
-                            quantity: maxAllowed,
-                          },
-                        ],
-                      };
-                    }
-                    return item;
-                  }
-                }
-
-                if (newQuantity > 0) {
+              if (currentTotal + newQuantity > item.quantity) {
+                const maxAllowed = item.quantity - currentTotal;
+                if (newQuantity > maxAllowed) {
                   const existingDept = item.departments.find(
                     (d) => d.department_id === departmentId,
                   );
@@ -423,40 +639,128 @@ export default function ScanningPreparationPage() {
                       ...item,
                       departments: item.departments.map((d) =>
                         d.department_id === departmentId
-                          ? { ...d, quantity: newQuantity }
+                          ? { ...d, quantity: maxAllowed }
                           : d,
                       ),
                     };
-                  } else {
-                    return {
-                      ...item,
-                      departments: [
-                        ...item.departments,
-                        {
+                  } else if (maxAllowed > 0) {
+                    // Create new department with receiver entries for each item
+                    const newDept = {
+                      department_id: departmentId,
+                      department_name: department.department_name,
+                      quantity: maxAllowed,
+                    };
+                    
+                    // Create receiver entries for each quantity
+                    const newReceivers = [...item.receivers];
+                    for (let i = 0; i < maxAllowed; i++) {
+                      const exists = newReceivers.some(
+                        (r) => r.department_id === departmentId && r.item_index === i
+                      );
+                      if (!exists) {
+                        newReceivers.push({
                           department_id: departmentId,
                           department_name: department.department_name,
-                          quantity: newQuantity,
-                        },
-                      ],
+                          receiver_id: "",
+                          item_index: i,
+                        });
+                      }
+                    }
+                    
+                    return {
+                      ...item,
+                      departments: [...item.departments, newDept],
+                      receivers: newReceivers,
                     };
                   }
-                } else {
-                  return {
-                    ...item,
-                    departments: item.departments.filter(
-                      (d) => d.department_id !== departmentId,
-                    ),
-                  };
+                  return item;
                 }
               }
-              return item;
-            }),
-          };
-        }
-        return session;
-      }),
-    );
-  };
+
+              if (newQuantity > 0) {
+                const existingDept = item.departments.find(
+                  (d) => d.department_id === departmentId,
+                );
+                if (existingDept) {
+                  // Update existing department quantity
+                  const updatedDepartments = item.departments.map((d) =>
+                    d.department_id === departmentId
+                      ? { ...d, quantity: newQuantity }
+                      : d
+                  );
+                  
+                  // Update receiver entries to match new quantity
+                  let updatedReceivers = [...item.receivers];
+                  // Remove receivers for this department if quantity decreased
+                  updatedReceivers = updatedReceivers.filter(
+                    (r) => r.department_id !== departmentId || r.item_index < newQuantity
+                  );
+                  // Add missing receivers if quantity increased
+                  for (let i = 0; i < newQuantity; i++) {
+                    const exists = updatedReceivers.some(
+                      (r) => r.department_id === departmentId && r.item_index === i
+                    );
+                    if (!exists) {
+                      updatedReceivers.push({
+                        department_id: departmentId,
+                        department_name: department.department_name,
+                        receiver_id: "",
+                        item_index: i,
+                      });
+                    }
+                  }
+                  
+                  return {
+                    ...item,
+                    departments: updatedDepartments,
+                    receivers: updatedReceivers,
+                  };
+                } else {
+                  // Create new department
+                  const newDept = {
+                    department_id: departmentId,
+                    department_name: department.department_name,
+                    quantity: newQuantity,
+                  };
+                  
+                  // Create receiver entries for each quantity
+                  const newReceivers = [...item.receivers];
+                  for (let i = 0; i < newQuantity; i++) {
+                    newReceivers.push({
+                      department_id: departmentId,
+                      department_name: department.department_name,
+                      receiver_id: "",
+                      item_index: i,
+                    });
+                  }
+                  
+                  return {
+                    ...item,
+                    departments: [...item.departments, newDept],
+                    receivers: newReceivers,
+                  };
+                }
+              } else {
+                // Remove department and its receivers when quantity is set to 0
+                return {
+                  ...item,
+                  departments: item.departments.filter(
+                    (d) => d.department_id !== departmentId,
+                  ),
+                  receivers: item.receivers.filter(
+                    (r) => r.department_id !== departmentId,
+                  ),
+                };
+              }
+            }
+            return item;
+          }),
+        };
+      }
+      return session;
+    }),
+  );
+};
 
   const isDepartmentInputDisabled = (item, departmentId) => {
     const totalAssigned = item.departments.reduce(
@@ -469,47 +773,52 @@ export default function ScanningPreparationPage() {
     return totalAssigned >= item.quantity && !currentDept;
   };
 
-  const validateSession = (session) => {
-    const errors = [];
-    if (!session.formData.checking_name)
-      errors.push("Checking name is required");
-    if (!session.formData.category_id) errors.push("Category is required");
-    if (!session.formData.location_id) errors.push("Location is required");
-    if (!session.formData.checking_date)
-      errors.push("Checking date is required");
+const validateSession = (session) => {
+  const errors = [];
+  if (!session.formData.checking_name)
+    errors.push("Checking name is required");
+  if (!session.formData.category_id) errors.push("Category is required");
+  if (!session.formData.location_id) errors.push("Location is required");
+  if (!session.formData.checking_date)
+    errors.push("Checking date is required");
 
-    session.items.forEach((item, index) => {
-      const isMaterial = session.formData.category_id === "2";
-      if (isMaterial) {
-        if (!item.material_name)
-          errors.push(
-            `Session ${session.checking_number} - Item #${index + 1}: Material name is required`,
-          );
-      } else {
-        if (!item.device_name)
-          errors.push(
-            `Session ${session.checking_number} - Item #${index + 1}: Device name is required`,
-          );
-      }
-      if (!item.quantity || item.quantity < 1)
+  session.items.forEach((item, index) => {
+    const isMaterial = session.formData.category_id === "2";
+    if (isMaterial) {
+      if (!item.material_name)
         errors.push(
-          `Session ${session.checking_number} - Item #${index + 1}: Quantity must be at least 1`,
+          `Session ${session.checking_number} - Item #${index + 1}: Material name is required`,
         );
-      if (item.departments.length > 0) {
-        const totalDeptQty = item.departments.reduce(
-          (sum, d) => sum + d.quantity,
-          0,
+    } else {
+      if (!item.device_name)
+        errors.push(
+          `Session ${session.checking_number} - Item #${index + 1}: Device name is required`,
         );
-        if (totalDeptQty > item.quantity) {
+    }
+    if (!item.quantity || item.quantity < 1)
+      errors.push(
+        `Session ${session.checking_number} - Item #${index + 1}: Quantity must be at least 1`,
+      );
+    
+    // Check each department has receiver selected for each item
+    item.departments.forEach((dept) => {
+      // Untuk setiap department, periksa apakah semua item (quantity) sudah memiliki receiver
+      for (let i = 0; i < dept.quantity; i++) {
+        const receiver = item.receivers.find(
+          (r) => r.department_id === dept.department_id && r.item_index === i
+        );
+        if (!receiver || !receiver.receiver_id) {
+          const deptName = departments.find(d => d.id_department === dept.department_id)?.department_name;
           errors.push(
-            `Session ${session.checking_number} - Item #${index + 1}: Total department quantity exceeds item quantity`,
+            `Session ${session.checking_number} - Item #${index + 1}: Please select a receiver for department "${deptName}" item #${i + 1}`,
           );
         }
       }
     });
+  });
 
-    return errors;
-  };
+  return errors;
+};
 
   const handleSubmit = async () => {
     let allErrors = [];
@@ -588,9 +897,13 @@ export default function ScanningPreparationPage() {
                 department_id: d.department_id,
                 quantity: parseFloat(d.quantity),
               })),
+              receivers: item.receivers.map((r) => ({
+                department_id: r.department_id,
+                receiver_id: r.receiver_id,
+              })),
               uom: item.uom || "PCS",
               vendor: item.vendor || "",
-              project_name: item.project_name || "",
+              project_id: item.project_id ? parseInt(item.project_id) : null,
             })),
             user_id: userId,
           };
@@ -614,6 +927,11 @@ export default function ScanningPreparationPage() {
                 department_id: d.department_id,
                 quantity: parseInt(d.quantity),
               })),
+              receivers: item.receivers.map((r) => ({
+                department_id: r.department_id,
+                receiver_id: r.receiver_id,
+              })),
+              project_id: item.project_id ? parseInt(item.project_id) : null,
             })),
             user_id: userId,
           };
@@ -698,10 +1016,11 @@ export default function ScanningPreparationPage() {
                 specifications: "",
                 quantity: 1,
                 departments: [],
+                receivers: [],
                 uom: "PCS",
                 material_name: "",
                 material_detail: "",
-                project_name: "",
+                project_id: "",
               },
             ],
           },
@@ -776,7 +1095,29 @@ export default function ScanningPreparationPage() {
           box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.1);
         }
 
-        .section-title { font-size: 13px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; }
+        .dropdown-menu {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          background: white;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+          max-height: 200px;
+          overflow-y: auto;
+          z-index: 50;
+        }
+
+        .receiver-card {
+          transition: all 0.2s ease;
+        }
+
+        .receiver-card:hover {
+          border-color: #93c5fd;
+          background: #fafcff;
+        }
+
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
@@ -966,6 +1307,10 @@ export default function ScanningPreparationPage() {
                         const remainingQty = item.quantity - totalDeptQty;
                         const isExpanded = expandedItems[item.id];
                         const isMaterial = session.formData.category_id === "2";
+                        const filteredDevices = getFilteredDevices(item.id);
+                        const filteredMaterials = getFilteredMaterials(item.id);
+                        const showDeviceDropdownFlag = showDeviceDropdown[item.id];
+                        const showMaterialDropdownFlag = showMaterialDropdown[item.id];
 
                         return (
                           <div
@@ -1000,21 +1345,40 @@ export default function ScanningPreparationPage() {
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="col-span-1 md:col-span-2">
                                   <Label required>Material Name</Label>
-                                  <input
-                                    type="text"
-                                    value={item.material_name}
-                                    onChange={(e) =>
-                                      updateItem(
-                                        session.id,
-                                        item.id,
-                                        "material_name",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className={inputCls}
-                                    placeholder="e.g. Ethernet Cable, HDMI Cable, Copper Wire"
-                                    required
-                                  />
+                                  <div className="relative">
+                                    <input
+                                      type="text"
+                                      value={item.material_name}
+                                      onChange={(e) => {
+                                        updateItem(session.id, item.id, "material_name", e.target.value);
+                                        setSearchMaterialTerm({ ...searchMaterialTerm, [item.id]: e.target.value });
+                                        setShowMaterialDropdown({ ...showMaterialDropdown, [item.id]: true });
+                                      }}
+                                      onFocus={() => setShowMaterialDropdown({ ...showMaterialDropdown, [item.id]: true })}
+                                      onBlur={() => setTimeout(() => setShowMaterialDropdown({ ...showMaterialDropdown, [item.id]: false }), 200)}
+                                      className={inputCls}
+                                      placeholder="Type to search material..."
+                                      required
+                                    />
+                                    {showMaterialDropdownFlag && filteredMaterials.length > 0 && (
+                                      <div className="dropdown-menu">
+                                        {filteredMaterials.map((material) => (
+                                          <div
+                                            key={material.id_material}
+                                            className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm"
+                                            onClick={() => {
+                                              updateItem(session.id, item.id, "material_name", material.material_name);
+                                              setSearchMaterialTerm({ ...searchMaterialTerm, [item.id]: material.material_name });
+                                              setShowMaterialDropdown({ ...showMaterialDropdown, [item.id]: false });
+                                            }}
+                                          >
+                                            {material.material_name}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <Hint>Select from list or type new name</Hint>
                                 </div>
 
                                 <div className="col-span-1 md:col-span-2">
@@ -1096,21 +1460,26 @@ export default function ScanningPreparationPage() {
                                 </div>
 
                                 <div>
-                                  <Label>Project Name</Label>
-                                  <input
-                                    type="text"
-                                    value={item.project_name}
+                                  <Label>Project</Label>
+                                  <select
+                                    value={item.project_id}
                                     onChange={(e) =>
                                       updateItem(
                                         session.id,
                                         item.id,
-                                        "project_name",
+                                        "project_id",
                                         e.target.value,
                                       )
                                     }
-                                    className={inputCls}
-                                    placeholder="e.g. FPSO Project, GAMMA Project"
-                                  />
+                                    className={selectCls}
+                                  >
+                                    <option value="">Select Project</option>
+                                    {projects.map((project) => (
+                                      <option key={project.id_project} value={project.id_project}>
+                                        {project.project_name}
+                                      </option>
+                                    ))}
+                                  </select>
                                 </div>
 
                                 {/* Department Distribution */}
@@ -1249,21 +1618,40 @@ export default function ScanningPreparationPage() {
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                 <div className="col-span-1 md:col-span-2">
                                   <Label required>Device Name</Label>
-                                  <input
-                                    type="text"
-                                    value={item.device_name}
-                                    onChange={(e) =>
-                                      updateItem(
-                                        session.id,
-                                        item.id,
-                                        "device_name",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className={inputCls}
-                                    placeholder="e.g. Laptop Dell, Monitor LG"
-                                    required
-                                  />
+                                  <div className="relative">
+                                    <input
+                                      type="text"
+                                      value={item.device_name}
+                                      onChange={(e) => {
+                                        updateItem(session.id, item.id, "device_name", e.target.value);
+                                        setSearchDeviceTerm({ ...searchDeviceTerm, [item.id]: e.target.value });
+                                        setShowDeviceDropdown({ ...showDeviceDropdown, [item.id]: true });
+                                      }}
+                                      onFocus={() => setShowDeviceDropdown({ ...showDeviceDropdown, [item.id]: true })}
+                                      onBlur={() => setTimeout(() => setShowDeviceDropdown({ ...showDeviceDropdown, [item.id]: false }), 200)}
+                                      className={inputCls}
+                                      placeholder="Type to search device..."
+                                      required
+                                    />
+                                    {showDeviceDropdownFlag && filteredDevices.length > 0 && (
+                                      <div className="dropdown-menu">
+                                        {filteredDevices.map((device) => (
+                                          <div
+                                            key={device.id_device}
+                                            className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm"
+                                            onClick={() => {
+                                              updateItem(session.id, item.id, "device_name", device.device_name);
+                                              setSearchDeviceTerm({ ...searchDeviceTerm, [item.id]: device.device_name });
+                                              setShowDeviceDropdown({ ...showDeviceDropdown, [item.id]: false });
+                                            }}
+                                          >
+                                            {device.device_name}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <Hint>Select from list or type new name</Hint>
                                 </div>
 
                                 <div className="col-span-1 md:col-span-2">
@@ -1374,6 +1762,29 @@ export default function ScanningPreparationPage() {
                                     required
                                   />
                                   <Hint>Number of items to scan</Hint>
+                                </div>
+
+                                <div>
+                                  <Label>Project</Label>
+                                  <select
+                                    value={item.project_id}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        session.id,
+                                        item.id,
+                                        "project_id",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className={selectCls}
+                                  >
+                                    <option value="">Select Project</option>
+                                    {projects.map((project) => (
+                                      <option key={project.id_project} value={project.id_project}>
+                                        {project.project_name}
+                                      </option>
+                                    ))}
+                                  </select>
                                 </div>
 
                                 {/* Department Distribution */}
@@ -1508,6 +1919,106 @@ export default function ScanningPreparationPage() {
                                 </div>
                               </div>
                             )}
+
+{/* Receiver Assignment Section */}
+{item.departments.length > 0 && (
+  <div className="mt-4 pt-4 border-t border-gray-200">
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2">
+        <User className="w-4 h-4 text-green-600" />
+        <h4 className="text-sm font-semibold text-gray-800">
+          Receiver Assignment
+        </h4>
+        <span className="text-xs text-gray-500">
+          (Select receiver for each item)
+        </span>
+      </div>
+    </div>
+
+    <div className="space-y-4">
+      {item.departments.map((dept) => {
+        const deptInfo = departments.find(d => d.id_department === dept.department_id);
+        const availableReceivers = getReceiversForDepartment(dept.department_id);
+        
+        // Generate receiver entries for each quantity
+        const receiverEntries = [];
+        for (let i = 0; i < dept.quantity; i++) {
+          const receiver = item.receivers.find(
+            (r) => r.department_id === dept.department_id && r.item_index === i
+          );
+          receiverEntries.push({
+            index: i,
+            receiver: receiver
+          });
+        }
+        
+        return (
+          <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-gray-600" />
+                <span className="text-sm font-semibold text-gray-800">
+                  {deptInfo?.department_name || `Department ${dept.department_id}`}
+                </span>
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                  Total: {dept.quantity} item(s)
+                </span>
+              </div>
+            </div>
+            <div className="p-4 space-y-3">
+             {receiverEntries.map((entry) => {
+  const receiver = entry.receiver;
+  return (
+    <div key={`${dept.department_id}-${entry.index}`} className="receiver-item">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+          Item #{entry.index + 1}
+        </span>
+      </div>
+      <div>
+        <select
+          value={receiver?.receiver_id || ""}
+          onChange={(e) =>
+            updateReceiverAssignment(
+              session.id,
+              item.id,
+              dept.department_id,
+              e.target.value,
+              entry.index
+            )
+          }
+          className={selectCls}
+        >
+          <option value="">Select Receiver</option>
+          {availableReceivers.map((rec) => (
+            <option key={rec.id_receiver} value={rec.id_receiver}>
+              {rec.receiver_name} - {rec.receiver_title}
+            </option>
+          ))}
+        </select>
+        <Hint>Receiver for item #{entry.index + 1}</Hint>
+      </div>
+    </div>
+  );
+})}
+            </div>
+          </div>
+        );
+      })}
+      
+      <div className="p-3 bg-blue-50 rounded-lg">
+        <p className="text-xs text-blue-700">
+          <strong>Total distributed:</strong> {item.departments.reduce((sum, d) => sum + d.quantity, 0)} of {item.quantity}
+        </p>
+        {item.departments.reduce((sum, d) => sum + d.quantity, 0) < item.quantity && (
+          <p className="text-xs text-orange-600 mt-1">
+            <strong>Remaining:</strong> {item.quantity - item.departments.reduce((sum, d) => sum + d.quantity, 0)} items unassigned
+          </p>
+        )}
+      </div>
+    </div>
+  </div>
+)}
                           </div>
                         );
                       })}

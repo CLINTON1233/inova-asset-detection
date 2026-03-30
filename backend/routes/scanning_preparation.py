@@ -18,10 +18,148 @@ def generate_item_number(preparation_id, item_index, sub_item_index):
     """Generate item number format: ITEM-{preparation_id}-{item_index}-{sub_item_index}"""
     return f"ITEM-{preparation_id}-{item_index + 1}-{sub_item_index + 1}"
 
+# ==================== ENDPOINTS MASTER DATA ====================
+@scanning_prep_bp.route('/api/projects/list', methods=['GET'])
+def get_projects_list():
+    """Mendapatkan daftar project"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        cur.execute("""
+            SELECT id_project, project_code, project_name, is_active
+            FROM projects
+            WHERE is_active = TRUE
+            ORDER BY project_name
+        """)
+        
+        projects = cur.fetchall()
+        
+        return jsonify({
+            'success': True,
+            'data': [dict(project) for project in projects]
+        })
+        
+    except Exception as e:
+        print(f"Error getting projects list: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+            
+
+
+@scanning_prep_bp.route('/api/master-devices/list', methods=['GET'])
+def get_master_devices_list():
+    """Mendapatkan daftar master devices"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        cur.execute("""
+            SELECT id_device, device_name, category_id, is_active
+            FROM master_devices
+            WHERE is_active = TRUE
+            ORDER BY device_name
+        """)
+        
+        devices = cur.fetchall()
+        
+        return jsonify({
+            'success': True,
+            'data': [dict(device) for device in devices]
+        })
+        
+    except Exception as e:
+        print(f"Error getting master devices list: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+@scanning_prep_bp.route('/api/master-materials/list', methods=['GET'])
+def get_master_materials_list():
+    """Mendapatkan daftar master materials"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        cur.execute("""
+            SELECT id_material, material_name, category_id, is_active
+            FROM master_materials
+            WHERE is_active = TRUE
+            ORDER BY material_name
+        """)
+        
+        materials = cur.fetchall()
+        
+        return jsonify({
+            'success': True,
+            'data': [dict(material) for material in materials]
+        })
+        
+    except Exception as e:
+        print(f"Error getting master materials list: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+@scanning_prep_bp.route('/api/master-receivers/list', methods=['GET'])
+def get_master_receivers_list():
+    """Mendapatkan daftar master receivers dengan department"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        cur.execute("""
+            SELECT 
+                mr.id_receiver,
+                mr.receiver_name,
+                mr.receiver_title,
+                mr.department_id,
+                d.department_name,
+                mr.is_active
+            FROM master_receivers mr
+            LEFT JOIN departments d ON mr.department_id = d.id_department
+            WHERE mr.is_active = TRUE
+            ORDER BY mr.receiver_name
+        """)
+        
+        receivers = cur.fetchall()
+        
+        return jsonify({
+            'success': True,
+            'data': [dict(receiver) for receiver in receivers]
+        })
+        
+    except Exception as e:
+        print(f"Error getting master receivers list: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
 # ==================== ENDPOINTS UNTUK DEVICES ====================
 @scanning_prep_bp.route('/api/devices/scanning-preparation/create', methods=['POST'])
 def create_devices_scanning_preparation():
-    """Membuat persiapan scanning untuk Devices"""
+    """Membuat persiapan scanning untuk Devices dengan project dan receiver"""
     conn = None
     try:
         data = request.json
@@ -73,12 +211,21 @@ def create_devices_scanning_preparation():
         
         for idx, item in enumerate(items):
             quantity = item.get('quantity', 1)
+            project_id = item.get('project_id')
+            
+            # Get project_name jika ada
+            project_name = None
+            if project_id:
+                cur.execute("SELECT project_name FROM projects WHERE id_project = %s", (project_id,))
+                proj = cur.fetchone()
+                if proj:
+                    project_name = proj['project_name']
             
             # Insert ke devices_scanning_items
             cur.execute("""
                 INSERT INTO devices_scanning_items
-                (preparation_id, device_name, device_detail, brand, vendor, model, specifications, quantity, user_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                (preparation_id, device_name, device_detail, brand, vendor, model, specifications, quantity, user_id, project_name)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id_item
             """, (
                 preparation_id,
@@ -89,7 +236,8 @@ def create_devices_scanning_preparation():
                 item.get('model', ''),
                 item.get('specifications', ''),
                 quantity,
-                user_id
+                user_id,
+                project_name
             ))
             
             scanning_item_id = cur.fetchone()[0]
@@ -107,11 +255,28 @@ def create_devices_scanning_preparation():
                             DO UPDATE SET quantity = EXCLUDED.quantity
                         """, (scanning_item_id, dept['department_id'], dept['quantity']))
 
+            # ========== KODE UNTUK RECEIVER PER ITEM ==========
+            # Insert receiver assignments per item (dari frontend sudah ada item_index)
+            receivers = item.get('receivers', [])
+            # Buat mapping receiver berdasarkan department dan item_index
+            receiver_map = {}
+            for rcvr in receivers:
+                if rcvr.get('department_id') and rcvr.get('receiver_id'):
+                    key = f"{rcvr.get('department_id')}_{rcvr.get('item_index', 0)}"
+                    receiver_map[key] = rcvr.get('receiver_id')
+                    print(f"DEBUG: receiver_map[{key}] = {rcvr.get('receiver_id')}")
+            
+            print(f"DEBUG: Total receivers in map: {len(receiver_map)}")
+            # ================================================
+
             # Create individual items
             dept_allocation = {}
             for dept in departments:
                 if dept.get('department_id') and dept.get('quantity', 0) > 0:
                     dept_allocation[dept['department_id']] = dept['quantity']
+            
+            # Track jumlah item per department yang sudah diproses
+            dept_counter = {}
             
             for sub_idx in range(quantity):
                 assigned_dept = None
@@ -123,17 +288,30 @@ def create_devices_scanning_preparation():
                 
                 item_number = generate_item_number(preparation_id, idx, sub_idx)
                 
+                # Ambil receiver_id berdasarkan department dan item_index
+                receiver_id = None
+                if assigned_dept:
+                    # Hitung item ke berapa untuk department ini
+                    dept_counter[assigned_dept] = dept_counter.get(assigned_dept, 0) + 1
+                    item_index_for_dept = dept_counter[assigned_dept] - 1
+                    key = f"{assigned_dept}_{item_index_for_dept}"
+                    receiver_id = receiver_map.get(key)
+                    
+                    print(f"Item {sub_idx}: dept={assigned_dept}, item_index={item_index_for_dept}, key={key}, receiver_id={receiver_id}")
+                
                 cur.execute("""
                     INSERT INTO devices_items_preparation
-                    (scanning_item_id, preparation_id, item_number, status, department_id, user_id)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    (scanning_item_id, preparation_id, item_number, status, department_id, user_id, project_name, receiver_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     scanning_item_id,
                     preparation_id,
                     item_number,
                     'pending',
                     assigned_dept,
-                    user_id
+                    user_id,
+                    project_name,
+                    receiver_id
                 ))
                 
                 total_items_created += 1
@@ -664,7 +842,7 @@ def get_devices_preparation_progress(prep_id):
 # ==================== ENDPOINTS UNTUK MATERIALS ====================
 @scanning_prep_bp.route('/api/materials/scanning-preparation/create', methods=['POST'])
 def create_materials_scanning_preparation():
-    """Membuat persiapan scanning untuk Materials"""
+    """Membuat persiapan scanning untuk Materials dengan project dan receiver"""
     conn = None
     try:
         data = request.json
@@ -718,8 +896,16 @@ def create_materials_scanning_preparation():
             quantity = item.get('quantity', 1)
             uom = item.get('uom', 'PCS')
             vendor = item.get('vendor', '')
-            project_name = item.get('project_name', '')
+            project_id = item.get('project_id')
             material_detail = item.get('specifications', '')
+            
+            # Get project_name jika ada
+            project_name = None
+            if project_id:
+                cur.execute("SELECT project_name FROM projects WHERE id_project = %s", (project_id,))
+                proj = cur.fetchone()
+                if proj:
+                    project_name = proj['project_name']
             
             # Insert ke materials_scanning_items
             cur.execute("""
@@ -753,20 +939,26 @@ def create_materials_scanning_preparation():
                             DO UPDATE SET quantity = EXCLUDED.quantity
                         """, (scanning_item_id, dept['department_id'], dept['quantity']))
 
+            # ========== KODE UNTUK RECEIVER PER ITEM ==========
+            # Insert receiver assignments per item
+            receivers = item.get('receivers', [])
+            receiver_map = {}
+            for rcvr in receivers:
+                key = f"{rcvr.get('department_id')}_{rcvr.get('item_index', 0)}"
+                receiver_map[key] = rcvr.get('receiver_id')
+            # ================================================
+
             # Create individual items
             dept_allocation = {}
             for dept in departments:
                 if dept.get('department_id') and dept.get('quantity', 0) > 0:
                     dept_allocation[dept['department_id']] = dept['quantity']
             
-            # Untuk material, quantity bisa desimal, jadi kita buat individual items dengan quantity terpisah
-            # Karena material mungkin tidak perlu per-unit seperti devices, kita tetap buat individual items
-            # untuk tracking per item
+            dept_counter = {}
+            
             for sub_idx in range(int(quantity) if quantity >= 1 else 1):
                 assigned_dept = None
-                # Untuk quantity desimal, kita alokasikan berdasarkan proporsi
                 if len(dept_allocation) > 0:
-                    # Alokasi berdasarkan sisa quantity
                     remaining = quantity - sub_idx
                     for dept_id, qty in dept_allocation.items():
                         if qty > 0 and remaining > 0:
@@ -776,21 +968,30 @@ def create_materials_scanning_preparation():
                 
                 item_number = generate_item_number(preparation_id, idx, sub_idx)
                 
+                # Ambil receiver_id berdasarkan department dan item_index
+                receiver_id = None
+                if assigned_dept:
+                    dept_counter[assigned_dept] = dept_counter.get(assigned_dept, 0) + 1
+                    item_index_for_dept = dept_counter[assigned_dept] - 1
+                    key = f"{assigned_dept}_{item_index_for_dept}"
+                    receiver_id = receiver_map.get(key)
+                
                 cur.execute("""
                     INSERT INTO materials_items_preparation
-                    (scanning_item_id, preparation_id, item_number, quantity, uom, vendor, project_name, status, department_id, user_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (scanning_item_id, preparation_id, item_number, quantity, uom, vendor, project_name, status, department_id, user_id, receiver_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     scanning_item_id,
                     preparation_id,
                     item_number,
-                    1.0,  # Setiap individual item quantity = 1
+                    1.0,
                     uom,
                     vendor,
                     project_name,
                     'pending',
                     assigned_dept,
-                    user_id
+                    user_id,
+                    receiver_id
                 ))
                 
                 total_items_created += 1

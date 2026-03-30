@@ -7,6 +7,55 @@ import psycopg2
 from psycopg2 import sql
 from config import DB_CONFIG
 
+# ==================== DATA PROJECT ====================
+PROJECTS = [
+    "Gamma",
+    "Nederwiek 2",
+    "Overhead",
+    "FPSO PETROBRAS P-84",
+    "FPSO PETROBRAS P-85",
+    "Sofia",
+    "BP KASKIDA FPU",
+    "Empire",
+    "Beta",
+    "Changhua",
+    "Yard Development"
+]
+
+# ==================== DATA DEVICES ====================
+DEVICES = [
+    "Anviz",
+    "Converter",
+    "Fingerprint",
+    "Ipphone",
+    "Jabra Speaker",
+    "Keyboard",
+    "Laptop",
+    "Monitor",
+    "Mouse",
+    "PC",
+    "Print Label",
+    "Printer",
+    "Telepon",
+    "TV",
+    "Webcam"
+]
+
+# ==================== DATA MATERIALS ====================
+MATERIALS = [
+    "Cable LAN",
+    "Flexible",
+    "FO",
+    "Trunking",
+    "Pipa",
+    "Klem",
+    "Junction Box",
+    "RJ45",
+    "Modular Jack",
+    "Isolasi Rubber",
+    "elbow"
+]
+
 def get_connection():
     """Membuat koneksi ke database"""
     try:
@@ -20,6 +69,19 @@ def get_connection():
         return conn
     except Exception as e:
         print(f"Error connecting to database: {e}")
+        return None
+
+def get_category_id(conn, category_name):
+    """Mendapatkan category_id dari asset_categories berdasarkan nama kategori"""
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id_category FROM asset_categories WHERE category_name = %s", (category_name,))
+        result = cur.fetchone()
+        if result:
+            return result[0]
+        return None
+    except Exception as e:
+        print(f"Error getting category_id: {e}")
         return None
 
 def create_users_table(conn):
@@ -103,6 +165,154 @@ def create_departments_table(conn):
         conn.rollback()
         print(f"Error creating departments table: {e}")
 
+# ==================== TABEL MASTER BARU ====================
+def create_projects_table(conn):
+    """Membuat tabel projects untuk master data project"""
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS projects (
+                id_project SERIAL PRIMARY KEY,
+                project_code VARCHAR(50) UNIQUE NOT NULL,
+                project_name VARCHAR(255) NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_projects_name ON projects(project_name)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_projects_code ON projects(project_code)")
+        
+        # Insert project data
+        for project in PROJECTS:
+            project_code = project.upper().replace(" ", "_").replace("-", "_")
+            cur.execute("""
+                INSERT INTO projects (project_code, project_name)
+                VALUES (%s, %s)
+                ON CONFLICT (project_code) DO NOTHING
+            """, (project_code, project))
+        
+        conn.commit()
+        print(f"✓ Tabel projects berhasil dibuat dengan {len(PROJECTS)} data project")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating projects table: {e}")
+
+def create_master_devices_table(conn):
+    """Membuat tabel master devices untuk dropdown dengan category dari asset_categories"""
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS master_devices (
+                id_device SERIAL PRIMARY KEY,
+                device_name VARCHAR(100) UNIQUE NOT NULL,
+                category_id INTEGER REFERENCES asset_categories(id_category) ON DELETE SET NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_master_devices_name ON master_devices(device_name)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_master_devices_category ON master_devices(category_id)")
+        
+        # Get category_id untuk Devices
+        category_id = get_category_id(conn, 'Devices')
+        
+        if category_id:
+            # Insert device data dengan category_id
+            for device in DEVICES:
+                cur.execute("""
+                    INSERT INTO master_devices (device_name, category_id)
+                    VALUES (%s, %s)
+                    ON CONFLICT (device_name) DO NOTHING
+                """, (device, category_id))
+            conn.commit()
+            print(f"✓ Tabel master_devices berhasil dibuat dengan {len(DEVICES)} data device (category_id: {category_id})")
+        else:
+            print("⚠️ Warning: Category 'Devices' not found in asset_categories. Inserting without category.")
+            # Insert tanpa category_id
+            for device in DEVICES:
+                cur.execute("""
+                    INSERT INTO master_devices (device_name)
+                    VALUES (%s)
+                    ON CONFLICT (device_name) DO NOTHING
+                """, (device,))
+            conn.commit()
+            print(f"✓ Tabel master_devices berhasil dibuat dengan {len(DEVICES)} data device (without category)")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating master_devices table: {e}")
+
+def create_master_materials_table(conn):
+    """Membuat tabel master materials untuk dropdown dengan category dari asset_categories"""
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS master_materials (
+                id_material SERIAL PRIMARY KEY,
+                material_name VARCHAR(100) UNIQUE NOT NULL,
+                category_id INTEGER REFERENCES asset_categories(id_category) ON DELETE SET NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_master_materials_name ON master_materials(material_name)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_master_materials_category ON master_materials(category_id)")
+        
+        # Get category_id untuk Materials
+        category_id = get_category_id(conn, 'Materials')
+        
+        if category_id:
+            # Insert material data dengan category_id
+            for material in MATERIALS:
+                cur.execute("""
+                    INSERT INTO master_materials (material_name, category_id)
+                    VALUES (%s, %s)
+                    ON CONFLICT (material_name) DO NOTHING
+                """, (material, category_id))
+            conn.commit()
+            print(f"✓ Tabel master_materials berhasil dibuat dengan {len(MATERIALS)} data material (category_id: {category_id})")
+        else:
+            print("⚠️ Warning: Category 'Materials' not found in asset_categories. Inserting without category.")
+            # Insert tanpa category_id
+            for material in MATERIALS:
+                cur.execute("""
+                    INSERT INTO master_materials (material_name)
+                    VALUES (%s)
+                    ON CONFLICT (material_name) DO NOTHING
+                """, (material,))
+            conn.commit()
+            print(f"✓ Tabel master_materials berhasil dibuat dengan {len(MATERIALS)} data material (without category)")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating master_materials table: {e}")
+
+def create_master_receivers_table(conn):
+    """Membuat tabel master receivers untuk dropdown name dan title dengan relasi department"""
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS master_receivers (
+                id_receiver SERIAL PRIMARY KEY,
+                receiver_name VARCHAR(255) UNIQUE NOT NULL,
+                department_id INTEGER REFERENCES departments(id_department) ON DELETE SET NULL,
+                receiver_title VARCHAR(255),
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_master_receivers_name ON master_receivers(receiver_name)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_master_receivers_title ON master_receivers(receiver_title)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_master_receivers_dept ON master_receivers(department_id)")
+        
+        conn.commit()
+        print("✓ Tabel master_receivers berhasil dibuat dengan relasi department")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating master_receivers table: {e}")
+
 # ==================== TABEL UNTUK DEVICES ====================
 def create_devices_scanning_preparations_table(conn):
     """Tabel HEADER scanning preparation untuk Devices"""
@@ -148,14 +358,18 @@ def create_devices_scanning_items_table(conn):
                 specifications TEXT,
                 quantity INTEGER NOT NULL DEFAULT 1,
                 status VARCHAR(50) DEFAULT 'pending',
+                project_name VARCHAR(255),
+                receiver_id INTEGER REFERENCES master_receivers(id_receiver) ON DELETE SET NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_devices_items_prep ON devices_scanning_items(preparation_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_devices_items_user ON devices_scanning_items(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_devices_items_project ON devices_scanning_items(project_name)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_devices_items_receiver ON devices_scanning_items(receiver_id)")
         conn.commit()
-        print("✓ Tabel devices_scanning_items berhasil dibuat")
+        print("✓ Tabel devices_scanning_items berhasil dibuat (dengan project_name dan receiver_id)")
     except Exception as e:
         conn.rollback()
         print(f"Error creating devices_scanning_items table: {e}")
@@ -177,6 +391,8 @@ def create_devices_items_preparation_table(conn):
                 scanned_at TIMESTAMP,
                 department_id INTEGER REFERENCES departments(id_department) ON DELETE SET NULL,
                 notes TEXT,
+                project_name VARCHAR(255),
+                receiver_id INTEGER REFERENCES master_receivers(id_receiver) ON DELETE SET NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -185,8 +401,10 @@ def create_devices_items_preparation_table(conn):
         cur.execute("CREATE INDEX IF NOT EXISTS idx_devices_items_prep_prep ON devices_items_preparation(preparation_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_devices_items_prep_user ON devices_items_preparation(user_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_devices_items_prep_serial ON devices_items_preparation(serial_number)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_devices_items_prep_project ON devices_items_preparation(project_name)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_devices_items_prep_receiver ON devices_items_preparation(receiver_id)")
         conn.commit()
-        print("✓ Tabel devices_items_preparation berhasil dibuat")
+        print("✓ Tabel devices_items_preparation berhasil dibuat (dengan project_name dan receiver_id)")
     except Exception as e:
         conn.rollback()
         print(f"Error creating devices_items_preparation table: {e}")
@@ -257,6 +475,7 @@ def create_materials_scanning_items_table(conn):
                 uom VARCHAR(20) NOT NULL DEFAULT 'PCS',
                 vendor VARCHAR(255),
                 project_name VARCHAR(255),
+                receiver_id INTEGER REFERENCES master_receivers(id_receiver) ON DELETE SET NULL,
                 status VARCHAR(50) DEFAULT 'pending',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -264,8 +483,9 @@ def create_materials_scanning_items_table(conn):
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_materials_items_prep ON materials_scanning_items(preparation_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_materials_items_user ON materials_scanning_items(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_materials_items_receiver ON materials_scanning_items(receiver_id)")
         conn.commit()
-        print("✓ Tabel materials_scanning_items berhasil dibuat")
+        print("✓ Tabel materials_scanning_items berhasil dibuat (dengan project_name dan receiver_id)")
     except Exception as e:
         conn.rollback()
         print(f"Error creating materials_scanning_items table: {e}")
@@ -286,6 +506,7 @@ def create_materials_items_preparation_table(conn):
                 uom VARCHAR(20),
                 vendor VARCHAR(255),
                 project_name VARCHAR(255),
+                receiver_id INTEGER REFERENCES master_receivers(id_receiver) ON DELETE SET NULL,
                 status VARCHAR(50) DEFAULT 'pending',
                 scanned_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
                 scanned_at TIMESTAMP,
@@ -299,8 +520,9 @@ def create_materials_items_preparation_table(conn):
         cur.execute("CREATE INDEX IF NOT EXISTS idx_materials_items_prep_prep ON materials_items_preparation(preparation_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_materials_items_prep_user ON materials_items_preparation(user_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_materials_items_prep_scan_code ON materials_items_preparation(scan_code)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_materials_items_prep_receiver ON materials_items_preparation(receiver_id)")
         conn.commit()
-        print("✓ Tabel materials_items_preparation berhasil dibuat")
+        print("✓ Tabel materials_items_preparation berhasil dibuat (dengan project_name dan receiver_id)")
     except Exception as e:
         conn.rollback()
         print(f"Error creating materials_items_preparation table: {e}")
@@ -476,34 +698,14 @@ def create_validations_table(conn):
                 unique_code VARCHAR(100) UNIQUE,
                 is_approved BOOLEAN DEFAULT FALSE,
                 rejection_reason TEXT,
-                receiver_name VARCHAR(255),  -- Kolom baru untuk nama penerima
+                receiver_name VARCHAR(255),
+                receiver_title VARCHAR(255),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
-        # Add missing columns if they don't exist (termasuk receiver_name)
-        cur.execute("""
-            DO $$ 
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                              WHERE table_name='validations' AND column_name='rejection_reason') THEN
-                    ALTER TABLE validations ADD COLUMN rejection_reason TEXT;
-                END IF;
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                              WHERE table_name='validations' AND column_name='is_approved') THEN
-                    ALTER TABLE validations ADD COLUMN is_approved BOOLEAN DEFAULT FALSE;
-                END IF;
-                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                              WHERE table_name='validations' AND column_name='receiver_name') THEN
-                    ALTER TABLE validations ADD COLUMN receiver_name VARCHAR(255);
-                END IF;
-            END $$;
-        """)
-        
-        # Index untuk receiver_name (opsional, untuk performa query jika sering dicari)
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_receiver_name ON validations(receiver_name)")
-        
+        # Index untuk performa query
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_scan ON validations(scan_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_scan_material ON validations(scan_material_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_item_prep ON validations(item_preparation_id)")
@@ -511,9 +713,11 @@ def create_validations_table(conn):
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_status ON validations(validation_status)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_approved ON validations(is_approved)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_unique_code ON validations(unique_code)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_receiver_name ON validations(receiver_name)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_receiver_title ON validations(receiver_title)")
         
         conn.commit()
-        print("✓ Tabel validations berhasil dibuat/diperbarui dengan kolom receiver_name")
+        print("✓ Tabel validations berhasil dibuat (dengan receiver_name dan receiver_title)")
     except Exception as e:
         conn.rollback()
         print(f"Error creating validations table: {e}")
@@ -557,6 +761,12 @@ def create_all_tables():
         create_locations_table(conn)
         create_departments_table(conn)
         
+        # Tabel master baru dari scanning preparation
+        create_projects_table(conn)
+        create_master_devices_table(conn)
+        create_master_materials_table(conn)
+        create_master_receivers_table(conn)
+        
         # Tabel untuk Devices
         create_devices_scanning_preparations_table(conn)
         create_devices_scanning_items_table(conn)
@@ -591,7 +801,7 @@ def create_all_tables():
         """)
         tables = cur.fetchall()
         
-        print("\n Daftar tabel yang berhasil dibuat:")
+        print("\n📋 Daftar tabel yang berhasil dibuat:")
         for table in tables:
             print(f"   - {table[0]}")
         
@@ -610,14 +820,15 @@ def drop_all_tables():
         return False
     
     try:
-        print("Menghapus semua tabel...")
+        print("🗑️ Menghapus semua tabel...")
         cur = conn.cursor()
     
         tables_to_drop = [
             'history_logs',
             'validations',
             'assets',
-            'scan_results',
+            'scan_results_materials',
+            'scan_results_devices',
             'materials_item_departments',
             'materials_items_preparation',
             'materials_scanning_items',
@@ -627,6 +838,10 @@ def drop_all_tables():
             'devices_items_preparation',
             'devices_scanning_items',
             'devices_scanning_preparations',
+            'master_receivers',
+            'master_materials',
+            'master_devices',
+            'projects',
             'departments',
             'locations',
             'asset_categories',
@@ -647,3 +862,21 @@ def drop_all_tables():
         return False
     finally:
         conn.close()
+
+if __name__ == "__main__":
+    print("=" * 60)
+    print("DATABASE MIGRATION TOOL")
+    print("=" * 60)
+    
+    action = input("Do you want to (create) or (drop) tables? [create/drop]: ").strip().lower()
+    
+    if action == "create":
+        create_all_tables()
+    elif action == "drop":
+        confirm = input("⚠️ This will delete ALL tables and data. Are you sure? (yes/no): ").strip().lower()
+        if confirm == "yes":
+            drop_all_tables()
+        else:
+            print("Operation cancelled.")
+    else:
+        print("Invalid action. Please choose 'create' or 'drop'")

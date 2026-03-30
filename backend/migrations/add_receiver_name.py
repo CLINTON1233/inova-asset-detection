@@ -1,3 +1,4 @@
+# migrate_add_receiver_id.py
 import sys
 import os
 
@@ -20,8 +21,8 @@ def get_connection():
         print(f"Error connecting to database: {e}")
         return None
 
-def add_receiver_name_column():
-    """Menambahkan kolom receiver_name ke tabel validations"""
+def add_receiver_id_columns():
+    """Menambahkan kolom receiver_id ke tabel devices dan materials"""
     conn = None
     try:
         conn = get_connection()
@@ -31,30 +32,72 @@ def add_receiver_name_column():
         
         cur = conn.cursor()
         
-        # Cek apakah kolom sudah ada
+        # Tambah kolom receiver_id ke devices_scanning_items
         cur.execute("""
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.columns 
-                WHERE table_name = 'validations' AND column_name = 'receiver_name'
-            )
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name='devices_scanning_items' AND column_name='receiver_id'
+                ) THEN
+                    ALTER TABLE devices_scanning_items 
+                    ADD COLUMN receiver_id INTEGER REFERENCES master_receivers(id_receiver) ON DELETE SET NULL;
+                    CREATE INDEX IF NOT EXISTS idx_devices_items_receiver ON devices_scanning_items(receiver_id);
+                END IF;
+            END $$;
         """)
-        column_exists = cur.fetchone()[0]
         
-        if not column_exists:
-            print("Adding receiver_name column to validations table...")
-            cur.execute("""
-                ALTER TABLE validations 
-                ADD COLUMN receiver_name VARCHAR(255)
-            """)
-            conn.commit()
-            print("✓ receiver_name column added successfully")
-        else:
-            print("✓ receiver_name column already exists")
+        # Tambah kolom receiver_id ke devices_items_preparation
+        cur.execute("""
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name='devices_items_preparation' AND column_name='receiver_id'
+                ) THEN
+                    ALTER TABLE devices_items_preparation 
+                    ADD COLUMN receiver_id INTEGER REFERENCES master_receivers(id_receiver) ON DELETE SET NULL;
+                    CREATE INDEX IF NOT EXISTS idx_devices_items_prep_receiver ON devices_items_preparation(receiver_id);
+                END IF;
+            END $$;
+        """)
         
+        # Tambah kolom receiver_id ke materials_scanning_items
+        cur.execute("""
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name='materials_scanning_items' AND column_name='receiver_id'
+                ) THEN
+                    ALTER TABLE materials_scanning_items 
+                    ADD COLUMN receiver_id INTEGER REFERENCES master_receivers(id_receiver) ON DELETE SET NULL;
+                    CREATE INDEX IF NOT EXISTS idx_materials_items_receiver ON materials_scanning_items(receiver_id);
+                END IF;
+            END $$;
+        """)
+        
+        # Tambah kolom receiver_id ke materials_items_preparation
+        cur.execute("""
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name='materials_items_preparation' AND column_name='receiver_id'
+                ) THEN
+                    ALTER TABLE materials_items_preparation 
+                    ADD COLUMN receiver_id INTEGER REFERENCES master_receivers(id_receiver) ON DELETE SET NULL;
+                    CREATE INDEX IF NOT EXISTS idx_materials_items_prep_receiver ON materials_items_preparation(receiver_id);
+                END IF;
+            END $$;
+        """)
+        
+        conn.commit()
+        print("✓ Kolom receiver_id berhasil ditambahkan ke semua tabel!")
         return True
         
     except Exception as e:
-        print(f"Error adding receiver_name column: {e}")
+        print(f"Error adding receiver_id columns: {e}")
         if conn:
             conn.rollback()
         return False
@@ -64,10 +107,10 @@ def add_receiver_name_column():
 
 if __name__ == "__main__":
     print("="*50)
-    print("ADDING RECEIVER_NAME COLUMN TO VALIDATIONS")
+    print("ADDING RECEIVER_ID COLUMNS")
     print("="*50)
     
-    if add_receiver_name_column():
+    if add_receiver_id_columns():
         print("✅ Migration completed!")
     else:
         print("❌ Migration failed!")

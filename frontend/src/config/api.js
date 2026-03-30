@@ -45,6 +45,12 @@ export const API_ENDPOINTS = {
   DEPARTMENT_BY_ID: (id) => `${API_BASE_URL}/api/department/${id}`,
   DEPARTMENT_BY_CODE: (code) => `${API_BASE_URL}/api/department/code/${code}`,
 
+  // Master Data
+  PROJECTS_LIST: `${API_BASE_URL}/api/projects/list`,
+  MASTER_DEVICES_LIST: `${API_BASE_URL}/api/master-devices/list`,
+  MASTER_MATERIALS_LIST: `${API_BASE_URL}/api/master-materials/list`,
+  MASTER_RECEIVERS_LIST: `${API_BASE_URL}/api/master-receivers/list`,
+
   // Scanning Preparation (Devices)
   DEVICES_SCANNING_PREP_CREATE: `${API_BASE_URL}/api/devices/scanning-preparation/create`,
   DEVICES_SCANNING_PREP_LIST: `${API_BASE_URL}/api/devices/scanning-preparation/list`,
@@ -115,7 +121,8 @@ export const API_ENDPOINTS = {
   VALIDATIONS_BULK: `${API_BASE_URL}/api/validations/bulk`,
 
   // Validation Receiver
-  VALIDATIONS_UPDATE_RECEIVER: (id) => `${API_BASE_URL}/api/validations/${id}/receiver`,
+  VALIDATIONS_UPDATE_RECEIVER: (id) =>
+    `${API_BASE_URL}/api/validations/${id}/receiver`,
 };
 
 export default API_BASE_URL;
