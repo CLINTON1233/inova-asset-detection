@@ -359,7 +359,6 @@ def create_devices_scanning_items_table(conn):
                 quantity INTEGER NOT NULL DEFAULT 1,
                 status VARCHAR(50) DEFAULT 'pending',
                 project_name VARCHAR(255),
-                receiver_id INTEGER REFERENCES master_receivers(id_receiver) ON DELETE SET NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -475,7 +474,6 @@ def create_materials_scanning_items_table(conn):
                 uom VARCHAR(20) NOT NULL DEFAULT 'PCS',
                 vendor VARCHAR(255),
                 project_name VARCHAR(255),
-                receiver_id INTEGER REFERENCES master_receivers(id_receiver) ON DELETE SET NULL,
                 status VARCHAR(50) DEFAULT 'pending',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
