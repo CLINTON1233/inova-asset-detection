@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import LayoutDashboard from "../components/LayoutDashboard";
 import {
@@ -41,6 +41,7 @@ export default function ScanningPreparationListPage() {
   const [sorting, setSorting] = useState({ id: "created_at", desc: true });
   const [mounted, setMounted] = useState(false);
   const [expandedSession, setExpandedSession] = useState(null);
+  const [sessionDetails, setSessionDetails] = useState({});
 
   useEffect(() => {
     setMounted(true);
@@ -49,7 +50,7 @@ export default function ScanningPreparationListPage() {
 
   useEffect(() => {
     let filtered = [...sessions];
-    
+
     if (searchTerm) {
       filtered = filtered.filter(
         (s) =>
@@ -59,15 +60,15 @@ export default function ScanningPreparationListPage() {
           (s.project_name || "").toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-    
+
     if (statusFilter !== "all") {
       filtered = filtered.filter((s) => s.status === statusFilter);
     }
-    
+
     if (typeFilter !== "all") {
       filtered = filtered.filter((s) => s.type === typeFilter);
     }
-    
+
     if (sorting.id) {
       filtered.sort((a, b) => {
         let aVal = a[sorting.id];
@@ -81,9 +82,98 @@ export default function ScanningPreparationListPage() {
         return 0;
       });
     }
-    
+
     setFilteredSessions(filtered);
   }, [searchTerm, statusFilter, typeFilter, sessions, sorting]);
+
+
+  const fetchSessionDetail = async (sessionId, type) => {
+    if (sessionDetails[sessionId]) return sessionDetails[sessionId];
+
+    try {
+      let endpoint;
+      if (type === "device") {
+        endpoint = API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(sessionId);
+      } else {
+        endpoint = API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(sessionId);
+      }
+
+      const response = await fetch(endpoint);
+      const result = await response.json();
+
+      if (result.success) {
+        const data = result.data;
+
+        // Extract departments, receivers, dan items dari data
+        const departmentsList = [];
+        const receiversList = [];
+        const itemsList = [];
+        let projectName = "-";
+
+        data.items.forEach(item => {
+          // Ambil project name
+          if (item.project_name && projectName === "-") {
+            projectName = item.project_name;
+          }
+
+          // Simpan item details
+          itemsList.push({
+            name: type === "device" ? item.device_name : item.material_name,
+            detail: type === "device" ? item.device_detail : item.material_detail,
+            quantity: item.quantity,
+            brand: item.brand,
+            model: item.model,
+            vendor: item.vendor,
+            specifications: item.specifications,
+            uom: item.uom
+          });
+
+          // Departments
+          if (item.departments && item.departments.length > 0) {
+            item.departments.forEach(d => {
+              const existing = departmentsList.find(dept => dept.id === d.department_id);
+              if (existing) {
+                existing.quantity += d.quantity;
+              } else {
+                departmentsList.push({
+                  id: d.department_id,
+                  name: d.department_name,
+                  quantity: d.quantity
+                });
+              }
+            });
+          }
+
+          // Receivers
+          if (item.receivers && item.receivers.length > 0) {
+            item.receivers.forEach(r => {
+              receiversList.push({
+                name: r.receiver_name || `Receiver ${r.receiver_id}`,
+                department: r.department_name,
+                item_name: type === "device" ? item.device_name : item.material_name,
+                receiver_id: r.receiver_id
+              });
+            });
+          }
+        });
+
+        const detail = {
+          departments: departmentsList,
+          receivers: receiversList,
+          items: itemsList,
+          project_name: projectName,
+          totalItems: data.items.length,
+          totalQty: data.items.reduce((sum, i) => sum + (i.quantity || 0), 0)
+        };
+
+        setSessionDetails(prev => ({ ...prev, [sessionId]: detail }));
+        return detail;
+      }
+    } catch (error) {
+      console.error("Error fetching session detail:", error);
+      return null;
+    }
+  };
 
   const fetchSessions = async () => {
     setLoading(true);
@@ -105,10 +195,10 @@ export default function ScanningPreparationListPage() {
           const items = session.items || [];
           const totalItems = items.length;
           const totalQty = session.totalQty || items.reduce((sum, i) => sum + (i.quantity || 0), 0);
-          
+
           // Ambil project name dari items (jika ada)
           const projectName = items[0]?.project_name || "-";
-          
+
           // Ambil receiver info dari items
           const receiversList = [];
           items.forEach(item => {
@@ -124,7 +214,7 @@ export default function ScanningPreparationListPage() {
               });
             }
           });
-          
+
           // Ambil department distribution
           const departmentsList = [];
           items.forEach(item => {
@@ -146,7 +236,7 @@ export default function ScanningPreparationListPage() {
 
           let progress = session.progress || 0;
           let status = session.status || "pending";
-          
+
           if (session.items && session.items.length > 0 && !session.progress) {
             const totalScanned = session.items.reduce((sum, i) => sum + (i.scanned_count || 0), 0);
             progress = totalQty > 0 ? Math.round((totalScanned / totalQty) * 100) : 0;
@@ -302,6 +392,12 @@ export default function ScanningPreparationListPage() {
           setFilteredSessions((prevFiltered) =>
             prevFiltered.filter((s) => s.id_preparation !== prepId)
           );
+          // Hapus detail session yang sudah di-cache
+          setSessionDetails(prev => {
+            const newDetails = { ...prev };
+            delete newDetails[prepId];
+            return newDetails;
+          });
 
           Swal.fire({
             title: "Success!",
@@ -327,8 +423,15 @@ export default function ScanningPreparationListPage() {
     }
   };
 
-  const toggleExpandSession = (sessionId) => {
-    setExpandedSession(expandedSession === sessionId ? null : sessionId);
+  const toggleExpandSession = async (sessionId, type) => {
+    if (expandedSession === sessionId) {
+      setExpandedSession(null);
+    } else {
+      setExpandedSession(sessionId);
+      if (!sessionDetails[sessionId]) {
+        await fetchSessionDetail(sessionId, type);
+      }
+    }
   };
 
   if (!mounted) {
@@ -575,13 +678,16 @@ export default function ScanningPreparationListPage() {
                   {filteredSessions.map((session, idx) => {
                     const sc = getStatusConfig(session.status);
                     const isExpanded = expandedSession === session.id_preparation;
+                    const detail = sessionDetails[session.id_preparation];
+                    const projectName = detail?.project_name || "-";
+
                     return (
-                      <>
-                        <tr key={`${session.type}_${session.id_preparation}`} className="sp-row transition-colors">
+                      <Fragment key={`${session.type}_${session.id_preparation}`}>
+                        <tr className="sp-row transition-colors">
                           <td className="sp-td">
                             <div className="flex items-center gap-3">
                               <button
-                                onClick={() => toggleExpandSession(session.id_preparation)}
+                                onClick={() => toggleExpandSession(session.id_preparation, session.type)}
                                 className="p-1 hover:bg-gray-100 rounded transition"
                               >
                                 <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
@@ -597,10 +703,9 @@ export default function ScanningPreparationListPage() {
                                   {session.checking_number}
                                 </div>
                                 <div className="text-xs text-gray-400 mt-0.5">
-                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                    session.type === "device" ? "bg-blue-100 text-blue-700" :
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${session.type === "device" ? "bg-blue-100 text-blue-700" :
                                     session.type === "material" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"
-                                  }`}>
+                                    }`}>
                                     {session.type === "device" ? "Device" : session.type === "material" ? "Material" : "Unknown"}
                                   </span>
                                 </div>
@@ -622,7 +727,7 @@ export default function ScanningPreparationListPage() {
                           <td className="sp-td hidden xl:table-cell">
                             <div className="flex items-center gap-1.5">
                               <Building2 className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                              <span className="text-xs text-gray-600 truncate max-w-[120px]">{session.project_name}</span>
+                              <span className="text-xs text-gray-600 truncate max-w-[120px]">{projectName}</span>
                             </div>
                           </td>
                           <td className="sp-td">
@@ -668,65 +773,117 @@ export default function ScanningPreparationListPage() {
                             </div>
                           </td>
                         </tr>
-                        {isExpanded && (
+                        {isExpanded && detail && (
                           <tr className="expandable-content">
                             <td colSpan={7} className="p-4">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-4">
+                                {/* Project Info */}
+                                {projectName !== "-" && (
+                                  <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Building2 className="w-4 h-4 text-blue-600" />
+                                      <h4 className="text-sm font-semibold text-gray-800">Project Information</h4>
+                                    </div>
+                                    <p className="text-sm text-gray-700">Project: <span className="font-medium">{projectName}</span></p>
+                                  </div>
+                                )}
+
+                                {/* Items List - Menampilkan semua item preparation */}
+                                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                                  <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
+                                    <div className="flex items-center gap-2">
+                                      <Box className="w-4 h-4 text-purple-600" />
+                                      <h4 className="text-sm font-semibold text-gray-800">Items Preparation ({detail.items?.length || 0} items)</h4>
+                                    </div>
+                                  </div>
+                                  <div className="divide-y divide-gray-100">
+                                    {detail.items?.map((item, itemIdx) => (
+                                      <div key={itemIdx} className="p-3 hover:bg-gray-50">
+                                        <div className="flex justify-between items-start">
+                                          <div className="flex-1">
+                                            <div className="font-medium text-gray-900 text-sm">{item.name}</div>
+                                            {item.detail && (
+                                              <div className="text-xs text-gray-500 mt-0.5">{item.detail}</div>
+                                            )}
+                                            <div className="flex flex-wrap gap-2 mt-1">
+                                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                                Qty: {item.quantity} {item.uom || ""}
+                                              </span>
+                                              {item.brand && (
+                                                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                                                  Brand: {item.brand}
+                                                </span>
+                                              )}
+                                              {item.model && (
+                                                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                                                  Model: {item.model}
+                                                </span>
+                                              )}
+                                              {item.vendor && (
+                                                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                                                  Vendor: {item.vendor}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+
                                 {/* Department Distribution */}
-                                {session.departments && session.departments.length > 0 && (
+                                {detail.departments && detail.departments.length > 0 && (
                                   <div className="border border-gray-200 rounded-lg p-3">
                                     <div className="flex items-center gap-2 mb-2">
                                       <Users className="w-4 h-4 text-blue-600" />
                                       <h4 className="text-sm font-semibold text-gray-800">Department Distribution</h4>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
-                                      {session.departments.map((dept, idx) => (
-                                        <span key={idx} className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full text-xs">
+                                      {detail.departments.map((dept, deptIdx) => (
+                                        <span key={deptIdx} className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full text-xs">
                                           {dept.name}: {dept.quantity}
                                         </span>
                                       ))}
                                     </div>
                                   </div>
                                 )}
-                                
-                                {/* Receivers */}
-                                {session.receivers && session.receivers.length > 0 && (
+
+                                {/* Receiver Assignments */}
+                                {detail.receivers && detail.receivers.length > 0 && (
                                   <div className="border border-gray-200 rounded-lg p-3">
                                     <div className="flex items-center gap-2 mb-2">
                                       <User className="w-4 h-4 text-green-600" />
                                       <h4 className="text-sm font-semibold text-gray-800">Receiver Assignments</h4>
                                     </div>
-                                    <div className="space-y-1">
-                                      {session.receivers.slice(0, 5).map((rec, idx) => (
-                                        <div key={idx} className="text-xs text-gray-600">
+                                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                                      {detail.receivers.map((rec, recIdx) => (
+                                        <div key={recIdx} className="text-xs text-gray-600">
                                           {rec.name} - {rec.department} ({rec.item_name})
                                         </div>
                                       ))}
-                                      {session.receivers.length > 5 && (
-                                        <div className="text-xs text-gray-400">+{session.receivers.length - 5} more</div>
-                                      )}
                                     </div>
                                   </div>
                                 )}
-                                
+
                                 {/* Items Summary */}
-                                <div className="border border-gray-200 rounded-lg p-3 col-span-1 md:col-span-2">
+                                <div className="border border-gray-200 rounded-lg p-3 bg-blue-50">
                                   <div className="flex items-center gap-2 mb-2">
-                                    <Box className="w-4 h-4 text-purple-600" />
+                                    <Box className="w-4 h-4 text-blue-600" />
                                     <h4 className="text-sm font-semibold text-gray-800">Items Summary</h4>
                                   </div>
-                                  <div className="grid grid-cols-2 gap-2 text-xs">
-                                    <div>Total Items: <span className="font-semibold">{session.totalItems}</span></div>
-                                    <div>Total Quantity: <span className="font-semibold">{session.totalQty}</span></div>
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                                    <div>Total Items: <span className="font-semibold">{detail.totalItems || 0}</span></div>
+                                    <div>Total Quantity: <span className="font-semibold">{detail.totalQty || 0}</span></div>
                                     <div>Scanned: <span className="font-semibold text-green-600">{session.scannedCount || 0}</span></div>
-                                    <div>Remaining: <span className="font-semibold text-orange-600">{session.totalQty - (session.scannedCount || 0)}</span></div>
+                                    <div>Remaining: <span className="font-semibold text-orange-600">{(detail.totalQty || 0) - (session.scannedCount || 0)}</span></div>
                                   </div>
                                 </div>
                               </div>
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </tbody>
