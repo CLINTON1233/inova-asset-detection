@@ -27,6 +27,7 @@ def get_validations():
                 v.validation_notes,
                 v.is_approved,
                 v.rejection_reason,
+                 v.receiver_name,
                 v.created_at,
                 v.validated_at,
                 COALESCE(v.scan_id, v.scan_material_id) as scan_id,
@@ -451,3 +452,58 @@ def bulk_update_validations():
     finally:
         if conn:
             conn.close()
+            
+# ==================== UPDATE RECEIVER NAME ====================
+@validation_bp.route('/api/validations/<int:validation_id>/receiver', methods=['PUT'])
+def update_receiver_name(validation_id):
+    """Update receiver name untuk validation"""
+    conn = None
+    try:
+        data = request.json
+        receiver_name = data.get('receiver_name')
+        
+        if not receiver_name:
+            return jsonify({
+                'success': False,
+                'error': 'Receiver name is required'
+            }), 400
+        
+        conn = get_conn()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE validations 
+            SET receiver_name = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id_validation = %s
+            RETURNING id_validation
+        """, (receiver_name, validation_id))
+        
+        updated = cur.fetchone()
+        
+        if not updated:
+            return jsonify({
+                'success': False,
+                'error': 'Validation not found'
+            }), 404
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Receiver name updated successfully',
+            'receiver_name': receiver_name
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Error updating receiver name: {e}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close

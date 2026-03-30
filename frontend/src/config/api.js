@@ -113,6 +113,9 @@ export const API_ENDPOINTS = {
   VALIDATIONS_LIST: `${API_BASE_URL}/api/validations`,
   VALIDATIONS_DETAIL: (id) => `${API_BASE_URL}/api/validations/${id}/detail`,
   VALIDATIONS_BULK: `${API_BASE_URL}/api/validations/bulk`,
+
+  // Validation Receiver
+  VALIDATIONS_UPDATE_RECEIVER: (id) => `${API_BASE_URL}/api/validations/${id}/receiver`,
 };
 
 export default API_BASE_URL;

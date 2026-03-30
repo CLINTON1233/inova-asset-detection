@@ -34,6 +34,9 @@ import {
   ChevronDown,
   X,
   Camera,
+  Users,
+  Edit2,
+  Save,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import LayoutDashboard from "../components/LayoutDashboard";
@@ -52,6 +55,7 @@ export default function ValidationVerificationPage() {
   const [selectedItems, setSelectedItems] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [detailModal, setDetailModal] = useState(null);
+  const [editReceiverModal, setEditReceiverModal] = useState(null);
   const [sorting, setSorting] = useState({ id: "created_at", desc: true });
   const [mounted, setMounted] = useState(false);
   const [showCheckboxes, setShowCheckboxes] = useState(false);
@@ -96,9 +100,15 @@ export default function ValidationVerificationPage() {
       if (result.success) {
         setValidations(result.data || []);
 
-        const pending = (result.data || []).filter(v => v.validation_status === 'pending').length;
-        const approved = (result.data || []).filter(v => v.validation_status === 'approved').length;
-        const rejected = (result.data || []).filter(v => v.validation_status === 'rejected').length;
+        const pending = (result.data || []).filter(
+          (v) => v.validation_status === "pending",
+        ).length;
+        const approved = (result.data || []).filter(
+          (v) => v.validation_status === "approved",
+        ).length;
+        const rejected = (result.data || []).filter(
+          (v) => v.validation_status === "rejected",
+        ).length;
 
         setStats({
           pending,
@@ -119,6 +129,82 @@ export default function ValidationVerificationPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateReceiverName = async (validationId, receiverName) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/validations/${validationId}/receiver`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ receiver_name: receiverName }),
+        },
+      );
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Update local state
+        setValidations((prev) =>
+          prev.map((v) =>
+            v.id_validation === validationId
+              ? { ...v, receiver_name: receiverName }
+              : v,
+          ),
+        );
+        return true;
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error("Error updating receiver name:", error);
+      Swal.fire({
+        title: "Error!",
+        text: error.message || "Failed to update receiver name",
+        icon: "error",
+      });
+      return false;
+    }
+  };
+
+  const handleAddReceiver = (validation) => {
+    setEditReceiverModal({
+      id: validation.id_validation,
+      currentName: validation.receiver_name || "",
+      itemName: validation.item_name,
+      isEditing: !!validation.receiver_name,
+    });
+  };
+
+  const handleSaveReceiver = async () => {
+    if (!editReceiverModal) return;
+
+    const newName = editReceiverModal.newName?.trim();
+
+    if (!newName) {
+      Swal.fire({
+        title: "Name Required",
+        text: "Please enter receiver name",
+        icon: "warning",
+      });
+      return;
+    }
+
+    const success = await updateReceiverName(editReceiverModal.id, newName);
+
+    if (success) {
+      Swal.fire({
+        title: "Success!",
+        text: editReceiverModal.isEditing
+          ? "Receiver name updated successfully"
+          : "Receiver name added successfully",
+        icon: "success",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+      setEditReceiverModal(null);
     }
   };
 
@@ -169,13 +255,16 @@ export default function ValidationVerificationPage() {
 
   const getTypeIcon = (type) => {
     if (type === "device") return <Laptop className="w-4 h-4 text-blue-600" />;
-    if (type === "material") return <Cable className="w-4 h-4 text-green-600" />;
+    if (type === "material")
+      return <Cable className="w-4 h-4 text-green-600" />;
     return <Package className="w-4 h-4 text-gray-500" />;
   };
 
   const handleViewDetail = async (validation) => {
     try {
-      const response = await fetch(API_ENDPOINTS.VALIDATIONS_DETAIL(validation.id_validation));
+      const response = await fetch(
+        API_ENDPOINTS.VALIDATIONS_DETAIL(validation.id_validation),
+      );
       const result = await response.json();
 
       if (result.success) {
@@ -198,8 +287,8 @@ export default function ValidationVerificationPage() {
       title: "Approve Validation?",
       html: `
         <div class="text-left">
-          <p class="text-sm text-gray-600 mb-2">Item: <span class="font-semibold">${validation.item_name || '-'}</span></p>
-          <p class="text-sm text-gray-600 mb-4">Code: <span class="font-mono">${validation.serial_or_code || '-'}</span></p>
+          <p class="text-sm text-gray-600 mb-2">Item: <span class="font-semibold">${validation.item_name || "-"}</span></p>
+          <p class="text-sm text-gray-600 mb-4">Code: <span class="font-mono">${validation.serial_or_code || "-"}</span></p>
           <textarea id="notes" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" rows="3" placeholder="Validation notes (optional)"></textarea>
         </div>
       `,
@@ -217,16 +306,19 @@ export default function ValidationVerificationPage() {
     if (result.isConfirmed) {
       setIsProcessing(true);
       try {
-        const response = await fetch(API_ENDPOINTS.VALIDATIONS_UPDATE(validation.id_validation), {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            validation_status: "approved",
-            is_approved: true,
-            validation_notes: result.value.notes,
-            validated_by: 1,
-          }),
-        });
+        const response = await fetch(
+          API_ENDPOINTS.VALIDATIONS_UPDATE(validation.id_validation),
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              validation_status: "approved",
+              is_approved: true,
+              validation_notes: result.value.notes,
+              validated_by: 1,
+            }),
+          },
+        );
 
         const data = await response.json();
 
@@ -259,8 +351,8 @@ export default function ValidationVerificationPage() {
       title: "Reject Validation?",
       html: `
         <div class="text-left">
-          <p class="text-sm text-gray-600 mb-2">Item: <span class="font-semibold">${validation.item_name || '-'}</span></p>
-          <p class="text-sm text-gray-600 mb-4">Code: <span class="font-mono">${validation.serial_or_code || '-'}</span></p>
+          <p class="text-sm text-gray-600 mb-2">Item: <span class="font-semibold">${validation.item_name || "-"}</span></p>
+          <p class="text-sm text-gray-600 mb-4">Code: <span class="font-mono">${validation.serial_or_code || "-"}</span></p>
           <label class="block text-sm font-medium text-gray-700 mb-1">Rejection Reason</label>
           <textarea id="reason" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" rows="3" placeholder="Please provide reason for rejection..." required></textarea>
         </div>
@@ -283,16 +375,19 @@ export default function ValidationVerificationPage() {
     if (result.isConfirmed) {
       setIsProcessing(true);
       try {
-        const response = await fetch(API_ENDPOINTS.VALIDATIONS_UPDATE(validation.id_validation), {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            validation_status: "rejected",
-            is_approved: false,
-            rejection_reason: result.value.reason,
-            validated_by: 1,
-          }),
-        });
+        const response = await fetch(
+          API_ENDPOINTS.VALIDATIONS_UPDATE(validation.id_validation),
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              validation_status: "rejected",
+              is_approved: false,
+              rejection_reason: result.value.reason,
+              validated_by: 1,
+            }),
+          },
+        );
 
         const data = await response.json();
 
@@ -339,17 +434,19 @@ export default function ValidationVerificationPage() {
       showCancelButton: true,
       confirmButtonText: isApprove ? "Yes, Approve" : "Yes, Reject",
       confirmButtonColor: isApprove ? "#22c55e" : "#ef4444",
-      ...(isApprove ? {} : {
-        input: "textarea",
-        inputPlaceholder: "Rejection reason for all selected items...",
-        inputLabel: "Rejection Reason",
-        inputValidator: (value) => {
-          if (!value || value.trim() === "") {
-            return "Please provide a rejection reason";
-          }
-          return null;
-        },
-      }),
+      ...(isApprove
+        ? {}
+        : {
+            input: "textarea",
+            inputPlaceholder: "Rejection reason for all selected items...",
+            inputLabel: "Rejection Reason",
+            inputValidator: (value) => {
+              if (!value || value.trim() === "") {
+                return "Please provide a rejection reason";
+              }
+              return null;
+            },
+          }),
     });
 
     if (result.isConfirmed) {
@@ -397,13 +494,13 @@ export default function ValidationVerificationPage() {
     if (selectedItems.length === filteredValidations.length) {
       setSelectedItems([]);
     } else {
-      setSelectedItems(filteredValidations.map(v => v.id_validation));
+      setSelectedItems(filteredValidations.map((v) => v.id_validation));
     }
   };
 
   const handleSelectItem = (id) => {
     if (selectedItems.includes(id)) {
-      setSelectedItems(selectedItems.filter(i => i !== id));
+      setSelectedItems(selectedItems.filter((i) => i !== id));
     } else {
       setSelectedItems([...selectedItems, id]);
     }
@@ -436,15 +533,28 @@ export default function ValidationVerificationPage() {
   };
 
   // Filter validations
-  let filteredValidations = validations.filter(validation => {
+  let filteredValidations = validations.filter((validation) => {
     const matchesSearch =
-      (validation.item_name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-      (validation.serial_or_code?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-      (validation.checking_number?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-      (validation.unique_code?.toLowerCase() || "").includes(searchTerm.toLowerCase());
+      (validation.item_name?.toLowerCase() || "").includes(
+        searchTerm.toLowerCase(),
+      ) ||
+      (validation.serial_or_code?.toLowerCase() || "").includes(
+        searchTerm.toLowerCase(),
+      ) ||
+      (validation.checking_number?.toLowerCase() || "").includes(
+        searchTerm.toLowerCase(),
+      ) ||
+      (validation.unique_code?.toLowerCase() || "").includes(
+        searchTerm.toLowerCase(),
+      ) ||
+      (validation.receiver_name?.toLowerCase() || "").includes(
+        searchTerm.toLowerCase(),
+      );
 
-    const matchesStatus = statusFilter === "all" || validation.validation_status === statusFilter;
-    const matchesType = typeFilter === "all" || validation.validation_type === typeFilter;
+    const matchesStatus =
+      statusFilter === "all" || validation.validation_status === statusFilter;
+    const matchesType =
+      typeFilter === "all" || validation.validation_type === typeFilter;
 
     return matchesSearch && matchesStatus && matchesType;
   });
@@ -468,7 +578,7 @@ export default function ValidationVerificationPage() {
   const totalPages = Math.ceil(filteredValidations.length / itemsPerPage);
   const paginatedValidations = filteredValidations.slice(
     (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    currentPage * itemsPerPage,
   );
 
   const kpis = [
@@ -497,6 +607,90 @@ export default function ValidationVerificationPage() {
       accent: "#ef4444",
     },
   ];
+
+  const AddReceiverModalComponent = () => {
+    if (!editReceiverModal) return null;
+
+    const isEditing = editReceiverModal.isEditing;
+    const title = isEditing ? "Edit Receiver Name" : "Add Receiver Name";
+    const buttonText = isEditing ? "Update" : "Save";
+
+    return (
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+        onClick={() => setEditReceiverModal(null)}
+      >
+        <div
+          className="bg-white rounded-2xl max-w-md w-full shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-blue-600" />
+              <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+            </div>
+            <button
+              onClick={() => setEditReceiverModal(null)}
+              className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="p-5 space-y-4">
+            <div>
+              <p className="text-sm text-gray-500 mb-1">Item</p>
+              <p className="font-semibold text-gray-800">
+                {editReceiverModal.itemName || "-"}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Receiver Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={
+                  editReceiverModal.newName !== undefined
+                    ? editReceiverModal.newName
+                    : editReceiverModal.currentName
+                }
+                onChange={(e) =>
+                  setEditReceiverModal({
+                    ...editReceiverModal,
+                    newName: e.target.value,
+                  })
+                }
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter receiver name..."
+                autoFocus
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Name of the person receiving this asset
+              </p>
+            </div>
+          </div>
+
+          <div className="p-5 border-t border-gray-100 flex justify-end gap-3">
+            <button
+              onClick={() => setEditReceiverModal(null)}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveReceiver}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium flex items-center gap-2"
+            >
+              <Save className="w-4 h-4" />
+              {buttonText}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   if (!mounted) {
     return (
@@ -614,6 +808,39 @@ export default function ValidationVerificationPage() {
             box-shadow: 0 1px 3px rgba(30,64,175,0.3);
           }
           .view-btn:hover { background: #1d3a9e; }
+
+         /* Ganti atau tambahkan style untuk receiver button */
+.add-receiver-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #10b981;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  transition: background 0.15s;
+  border: none;
+  cursor: pointer;
+}
+.add-receiver-btn:hover { background: #059669; }
+
+.edit-receiver-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f59e0b;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  transition: background 0.15s;
+  border: none;
+  cursor: pointer;
+}
+.edit-receiver-btn:hover { background: #d97706; }
         `}</style>
 
         <div className="vv-root space-y-5 max-w-7xl mx-auto px-4 py-2">
@@ -627,7 +854,8 @@ export default function ValidationVerificationPage() {
                 </h1>
               </div>
               <p className="text-sm text-gray-500">
-                Review and validate scanned assets before added to inventory assets
+                Review and validate scanned assets before added to inventory
+                assets
               </p>
             </div>
           </div>
@@ -660,7 +888,7 @@ export default function ValidationVerificationPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search by item name, serial/scan code, checking number..."
+                  placeholder="Search by item name, serial/scan code, receiver name..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
@@ -736,17 +964,20 @@ export default function ValidationVerificationPage() {
                   disabled={loading}
                   className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+                  <RefreshCw
+                    className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
+                  />
                   Refresh
                 </button>
                 <button
                   onClick={toggleCheckboxMode}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${showCheckboxes
-                      ? 'bg-gray-500 text-white hover:bg-gray-600'
-                      : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                    showCheckboxes
+                      ? "bg-gray-500 text-white hover:bg-gray-600"
+                      : "border border-gray-200 text-gray-600 hover:bg-gray-50"
+                  }`}
                 >
-                  {showCheckboxes ? 'Cancel' : 'Multi Select'}
+                  {showCheckboxes ? "Cancel" : "Multi Select"}
                 </button>
               </div>
             </div>
@@ -796,30 +1027,72 @@ export default function ValidationVerificationPage() {
                         <th className="vv-th w-10 text-center">
                           <input
                             type="checkbox"
-                            checked={selectedItems.length === filteredValidations.length && filteredValidations.length > 0}
+                            checked={
+                              selectedItems.length ===
+                                filteredValidations.length &&
+                              filteredValidations.length > 0
+                            }
                             onChange={handleSelectAll}
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                           />
                         </th>
                       )}
                       <th className="vv-th text-left">Photo</th>
-                      <th className="vv-th text-left" onClick={() => handleSort("item_name")}>
-                        <span className="flex items-center">Item {getSortIcon("item_name")}</span>
+                      <th
+                        className="vv-th text-left"
+                        onClick={() => handleSort("item_name")}
+                      >
+                        <span className="flex items-center">
+                          Item {getSortIcon("item_name")}
+                        </span>
                       </th>
-                      <th className="vv-th text-left hidden md:table-cell" onClick={() => handleSort("serial_or_code")}>
-                        <span className="flex items-center">Code {getSortIcon("serial_or_code")}</span>
+                      <th
+                        className="vv-th text-left hidden md:table-cell"
+                        onClick={() => handleSort("serial_or_code")}
+                      >
+                        <span className="flex items-center">
+                          Code {getSortIcon("serial_or_code")}
+                        </span>
                       </th>
-                      <th className="vv-th text-left hidden lg:table-cell" onClick={() => handleSort("checking_name")}>
-                        <span className="flex items-center">Session {getSortIcon("checking_name")}</span>
+                      <th
+                        className="vv-th text-left hidden lg:table-cell"
+                        onClick={() => handleSort("checking_name")}
+                      >
+                        <span className="flex items-center">
+                          Session {getSortIcon("checking_name")}
+                        </span>
                       </th>
-                      <th className="vv-th text-left hidden lg:table-cell" onClick={() => handleSort("location_name")}>
-                        <span className="flex items-center">Location {getSortIcon("location_name")}</span>
+                      <th
+                        className="vv-th text-left hidden lg:table-cell"
+                        onClick={() => handleSort("location_name")}
+                      >
+                        <span className="flex items-center">
+                          Location {getSortIcon("location_name")}
+                        </span>
                       </th>
-                      <th className="vv-th text-left" onClick={() => handleSort("validation_status")}>
-                        <span className="flex items-center">Status {getSortIcon("validation_status")}</span>
+                      <th
+                        className="vv-th text-left"
+                        onClick={() => handleSort("receiver_name")}
+                      >
+                        <span className="flex items-center">
+                          Receiver {getSortIcon("receiver_name")}
+                        </span>
                       </th>
-                      <th className="vv-th text-left hidden xl:table-cell" onClick={() => handleSort("created_at")}>
-                        <span className="flex items-center">Submitted {getSortIcon("created_at")}</span>
+                      <th
+                        className="vv-th text-left"
+                        onClick={() => handleSort("validation_status")}
+                      >
+                        <span className="flex items-center">
+                          Status {getSortIcon("validation_status")}
+                        </span>
+                      </th>
+                      <th
+                        className="vv-th text-left hidden xl:table-cell"
+                        onClick={() => handleSort("created_at")}
+                      >
+                        <span className="flex items-center">
+                          Submitted {getSortIcon("created_at")}
+                        </span>
                       </th>
                       <th className="vv-th text-center">Actions</th>
                     </tr>
@@ -831,14 +1104,23 @@ export default function ValidationVerificationPage() {
                       const photoUrl = validation.photo_url;
 
                       return (
-                        <tr key={validation.id_validation} className="vv-row transition-colors">
+                        <tr
+                          key={validation.id_validation}
+                          className="vv-row transition-colors"
+                        >
                           {showCheckboxes && (
                             <td className="vv-td text-center">
                               <input
                                 type="checkbox"
-                                checked={selectedItems.includes(validation.id_validation)}
-                                onChange={() => handleSelectItem(validation.id_validation)}
-                                disabled={validation.validation_status !== "pending"}
+                                checked={selectedItems.includes(
+                                  validation.id_validation,
+                                )}
+                                onChange={() =>
+                                  handleSelectItem(validation.id_validation)
+                                }
+                                disabled={
+                                  validation.validation_status !== "pending"
+                                }
                                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
                               />
                             </td>
@@ -846,12 +1128,18 @@ export default function ValidationVerificationPage() {
                           <td className="vv-td">
                             {photoUrl ? (
                               <img
-                                src={photoUrl.startsWith('http') ? photoUrl : `http://localhost:5001${photoUrl}`}
+                                src={
+                                  photoUrl.startsWith("http")
+                                    ? photoUrl
+                                    : `http://localhost:5001${photoUrl}`
+                                }
                                 alt="Scan result"
                                 className="w-10 h-10 rounded-lg object-cover cursor-pointer hover:opacity-80 transition"
                                 onClick={() => {
                                   Swal.fire({
-                                    imageUrl: photoUrl.startsWith('http') ? photoUrl : `http://localhost:5001${photoUrl}`,
+                                    imageUrl: photoUrl.startsWith("http")
+                                      ? photoUrl
+                                      : `http://localhost:5001${photoUrl}`,
                                     imageAlt: "Scan Result",
                                     title: "Scan Result Preview",
                                     imageWidth: 400,
@@ -859,13 +1147,15 @@ export default function ValidationVerificationPage() {
                                     confirmButtonColor: "#2563eb",
                                     customClass: {
                                       popup: "rounded-xl",
-                                      confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg"
-                                    }
+                                      confirmButton:
+                                        "px-4 py-2 bg-blue-600 text-white rounded-lg",
+                                    },
                                   });
                                 }}
                                 onError={(e) => {
-                                  e.target.style.display = 'none';
-                                  e.target.parentElement.innerHTML = '<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center"><Camera className="w-5 h-5 text-gray-400" /></div>';
+                                  e.target.style.display = "none";
+                                  e.target.parentElement.innerHTML =
+                                    '<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center"><Camera className="w-5 h-5 text-gray-400" /></div>';
                                 }}
                               />
                             ) : (
@@ -885,18 +1175,22 @@ export default function ValidationVerificationPage() {
                                 </div>
                                 <div className="mt-0.5">
                                   <span
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${validation.validation_type === "device"
-                                      ? "bg-blue-100 text-blue-700"
-                                      : validation.validation_type === "material"
-                                        ? "bg-green-100 text-green-700"
-                                        : "bg-gray-100 text-gray-700"
-                                      }`}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                      validation.validation_type === "device"
+                                        ? "bg-blue-100 text-blue-700"
+                                        : validation.validation_type ===
+                                            "material"
+                                          ? "bg-green-100 text-green-700"
+                                          : "bg-gray-100 text-gray-700"
+                                    }`}
                                   >
                                     {validation.validation_type === "device"
                                       ? "Device"
-                                      : validation.validation_type === "material"
+                                      : validation.validation_type ===
+                                          "material"
                                         ? "Material"
-                                        : validation.validation_type || "Unknown"}
+                                        : validation.validation_type ||
+                                          "Unknown"}
                                   </span>
                                 </div>
                               </div>
@@ -908,8 +1202,12 @@ export default function ValidationVerificationPage() {
                             </code>
                           </td>
                           <td className="vv-td hidden lg:table-cell">
-                            <div className="font-medium text-gray-800 text-sm">{validation.checking_name || "-"}</div>
-                            <div className="text-xs text-gray-400 mono mt-0.5">{validation.checking_number || "-"}</div>
+                            <div className="font-medium text-gray-800 text-sm">
+                              {validation.checking_name || "-"}
+                            </div>
+                            <div className="text-xs text-gray-400 mono mt-0.5">
+                              {validation.checking_number || "-"}
+                            </div>
                           </td>
                           <td className="vv-td hidden lg:table-cell">
                             <div className="flex items-center gap-1.5">
@@ -919,18 +1217,46 @@ export default function ValidationVerificationPage() {
                               </span>
                             </div>
                           </td>
+                        <td className="vv-td">
+  <div className="flex items-center gap-2">
+    {validation.receiver_name ? (
+      <span className="text-sm text-gray-800 font-medium">
+        {validation.receiver_name}
+      </span>
+    ) : (
+      <span className="text-sm text-gray-400 italic">
+        Not set
+      </span>
+    )}
+    <button
+      onClick={() => handleAddReceiver(validation)}
+      className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition border ${
+        validation.receiver_name
+          ? 'border-amber-500 text-amber-600 hover:bg-amber-50'
+          : 'border-blue-500 text-blue-600 hover:bg-blue-50'
+      }`}
+      title={validation.receiver_name ? "Edit Receiver Name" : "Add Receiver Name"}
+    >
+      <Edit2 className="w-3 h-3" />
+      {validation.receiver_name ? "Edit" : "Add"}
+    </button>
+  </div>
+</td>
                           <td className="vv-td">
                             <span
                               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}
                             >
-                              <span className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`} />
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`}
+                              />
                               {sc.label}
                             </span>
-                            {validation.rejection_reason && validation.validation_status === "rejected" && (
-                              <p className="text-xs text-red-500 mt-1 max-w-[160px] truncate">
-                                {validation.rejection_reason}
-                              </p>
-                            )}
+                            {validation.rejection_reason &&
+                              validation.validation_status === "rejected" && (
+                                <p className="text-xs text-red-500 mt-1 max-w-[160px] truncate">
+                                  {validation.rejection_reason}
+                                </p>
+                              )}
                           </td>
                           <td className="vv-td hidden xl:table-cell">
                             <div className="flex items-center gap-1.5">
@@ -943,40 +1269,40 @@ export default function ValidationVerificationPage() {
                               by {validation.created_by_name || "System"}
                             </div>
                           </td>
-                          <td className="vv-td text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <button
-                                onClick={() => handleViewDetail(validation)}
-                                className="view-btn"
-                                title="View Details"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                                <span className="hidden sm:inline">View</span>
-                              </button>
-                              {validation.validation_status === "pending" && (
-                                <>
-                                  <button
-                                    onClick={() => handleApprove(validation)}
-                                    disabled={isProcessing}
-                                    className="approve-btn"
-                                    title="Approve"
-                                  >
-                                    <ThumbsUp className="w-3.5 h-3.5" />
-                                    <span className="hidden sm:inline">Approve</span>
-                                  </button>
-                                  <button
-                                    onClick={() => handleReject(validation)}
-                                    disabled={isProcessing}
-                                    className="reject-btn"
-                                    title="Reject"
-                                  >
-                                    <ThumbsDown className="w-3.5 h-3.5" />
-                                    <span className="hidden sm:inline">Reject</span>
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </td>
+                  <td className="vv-td text-center">
+  <div className="flex items-center justify-center gap-2">
+    <button
+      onClick={() => handleViewDetail(validation)}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition shadow-sm"
+      title="View Details"
+    >
+      <Eye className="w-3.5 h-3.5" />
+    
+    </button>
+    {validation.validation_status === "pending" && (
+      <>
+        <button
+          onClick={() => handleApprove(validation)}
+          disabled={isProcessing}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Approve"
+        >
+          <ThumbsUp className="w-3.5 h-3.5" />
+
+        </button>
+        <button
+          onClick={() => handleReject(validation)}
+          disabled={isProcessing}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Reject"
+        >
+          <ThumbsDown className="w-3.5 h-3.5" />
+  
+        </button>
+      </>
+    )}
+  </div>
+</td>
                         </tr>
                       );
                     })}
@@ -991,7 +1317,11 @@ export default function ValidationVerificationPage() {
                 <p className="text-xs text-gray-500">
                   Showing{" "}
                   <span className="font-semibold text-gray-700">
-                    {((currentPage - 1) * itemsPerPage) + 1}–{Math.min(currentPage * itemsPerPage, filteredValidations.length)}
+                    {(currentPage - 1) * itemsPerPage + 1}–
+                    {Math.min(
+                      currentPage * itemsPerPage,
+                      filteredValidations.length,
+                    )}
                   </span>{" "}
                   of{" "}
                   <span className="font-semibold text-gray-700">
@@ -999,7 +1329,10 @@ export default function ValidationVerificationPage() {
                   </span>{" "}
                   validations
                   {typeFilter !== "all" && (
-                    <span className="text-gray-400"> · {typeFilter === "device" ? "Devices" : "Materials"}</span>
+                    <span className="text-gray-400">
+                      {" "}
+                      · {typeFilter === "device" ? "Devices" : "Materials"}
+                    </span>
                   )}
                   {statusFilter !== "all" && (
                     <span className="text-gray-400"> · {statusFilter}</span>
@@ -1011,7 +1344,7 @@ export default function ValidationVerificationPage() {
                 {totalPages > 1 && (
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
                       className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
@@ -1021,7 +1354,9 @@ export default function ValidationVerificationPage() {
                       {currentPage} / {totalPages}
                     </span>
                     <button
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      onClick={() =>
+                        setCurrentPage((p) => Math.min(totalPages, p + 1))
+                      }
                       disabled={currentPage === totalPages}
                       className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
@@ -1034,7 +1369,7 @@ export default function ValidationVerificationPage() {
           </div>
         </div>
 
-        {/* Detail Modal */}
+        {/* Detail Modal - Update untuk menampilkan receiver name */}
         {detailModal && (
           <div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
@@ -1047,18 +1382,27 @@ export default function ValidationVerificationPage() {
               <div className="p-5 border-b border-gray-100 flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   {getTypeIcon(detailModal.validation_type)}
-                  <h2 className="text-lg font-semibold text-gray-900">Validation Details</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Validation Details
+                  </h2>
                   {(() => {
                     const sc = getStatusConfig(detailModal.validation_status);
                     return (
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${sc.dot}`}
+                        />
                         {sc.label}
                       </span>
                     );
                   })()}
                 </div>
-                <button onClick={() => setDetailModal(null)} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100">
+                <button
+                  onClick={() => setDetailModal(null)}
+                  className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -1067,12 +1411,17 @@ export default function ValidationVerificationPage() {
                 {detailModal.photo_url && (
                   <div className="rounded-lg overflow-hidden bg-gray-100 max-h-64">
                     <img
-                      src={detailModal.photo_url.startsWith('http') ? detailModal.photo_url : `http://localhost:5001${detailModal.photo_url}`}
+                      src={
+                        detailModal.photo_url.startsWith("http")
+                          ? detailModal.photo_url
+                          : `http://localhost:5001${detailModal.photo_url}`
+                      }
                       alt="Scan result"
                       className="w-full h-full object-contain"
                       onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.parentElement.innerHTML = '<div class="w-full h-40 bg-gray-100 rounded-lg flex items-center justify-center"><Camera className="w-10 h-10 text-gray-400" /></div>';
+                        e.target.style.display = "none";
+                        e.target.parentElement.innerHTML =
+                          '<div class="w-full h-40 bg-gray-100 rounded-lg flex items-center justify-center"><Camera className="w-10 h-10 text-gray-400" /></div>';
                       }}
                     />
                   </div>
@@ -1081,34 +1430,79 @@ export default function ValidationVerificationPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-gray-50 rounded-lg p-3">
                     <p className="text-xs text-gray-500 mb-1">Item Name</p>
-                    <p className="font-semibold text-gray-900 text-sm">{detailModal.item_name || "-"}</p>
+                    <p className="font-semibold text-gray-900 text-sm">
+                      {detailModal.item_name || "-"}
+                    </p>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3">
                     <p className="text-xs text-gray-500 mb-1">Type</p>
-                    <p className="font-semibold text-gray-900 capitalize text-sm">{detailModal.validation_type}</p>
+                    <p className="font-semibold text-gray-900 capitalize text-sm">
+                      {detailModal.validation_type}
+                    </p>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3">
                     <p className="text-xs text-gray-500 mb-1">
-                      {detailModal.validation_type === "device" ? "Serial Number" : "Scan Code"}
+                      {detailModal.validation_type === "device"
+                        ? "Serial Number"
+                        : "Scan Code"}
                     </p>
-                    <code className="text-sm font-mono text-gray-800">{detailModal.serial_or_code || "-"}</code>
+                    <code className="text-sm font-mono text-gray-800">
+                      {detailModal.serial_or_code || "-"}
+                    </code>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3">
                     <p className="text-xs text-gray-500 mb-1">Unique Code</p>
-                    <code className="text-sm font-mono text-gray-800">{detailModal.unique_code || "-"}</code>
+                    <code className="text-sm font-mono text-gray-800">
+                      {detailModal.unique_code || "-"}
+                    </code>
                   </div>
                 </div>
 
                 <div className="bg-gray-50 rounded-lg p-3">
                   <p className="text-xs text-gray-500 mb-1">Session</p>
-                  <p className="font-semibold text-gray-900 text-sm">{detailModal.checking_name || "-"}</p>
-                  <p className="text-xs text-gray-500 font-mono">{detailModal.checking_number || "-"}</p>
+                  <p className="font-semibold text-gray-900 text-sm">
+                    {detailModal.checking_name || "-"}
+                  </p>
+                  <p className="text-xs text-gray-500 font-mono">
+                    {detailModal.checking_number || "-"}
+                  </p>
                   {detailModal.checking_date && (
                     <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
-                      {new Date(detailModal.checking_date).toLocaleDateString("id-ID")}
+                      {new Date(detailModal.checking_date).toLocaleDateString(
+                        "id-ID",
+                      )}
                     </p>
                   )}
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1">Receiver Name</p>
+                  <div className="flex items-center justify-between">
+                    <p
+                      className={`text-sm ${detailModal.receiver_name ? "font-semibold text-gray-900" : "text-gray-400 italic"}`}
+                    >
+                      {detailModal.receiver_name || "Not set"}
+                    </p>
+                    <button
+                      onClick={() => {
+                        setDetailModal(null);
+                        handleAddReceiver({
+                          id_validation: detailModal.id_validation,
+                          item_name: detailModal.item_name,
+                          receiver_name: detailModal.receiver_name,
+                        });
+                      }}
+                      className={`px-2 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1 ${
+                        detailModal.receiver_name
+                          ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                          : "bg-green-100 text-green-700 hover:bg-green-200"
+                      }`}
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      {detailModal.receiver_name ? "Edit" : "Add"}
+                    </button>
+                  </div>
                 </div>
 
                 {detailModal.location_name && (
@@ -1116,65 +1510,89 @@ export default function ValidationVerificationPage() {
                     <p className="text-xs text-gray-500 mb-1">Location</p>
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-900 text-sm">{detailModal.location_name}</span>
+                      <span className="text-gray-900 text-sm">
+                        {detailModal.location_name}
+                      </span>
                     </div>
                   </div>
                 )}
 
-                {detailModal.detection_data && (() => {
-                  // Parse detection data jika string
-                  let detectionData = detailModal.detection_data;
-                  if (typeof detectionData === 'string') {
-                    try {
-                      detectionData = JSON.parse(detectionData);
-                    } catch (e) {
-                      return null;
+                {detailModal.detection_data &&
+                  (() => {
+                    let detectionData = detailModal.detection_data;
+                    if (typeof detectionData === "string") {
+                      try {
+                        detectionData = JSON.parse(detectionData);
+                      } catch (e) {
+                        return null;
+                      }
                     }
-                  }
 
-                  // Format confidence ke persen
-                  const confidencePercent = detectionData.confidence
-                    ? Math.round(detectionData.confidence * 100)
-                    : null;
+                    const confidencePercent = detectionData.confidence
+                      ? Math.round(detectionData.confidence * 100)
+                      : null;
 
-                  return (
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-xs text-gray-500 mb-2">Detection Result</p>
-                      <div className="space-y-2">
-                        {detectionData.asset_type && (
-                          <div>
-                            <p className="text-xs text-gray-400">Detected Asset</p>
-                            <p className="text-sm font-medium text-gray-800">{detectionData.asset_type}</p>
-                          </div>
-                        )}
-                        {detectionData.category && (
-                          <div>
-                            <p className="text-xs text-gray-400">Category</p>
-                            <p className="text-sm font-medium text-gray-800">
-                              {detectionData.category === "Perangkat" ? "Device" : detectionData.category}
-                            </p>
-                          </div>
-                        )}
-                        {confidencePercent !== null && (
-                          <div>
-                            <p className="text-xs text-gray-400">Confidence Level</p>
-                            <p className="text-sm font-medium text-gray-800">{confidencePercent}%</p>
-                          </div>
-                        )}
+                    return (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs text-gray-500 mb-2">
+                          Detection Result
+                        </p>
+                        <div className="space-y-2">
+                          {detectionData.asset_type && (
+                            <div>
+                              <p className="text-xs text-gray-400">
+                                Detected Asset
+                              </p>
+                              <p className="text-sm font-medium text-gray-800">
+                                {detectionData.asset_type}
+                              </p>
+                            </div>
+                          )}
+                          {detectionData.category && (
+                            <div>
+                              <p className="text-xs text-gray-400">Category</p>
+                              <p className="text-sm font-medium text-gray-800">
+                                {detectionData.category === "Perangkat"
+                                  ? "Device"
+                                  : detectionData.category}
+                              </p>
+                            </div>
+                          )}
+                          {confidencePercent !== null && (
+                            <div>
+                              <p className="text-xs text-gray-400">
+                                Confidence Level
+                              </p>
+                              <p className="text-sm font-medium text-gray-800">
+                                {confidencePercent}%
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })()}
+                    );
+                  })()}
 
-                {(detailModal.validation_notes || detailModal.rejection_reason) && (
-                  <div className={`rounded-lg p-3 ${detailModal.validation_status === 'rejected' ? 'bg-red-50 border border-red-100' : 'bg-emerald-50 border border-emerald-100'}`}>
+                {(detailModal.validation_notes ||
+                  detailModal.rejection_reason) && (
+                  <div
+                    className={`rounded-lg p-3 ${detailModal.validation_status === "rejected" ? "bg-red-50 border border-red-100" : "bg-emerald-50 border border-emerald-100"}`}
+                  >
                     <p className="text-xs font-semibold mb-1 text-gray-700">
-                      {detailModal.validation_status === 'rejected' ? 'Rejection Reason' : 'Validation Notes'}
+                      {detailModal.validation_status === "rejected"
+                        ? "Rejection Reason"
+                        : "Validation Notes"}
                     </p>
-                    <p className="text-sm text-gray-800">{detailModal.validation_notes || detailModal.rejection_reason}</p>
+                    <p className="text-sm text-gray-800">
+                      {detailModal.validation_notes ||
+                        detailModal.rejection_reason}
+                    </p>
                     {detailModal.validated_by_name && (
                       <p className="text-xs text-gray-500 mt-2">
-                        Validated by {detailModal.validated_by_name} at {detailModal.validated_at ? new Date(detailModal.validated_at).toLocaleString() : "-"}
+                        Validated by {detailModal.validated_by_name} at{" "}
+                        {detailModal.validated_at
+                          ? new Date(detailModal.validated_at).toLocaleString()
+                          : "-"}
                       </p>
                     )}
                   </div>
@@ -1216,6 +1634,8 @@ export default function ValidationVerificationPage() {
             </div>
           </div>
         )}
+
+        <AddReceiverModalComponent />
       </LayoutDashboard>
     </ProtectedPage>
   );

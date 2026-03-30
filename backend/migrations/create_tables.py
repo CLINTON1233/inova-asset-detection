@@ -476,12 +476,13 @@ def create_validations_table(conn):
                 unique_code VARCHAR(100) UNIQUE,
                 is_approved BOOLEAN DEFAULT FALSE,
                 rejection_reason TEXT,
+                receiver_name VARCHAR(255),  -- Kolom baru untuk nama penerima
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
-        # Add missing columns if they don't exist
+        # Add missing columns if they don't exist (termasuk receiver_name)
         cur.execute("""
             DO $$ 
             BEGIN
@@ -493,8 +494,15 @@ def create_validations_table(conn):
                               WHERE table_name='validations' AND column_name='is_approved') THEN
                     ALTER TABLE validations ADD COLUMN is_approved BOOLEAN DEFAULT FALSE;
                 END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                              WHERE table_name='validations' AND column_name='receiver_name') THEN
+                    ALTER TABLE validations ADD COLUMN receiver_name VARCHAR(255);
+                END IF;
             END $$;
         """)
+        
+        # Index untuk receiver_name (opsional, untuk performa query jika sering dicari)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_receiver_name ON validations(receiver_name)")
         
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_scan ON validations(scan_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_scan_material ON validations(scan_material_id)")
@@ -502,8 +510,10 @@ def create_validations_table(conn):
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_material_item_prep ON validations(material_item_preparation_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_status ON validations(validation_status)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_approved ON validations(is_approved)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_unique_code ON validations(unique_code)")
+        
         conn.commit()
-        print("✓ Tabel validations berhasil dibuat/diperbarui")
+        print("✓ Tabel validations berhasil dibuat/diperbarui dengan kolom receiver_name")
     except Exception as e:
         conn.rollback()
         print(f"Error creating validations table: {e}")
