@@ -379,20 +379,22 @@ export default function RegisterPage() {
         </div>
 
         {/* Footer */}
-        <footer className="text-center py-2 text-xs text-gray-500 border-t">
-          <div className="font-medium">© 2026 IT Asset Management System</div>
-          <div>
-            <a
-              href="https://seatrium.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-500 hover:text-gray-700 font-medium"
-            >
-              Seatrium
-            </a>{" "}
-            <span className="text-gray-400">• All rights reserved.</span>
-          </div>
-        </footer>
+<footer className="text-center py-3 sm:py-4 text-xs sm:text-sm text-gray-500 border-t">
+  <div>
+    © 2026 IT Asset Management System
+  </div>
+  <div>
+    <a
+      href="https://seatrium.com"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-gray-500 hover:text-gray-700"
+    >
+      Seatrium
+    </a>{" "}
+    <span className="text-gray-400">• All rights reserved.</span>
+  </div>
+</footer>
       </div>
     </div>
   );

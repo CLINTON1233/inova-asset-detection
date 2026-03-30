@@ -237,9 +237,8 @@ export default function LoginPage() {
             src={img}
             alt={`Carousel ${index}`}
             fill
-            className={`object-cover transition-opacity duration-1000 ease-in-out ${
-              index === currentImage ? "opacity-100" : "opacity-0"
-            }`}
+            className={`object-cover transition-opacity duration-1000 ease-in-out ${index === currentImage ? "opacity-100" : "opacity-0"
+              }`}
             priority={index === 0}
           />
         ))}
@@ -252,9 +251,8 @@ export default function LoginPage() {
           {images.map((_, index) => (
             <div
               key={index}
-              className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full transition-all ${
-                index === currentImage ? "bg-white w-5 sm:w-8" : "bg-white/50"
-              }`}
+              className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full transition-all ${index === currentImage ? "bg-white w-5 sm:w-8" : "bg-white/50"
+                }`}
             />
           ))}
         </div>
@@ -354,11 +352,10 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className={`w-full flex justify-center py-2 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm font-medium rounded-md text-white transition ${
-                    isLoading
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  }`}
+                  className={`w-full flex justify-center py-2 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm font-medium rounded-md text-white transition ${isLoading
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    }`}
                 >
                   {isLoading ? "Logging in..." : "Login"}
                 </button>
@@ -381,22 +378,22 @@ export default function LoginPage() {
         </div>
 
         {/* Footer */}
-    <footer className="text-center py-3 sm:py-4 text-xs sm:text-sm text-gray-500 border-t">
-  <div className="font-medium">
-    © 2026 IT Asset Management System
-  </div>
-  <div>
-    <a
-      href="https://seatrium.com"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-gray-500 hover:text-gray-700 font-medium"
-    >
-      Seatrium
-    </a>{" "}
-    <span className="text-gray-400">• All rights reserved.</span>
-  </div>
-</footer>
+        <footer className="text-center py-3 sm:py-4 text-xs sm:text-sm text-gray-500 border-t">
+          <div>
+            © 2026 IT Asset Management System
+          </div>
+          <div>
+            <a
+              href="https://seatrium.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-500 hover:text-gray-700"
+            >
+              Seatrium
+            </a>{" "}
+            <span className="text-gray-400">• All rights reserved.</span>
+          </div>
+        </footer>
 
       </div>
     </div>
