@@ -23,6 +23,9 @@ import {
   Trash2,
   Cpu,
   Cable,
+  Users,
+  User,
+  Building2,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import API_BASE_URL, { API_ENDPOINTS } from "../../config/api";
@@ -37,6 +40,7 @@ export default function ScanningPreparationListPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [sorting, setSorting] = useState({ id: "created_at", desc: true });
   const [mounted, setMounted] = useState(false);
+  const [expandedSession, setExpandedSession] = useState(null);
 
   useEffect(() => {
     setMounted(true);
@@ -46,29 +50,24 @@ export default function ScanningPreparationListPage() {
   useEffect(() => {
     let filtered = [...sessions];
     
-    // Filter berdasarkan search term
     if (searchTerm) {
       filtered = filtered.filter(
         (s) =>
           s.checking_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           s.checking_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (s.location_name || "")
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()),
+          (s.location_name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (s.project_name || "").toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     
-    // Filter berdasarkan status
     if (statusFilter !== "all") {
       filtered = filtered.filter((s) => s.status === statusFilter);
     }
     
-    // Filter berdasarkan tipe (Device/Material)
     if (typeFilter !== "all") {
       filtered = filtered.filter((s) => s.type === typeFilter);
     }
     
-    // Sorting
     if (sorting.id) {
       filtered.sort((a, b) => {
         let aVal = a[sorting.id];
@@ -89,27 +88,13 @@ export default function ScanningPreparationListPage() {
   const fetchSessions = async () => {
     setLoading(true);
     try {
-      console.log(
-        "Fetching all sessions from:",
-        API_ENDPOINTS.SCANNING_PREP_LIST_ALL,
-      );
-
       const response = await fetch(API_ENDPOINTS.SCANNING_PREP_LIST_ALL, {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
       });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        const text = await response.text();
-        console.error("Response is not JSON:", text.substring(0, 200));
-        throw new Error("Server returned non-JSON response");
       }
 
       const result = await response.json();
@@ -117,55 +102,85 @@ export default function ScanningPreparationListPage() {
 
       if (result.success) {
         const sessionsWithDetails = result.data.map((session) => {
-          const totalItems = session.items?.length || 0;
-          const totalQty =
-            session.totalQty ||
-            session.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) ||
-            0;
-          let status = session.status || "pending";
-          let progress = session.progress || 0;
+          const items = session.items || [];
+          const totalItems = items.length;
+          const totalQty = session.totalQty || items.reduce((sum, i) => sum + (i.quantity || 0), 0);
+          
+          // Ambil project name dari items (jika ada)
+          const projectName = items[0]?.project_name || "-";
+          
+          // Ambil receiver info dari items
+          const receiversList = [];
+          items.forEach(item => {
+            if (item.receivers && item.receivers.length > 0) {
+              item.receivers.forEach(r => {
+                if (r.receiver_name || r.receiver_id) {
+                  receiversList.push({
+                    name: r.receiver_name,
+                    department: r.department_name,
+                    item_name: session.type === 'device' ? item.device_name : item.material_name
+                  });
+                }
+              });
+            }
+          });
+          
+          // Ambil department distribution
+          const departmentsList = [];
+          items.forEach(item => {
+            if (item.departments && item.departments.length > 0) {
+              item.departments.forEach(d => {
+                if (!departmentsList.find(dept => dept.id === d.department_id)) {
+                  departmentsList.push({
+                    id: d.department_id,
+                    name: d.department_name,
+                    quantity: d.quantity
+                  });
+                } else {
+                  const existing = departmentsList.find(dept => dept.id === d.department_id);
+                  if (existing) existing.quantity += d.quantity;
+                }
+              });
+            }
+          });
 
+          let progress = session.progress || 0;
+          let status = session.status || "pending";
+          
           if (session.items && session.items.length > 0 && !session.progress) {
-            const totalScanned = session.items.reduce(
-              (sum, i) => sum + (i.scanned_count || 0),
-              0,
-            );
-            progress =
-              totalQty > 0 ? Math.round((totalScanned / totalQty) * 100) : 0;
+            const totalScanned = session.items.reduce((sum, i) => sum + (i.scanned_count || 0), 0);
+            progress = totalQty > 0 ? Math.round((totalScanned / totalQty) * 100) : 0;
             if (progress === 100) status = "completed";
             else if (progress > 0) status = "in-progress";
           }
 
-          const sessionType =
-            session.type || (session.category_id === 1 ? "device" : "material");
+          const sessionType = session.type || (session.category_id === 1 ? "device" : "material");
 
           return {
             ...session,
             type: sessionType,
-            status: session.status,
-            progress: session.progress,
+            status: session.status || status,
+            progress: session.progress || progress,
             totalItems,
             totalQty,
+            project_name: projectName,
+            receivers: receiversList,
+            departments: departmentsList,
             category_name: session.category_name || "General",
             location_name: session.location_name || "No location",
-            uniqueCode:
-              session.checking_number || `SESS-${session.id_preparation}`,
+            uniqueCode: session.checking_number || `SESS-${session.id_preparation}`,
           };
         });
         setSessions(sessionsWithDetails);
         setFilteredSessions(sessionsWithDetails);
       } else {
-        throw new Error(
-          result.message || result.error || "Failed to load sessions",
-        );
+        throw new Error(result.message || result.error || "Failed to load sessions");
       }
     } catch (error) {
       console.error("Error fetching sessions:", error);
       Swal.fire({
         title: "Error!",
-        text:
-          error.message ||
-          "Failed to load sessions. Please check if backend server is running.",
+        text: error.message || "Failed to load sessions. Please check if backend server is running.",
         icon: "error",
         confirmButtonColor: "#1e40af",
       });
@@ -273,23 +288,19 @@ export default function ScanningPreparationListPage() {
           throw new Error("Unknown session type");
         }
 
-        console.log("Deleting with endpoint:", deleteEndpoint);
-
         const response = await fetch(deleteEndpoint, {
           method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
         });
 
         const data = await response.json();
 
         if (data.success) {
           setSessions((prevSessions) =>
-            prevSessions.filter((s) => s.id_preparation !== prepId),
+            prevSessions.filter((s) => s.id_preparation !== prepId)
           );
           setFilteredSessions((prevFiltered) =>
-            prevFiltered.filter((s) => s.id_preparation !== prepId),
+            prevFiltered.filter((s) => s.id_preparation !== prepId)
           );
 
           Swal.fire({
@@ -316,6 +327,10 @@ export default function ScanningPreparationListPage() {
     }
   };
 
+  const toggleExpandSession = (sessionId) => {
+    setExpandedSession(expandedSession === sessionId ? null : sessionId);
+  };
+
   if (!mounted) {
     return (
       <LayoutDashboard activeMenu={2}>
@@ -327,36 +342,11 @@ export default function ScanningPreparationListPage() {
   }
 
   const kpis = [
-    {
-      title: "Total Sessions",
-      value: stats.total,
-      sub: "All sessions",
-      accent: "#2563eb",
-    },
-    {
-      title: "Devices",
-      value: stats.devices,
-      sub: "Device sessions",
-      accent: "#3b82f6",
-    },
-    {
-      title: "Materials",
-      value: stats.materials,
-      sub: "Material sessions",
-      accent: "#10b981",
-    },
-    {
-      title: "In Progress",
-      value: stats.inProgress,
-      sub: "Sessions active",
-      accent: "#6366f1",
-    },
-    {
-      title: "Completed",
-      value: stats.completed,
-      sub: "Sessions done",
-      accent: "#10b981",
-    },
+    { title: "Total Sessions", value: stats.total, sub: "All sessions", accent: "#2563eb" },
+    { title: "Devices", value: stats.devices, sub: "Device sessions", accent: "#3b82f6" },
+    { title: "Materials", value: stats.materials, sub: "Material sessions", accent: "#10b981" },
+    { title: "In Progress", value: stats.inProgress, sub: "Sessions active", accent: "#6366f1" },
+    { title: "Completed", value: stats.completed, sub: "Sessions done", accent: "#10b981" },
   ];
 
   return (
@@ -407,62 +397,16 @@ export default function ScanningPreparationListPage() {
         }
         .sp-row:hover { background: #f8faff; }
 
-        .scan-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          background: #1e40af;
-          color: #fff;
-          padding: 7px 16px;
-          border-radius: 8px;
-          font-size: 12px;
-          font-weight: 600;
-          transition: background 0.15s;
-          border: none;
-          cursor: pointer;
-          white-space: nowrap;
-          box-shadow: 0 1px 3px rgba(30,64,175,0.3);
-        }
-        .scan-btn:hover { background: #1d3a9e; }
-
-        .delete-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          background: #dc2626;
-          color: #fff;
-          padding: 7px 16px;
-          border-radius: 8px;
-          font-size: 12px;
-          font-weight: 600;
-          transition: background 0.15s;
-          border: none;
-          cursor: pointer;
-          white-space: nowrap;
-          box-shadow: 0 1px 3px rgba(220,38,38,0.3);
-        }
-        .delete-btn:hover { background: #b91c1c; }
-
-        .new-session-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          background: #1e40af;
-          color: #fff;
-          padding: 7px 16px;
-          border-radius: 8px;
-          font-size: 12px;
-          font-weight: 600;
-          transition: background 0.15s;
-          border: none;
-          cursor: pointer;
-          white-space: nowrap;
-          box-shadow: 0 1px 3px rgba(30,64,175,0.3);
-        }
-        .new-session-btn:hover { background: #1d3a9e; }
-
         .prog-track { background: #e5e7eb; border-radius: 99px; height: 5px; }
         .prog-fill  { background: #3b82f6; border-radius: 99px; height: 5px; transition: width 0.3s; }
+        
+        .expandable-row {
+          transition: all 0.2s ease;
+        }
+        .expandable-content {
+          background: #fafcff;
+          border-top: 1px solid #f0f2f5;
+        }
       `}</style>
 
       <div className="sp-root space-y-5">
@@ -481,11 +425,10 @@ export default function ScanningPreparationListPage() {
           </div>
           <button
             onClick={() => router.push("/create_scanning_preparation")}
-            className="new-session-btn"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition shadow-sm"
           >
             <Plus className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">New Session</span>
-            <span className="sm:hidden">New</span>
           </button>
         </div>
 
@@ -497,10 +440,7 @@ export default function ScanningPreparationListPage() {
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
                   {d.title}
                 </p>
-                <span
-                  className="text-4xl font-bold"
-                  style={{ color: d.accent }}
-                >
+                <span className="text-4xl font-bold" style={{ color: d.accent }}>
                   {d.value}
                 </span>
                 <p className="text-xs text-gray-400 mt-2">{d.sub}</p>
@@ -517,7 +457,7 @@ export default function ScanningPreparationListPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search session name, number, location..."
+                placeholder="Search session name, number, location, project..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
@@ -532,7 +472,6 @@ export default function ScanningPreparationListPage() {
               )}
             </div>
 
-            {/* Dropdown Filter Tipe Device/Material */}
             <div className="relative">
               <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
               <select
@@ -547,7 +486,6 @@ export default function ScanningPreparationListPage() {
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
             </div>
 
-            {/* Dropdown Filter Status */}
             <div className="relative">
               <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
               <select
@@ -569,9 +507,7 @@ export default function ScanningPreparationListPage() {
                 disabled={loading}
                 className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
-                <RefreshCw
-                  className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
-                />
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
                 Refresh
               </button>
             </div>
@@ -586,15 +522,11 @@ export default function ScanningPreparationListPage() {
           ) : sessions.length === 0 ? (
             <div className="py-20 text-center">
               <ScanLine className="w-14 h-14 text-gray-200 mx-auto mb-3" />
-              <h3 className="text-gray-800 font-semibold text-lg mb-1">
-                No sessions found
-              </h3>
-              <p className="text-gray-400 text-sm mb-5">
-                Create your first scanning session to get started
-              </p>
+              <h3 className="text-gray-800 font-semibold text-lg mb-1">No sessions found</h3>
+              <p className="text-gray-400 text-sm mb-5">Create your first scanning session to get started</p>
               <button
                 onClick={() => router.push("/create_scanning_preparation")}
-                className="new-session-btn"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
               >
                 <Plus className="w-3.5 h-3.5" /> Create Session
               </button>
@@ -602,12 +534,8 @@ export default function ScanningPreparationListPage() {
           ) : filteredSessions.length === 0 ? (
             <div className="py-16 text-center">
               <Search className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-              <h3 className="text-gray-800 font-semibold mb-1">
-                No matching sessions
-              </h3>
-              <p className="text-gray-400 text-sm mb-4">
-                Try adjusting your filters
-              </p>
+              <h3 className="text-gray-800 font-semibold mb-1">No matching sessions</h3>
+              <p className="text-gray-400 text-sm mb-4">Try adjusting your filters</p>
               <button
                 onClick={() => {
                   setSearchTerm("");
@@ -624,45 +552,20 @@ export default function ScanningPreparationListPage() {
               <table className="min-w-full">
                 <thead>
                   <tr>
-                    <th
-                      className="sp-th text-left"
-                      onClick={() => handleSort("checking_name")}
-                    >
-                      <span className="flex items-center">
-                        Session {getSortIcon("checking_name")}
-                      </span>
+                    <th className="sp-th text-left" onClick={() => handleSort("checking_name")}>
+                      <span className="flex items-center">Session {getSortIcon("checking_name")}</span>
                     </th>
-                    <th
-                      className="sp-th text-left hidden md:table-cell"
-                      onClick={() => handleSort("checking_date")}
-                    >
-                      <span className="flex items-center">
-                        Date {getSortIcon("checking_date")}
-                      </span>
+                    <th className="sp-th text-left hidden md:table-cell" onClick={() => handleSort("checking_date")}>
+                      <span className="flex items-center">Date {getSortIcon("checking_date")}</span>
                     </th>
-                    <th
-                      className="sp-th text-left hidden lg:table-cell"
-                      onClick={() => handleSort("location_name")}
-                    >
-                      <span className="flex items-center">
-                        Location {getSortIcon("location_name")}
-                      </span>
+                    <th className="sp-th text-left hidden lg:table-cell" onClick={() => handleSort("location_name")}>
+                      <span className="flex items-center">Location {getSortIcon("location_name")}</span>
                     </th>
-                    <th
-                      className="sp-th text-left"
-                      onClick={() => handleSort("status")}
-                    >
-                      <span className="flex items-center">
-                        Status {getSortIcon("status")}
-                      </span>
+                    <th className="sp-th text-left hidden xl:table-cell">
+                      <span className="flex items-center">Project</span>
                     </th>
-                    <th
-                      className="sp-th text-left hidden xl:table-cell"
-                      onClick={() => handleSort("totalItems")}
-                    >
-                      <span className="flex items-center">
-                        Items {getSortIcon("totalItems")}
-                      </span>
+                    <th className="sp-th text-left" onClick={() => handleSort("status")}>
+                      <span className="flex items-center">Status {getSortIcon("status")}</span>
                     </th>
                     <th className="sp-th text-left">Progress</th>
                     <th className="sp-th text-center">Actions</th>
@@ -671,136 +574,159 @@ export default function ScanningPreparationListPage() {
                 <tbody>
                   {filteredSessions.map((session, idx) => {
                     const sc = getStatusConfig(session.status);
-                    const uniqueKey = `${session.type || "unknown"}_${session.id_preparation}`;
+                    const isExpanded = expandedSession === session.id_preparation;
                     return (
-                      <tr key={uniqueKey} className="sp-row transition-colors">
-                        <td className="sp-td">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">
-                              {idx + 1}
-                            </div>
-                            <div>
-                              <div className="font-semibold text-gray-900 text-sm leading-tight">
-                                {session.checking_name}
+                      <>
+                        <tr key={`${session.type}_${session.id_preparation}`} className="sp-row transition-colors">
+                          <td className="sp-td">
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => toggleExpandSession(session.id_preparation)}
+                                className="p-1 hover:bg-gray-100 rounded transition"
+                              >
+                                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                              </button>
+                              <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">
+                                {idx + 1}
                               </div>
-                              <div className="text-xs text-gray-400 mono mt-0.5">
-                                {session.checking_number}
-                              </div>
-                              <div className="text-xs text-gray-400 mt-0.5">
-                                <span
-                                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                    session.type === "device"
-                                      ? "bg-blue-100 text-blue-700"
-                                      : session.type === "material"
-                                        ? "bg-green-100 text-green-700"
-                                        : "bg-gray-100 text-gray-700"
-                                  }`}
-                                >
-                                  {session.type === "device"
-                                    ? "Device"
-                                    : session.type === "material"
-                                      ? "Material"
-                                      : "Unknown"}
-                                </span>
+                              <div>
+                                <div className="font-semibold text-gray-900 text-sm leading-tight">
+                                  {session.checking_name}
+                                </div>
+                                <div className="text-xs text-gray-400 mono mt-0.5">
+                                  {session.checking_number}
+                                </div>
+                                <div className="text-xs text-gray-400 mt-0.5">
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                    session.type === "device" ? "bg-blue-100 text-blue-700" :
+                                    session.type === "material" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"
+                                  }`}>
+                                    {session.type === "device" ? "Device" : session.type === "material" ? "Material" : "Unknown"}
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="sp-td hidden md:table-cell">
-                          <div className="flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                            <span className="text-xs text-gray-600">
-                              {formatDate(session.checking_date)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="sp-td hidden lg:table-cell">
-                          <div className="flex items-center gap-1.5">
-                            <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                            <span className="text-xs text-gray-600 truncate max-w-[140px]">
-                              {session.location_name}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="sp-td">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}
-                          >
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`}
-                            />
-                            {sc.label}
-                          </span>
-                        </td>
-                        <td className="sp-td hidden xl:table-cell">
-                          <div className="text-sm font-semibold text-gray-800">
-                            {session.totalItems}{" "}
-                            <span className="font-normal text-gray-400 text-xs">
-                              items
-                            </span>
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            {session.totalQty} qty total
-                          </div>
-                        </td>
-                        <td className="sp-td">
-                          <div className="flex items-center gap-2">
-                            <div className="prog-track w-20">
-                              <div
-                                className="prog-fill"
-                                style={{ width: `${session.progress || 0}%` }}
-                              />
+                          </td>
+                          <td className="sp-td hidden md:table-cell">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                              <span className="text-xs text-gray-600">{formatDate(session.checking_date)}</span>
                             </div>
-                            <span className="text-xs font-semibold text-gray-600">
-                              {session.progress || 0}%
+                          </td>
+                          <td className="sp-td hidden lg:table-cell">
+                            <div className="flex items-center gap-1.5">
+                              <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                              <span className="text-xs text-gray-600 truncate max-w-[140px]">{session.location_name}</span>
+                            </div>
+                          </td>
+                          <td className="sp-td hidden xl:table-cell">
+                            <div className="flex items-center gap-1.5">
+                              <Building2 className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                              <span className="text-xs text-gray-600 truncate max-w-[120px]">{session.project_name}</span>
+                            </div>
+                          </td>
+                          <td className="sp-td">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`} />
+                              {sc.label}
                             </span>
-                          </div>
-                        </td>
-                        <td className="sp-td text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            <button
-                              onClick={() =>
-                                router.push(
-                                  `/scanning?prep_id=${session.id_preparation}&type=${session.type}`,
-                                )
-                              }
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
-                              title="Start Scanning"
-                            >
-                              <ScanLine className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">Scan</span>
-                            </button>
-
-                            <button
-                              onClick={() =>
-                                router.push(
-                                  `/edit_scanning_preparation?id=${session.id_preparation}&type=${session.type}`,
-                                )
-                              }
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-lg hover:bg-gray-700 transition"
-                              title="Edit Session"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">Edit</span>
-                            </button>
-
-                            <button
-                              onClick={() =>
-                                handleDelete(
-                                  session.id_preparation,
-                                  session.checking_name,
-                                  session.type,
-                                )
-                              }
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
-                              title="Delete Session"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">Delete</span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                          </td>
+                          <td className="sp-td">
+                            <div className="flex items-center gap-2">
+                              <div className="prog-track w-20">
+                                <div className="prog-fill" style={{ width: `${session.progress || 0}%` }} />
+                              </div>
+                              <span className="text-xs font-semibold text-gray-600">{session.progress || 0}%</span>
+                            </div>
+                          </td>
+                          <td className="sp-td text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => router.push(`/scanning?prep_id=${session.id_preparation}&type=${session.type}`)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+                                title="Start Scanning"
+                              >
+                                <ScanLine className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Scan</span>
+                              </button>
+                              <button
+                                onClick={() => router.push(`/edit_scanning_preparation?id=${session.id_preparation}&type=${session.type}`)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-lg hover:bg-gray-700 transition"
+                                title="Edit Session"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Edit</span>
+                              </button>
+                              <button
+                                onClick={() => handleDelete(session.id_preparation, session.checking_name, session.type)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
+                                title="Delete Session"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Delete</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="expandable-content">
+                            <td colSpan={7} className="p-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Department Distribution */}
+                                {session.departments && session.departments.length > 0 && (
+                                  <div className="border border-gray-200 rounded-lg p-3">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Users className="w-4 h-4 text-blue-600" />
+                                      <h4 className="text-sm font-semibold text-gray-800">Department Distribution</h4>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {session.departments.map((dept, idx) => (
+                                        <span key={idx} className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full text-xs">
+                                          {dept.name}: {dept.quantity}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* Receivers */}
+                                {session.receivers && session.receivers.length > 0 && (
+                                  <div className="border border-gray-200 rounded-lg p-3">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <User className="w-4 h-4 text-green-600" />
+                                      <h4 className="text-sm font-semibold text-gray-800">Receiver Assignments</h4>
+                                    </div>
+                                    <div className="space-y-1">
+                                      {session.receivers.slice(0, 5).map((rec, idx) => (
+                                        <div key={idx} className="text-xs text-gray-600">
+                                          {rec.name} - {rec.department} ({rec.item_name})
+                                        </div>
+                                      ))}
+                                      {session.receivers.length > 5 && (
+                                        <div className="text-xs text-gray-400">+{session.receivers.length - 5} more</div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* Items Summary */}
+                                <div className="border border-gray-200 rounded-lg p-3 col-span-1 md:col-span-2">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Box className="w-4 h-4 text-purple-600" />
+                                    <h4 className="text-sm font-semibold text-gray-800">Items Summary</h4>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div>Total Items: <span className="font-semibold">{session.totalItems}</span></div>
+                                    <div>Total Quantity: <span className="font-semibold">{session.totalQty}</span></div>
+                                    <div>Scanned: <span className="font-semibold text-green-600">{session.scannedCount || 0}</span></div>
+                                    <div>Remaining: <span className="font-semibold text-orange-600">{session.totalQty - (session.scannedCount || 0)}</span></div>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     );
                   })}
                 </tbody>
@@ -812,28 +738,13 @@ export default function ScanningPreparationListPage() {
           {!loading && filteredSessions.length > 0 && (
             <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-2 rounded-b-2xl">
               <p className="text-xs text-gray-500">
-                Showing{" "}
-                <span className="font-semibold text-gray-700">
-                  {filteredSessions.length}
-                </span>{" "}
-                of{" "}
-                <span className="font-semibold text-gray-700">
-                  {sessions.length}
-                </span>{" "}
-                sessions
-                {typeFilter !== "all" && (
-                  <span className="text-gray-400"> · {typeFilter === "device" ? "Devices" : "Materials"}</span>
-                )}
-                {statusFilter !== "all" && (
-                  <span className="text-gray-400"> · {statusFilter === "pending" ? "Pending" : statusFilter === "in-progress" ? "In Progress" : "Completed"}</span>
-                )}
-                {searchTerm && (
-                  <span className="text-gray-400"> · "{searchTerm}"</span>
-                )}
+                Showing <span className="font-semibold text-gray-700">{filteredSessions.length}</span> of{" "}
+                <span className="font-semibold text-gray-700">{sessions.length}</span> sessions
+                {typeFilter !== "all" && <span className="text-gray-400"> · {typeFilter === "device" ? "Devices" : "Materials"}</span>}
+                {statusFilter !== "all" && <span className="text-gray-400"> · {statusFilter === "pending" ? "Pending" : statusFilter === "in-progress" ? "In Progress" : "Completed"}</span>}
+                {searchTerm && <span className="text-gray-400"> · "{searchTerm}"</span>}
               </p>
-              <p className="text-xs text-gray-400">
-                Updated {new Date().toLocaleTimeString("en-US")}
-              </p>
+              <p className="text-xs text-gray-400">Updated {new Date().toLocaleTimeString("en-US")}</p>
             </div>
           )}
         </div>
