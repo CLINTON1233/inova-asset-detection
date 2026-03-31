@@ -365,17 +365,20 @@ def create_devices_scanning_preparation():
                         """, (scanning_item_id, dept['department_id'], dept['quantity']))
 
             # ========== KODE UNTUK RECEIVER PER ITEM ==========
-            # Insert receiver assignments per item (dari frontend sudah ada item_index)
-            receivers = item.get('receivers', [])
+            # PERBAIKAN: Gunakan variabel yang berbeda
+            receivers_data = item.get('receivers', [])
             # Buat mapping receiver berdasarkan department dan item_index
             receiver_map = {}
-            for rcvr in receivers:
+            for rcvr in receivers_data:
                 if rcvr.get('department_id') and rcvr.get('receiver_id'):
-                    key = f"{rcvr.get('department_id')}_{rcvr.get('item_index', 0)}"
+                    # Pastikan item_index dikonversi ke integer
+                    item_idx = int(rcvr.get('item_index', 0)) if rcvr.get('item_index') is not None else 0
+                    key = f"{rcvr.get('department_id')}_{item_idx}"
                     receiver_map[key] = rcvr.get('receiver_id')
                     print(f"DEBUG: receiver_map[{key}] = {rcvr.get('receiver_id')}")
-            
+
             print(f"DEBUG: Total receivers in map: {len(receiver_map)}")
+            print(f"DEBUG: receiver_map = {receiver_map}")
             # ================================================
 
             # Create individual items
@@ -386,7 +389,7 @@ def create_devices_scanning_preparation():
             
             # Track jumlah item per department yang sudah diproses
             dept_counter = {}
-            
+
             for sub_idx in range(quantity):
                 assigned_dept = None
                 for dept_id, qty in dept_allocation.items():
@@ -397,7 +400,7 @@ def create_devices_scanning_preparation():
                 
                 item_number = generate_item_number(preparation_id, idx, sub_idx)
                 
-                # Ambil receiver_id berdasarkan department dan item_index
+                # Ambil receiver_id berdasarkan department dan sub_idx (urutan item)
                 receiver_id = None
                 if assigned_dept:
                     # Hitung item ke berapa untuk department ini
@@ -1124,11 +1127,13 @@ def create_materials_scanning_preparation():
 
             # ========== KODE UNTUK RECEIVER PER ITEM ==========
             # Insert receiver assignments per item
-            receivers = item.get('receivers', [])
+            receivers_data = item.get('receivers', [])  
             receiver_map = {}
-            for rcvr in receivers:
-                key = f"{rcvr.get('department_id')}_{rcvr.get('item_index', 0)}"
-                receiver_map[key] = rcvr.get('receiver_id')
+            for rcvr in receivers_data:  
+                if rcvr.get('department_id') and rcvr.get('receiver_id'):
+                    key = f"{rcvr.get('department_id')}_{rcvr.get('item_index', 0)}"
+                    receiver_map[key] = rcvr.get('receiver_id')
+                    print(f"DEBUG: receiver_map[{key}] = {rcvr.get('receiver_id')}")
             # ================================================
 
             # Create individual items

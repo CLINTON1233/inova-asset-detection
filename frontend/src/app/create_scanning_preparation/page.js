@@ -184,73 +184,73 @@ export default function ScanningPreparationPage() {
   };
 
   // Add new receiver entry (bisa untuk department yang sama atau beda)
-const addReceiverEntry = (sessionId, itemId, departmentId) => {
-  setSessions((prev) =>
-    prev.map((session) => {
-      if (session.id === sessionId) {
-        return {
-          ...session,
-          items: session.items.map((item) => {
-            if (item.id === itemId) {
-              const deptInfo = departments.find(d => d.id_department === departmentId);
-              return {
-                ...item,
-                receivers: [
-                  ...item.receivers,
-                  {
-                    department_id: departmentId,
-                    department_name: deptInfo?.department_name,
-                    receiver_id: "",
-                    quantity: 1,
-                  },
-                ],
-              };
-            }
-            return item;
-          }),
-        };
-      }
-      return session;
-    }),
-  );
-};
+  const addReceiverEntry = (sessionId, itemId, departmentId) => {
+    setSessions((prev) =>
+      prev.map((session) => {
+        if (session.id === sessionId) {
+          return {
+            ...session,
+            items: session.items.map((item) => {
+              if (item.id === itemId) {
+                const deptInfo = departments.find(d => d.id_department === departmentId);
+                return {
+                  ...item,
+                  receivers: [
+                    ...item.receivers,
+                    {
+                      department_id: departmentId,
+                      department_name: deptInfo?.department_name,
+                      receiver_id: "",
+                      quantity: 1,
+                    },
+                  ],
+                };
+              }
+              return item;
+            }),
+          };
+        }
+        return session;
+      }),
+    );
+  };
 
-// Update receiver quantity
-const updateReceiverQuantity = (sessionId, itemId, receiverIndex, quantity) => {
-  setSessions((prev) =>
-    prev.map((session) => {
-      if (session.id === sessionId) {
-        return {
-          ...session,
-          items: session.items.map((item) => {
-            if (item.id === itemId) {
-              const newReceivers = [...item.receivers];
-              const newQuantity = parseInt(quantity) || 0;
-              newReceivers[receiverIndex] = {
-                ...newReceivers[receiverIndex],
-                quantity: newQuantity,
-              };
-              return { ...item, receivers: newReceivers };
-            }
-            return item;
-          }),
-        };
-      }
-      return session;
-    }),
-  );
-};
+  // Update receiver quantity
+  const updateReceiverQuantity = (sessionId, itemId, receiverIndex, quantity) => {
+    setSessions((prev) =>
+      prev.map((session) => {
+        if (session.id === sessionId) {
+          return {
+            ...session,
+            items: session.items.map((item) => {
+              if (item.id === itemId) {
+                const newReceivers = [...item.receivers];
+                const newQuantity = parseInt(quantity) || 0;
+                newReceivers[receiverIndex] = {
+                  ...newReceivers[receiverIndex],
+                  quantity: newQuantity,
+                };
+                return { ...item, receivers: newReceivers };
+              }
+              return item;
+            }),
+          };
+        }
+        return session;
+      }),
+    );
+  };
 
-// Get total receiver quantity
-const getTotalReceiverQty = (item) => {
-  return item.receivers.reduce((sum, r) => sum + (r.quantity || 0), 0);
-};
+  // Get total receiver quantity
+  const getTotalReceiverQty = (item) => {
+    return item.receivers.reduce((sum, r) => sum + (r.quantity || 0), 0);
+  };
 
-// Get available departments for adding receiver
-const getAvailableDepartments = (item) => {
-  const assignedDeptIds = item.receivers.map(r => r.department_id);
-  return departments.filter(dept => !assignedDeptIds.includes(dept.id_department));
-};
+  // Get available departments for adding receiver
+  const getAvailableDepartments = (item) => {
+    const assignedDeptIds = item.receivers.map(r => r.department_id);
+    return departments.filter(dept => !assignedDeptIds.includes(dept.id_department));
+  };
 
   const fetchReceivers = async () => {
     try {
@@ -258,7 +258,7 @@ const getAvailableDepartments = (item) => {
       const data = await response.json();
       if (data.success) {
         setReceivers(data.data || []);
-        
+
         // Group receivers by department
         const grouped = {};
         data.data.forEach((receiver) => {
@@ -338,47 +338,47 @@ const getAvailableDepartments = (item) => {
     return receiversByDepartment[departmentId] || [];
   };
 
- const updateReceiverAssignment = (sessionId, itemId, departmentId, receiverId, itemIndex) => {
-  setSessions((prev) =>
-    prev.map((session) => {
-      if (session.id === sessionId) {
-        return {
-          ...session,
-          items: session.items.map((item) => {
-            if (item.id === itemId) {
-              const existingIndex = item.receivers.findIndex(
-                (r) => r.department_id === departmentId && r.item_index === itemIndex
-              );
-              
-              let newReceivers;
-              if (existingIndex >= 0) {
-                newReceivers = [...item.receivers];
-                newReceivers[existingIndex] = {
-                  ...newReceivers[existingIndex],
-                  receiver_id: parseInt(receiverId),
-                };
-              } else {
-                const deptInfo = departments.find(d => d.id_department === departmentId);
-                newReceivers = [
-                  ...item.receivers,
-                  {
-                    department_id: departmentId,
-                    department_name: deptInfo?.department_name,
+  const updateReceiverAssignment = (sessionId, itemId, departmentId, receiverId, itemIndex) => {
+    setSessions((prev) =>
+      prev.map((session) => {
+        if (session.id === sessionId) {
+          return {
+            ...session,
+            items: session.items.map((item) => {
+              if (item.id === itemId) {
+                const existingIndex = item.receivers.findIndex(
+                  (r) => r.department_id === departmentId && r.item_index === itemIndex
+                );
+
+                let newReceivers;
+                if (existingIndex >= 0) {
+                  newReceivers = [...item.receivers];
+                  newReceivers[existingIndex] = {
+                    ...newReceivers[existingIndex],
                     receiver_id: parseInt(receiverId),
-                    item_index: itemIndex,
-                  },
-                ];
+                  };
+                } else {
+                  const deptInfo = departments.find(d => d.id_department === departmentId);
+                  newReceivers = [
+                    ...item.receivers,
+                    {
+                      department_id: departmentId,
+                      department_name: deptInfo?.department_name,
+                      receiver_id: parseInt(receiverId),
+                      item_index: itemIndex,
+                    },
+                  ];
+                }
+                return { ...item, receivers: newReceivers };
               }
-              return { ...item, receivers: newReceivers };
-            }
-            return item;
-          }),
-        };
-      }
-      return session;
-    }),
-  );
-};
+              return item;
+            }),
+          };
+        }
+        return session;
+      }),
+    );
+  };
 
   // Initialize receivers based on departments that have quantity
   const initializeReceivers = (sessionId, itemId, departmentId) => {
@@ -604,61 +604,104 @@ const getAvailableDepartments = (item) => {
     }));
   };
 
-const updateDepartmentQuantity = (
-  sessionId,
-  itemId,
-  departmentId,
-  quantity,
-) => {
-  const department = departments.find(
-    (d) => d.id_department === departmentId,
-  );
+  const updateDepartmentQuantity = (
+    sessionId,
+    itemId,
+    departmentId,
+    quantity,
+  ) => {
+    const department = departments.find(
+      (d) => d.id_department === departmentId,
+    );
 
-  setSessions((prev) =>
-    prev.map((session) => {
-      if (session.id === sessionId) {
-        return {
-          ...session,
-          items: session.items.map((item) => {
-            if (item.id === itemId) {
-              const newQuantity = parseFloat(quantity) || 0;
-              const currentTotal = item.departments.reduce(
-                (sum, d) =>
-                  d.department_id === departmentId ? sum : sum + d.quantity,
-                0,
-              );
+    setSessions((prev) =>
+      prev.map((session) => {
+        if (session.id === sessionId) {
+          return {
+            ...session,
+            items: session.items.map((item) => {
+              if (item.id === itemId) {
+                const newQuantity = parseFloat(quantity) || 0;
+                const currentTotal = item.departments.reduce(
+                  (sum, d) =>
+                    d.department_id === departmentId ? sum : sum + d.quantity,
+                  0,
+                );
 
-              if (currentTotal + newQuantity > item.quantity) {
-                const maxAllowed = item.quantity - currentTotal;
-                if (newQuantity > maxAllowed) {
+                if (currentTotal + newQuantity > item.quantity) {
+                  const maxAllowed = item.quantity - currentTotal;
+                  if (newQuantity > maxAllowed) {
+                    const existingDept = item.departments.find(
+                      (d) => d.department_id === departmentId,
+                    );
+                    if (existingDept) {
+                      return {
+                        ...item,
+                        departments: item.departments.map((d) =>
+                          d.department_id === departmentId
+                            ? { ...d, quantity: maxAllowed }
+                            : d,
+                        ),
+                      };
+                    } else if (maxAllowed > 0) {
+                      // Create new department with receiver entries for each item
+                      const newDept = {
+                        department_id: departmentId,
+                        department_name: department.department_name,
+                        quantity: maxAllowed,
+                      };
+
+                      // Create receiver entries for each quantity
+                      const newReceivers = [...item.receivers];
+                      for (let i = 0; i < maxAllowed; i++) {
+                        const exists = newReceivers.some(
+                          (r) => r.department_id === departmentId && r.item_index === i
+                        );
+                        if (!exists) {
+                          newReceivers.push({
+                            department_id: departmentId,
+                            department_name: department.department_name,
+                            receiver_id: "",
+                            item_index: i,
+                          });
+                        }
+                      }
+
+                      return {
+                        ...item,
+                        departments: [...item.departments, newDept],
+                        receivers: newReceivers,
+                      };
+                    }
+                    return item;
+                  }
+                }
+
+                if (newQuantity > 0) {
                   const existingDept = item.departments.find(
                     (d) => d.department_id === departmentId,
                   );
                   if (existingDept) {
-                    return {
-                      ...item,
-                      departments: item.departments.map((d) =>
-                        d.department_id === departmentId
-                          ? { ...d, quantity: maxAllowed }
-                          : d,
-                      ),
-                    };
-                  } else if (maxAllowed > 0) {
-                    // Create new department with receiver entries for each item
-                    const newDept = {
-                      department_id: departmentId,
-                      department_name: department.department_name,
-                      quantity: maxAllowed,
-                    };
-                    
-                    // Create receiver entries for each quantity
-                    const newReceivers = [...item.receivers];
-                    for (let i = 0; i < maxAllowed; i++) {
-                      const exists = newReceivers.some(
+                    // Update existing department quantity
+                    const updatedDepartments = item.departments.map((d) =>
+                      d.department_id === departmentId
+                        ? { ...d, quantity: newQuantity }
+                        : d
+                    );
+
+                    // Update receiver entries to match new quantity
+                    let updatedReceivers = [...item.receivers];
+                    // Remove receivers for this department if quantity decreased
+                    updatedReceivers = updatedReceivers.filter(
+                      (r) => r.department_id !== departmentId || r.item_index < newQuantity
+                    );
+                    // Add missing receivers if quantity increased
+                    for (let i = 0; i < newQuantity; i++) {
+                      const exists = updatedReceivers.some(
                         (r) => r.department_id === departmentId && r.item_index === i
                       );
                       if (!exists) {
-                        newReceivers.push({
+                        updatedReceivers.push({
                           department_id: departmentId,
                           department_name: department.department_name,
                           receiver_id: "",
@@ -666,101 +709,58 @@ const updateDepartmentQuantity = (
                         });
                       }
                     }
-                    
+
                     return {
                       ...item,
-                      departments: [...item.departments, newDept],
-                      receivers: newReceivers,
+                      departments: updatedDepartments,
+                      receivers: updatedReceivers,
                     };
-                  }
-                  return item;
-                }
-              }
+                  } else {
+                    // Create new department
+                    const newDept = {
+                      department_id: departmentId,
+                      department_name: department.department_name,
+                      quantity: newQuantity,
+                    };
 
-              if (newQuantity > 0) {
-                const existingDept = item.departments.find(
-                  (d) => d.department_id === departmentId,
-                );
-                if (existingDept) {
-                  // Update existing department quantity
-                  const updatedDepartments = item.departments.map((d) =>
-                    d.department_id === departmentId
-                      ? { ...d, quantity: newQuantity }
-                      : d
-                  );
-                  
-                  // Update receiver entries to match new quantity
-                  let updatedReceivers = [...item.receivers];
-                  // Remove receivers for this department if quantity decreased
-                  updatedReceivers = updatedReceivers.filter(
-                    (r) => r.department_id !== departmentId || r.item_index < newQuantity
-                  );
-                  // Add missing receivers if quantity increased
-                  for (let i = 0; i < newQuantity; i++) {
-                    const exists = updatedReceivers.some(
-                      (r) => r.department_id === departmentId && r.item_index === i
-                    );
-                    if (!exists) {
-                      updatedReceivers.push({
+                    // Create receiver entries for each quantity
+                    const newReceivers = [...item.receivers];
+                    for (let i = 0; i < newQuantity; i++) {
+                      newReceivers.push({
                         department_id: departmentId,
                         department_name: department.department_name,
                         receiver_id: "",
                         item_index: i,
                       });
                     }
+
+                    return {
+                      ...item,
+                      departments: [...item.departments, newDept],
+                      receivers: newReceivers,
+                    };
                   }
-                  
-                  return {
-                    ...item,
-                    departments: updatedDepartments,
-                    receivers: updatedReceivers,
-                  };
                 } else {
-                  // Create new department
-                  const newDept = {
-                    department_id: departmentId,
-                    department_name: department.department_name,
-                    quantity: newQuantity,
-                  };
-                  
-                  // Create receiver entries for each quantity
-                  const newReceivers = [...item.receivers];
-                  for (let i = 0; i < newQuantity; i++) {
-                    newReceivers.push({
-                      department_id: departmentId,
-                      department_name: department.department_name,
-                      receiver_id: "",
-                      item_index: i,
-                    });
-                  }
-                  
+                  // Remove department and its receivers when quantity is set to 0
                   return {
                     ...item,
-                    departments: [...item.departments, newDept],
-                    receivers: newReceivers,
+                    departments: item.departments.filter(
+                      (d) => d.department_id !== departmentId,
+                    ),
+                    receivers: item.receivers.filter(
+                      (r) => r.department_id !== departmentId,
+                    ),
                   };
                 }
-              } else {
-                // Remove department and its receivers when quantity is set to 0
-                return {
-                  ...item,
-                  departments: item.departments.filter(
-                    (d) => d.department_id !== departmentId,
-                  ),
-                  receivers: item.receivers.filter(
-                    (r) => r.department_id !== departmentId,
-                  ),
-                };
               }
-            }
-            return item;
-          }),
-        };
-      }
-      return session;
-    }),
-  );
-};
+              return item;
+            }),
+          };
+        }
+        return session;
+      }),
+    );
+  };
 
   const isDepartmentInputDisabled = (item, departmentId) => {
     const totalAssigned = item.departments.reduce(
@@ -773,52 +773,52 @@ const updateDepartmentQuantity = (
     return totalAssigned >= item.quantity && !currentDept;
   };
 
-const validateSession = (session) => {
-  const errors = [];
-  if (!session.formData.checking_name)
-    errors.push("Checking name is required");
-  if (!session.formData.category_id) errors.push("Category is required");
-  if (!session.formData.location_id) errors.push("Location is required");
-  if (!session.formData.checking_date)
-    errors.push("Checking date is required");
+  const validateSession = (session) => {
+    const errors = [];
+    if (!session.formData.checking_name)
+      errors.push("Checking name is required");
+    if (!session.formData.category_id) errors.push("Category is required");
+    if (!session.formData.location_id) errors.push("Location is required");
+    if (!session.formData.checking_date)
+      errors.push("Checking date is required");
 
-  session.items.forEach((item, index) => {
-    const isMaterial = session.formData.category_id === "2";
-    if (isMaterial) {
-      if (!item.material_name)
-        errors.push(
-          `Session ${session.checking_number} - Item #${index + 1}: Material name is required`,
-        );
-    } else {
-      if (!item.device_name)
-        errors.push(
-          `Session ${session.checking_number} - Item #${index + 1}: Device name is required`,
-        );
-    }
-    if (!item.quantity || item.quantity < 1)
-      errors.push(
-        `Session ${session.checking_number} - Item #${index + 1}: Quantity must be at least 1`,
-      );
-    
-    // Check each department has receiver selected for each item
-    item.departments.forEach((dept) => {
-      // Untuk setiap department, periksa apakah semua item (quantity) sudah memiliki receiver
-      for (let i = 0; i < dept.quantity; i++) {
-        const receiver = item.receivers.find(
-          (r) => r.department_id === dept.department_id && r.item_index === i
-        );
-        if (!receiver || !receiver.receiver_id) {
-          const deptName = departments.find(d => d.id_department === dept.department_id)?.department_name;
+    session.items.forEach((item, index) => {
+      const isMaterial = session.formData.category_id === "2";
+      if (isMaterial) {
+        if (!item.material_name)
           errors.push(
-            `Session ${session.checking_number} - Item #${index + 1}: Please select a receiver for department "${deptName}" item #${i + 1}`,
+            `Session ${session.checking_number} - Item #${index + 1}: Material name is required`,
           );
-        }
+      } else {
+        if (!item.device_name)
+          errors.push(
+            `Session ${session.checking_number} - Item #${index + 1}: Device name is required`,
+          );
       }
-    });
-  });
+      if (!item.quantity || item.quantity < 1)
+        errors.push(
+          `Session ${session.checking_number} - Item #${index + 1}: Quantity must be at least 1`,
+        );
 
-  return errors;
-};
+      // Check each department has receiver selected for each item
+      item.departments.forEach((dept) => {
+        // Untuk setiap department, periksa apakah semua item (quantity) sudah memiliki receiver
+        for (let i = 0; i < dept.quantity; i++) {
+          const receiver = item.receivers.find(
+            (r) => r.department_id === dept.department_id && r.item_index === i
+          );
+          if (!receiver || !receiver.receiver_id) {
+            const deptName = departments.find(d => d.id_department === dept.department_id)?.department_name;
+            errors.push(
+              `Session ${session.checking_number} - Item #${index + 1}: Please select a receiver for department "${deptName}" item #${i + 1}`,
+            );
+          }
+        }
+      });
+    });
+
+    return errors;
+  };
 
   const handleSubmit = async () => {
     let allErrors = [];
@@ -897,9 +897,11 @@ const validateSession = (session) => {
                 department_id: d.department_id,
                 quantity: parseFloat(d.quantity),
               })),
+              // PERBAIKAN: Kirim receiver dengan item_index
               receivers: item.receivers.map((r) => ({
                 department_id: r.department_id,
                 receiver_id: r.receiver_id,
+                item_index: r.item_index !== undefined ? r.item_index : 0, // ← TAMBAHKAN INI
               })),
               uom: item.uom || "PCS",
               vendor: item.vendor || "",
@@ -927,9 +929,11 @@ const validateSession = (session) => {
                 department_id: d.department_id,
                 quantity: parseInt(d.quantity),
               })),
+              // PERBAIKAN: Kirim receiver dengan item_index
               receivers: item.receivers.map((r) => ({
                 department_id: r.department_id,
                 receiver_id: r.receiver_id,
+                item_index: r.item_index !== undefined ? r.item_index : 0, // ← TAMBAHKAN INI
               })),
               project_id: item.project_id ? parseInt(item.project_id) : null,
             })),
@@ -1491,8 +1495,8 @@ const validateSession = (session) => {
                                         toggleDepartmentSection(item.id)
                                       }
                                       className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${isExpanded
-                                          ? "bg-gray-100 text-gray-700 border border-gray-300"
-                                          : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
+                                        ? "bg-gray-100 text-gray-700 border border-gray-300"
+                                        : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
                                         }`}
                                     >
                                       {isExpanded
@@ -1554,8 +1558,8 @@ const validateSession = (session) => {
                                                   }
                                                   disabled={isDisabled}
                                                   className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDisabled
-                                                      ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
-                                                      : "bg-white border-gray-200 text-gray-800"
+                                                    ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
+                                                    : "bg-white border-gray-200 text-gray-800"
                                                     }`}
                                                   placeholder="Qty"
                                                 />
@@ -1572,10 +1576,10 @@ const validateSession = (session) => {
                                           </span>
                                           <span
                                             className={`text-sm font-semibold ${totalDeptQty === item.quantity
-                                                ? "text-green-600"
-                                                : totalDeptQty > 0
-                                                  ? "text-blue-600"
-                                                  : "text-gray-500"
+                                              ? "text-green-600"
+                                              : totalDeptQty > 0
+                                                ? "text-blue-600"
+                                                : "text-gray-500"
                                               }`}
                                           >
                                             {totalDeptQty} of {item.quantity}{" "}
@@ -1796,8 +1800,8 @@ const validateSession = (session) => {
                                         toggleDepartmentSection(item.id)
                                       }
                                       className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${isExpanded
-                                          ? "bg-gray-100 text-gray-700 border border-gray-300"
-                                          : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
+                                        ? "bg-gray-100 text-gray-700 border border-gray-300"
+                                        : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
                                         }`}
                                     >
                                       {isExpanded
@@ -1859,8 +1863,8 @@ const validateSession = (session) => {
                                                   }
                                                   disabled={isDisabled}
                                                   className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDisabled
-                                                      ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
-                                                      : "bg-white border-gray-200 text-gray-800"
+                                                    ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
+                                                    : "bg-white border-gray-200 text-gray-800"
                                                     }`}
                                                   placeholder="Qty"
                                                 />
@@ -1877,10 +1881,10 @@ const validateSession = (session) => {
                                           </span>
                                           <span
                                             className={`text-sm font-semibold ${totalDeptQty === item.quantity
-                                                ? "text-green-600"
-                                                : totalDeptQty > 0
-                                                  ? "text-blue-600"
-                                                  : "text-gray-500"
+                                              ? "text-green-600"
+                                              : totalDeptQty > 0
+                                                ? "text-blue-600"
+                                                : "text-gray-500"
                                               }`}
                                           >
                                             {totalDeptQty} of {item.quantity}{" "}
@@ -1920,105 +1924,105 @@ const validateSession = (session) => {
                               </div>
                             )}
 
-{/* Receiver Assignment Section */}
-{item.departments.length > 0 && (
-  <div className="mt-4 pt-4 border-t border-gray-200">
-    <div className="flex items-center justify-between mb-4">
-      <div className="flex items-center gap-2">
-        <User className="w-4 h-4 text-green-600" />
-        <h4 className="text-sm font-semibold text-gray-800">
-          Receiver Assignment
-        </h4>
-        <span className="text-xs text-gray-500">
-          (Select receiver for each item)
-        </span>
-      </div>
-    </div>
+                            {/* Receiver Assignment Section */}
+                            {item.departments.length > 0 && (
+                              <div className="mt-4 pt-4 border-t border-gray-200">
+                                <div className="flex items-center justify-between mb-4">
+                                  <div className="flex items-center gap-2">
+                                    <User className="w-4 h-4 text-green-600" />
+                                    <h4 className="text-sm font-semibold text-gray-800">
+                                      Receiver Assignment
+                                    </h4>
+                                    <span className="text-xs text-gray-500">
+                                      (Select receiver for each item)
+                                    </span>
+                                  </div>
+                                </div>
 
-    <div className="space-y-4">
-      {item.departments.map((dept) => {
-        const deptInfo = departments.find(d => d.id_department === dept.department_id);
-        const availableReceivers = getReceiversForDepartment(dept.department_id);
-        
-        // Generate receiver entries for each quantity
-        const receiverEntries = [];
-        for (let i = 0; i < dept.quantity; i++) {
-          const receiver = item.receivers.find(
-            (r) => r.department_id === dept.department_id && r.item_index === i
-          );
-          receiverEntries.push({
-            index: i,
-            receiver: receiver
-          });
-        }
-        
-        return (
-          <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
-            <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-gray-600" />
-                <span className="text-sm font-semibold text-gray-800">
-                  {deptInfo?.department_name || `Department ${dept.department_id}`}
-                </span>
-                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                  Total: {dept.quantity} item(s)
-                </span>
-              </div>
-            </div>
-            <div className="p-4 space-y-3">
-             {receiverEntries.map((entry) => {
-  const receiver = entry.receiver;
-  return (
-    <div key={`${dept.department_id}-${entry.index}`} className="receiver-item">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-          Item #{entry.index + 1}
-        </span>
-      </div>
-      <div>
-        <select
-          value={receiver?.receiver_id || ""}
-          onChange={(e) =>
-            updateReceiverAssignment(
-              session.id,
-              item.id,
-              dept.department_id,
-              e.target.value,
-              entry.index
-            )
-          }
-          className={selectCls}
-        >
-          <option value="">Select Receiver</option>
-          {availableReceivers.map((rec) => (
-            <option key={rec.id_receiver} value={rec.id_receiver}>
-              {rec.receiver_name} - {rec.receiver_title}
-            </option>
-          ))}
-        </select>
-        <Hint>Receiver for item #{entry.index + 1}</Hint>
-      </div>
-    </div>
-  );
-})}
-            </div>
-          </div>
-        );
-      })}
-      
-      <div className="p-3 bg-blue-50 rounded-lg">
-        <p className="text-xs text-blue-700">
-          <strong>Total distributed:</strong> {item.departments.reduce((sum, d) => sum + d.quantity, 0)} of {item.quantity}
-        </p>
-        {item.departments.reduce((sum, d) => sum + d.quantity, 0) < item.quantity && (
-          <p className="text-xs text-orange-600 mt-1">
-            <strong>Remaining:</strong> {item.quantity - item.departments.reduce((sum, d) => sum + d.quantity, 0)} items unassigned
-          </p>
-        )}
-      </div>
-    </div>
-  </div>
-)}
+                                <div className="space-y-4">
+                                  {item.departments.map((dept) => {
+                                    const deptInfo = departments.find(d => d.id_department === dept.department_id);
+                                    const availableReceivers = getReceiversForDepartment(dept.department_id);
+
+                                    // Generate receiver entries for each quantity
+                                    const receiverEntries = [];
+                                    for (let i = 0; i < dept.quantity; i++) {
+                                      const receiver = item.receivers.find(
+                                        (r) => r.department_id === dept.department_id && r.item_index === i
+                                      );
+                                      receiverEntries.push({
+                                        index: i,
+                                        receiver: receiver
+                                      });
+                                    }
+
+                                    return (
+                                      <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                        <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
+                                          <div className="flex items-center gap-2">
+                                            <Users className="w-4 h-4 text-gray-600" />
+                                            <span className="text-sm font-semibold text-gray-800">
+                                              {deptInfo?.department_name || `Department ${dept.department_id}`}
+                                            </span>
+                                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                              Total: {dept.quantity} item(s)
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <div className="p-4 space-y-3">
+                                          {receiverEntries.map((entry) => {
+                                            const receiver = entry.receiver;
+                                            return (
+                                              <div key={`${dept.department_id}-${entry.index}`} className="receiver-item">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                  <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                                                    Item #{entry.index + 1}
+                                                  </span>
+                                                </div>
+                                                <div>
+                                                  <select
+                                                    value={receiver?.receiver_id || ""}
+                                                    onChange={(e) =>
+                                                      updateReceiverAssignment(
+                                                        session.id,
+                                                        item.id,
+                                                        dept.department_id,
+                                                        e.target.value,
+                                                        entry.index
+                                                      )
+                                                    }
+                                                    className={selectCls}
+                                                  >
+                                                    <option value="">Select Receiver</option>
+                                                    {availableReceivers.map((rec) => (
+                                                      <option key={rec.id_receiver} value={rec.id_receiver}>
+                                                        {rec.receiver_name} - {rec.receiver_title}
+                                                      </option>
+                                                    ))}
+                                                  </select>
+                                                  <Hint>Receiver for item #{entry.index + 1}</Hint>
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+
+                                  <div className="p-3 bg-blue-50 rounded-lg">
+                                    <p className="text-xs text-blue-700">
+                                      <strong>Total distributed:</strong> {item.departments.reduce((sum, d) => sum + d.quantity, 0)} of {item.quantity}
+                                    </p>
+                                    {item.departments.reduce((sum, d) => sum + d.quantity, 0) < item.quantity && (
+                                      <p className="text-xs text-orange-600 mt-1">
+                                        <strong>Remaining:</strong> {item.quantity - item.departments.reduce((sum, d) => sum + d.quantity, 0)} items unassigned
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
