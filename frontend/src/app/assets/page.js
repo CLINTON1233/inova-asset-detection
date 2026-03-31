@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -33,133 +33,74 @@ import {
   ArrowDown,
   Loader2,
 } from "lucide-react";
-import LayoutDashboard from "../components/LayoutDashboard";
-import ProtectedPage from "../components/ProtectedPage";
 import Swal from "sweetalert2";
 import * as XLSX from "xlsx";
+import LayoutDashboard from "../components/LayoutDashboard";
+import ProtectedPage from "../components/ProtectedPage";
+import API_BASE_URL, { API_ENDPOINTS } from "../../config/api";
 
 export default function InventoryDataPage() {
+  const router = useRouter();
+  const [assets, setAssets] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [viewMode, setViewMode] = useState("list");
   const [showExportDropdown, setShowExportDropdown] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [sorting, setSorting] = useState({ id: "id", desc: false });
+  const [sorting, setSorting] = useState({ id: "created_at", desc: true });
 
-  const router = useRouter();
+  // Load assets dari API
+  const loadAssets = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(API_ENDPOINTS.ASSETS_LIST);
+      const result = await response.json();
 
-  // Data inventory sesuai dengan proposal
-  const inventoryData = [
-    {
-      id: "PC-IT-2025-001",
-      nama: "Komputer Workstation",
-      jenisAset: "Komputer",
-      kategori: "Perangkat",
-      serialNumber: "NS-PC-887632",
-      lokasi: "Infrastruktur & Jaringan",
-      departemen: "IT Infrastructure & Networking",
-      tanggalPengecekan: "2025-10-28",
-      terakhirDiperbarui: "2025-10-28 14:30:15",
-      diperbaruiOleh: "Clinton Alfaro",
-      spesifikasi: "Intel i7, 16GB RAM, 512GB SSD",
-      kodeUnik: "V-901-XYZ-A",
-      status: "Valid",
-    },
-    {
-      id: "MAT-KBL-045",
-      nama: "Kabel RJ45 CAT6",
-      jenisAset: "Kabel RJ45",
-      kategori: "Material",
-      barcode: "BC-RJ45-554321",
-      lokasi: "Workshop 2",
-      departemen: "Facilities & Networking",
-      tanggalPengecekan: "2025-10-28",
-      terakhirDiperbarui: "2025-10-28 14:25:40",
-      diperbaruiOleh: "Wahyu Hidayat",
-      spesifikasi: "CAT6, 5 meter, UTP",
-      kodeUnik: "V-902-ABC-B",
-      status: "Valid",
-    },
-    {
-      id: "SRV-NET-012",
-      nama: "Server Rack",
-      jenisAset: "Server",
-      kategori: "Perangkat",
-      serialNumber: "NS-SRV-992345",
-      lokasi: "Ruang Server L3",
-      departemen: "System Operation",
-      tanggalPengecekan: "2025-10-28",
-      terakhirDiperbarui: "2025-10-28 14:18:22",
-      diperbaruiOleh: "Ikhsan Kurniawan",
-      spesifikasi: "Dell PowerEdge, 32GB RAM, 1TB SSD",
-      kodeUnik: "V-903-DEF-C",
-      status: "Valid",
-    },
-    {
-      id: "MAT-TRK-987",
-      nama: "Trunking PVC",
-      jenisAset: "Trunking",
-      kategori: "Material",
-      barcode: "BC-TRK-773216",
-      lokasi: "Kantor Utama L1",
-      departemen: "Operations & End User Service",
-      tanggalPengecekan: "2025-10-28",
-      terakhirDiperbarui: "2025-10-28 14:10:05",
-      diperbaruiOleh: "Mahmud Amma Rizki",
-      spesifikasi: "PVC 50x50mm, 2 meter",
-      kodeUnik: "V-904-GHI-D",
-      status: "Tertunda",
-    },
-    {
-      id: "CCTV-SEC-003",
-      nama: "Camera CCTV HD",
-      jenisAset: "CCTV",
-      kategori: "Perangkat",
-      serialNumber: "NS-CCTV-661234",
-      lokasi: "Pintu Gerbang",
-      departemen: "Facilities & Networking",
-      tanggalPengecekan: "2025-10-28",
-      terakhirDiperbarui: "2025-10-28 14:05:33",
-      diperbaruiOleh: "Yovan Sakti",
-      spesifikasi: "1080p, Night Vision, IP Camera",
-      kodeUnik: "V-905-JKL-E",
-      status: "Error",
-    },
-  ];
-
-  // Hitung statistik
-  const stats = {
-    total: inventoryData.length,
-    perangkat: inventoryData.filter((item) => item.kategori === "Perangkat").length,
-    material: inventoryData.filter((item) => item.kategori === "Material").length,
-    valid: inventoryData.filter((item) => item.status === "Valid").length,
-    pending: inventoryData.filter((item) => item.status === "Tertunda").length,
-    error: inventoryData.filter((item) => item.status === "Error").length,
+      if (result.success) {
+        setAssets(result.data || []);
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error("Error loading assets:", error);
+      Swal.fire({
+        title: "Error!",
+        text: "Failed to load inventory data",
+        icon: "error",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // KPI data untuk card baru
-  const kpis = [
-    { title: "Total Assets", value: stats.total, sub: "All IT assets", accent: "#2563eb" },
-    { title: "Devices", value: stats.perangkat, sub: "Computers, Servers, CCTV", accent: "#6366f1" },
-    { title: "Materials", value: stats.material, sub: "Cables, Trunking, etc", accent: "#10b981" },
-    { title: "Valid", value: stats.valid, sub: "Verified assets", accent: "#059669" },
-    { title: "Error", value: stats.error, sub: "Need attention", accent: "#dc2626" },
-  ];
+  useEffect(() => {
+    loadAssets();
+  }, []);
+
+  // Hitung statistik
+  const stats = useMemo(() => {
+    return {
+      total: assets.length,
+      devices: assets.filter((item) => item.category === "Device").length,
+      materials: assets.filter((item) => item.category === "Material").length,
+      active: assets.filter((item) => item.status === "active").length,
+    };
+  }, [assets]);
 
   // Filter data
   const filteredItems = useMemo(() => {
-    let filtered = inventoryData.filter((item) => {
+    let filtered = assets.filter((item) => {
       const matchesSearch =
         searchTerm === "" ||
-        item.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.lokasi.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (item.serialNumber && item.serialNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (item.barcode && item.barcode.toLowerCase().includes(searchTerm.toLowerCase()));
+        (item.asset_code?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+        (item.asset_name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+        (item.location_name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+        (item.serial_number?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+        (item.scan_code?.toLowerCase() || "").includes(searchTerm.toLowerCase());
 
       const matchesCategory =
-        categoryFilter === "all" || item.kategori === categoryFilter;
+        categoryFilter === "all" || item.category === categoryFilter;
 
       const matchesStatus =
         statusFilter === "all" || item.status === statusFilter;
@@ -172,7 +113,12 @@ export default function InventoryDataPage() {
       filtered.sort((a, b) => {
         let aVal = a[sorting.id];
         let bVal = b[sorting.id];
-        
+
+        if (sorting.id === "created_at") {
+          aVal = new Date(a.created_at);
+          bVal = new Date(b.created_at);
+        }
+
         if (aVal < bVal) return sorting.desc ? 1 : -1;
         if (aVal > bVal) return sorting.desc ? -1 : 1;
         return 0;
@@ -180,7 +126,7 @@ export default function InventoryDataPage() {
     }
 
     return filtered;
-  }, [inventoryData, searchTerm, categoryFilter, statusFilter, sorting]);
+  }, [assets, searchTerm, categoryFilter, statusFilter, sorting]);
 
   const handleSort = (columnId) => {
     setSorting((prev) => ({
@@ -200,119 +146,120 @@ export default function InventoryDataPage() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case "Valid":
+      case "active":
         return "text-emerald-600";
-      case "Error":
-        return "text-red-600";
-      case "Tertunda":
+      case "inactive":
+        return "text-gray-500";
+      case "maintenance":
         return "text-amber-600";
       default:
         return "text-gray-600";
     }
   };
 
-  const formatLastCheck = (timestamp) => {
-    if (!timestamp) return "Never checked";
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
+  const getStatusLabel = (status) => {
+    switch (status) {
+      case "active":
+        return "Active";
+      case "inactive":
+        return "Inactive";
+      case "maintenance":
+        return "Maintenance";
+      default:
+        return status;
+    }
   };
 
   const formatDate = (dateString) => {
     if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+    return new Date(dateString).toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric"
+    });
   };
 
   // Fungsi untuk menampilkan detail dengan SweetAlert
   const handleShowDetail = (item) => {
     Swal.fire({
-      title: `<div class="font-dm-sans text-lg font-semibold text-gray-900">IT Asset Details</div>`,
+      title: `<div class="font-dm-sans text-lg font-semibold text-gray-900">Asset Details</div>`,
       html: `
       <div class="font-dm-sans text-left space-y-3 max-h-[50vh] overflow-y-auto pr-2">
         <div>
-          <h4 class="text-base font-semibold text-gray-900">${item.nama}</h4>
-          <p class="text-xs text-gray-500 mt-1">${item.jenisAset} • ${item.kategori}</p>
+          <h4 class="text-base font-semibold text-gray-900">${item.asset_name}</h4>
+          <p class="text-xs text-gray-500 mt-1">${item.asset_type || item.category} • ${item.category}</p>
         </div>
 
         <div>
           <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">INFORMATION</h5>
           <div class="bg-gray-50 rounded-lg p-3 space-y-2">
             <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Asset ID</span>
-              <span class="text-xs font-medium text-blue-700">${item.id}</span>
+              <span class="text-xs text-gray-600">Asset Code</span>
+              <span class="text-xs font-mono text-blue-600">${item.asset_code}</span>
             </div>
-            <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Unique Code</span>
-              <span class="text-xs font-mono text-blue-600">${item.kodeUnik}</span>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">IDENTIFICATION</h5>
-          <div class="bg-gray-50 rounded-lg p-3 space-y-2">
-            ${
-              item.serialNumber
-                ? `
+            ${item.serial_number
+          ? `
             <div class="flex justify-between items-center">
               <span class="text-xs text-gray-600">Serial Number</span>
-              <span class="text-xs font-mono text-gray-700">${item.serialNumber}</span>
+              <span class="text-xs font-mono text-gray-700">${item.serial_number}</span>
             </div>
             `
-                : ""
-            }
-            ${
-              item.barcode
-                ? `
+          : ""
+        }
+            ${item.scan_code
+          ? `
             <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Barcode</span>
-              <span class="text-xs font-mono text-gray-700">${item.barcode}</span>
+              <span class="text-xs text-gray-600">Scan Code</span>
+              <span class="text-xs font-mono text-gray-700">${item.scan_code}</span>
             </div>
             `
-                : ""
-            }
+          : ""
+        }
           </div>
         </div>
 
         <div>
           <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">SPECIFICATION</h5>
           <div class="bg-gray-50 rounded-lg p-3">
-            <p class="text-xs text-gray-700">${item.spesifikasi}</p>
+            <p class="text-xs text-gray-700">${item.specifications || "No specifications"}</p>
+            ${item.brand ? `<p class="text-xs text-gray-500 mt-1">Brand: ${item.brand}</p>` : ""}
+            ${item.model ? `<p class="text-xs text-gray-500">Model: ${item.model}</p>` : ""}
+            ${item.vendor ? `<p class="text-xs text-gray-500">Vendor: ${item.vendor}</p>` : ""}
           </div>
         </div>
 
         <div>
-          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">LOCATION</h5>
+          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">ASSIGNMENT</h5>
           <div class="bg-gray-50 rounded-lg p-3 space-y-2">
             <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Location</span>
-              <span class="text-xs font-medium text-gray-700">${item.lokasi}</span>
+              <span class="text-xs text-gray-600">Project</span>
+              <span class="text-xs font-medium text-gray-700">${item.project_name || "-"}</span>
             </div>
             <div class="flex justify-between items-center">
               <span class="text-xs text-gray-600">Department</span>
-              <span class="text-xs font-medium text-gray-700">${item.departemen}</span>
+              <span class="text-xs font-medium text-gray-700">${item.department_name || "-"}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-gray-600">Receiver</span>
+              <span class="text-xs font-medium text-gray-700">${item.receiver_name || "-"}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-gray-600">Location</span>
+              <span class="text-xs font-medium text-gray-700">${item.location_name || "-"}</span>
             </div>
           </div>
         </div>
 
         <div>
-          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">LAST UPDATE</h5>
+          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">VALIDATION</h5>
           <div class="bg-gray-50 rounded-lg p-3 space-y-2">
             <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Checking Date</span>
-              <span class="text-xs font-medium text-gray-700">${item.tanggalPengecekan}</span>
+              <span class="text-xs text-gray-600">Validated By</span>
+              <span class="text-xs font-medium text-gray-700">${item.validated_by_name || "System"}</span>
             </div>
             <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Checked By</span>
-              <span class="text-xs font-medium text-gray-700">${item.diperbaruiOleh}</span>
+              <span class="text-xs text-gray-600">Validated At</span>
+              <span class="text-xs font-medium text-gray-700">${formatDate(item.validated_at)}</span>
             </div>
           </div>
         </div>
@@ -333,10 +280,10 @@ export default function InventoryDataPage() {
   };
 
   // Function to delete an item with confirmation
-  const handleDeleteItem = (item) => {
-    Swal.fire({
+  const handleDeleteItem = async (item) => {
+    const result = await Swal.fire({
       title: "Delete Asset?",
-      text: `Are you sure you want to delete ${item.nama} (${item.id})?`,
+      text: `Are you sure you want to delete ${item.asset_name} (${item.asset_code})?`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#4CAF50",
@@ -344,21 +291,36 @@ export default function InventoryDataPage() {
       confirmButtonText: "Yes, Delete!",
       cancelButtonText: "Cancel",
       reverseButtons: true,
-      customClass: {
-        confirmButton: "px-6 py-2 text-sm font-medium rounded-lg bg-green-600 hover:bg-green-700 text-white transition",
-        cancelButton: "px-6 py-2 text-sm font-medium rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 transition mr-2",
-      },
-    }).then((result) => {
-      if (result.isConfirmed) {
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const response = await fetch(API_ENDPOINTS.ASSETS_DELETE(item.id_assets), {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          Swal.fire({
+            title: "Deleted!",
+            text: `The asset ${item.asset_name} has been successfully deleted.`,
+            icon: "success",
+            confirmButtonColor: "#2563eb",
+          });
+          loadAssets();
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (error) {
         Swal.fire({
-          title: "Success!",
-          text: `The asset ${item.nama} has been successfully deleted.`,
-          icon: "success",
-          confirmButtonColor: "#2563eb",
-          confirmButtonText: "OK",
+          title: "Error!",
+          text: "Failed to delete asset",
+          icon: "error",
         });
       }
-    });
+    }
   };
 
   // Export to Excel
@@ -368,60 +330,34 @@ export default function InventoryDataPage() {
 
       if (exportType === "current") {
         dataToExport = filteredItems.map((item) => ({
-          "Asset ID": item.id,
-          "Asset Name": item.nama,
-          "Type": item.jenisAset,
-          "Category": item.kategori,
-          "Serial/Barcode": item.serialNumber || item.barcode || "N/A",
-          "Location": item.lokasi,
-          "Department": item.departemen,
-          "Status": item.status,
-          "Last Checked": item.tanggalPengecekan,
-          "Checked By": item.diperbaruiOleh,
+          "Asset Code": item.asset_code,
+          "Asset Name": item.asset_name,
+          "Type": item.asset_type,
+          "Category": item.category,
+          "Serial/Barcode": item.serial_number || item.scan_code || "N/A",
+          "Project": item.project_name || "-",
+          "Department": item.department_name || "-",
+          "Receiver": item.receiver_name || "-",
+          "Location": item.location_name || "-",
+          "Status": getStatusLabel(item.status),
+          "Validated At": formatDate(item.validated_at),
+          "Validated By": item.validated_by_name || "System",
         }));
       } else if (exportType === "all") {
-        dataToExport = inventoryData.map((item) => ({
-          "Asset ID": item.id,
-          "Asset Name": item.nama,
-          "Type": item.jenisAset,
-          "Category": item.kategori,
-          "Serial/Barcode": item.serialNumber || item.barcode || "N/A",
-          "Location": item.lokasi,
-          "Department": item.departemen,
-          "Status": item.status,
-          "Last Checked": item.tanggalPengecekan,
-          "Checked By": item.diperbaruiOleh,
+        dataToExport = assets.map((item) => ({
+          "Asset Code": item.asset_code,
+          "Asset Name": item.asset_name,
+          "Type": item.asset_type,
+          "Category": item.category,
+          "Serial/Barcode": item.serial_number || item.scan_code || "N/A",
+          "Project": item.project_name || "-",
+          "Department": item.department_name || "-",
+          "Receiver": item.receiver_name || "-",
+          "Location": item.location_name || "-",
+          "Status": getStatusLabel(item.status),
+          "Validated At": formatDate(item.validated_at),
+          "Validated By": item.validated_by_name || "System",
         }));
-      } else if (exportType === "valid") {
-        dataToExport = inventoryData
-          .filter((item) => item.status === "Valid")
-          .map((item) => ({
-            "Asset ID": item.id,
-            "Asset Name": item.nama,
-            "Type": item.jenisAset,
-            "Category": item.kategori,
-            "Serial/Barcode": item.serialNumber || item.barcode || "N/A",
-            "Location": item.lokasi,
-            "Department": item.departemen,
-            "Status": "Valid",
-            "Last Checked": item.tanggalPengecekan,
-            "Checked By": item.diperbaruiOleh,
-          }));
-      } else if (exportType === "error") {
-        dataToExport = inventoryData
-          .filter((item) => item.status === "Error")
-          .map((item) => ({
-            "Asset ID": item.id,
-            "Asset Name": item.nama,
-            "Type": item.jenisAset,
-            "Category": item.kategori,
-            "Serial/Barcode": item.serialNumber || item.barcode || "N/A",
-            "Location": item.lokasi,
-            "Department": item.departemen,
-            "Status": "Error",
-            "Last Checked": item.tanggalPengecekan,
-            "Checked By": item.diperbaruiOleh,
-          }));
       }
 
       if (dataToExport.length === 0) {
@@ -430,18 +366,11 @@ export default function InventoryDataPage() {
       }
 
       const ws = XLSX.utils.json_to_sheet(dataToExport);
-      const wscols = [
-        { wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 12 },
-        { wch: 20 }, { wch: 20 }, { wch: 25 }, { wch: 10 },
-        { wch: 12 }, { wch: 15 }
-      ];
-      ws["!cols"] = wscols;
-
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+      XLSX.utils.book_append_sheet(wb, ws, "Assets");
 
       const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-      let filename = `inventory_${exportType}_${timestamp}.xlsx`;
+      let filename = `assets_${exportType}_${timestamp}.xlsx`;
 
       XLSX.writeFile(wb, filename);
       setShowExportDropdown(false);
@@ -450,6 +379,13 @@ export default function InventoryDataPage() {
       Swal.fire("Error", "Failed to export data", "error");
     }
   };
+
+  const kpis = [
+    { title: "Total Assets", value: stats.total, sub: "All IT assets", accent: "#2563eb" },
+    { title: "Devices", value: stats.devices, sub: "Computers, Servers, etc", accent: "#6366f1" },
+    { title: "Materials", value: stats.materials, sub: "Cables, Connectors, etc", accent: "#10b981" },
+    { title: "Active", value: stats.active, sub: "Active assets", accent: "#059669" },
+  ];
 
   return (
     <ProtectedPage>
@@ -465,11 +401,7 @@ export default function InventoryDataPage() {
             box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
             transition: box-shadow 0.2s ease;
           }
-          .inv-card:hover {
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
-          }
 
-          /* KPI cell */
           .kpi-cell {
             display: flex;
             flex-direction: column;
@@ -479,7 +411,6 @@ export default function InventoryDataPage() {
             text-align: center;
           }
 
-          /* Table */
           .inv-th {
             font-size: 11px;
             font-weight: 600;
@@ -501,49 +432,30 @@ export default function InventoryDataPage() {
             vertical-align: middle;
           }
           .inv-row:hover { background: #f8faff; }
-
-          .action-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: #1e40af;
-            color: #fff;
-            padding: 6px 14px;
-            border-radius: 8px;
-            font-size: 12px;
-            font-weight: 600;
-            transition: background 0.15s;
-            border: none;
-            cursor: pointer;
-            white-space: nowrap;
-            box-shadow: 0 1px 3px rgba(30,64,175,0.3);
-          }
-          .action-btn:hover { background: #1d3a9e; }
         `}</style>
 
         <div className="inv-root space-y-5">
-
-          {/* ── Header ── */}
+          {/* Header */}
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <Box className="w-5 h-5 text-blue-600" />
                 <h1 className="text-xl font-bold text-gray-900">IT Asset Inventory</h1>
               </div>
-              <p className="text-sm text-gray-500">Monitor and manage all IT devices and materials</p>
+              <p className="text-sm text-gray-500">Monitor and manage all validated IT assets</p>
             </div>
             <button
-              onClick={() => router.push("/scanning")}
+              onClick={() => router.push("/validation_verification")}
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-sm"
             >
-              <ScanLine className="w-4 h-4" />
-              Scan New Asset
+              <CheckCircle className="w-4 h-4" />
+              Go to Validations
             </button>
           </div>
 
-          {/* ── KPI Card — 1 card, 5 columns ── */}
+          {/* KPI Card */}
           <div className="inv-card">
-            <div className="grid grid-cols-2 lg:grid-cols-5 divide-x divide-y lg:divide-y-0 divide-gray-100">
+            <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-gray-100">
               {kpis.map((d, i) => (
                 <div key={i} className="kpi-cell">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
@@ -558,16 +470,15 @@ export default function InventoryDataPage() {
             </div>
           </div>
 
-          {/* ── Main Table Card ── */}
+          {/* Main Table Card */}
           <div className="inv-card overflow-hidden">
-
             {/* Toolbar */}
             <div className="flex flex-wrap items-center gap-3 p-4 md:p-5 border-b border-gray-100">
               <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search by ID, name, location, serial number..."
+                  placeholder="Search by code, name, location, serial..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
@@ -587,7 +498,7 @@ export default function InventoryDataPage() {
                   className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
                 >
                   <option value="all">All Categories</option>
-                  <option value="Perangkat">Devices</option>
+                  <option value="Device">Devices</option>
                   <option value="Material">Materials</option>
                 </select>
                 <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
@@ -600,9 +511,9 @@ export default function InventoryDataPage() {
                   className="pl-3 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
                 >
                   <option value="all">All Status</option>
-                  <option value="Valid">Valid</option>
-                  <option value="Tertunda">Pending</option>
-                  <option value="Error">Error</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="maintenance">Maintenance</option>
                 </select>
                 <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
               </div>
@@ -625,7 +536,7 @@ export default function InventoryDataPage() {
 
               <div className="flex items-center gap-2 ml-auto">
                 <button
-                  onClick={() => window.location.reload()}
+                  onClick={loadAssets}
                   disabled={loading}
                   className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
@@ -650,13 +561,7 @@ export default function InventoryDataPage() {
                           <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Current View ({filteredItems.length})
                         </button>
                         <button onClick={() => exportToExcel("all")} className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                          <FileSpreadsheet className="w-4 h-4 text-blue-600" /> All Items ({inventoryData.length})
-                        </button>
-                        <button onClick={() => exportToExcel("valid")} className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                          <FileSpreadsheet className="w-4 h-4 text-green-600" /> Valid Only ({stats.valid})
-                        </button>
-                        <button onClick={() => exportToExcel("error")} className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                          <FileSpreadsheet className="w-4 h-4 text-red-600" /> Error Only ({stats.error})
+                          <FileSpreadsheet className="w-4 h-4 text-blue-600" /> All Assets ({assets.length})
                         </button>
                       </div>
                     </>
@@ -671,16 +576,16 @@ export default function InventoryDataPage() {
                 <Loader2 className="w-7 h-7 animate-spin text-blue-600 mx-auto mb-3" />
                 <p className="text-sm text-gray-500">Loading assets...</p>
               </div>
-            ) : inventoryData.length === 0 ? (
+            ) : assets.length === 0 ? (
               <div className="py-20 text-center">
                 <Box className="w-14 h-14 text-gray-200 mx-auto mb-3" />
                 <h3 className="text-gray-800 font-semibold text-lg mb-1">No assets found</h3>
-                <p className="text-gray-400 text-sm mb-5">Start by scanning your first asset</p>
+                <p className="text-gray-400 text-sm mb-5">Start by approving validations</p>
                 <button
-                  onClick={() => router.push("/scanning")}
+                  onClick={() => router.push("/validation_verification")}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700"
                 >
-                  <ScanLine className="w-4 h-4" /> Scan New Asset
+                  <CheckCircle className="w-4 h-4" /> Go to Validations
                 </button>
               </div>
             ) : filteredItems.length === 0 ? (
@@ -693,11 +598,10 @@ export default function InventoryDataPage() {
                 </button>
               </div>
             ) : viewMode === "grid" ? (
-              /* Grid View - Simplified */
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 p-4">
                 {filteredItems.map((item, idx) => (
                   <div
-                    key={item.id}
+                    key={item.id_assets}
                     className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-all cursor-pointer"
                     onClick={() => handleShowDetail(item)}
                   >
@@ -708,10 +612,10 @@ export default function InventoryDataPage() {
                         </div>
                         <div className="min-w-0">
                           <h4 className="font-semibold text-gray-900 text-sm truncate">
-                            {item.nama}
+                            {item.asset_name}
                           </h4>
                           <p className="text-xs text-gray-500 font-mono truncate mt-0.5">
-                            {item.id}
+                            {item.asset_code}
                           </p>
                         </div>
                       </div>
@@ -730,34 +634,34 @@ export default function InventoryDataPage() {
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-gray-500">Status</span>
                         <span className={`text-xs font-medium ${getStatusColor(item.status)}`}>
-                          {item.status === "Tertunda" ? "Pending" : item.status}
+                          {getStatusLabel(item.status)}
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-gray-500">Type</span>
                         <span className="text-xs font-medium text-gray-700">
-                          {item.jenisAset}
+                          {item.asset_type || item.category}
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-gray-500">Location</span>
                         <span className="text-xs text-gray-700 truncate max-w-[120px]">
-                          {item.lokasi}
+                          {item.location_name || "-"}
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500">Last Check</span>
-                        <span className="text-xs text-gray-600">
-                          {formatDate(item.tanggalPengecekan)}
+                        <span className="text-xs text-gray-500">Department</span>
+                        <span className="text-xs text-gray-700 truncate max-w-[120px]">
+                          {item.department_name || "-"}
                         </span>
                       </div>
 
                       <div className="pt-2 border-t mt-2">
                         <div className="flex justify-between items-center">
-                          <button 
+                          <button
                             onClick={(e) => {
                               e.stopPropagation();
                               handleShowDetail(item);
@@ -768,7 +672,7 @@ export default function InventoryDataPage() {
                             View Details
                           </button>
                           <span className="text-xs text-gray-400">
-                            {formatLastCheck(item.tanggalPengecekan)}
+                            {formatDate(item.validated_at)}
                           </span>
                         </div>
                       </div>
@@ -777,29 +681,29 @@ export default function InventoryDataPage() {
                 ))}
               </div>
             ) : (
-              /* List View - Simplified, no icons, status just text color */
               <div className="overflow-x-auto">
                 <table className="min-w-full">
                   <thead>
                     <tr>
-                      <th className="inv-th text-left" onClick={() => handleSort("id")}>
-                        <span className="flex items-center"># {getSortIcon("id")}</span>
+                      <th className="inv-th text-left" onClick={() => handleSort("asset_code")}>
+                        <span className="flex items-center">Asset Code {getSortIcon("asset_code")}</span>
                       </th>
-                      <th className="inv-th text-left" onClick={() => handleSort("nama")}>
-                        <span className="flex items-center">Asset Details {getSortIcon("nama")}</span>
+                      <th className="inv-th text-left" onClick={() => handleSort("asset_name")}>
+                        <span className="flex items-center">Asset Name {getSortIcon("asset_name")}</span>
                       </th>
-                      <th className="inv-th text-left" onClick={() => handleSort("jenisAset")}>
-                        <span className="flex items-center">Type {getSortIcon("jenisAset")}</span>
+                      <th className="inv-th text-left">Type</th>
+                      <th className="inv-th text-left hidden lg:table-cell">Serial/Code</th>
+                      <th className="inv-th text-left hidden lg:table-cell" onClick={() => handleSort("location_name")}>
+                        <span className="flex items-center">Location {getSortIcon("location_name")}</span>
                       </th>
-                      <th className="inv-th text-left hidden lg:table-cell">Unique Code</th>
-                      <th className="inv-th text-left hidden lg:table-cell" onClick={() => handleSort("lokasi")}>
-                        <span className="flex items-center">Location {getSortIcon("lokasi")}</span>
+                      <th className="inv-th text-left hidden xl:table-cell" onClick={() => handleSort("department_name")}>
+                        <span className="flex items-center">Department {getSortIcon("department_name")}</span>
                       </th>
                       <th className="inv-th text-left" onClick={() => handleSort("status")}>
                         <span className="flex items-center">Status {getSortIcon("status")}</span>
                       </th>
-                      <th className="inv-th text-left hidden xl:table-cell" onClick={() => handleSort("tanggalPengecekan")}>
-                        <span className="flex items-center">Last Check {getSortIcon("tanggalPengecekan")}</span>
+                      <th className="inv-th text-left hidden xl:table-cell" onClick={() => handleSort("validated_at")}>
+                        <span className="flex items-center">Validated {getSortIcon("validated_at")}</span>
                       </th>
                       <th className="inv-th text-center">Actions</th>
                     </tr>
@@ -807,7 +711,7 @@ export default function InventoryDataPage() {
                   <tbody>
                     {filteredItems.map((item, idx) => (
                       <tr
-                        key={item.id}
+                        key={item.id_assets}
                         className="inv-row transition-colors cursor-pointer"
                         onClick={() => handleShowDetail(item)}
                       >
@@ -816,41 +720,41 @@ export default function InventoryDataPage() {
                             <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">
                               {idx + 1}
                             </div>
-                            <div>
-                              <div className="font-semibold text-gray-900 text-sm">{item.id}</div>
-                            </div>
+                            <span className="font-mono text-xs font-semibold text-blue-700">
+                              {item.asset_code}
+                            </span>
                           </div>
                         </td>
                         <td className="inv-td">
-                          <div className="font-semibold text-gray-900 text-sm">{item.nama}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">{item.spesifikasi}</div>
+                          <div className="font-semibold text-gray-900 text-sm">{item.asset_name}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">{item.specifications?.substring(0, 50)}</div>
                         </td>
                         <td className="inv-td">
-                          <span className="text-sm text-gray-700">{item.jenisAset}</span>
+                          <span className="text-xs text-gray-600">{item.asset_type || "-"}</span>
+                          <div className="text-[10px] text-gray-400 mt-0.5">{item.category}</div>
                         </td>
                         <td className="inv-td hidden lg:table-cell">
-                          <span className="text-xs font-mono text-gray-600">{item.kodeUnik}</span>
-                          {item.serialNumber && (
-                            <div className="text-xs text-gray-400 mt-0.5">SN: {item.serialNumber}</div>
-                          )}
-                          {item.barcode && (
-                            <div className="text-xs text-gray-400 mt-0.5">BC: {item.barcode}</div>
-                          )}
+                          <span className="text-xs font-mono text-gray-600">
+                            {item.serial_number || item.scan_code || "-"}
+                          </span>
                         </td>
                         <td className="inv-td hidden lg:table-cell">
-                          <div className="text-sm text-gray-700">{item.lokasi}</div>
-                          <div className="text-xs text-gray-400 mt-0.5 truncate max-w-[140px]">
-                            {item.departemen}
-                          </div>
+                          <div className="text-sm text-gray-700">{item.location_name || "-"}</div>
+                        </td>
+                        <td className="inv-td hidden xl:table-cell">
+                          <div className="text-sm text-gray-700">{item.department_name || "-"}</div>
+                          {item.receiver_name && (
+                            <div className="text-xs text-gray-400">Receiver: {item.receiver_name}</div>
+                          )}
                         </td>
                         <td className="inv-td">
                           <span className={`text-sm font-medium ${getStatusColor(item.status)}`}>
-                            {item.status === "Tertunda" ? "Pending" : item.status}
+                            {getStatusLabel(item.status)}
                           </span>
                         </td>
                         <td className="inv-td hidden xl:table-cell">
-                          <div className="text-sm text-gray-700">{formatDate(item.tanggalPengecekan)}</div>
-                          <div className="text-xs text-gray-400 mt-0.5">{item.diperbaruiOleh}</div>
+                          <div className="text-sm text-gray-700">{formatDate(item.validated_at)}</div>
+                          <div className="text-xs text-gray-400">{item.validated_by_name || "System"}</div>
                         </td>
                         <td className="inv-td text-center">
                           <div className="flex items-center justify-center gap-1">
@@ -890,10 +794,10 @@ export default function InventoryDataPage() {
                   Showing{" "}
                   <span className="font-semibold text-gray-700">{filteredItems.length}</span>{" "}
                   of{" "}
-                  <span className="font-semibold text-gray-700">{inventoryData.length}</span>{" "}
+                  <span className="font-semibold text-gray-700">{assets.length}</span>{" "}
                   assets
-                  {categoryFilter !== "all" && <span className="text-gray-400"> · {categoryFilter === "Perangkat" ? "Devices" : "Materials"}</span>}
-                  {statusFilter !== "all" && <span className="text-gray-400"> · {statusFilter === "Tertunda" ? "Pending" : statusFilter}</span>}
+                  {categoryFilter !== "all" && <span className="text-gray-400"> · {categoryFilter === "Device" ? "Devices" : "Materials"}</span>}
+                  {statusFilter !== "all" && <span className="text-gray-400"> · {statusFilter}</span>}
                   {searchTerm && <span className="text-gray-400"> · "{searchTerm}"</span>}
                 </p>
                 <p className="text-xs text-gray-400">Updated {new Date().toLocaleTimeString("id-ID")}</p>

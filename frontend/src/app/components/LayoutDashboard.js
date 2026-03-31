@@ -85,7 +85,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
     { icon: Home, label: "Home", hasDropdown: false, href: "/dashboard" },
     {
       icon: ScanLine,
-      label: "Assets Scanning",  // Perhatikan: "Assets Scanning" dengan "s"
+      label: "Scanning Assets",  // Perhatikan: "Assets Scanning" dengan "s"
       hasDropdown: true,
       href: "#",
       submenu: [
@@ -97,9 +97,9 @@ export default function LayoutDashboard({ children, activeMenu }) {
     },
     {
       icon: FileText,
-      label: "Inventory Data",
+      label: "Assets Inventory",
       hasDropdown: true,
-      href: "/inventory-data",
+      href: "/assets",
     },
     {
       icon: Calendar,

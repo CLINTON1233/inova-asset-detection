@@ -289,12 +289,12 @@ export default function ValidationVerificationPage() {
     const result = await Swal.fire({
       title: "Approve Validation?",
       html: `
-        <div class="text-left">
-          <p class="text-sm text-gray-600 mb-2">Item: <span class="font-semibold">${validation.item_name || "-"}</span></p>
-          <p class="text-sm text-gray-600 mb-4">Code: <span class="font-mono">${validation.serial_or_code || "-"}</span></p>
-          <textarea id="notes" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" rows="3" placeholder="Validation notes (optional)"></textarea>
-        </div>
-      `,
+      <div class="text-left">
+        <p class="text-sm text-gray-600 mb-2">Item: <span class="font-semibold">${validation.item_name || "-"}</span></p>
+        <p class="text-sm text-gray-600 mb-4">Code: <span class="font-mono">${validation.serial_or_code || "-"}</span></p>
+        <textarea id="notes" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" rows="3" placeholder="Validation notes (optional)"></textarea>
+      </div>
+    `,
       icon: "question",
       showCancelButton: true,
       confirmButtonText: "Yes, Approve",
@@ -309,6 +309,7 @@ export default function ValidationVerificationPage() {
     if (result.isConfirmed) {
       setIsProcessing(true);
       try {
+        // 1. Update validation status
         const response = await fetch(
           API_ENDPOINTS.VALIDATIONS_UPDATE(validation.id_validation),
           {
@@ -326,13 +327,37 @@ export default function ValidationVerificationPage() {
         const data = await response.json();
 
         if (data.success) {
-          Swal.fire({
-            title: "Approved!",
-            text: "Validation has been approved successfully.",
-            icon: "success",
-            timer: 2000,
-            showConfirmButton: false,
+          // 2. Buat asset dari validation yang di-approve
+          const assetResponse = await fetch(API_ENDPOINTS.ASSETS_CREATE_FROM_VALIDATION, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              validation_id: validation.id_validation,
+              user_id: 1,
+              validated_by: 1,
+            }),
           });
+
+          const assetResult = await assetResponse.json();
+
+          if (assetResult.success) {
+            Swal.fire({
+              title: "Approved & Added to Assets!",
+              html: `Validation approved and asset <strong>${assetResult.asset_code}</strong> has been added to inventory.`,
+              icon: "success",
+              timer: 2000,
+              showConfirmButton: false,
+            });
+          } else {
+            Swal.fire({
+              title: "Approved!",
+              text: "Validation has been approved successfully, but asset creation failed.",
+              icon: "warning",
+              timer: 2000,
+              showConfirmButton: false,
+            });
+          }
+
           loadValidations();
         } else {
           throw new Error(data.error);

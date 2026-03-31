@@ -53,7 +53,7 @@ export const API_ENDPOINTS = {
 
   DEVICES_ITEMS_PREPARATION_DETAIL: (id) => `${API_BASE_URL}/api/devices/items-preparation/${id}`,
   MATERIALS_ITEMS_PREPARATION_DETAIL: (id) => `${API_BASE_URL}/api/materials/items-preparation/${id}`,
-  
+
   // Scanning Preparation (Devices)
   DEVICES_SCANNING_PREP_CREATE: `${API_BASE_URL}/api/devices/scanning-preparation/create`,
   DEVICES_SCANNING_PREP_LIST: `${API_BASE_URL}/api/devices/scanning-preparation/list`,
@@ -130,6 +130,14 @@ export const API_ENDPOINTS = {
   // Validation Receiver
   VALIDATIONS_UPDATE_RECEIVER: (id) =>
     `${API_BASE_URL}/api/validations/${id}/receiver`,
+
+  // Assets
+  ASSETS_LIST: `${API_BASE_URL}/api/assets`,
+  ASSETS_DETAIL: (id) => `${API_BASE_URL}/api/assets/${id}`,
+  ASSETS_CREATE_FROM_VALIDATION: `${API_BASE_URL}/api/assets/create-from-validation`,
+  ASSETS_UPDATE: (id) => `${API_BASE_URL}/api/assets/${id}`,
+  ASSETS_DELETE: (id) => `${API_BASE_URL}/api/assets/${id}`,
+  ASSETS_BULK_DELETE: `${API_BASE_URL}/api/assets/bulk-delete`,
 };
 
 export default API_BASE_URL;
