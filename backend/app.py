@@ -34,6 +34,7 @@ from routes.scanning_preparation import scanning_prep_bp
 from routes.department import department_bp 
 from routes.scan_results import scan_results_bp
 from routes.validation import validation_bp
+from routes.assets import assets_bp
 
 # Blueprint
 app.register_blueprint(auth_bp)
@@ -45,7 +46,8 @@ app.register_blueprint(ocr_bp)
 app.register_blueprint(scanning_prep_bp)
 app.register_blueprint(department_bp) 
 app.register_blueprint(scan_results_bp)  
-app.register_blueprint(validation_bp)     
+app.register_blueprint(validation_bp) 
+app.register_blueprint(assets_bp)    
 
 @app.route('/')
 def root():

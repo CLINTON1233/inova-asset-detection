@@ -304,6 +304,40 @@ def update_validation(validation_id):
         
         conn.commit()
         
+        # ==================== CREATE ASSET IF APPROVED ====================
+        if validation_status == 'approved' and is_approved:
+            try:
+                from routes.assets import create_asset_from_validation
+                from flask import current_app as app
+                
+                # Buat request data untuk create asset
+                asset_data = {
+                    'validation_id': validation_id,
+                    'user_id': validated_by,
+                    'validated_by': validated_by
+                }
+                
+                # Buat asset menggunakan fungsi yang sudah ada
+                with app.app_context():
+                    # Simulasi request dengan data yang sudah disiapkan
+                    from flask import Request
+                    req = Request.from_values(json=asset_data)
+                    response = create_asset_from_validation()
+                    
+                    if hasattr(response, 'get_json'):
+                        asset_result = response.get_json()
+                    else:
+                        asset_result = response
+                    
+                    if asset_result and asset_result.get('success'):
+                        print(f"✅ Asset created for validation {validation_id}: {asset_result.get('asset_code')}")
+                    else:
+                        print(f"⚠️ Asset creation failed for validation {validation_id}: {asset_result}")
+                        
+            except Exception as asset_error:
+                print(f"Error creating asset for validation {validation_id}: {asset_error}")
+                print(traceback.format_exc())
+           
         return jsonify({
             'success': True,
             'message': f'Validation {validation_status} successfully'

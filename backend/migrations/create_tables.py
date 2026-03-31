@@ -629,19 +629,42 @@ def create_assets_table(conn):
             CREATE TABLE IF NOT EXISTS assets (
                 id_assets SERIAL PRIMARY KEY,
                 user_id INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
-                category_id INTEGER REFERENCES asset_categories(id_category) ON DELETE SET NULL,
-                location_id INTEGER REFERENCES locations(id_location) ON DELETE SET NULL,
+                validation_id INTEGER REFERENCES validations(id_validation) ON DELETE SET NULL,
+                asset_code VARCHAR(100) UNIQUE NOT NULL,
                 asset_name VARCHAR(255) NOT NULL,
+                asset_type VARCHAR(100),
+                category VARCHAR(50),
                 serial_number VARCHAR(100) UNIQUE,
                 scan_code VARCHAR(100) UNIQUE,
+                project_name VARCHAR(255),
+                department_name VARCHAR(255),
+                receiver_name VARCHAR(255),
+                location_id INTEGER REFERENCES locations(id_location) ON DELETE SET NULL,
+                location_name VARCHAR(255),
+                brand VARCHAR(100),
+                vendor VARCHAR(255),
+                model VARCHAR(100),
+                specifications TEXT,
+                quantity DECIMAL(10,2) DEFAULT 1,
+                uom VARCHAR(20),
                 status VARCHAR(50) DEFAULT 'active',
+                photo_url TEXT,
+                validated_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
+                validated_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_user ON assets(user_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_category ON assets(category_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_validation ON assets(validation_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_code ON assets(asset_code)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_serial ON assets(serial_number)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_scan_code ON assets(scan_code)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_status ON assets(status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_category ON assets(category)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_project ON assets(project_name)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_department ON assets(department_name)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_receiver ON assets(receiver_name)")
         conn.commit()
         print("✓ Tabel assets berhasil dibuat")
     except Exception as e:
