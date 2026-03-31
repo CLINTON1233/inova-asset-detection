@@ -138,6 +138,8 @@ export const API_ENDPOINTS = {
   ASSETS_UPDATE: (id) => `${API_BASE_URL}/api/assets/${id}`,
   ASSETS_DELETE: (id) => `${API_BASE_URL}/api/assets/${id}`,
   ASSETS_BULK_DELETE: `${API_BASE_URL}/api/assets/bulk-delete`,
+  ASSETS_BY_PREPARATION: (prepId) => `${API_BASE_URL}/api/assets/by-preparation/${prepId}`,
+  ASSETS_PREPARATIONS_COMPLETED: `${API_BASE_URL}/api/assets/preparations/completed`,
 };
 
 export default API_BASE_URL;

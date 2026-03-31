@@ -85,7 +85,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
     { icon: Home, label: "Home", hasDropdown: false, href: "/dashboard" },
     {
       icon: ScanLine,
-      label: "Scanning Assets",  // Perhatikan: "Assets Scanning" dengan "s"
+      label: "Assets Scanning",  // Perhatikan: "Assets Scanning" dengan "s"
       hasDropdown: true,
       href: "#",
       submenu: [

@@ -17,6 +17,203 @@ def generate_asset_code():
     random_chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
     return f"AST-{date_str}-{random_chars}"
 
+# ==================== GET COMPLETED PREPARATIONS ====================
+@assets_bp.route('/api/assets/preparations/completed', methods=['GET'])
+def get_completed_preparations():
+    """Mendapatkan daftar preparation yang sudah completed (semua item sudah divalidasi)"""
+    conn = None
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        # Ambil semua devices preparations yang completed
+        cur.execute("""
+            SELECT 
+                dsp.id_preparation,
+                dsp.checking_number,
+                dsp.checking_name,
+                dsp.checking_date,
+                dsp.location_id,
+                l.location_name,
+                dsp.created_at,
+                'device' as type,
+                COUNT(DISTINCT dip.id_item_preparation) as total_items,
+                COUNT(DISTINCT a.id_assets) as validated_items
+            FROM devices_scanning_preparations dsp
+            LEFT JOIN devices_items_preparation dip ON dsp.id_preparation = dip.preparation_id
+            LEFT JOIN validations v ON dip.id_item_preparation = v.item_preparation_id AND v.validation_status = 'approved'
+            LEFT JOIN assets a ON v.id_validation = a.validation_id
+            LEFT JOIN locations l ON dsp.location_id = l.id_location
+            WHERE dsp.status = 'completed'
+            GROUP BY dsp.id_preparation, dsp.checking_number, dsp.checking_name, 
+                     dsp.checking_date, dsp.location_id, l.location_name, dsp.created_at
+            HAVING COUNT(DISTINCT dip.id_item_preparation) = COUNT(DISTINCT a.id_assets)
+            ORDER BY dsp.created_at DESC
+        """)
+        
+        devices_preparations = cur.fetchall()
+        
+        # Ambil semua materials preparations yang completed
+        cur.execute("""
+            SELECT 
+                msp.id_preparation,
+                msp.checking_number,
+                msp.checking_name,
+                msp.checking_date,
+                msp.location_id,
+                l.location_name,
+                msp.created_at,
+                'material' as type,
+                COUNT(DISTINCT mip.id_item_preparation) as total_items,
+                COUNT(DISTINCT a.id_assets) as validated_items
+            FROM materials_scanning_preparations msp
+            LEFT JOIN materials_items_preparation mip ON msp.id_preparation = mip.preparation_id
+            LEFT JOIN validations v ON mip.id_item_preparation = v.material_item_preparation_id AND v.validation_status = 'approved'
+            LEFT JOIN assets a ON v.id_validation = a.validation_id
+            LEFT JOIN locations l ON msp.location_id = l.id_location
+            WHERE msp.status = 'completed'
+            GROUP BY msp.id_preparation, msp.checking_number, msp.checking_name, 
+                     msp.checking_date, msp.location_id, l.location_name, msp.created_at
+            HAVING COUNT(DISTINCT mip.id_item_preparation) = COUNT(DISTINCT a.id_assets)
+            ORDER BY msp.created_at DESC
+        """)
+        
+        materials_preparations = cur.fetchall()
+        
+        # Gabungkan dan urutkan
+        all_preparations = []
+        for prep in devices_preparations:
+            all_preparations.append(dict(prep))
+        for prep in materials_preparations:
+            all_preparations.append(dict(prep))
+        
+        # Urutkan berdasarkan created_at
+        all_preparations.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+        
+        return jsonify({
+            'success': True,
+            'data': all_preparations,
+            'count': len(all_preparations)
+        })
+        
+    except Exception as e:
+        print(f"Error getting completed preparations: {e}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+# ==================== GET ASSETS BY PREPARATION ====================
+@assets_bp.route('/api/assets/by-preparation/<int:prep_id>', methods=['GET'])
+def get_assets_by_preparation(prep_id):
+    """Mendapatkan semua assets berdasarkan preparation ID"""
+    conn = None
+    try:
+        prep_type = request.args.get('type', 'device')
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        if prep_type == 'device':
+            cur.execute("""
+                SELECT 
+                    a.*,
+                    u.username as created_by_name,
+                    vu.username as validated_by_name,
+                    dip.item_number,
+                    dip.serial_number,
+                    dip.department_id,
+                    dip.receiver_id,
+                    d.department_name,
+                    mr.receiver_name,
+                    si.device_name,
+                    si.brand,
+                    si.model,
+                    si.specifications,
+                    dsp.checking_name as session_name,
+                    dsp.checking_number as session_number,
+                    dsp.checking_date as session_date,
+                    l.location_name
+                FROM assets a
+                LEFT JOIN validations v ON a.validation_id = v.id_validation
+                LEFT JOIN devices_items_preparation dip ON v.item_preparation_id = dip.id_item_preparation
+                LEFT JOIN devices_scanning_items si ON dip.scanning_item_id = si.id_item
+                LEFT JOIN devices_scanning_preparations dsp ON dip.preparation_id = dsp.id_preparation
+                LEFT JOIN departments d ON dip.department_id = d.id_department
+                LEFT JOIN master_receivers mr ON dip.receiver_id = mr.id_receiver
+                LEFT JOIN locations l ON dsp.location_id = l.id_location
+                LEFT JOIN users u ON a.user_id = u.id_user
+                LEFT JOIN users vu ON a.validated_by = vu.id_user
+                WHERE dsp.id_preparation = %s AND a.validation_id IS NOT NULL
+                ORDER BY dip.id_item_preparation ASC
+            """, (prep_id,))
+        else:
+            cur.execute("""
+                SELECT 
+                    a.*,
+                    u.username as created_by_name,
+                    vu.username as validated_by_name,
+                    mip.item_number,
+                    mip.scan_code,
+                    mip.department_id,
+                    mip.receiver_id,
+                    d.department_name,
+                    mr.receiver_name,
+                    si.material_name,
+                    si.vendor,
+                    si.uom,
+                    si.material_detail as specifications,
+                    msp.checking_name as session_name,
+                    msp.checking_number as session_number,
+                    msp.checking_date as session_date,
+                    l.location_name
+                FROM assets a
+                LEFT JOIN validations v ON a.validation_id = v.id_validation
+                LEFT JOIN materials_items_preparation mip ON v.material_item_preparation_id = mip.id_item_preparation
+                LEFT JOIN materials_scanning_items si ON mip.scanning_item_id = si.id_item
+                LEFT JOIN materials_scanning_preparations msp ON mip.preparation_id = msp.id_preparation
+                LEFT JOIN departments d ON mip.department_id = d.id_department
+                LEFT JOIN master_receivers mr ON mip.receiver_id = mr.id_receiver
+                LEFT JOIN locations l ON msp.location_id = l.id_location
+                LEFT JOIN users u ON a.user_id = u.id_user
+                LEFT JOIN users vu ON a.validated_by = vu.id_user
+                WHERE msp.id_preparation = %s AND a.validation_id IS NOT NULL
+                ORDER BY mip.id_item_preparation ASC
+            """, (prep_id,))
+        
+        assets = cur.fetchall()
+        
+        # Ambil informasi session
+        session_info = None
+        if assets:
+            session_info = {
+                'session_name': assets[0].get('session_name'),
+                'session_number': assets[0].get('session_number'),
+                'session_date': assets[0].get('session_date'),
+                'location_name': assets[0].get('location_name')
+            }
+        
+        return jsonify({
+            'success': True,
+            'data': [dict(asset) for asset in assets],
+            'session_info': session_info,
+            'count': len(assets)
+        })
+        
+    except Exception as e:
+        print(f"Error getting assets by preparation: {e}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
 # ==================== CREATE ASSET FROM VALIDATION ====================
 @assets_bp.route('/api/assets/create-from-validation', methods=['POST'])
 def create_asset_from_validation():
