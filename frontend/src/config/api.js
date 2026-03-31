@@ -112,14 +112,17 @@ export const API_ENDPOINTS = {
     `${API_BASE_URL}/api/scan-results/check-serial?serial=${encodeURIComponent(serial)}`,
   SCAN_RESULTS_CHECK_SCAN_CODE: (code) =>
     `${API_BASE_URL}/api/scan-results/check-scan-code?code=${encodeURIComponent(code)}`,
-  SCAN_RESULTS_UPDATE_PHOTO: (id) => `${API_BASE_URL}/api/scan-results/update-photo/${id}`,
+  SCAN_RESULTS_UPDATE_PHOTO: (id) =>
+    `${API_BASE_URL}/api/scan-results/update-photo/${id}`,
 
   // Validations
   VALIDATIONS_CREATE: `${API_BASE_URL}/api/validations/create`,
   VALIDATIONS_UPDATE: (id) => `${API_BASE_URL}/api/validations/${id}`,
+  VALIDATIONS_DELETE: (id) => `${API_BASE_URL}/api/validations/${id}`,
   VALIDATIONS_LIST: `${API_BASE_URL}/api/validations`,
   VALIDATIONS_DETAIL: (id) => `${API_BASE_URL}/api/validations/${id}/detail`,
   VALIDATIONS_BULK: `${API_BASE_URL}/api/validations/bulk`,
+  VALIDATIONS_BULK_DELETE: `${API_BASE_URL}/api/validations/bulk-delete`,
 
   // Validation Receiver
   VALIDATIONS_UPDATE_RECEIVER: (id) =>

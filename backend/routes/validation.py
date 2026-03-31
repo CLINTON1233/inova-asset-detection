@@ -398,3 +398,89 @@ def get_validation_detail(validation_id):
     finally:
         if conn:
             conn.close()
+            
+# ==================== DELETE VALIDATION ====================
+@validation_bp.route('/api/validations/<int:validation_id>', methods=['DELETE'])
+def delete_validation(validation_id):
+    """Menghapus validation berdasarkan ID"""
+    conn = None
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        
+        # Cek apakah validation exists
+        cur.execute("SELECT id_validation FROM validations WHERE id_validation = %s", (validation_id,))
+        if not cur.fetchone():
+            return jsonify({
+                'success': False,
+                'error': 'Validation not found'
+            }), 404
+        
+        # Delete validation
+        cur.execute("DELETE FROM validations WHERE id_validation = %s", (validation_id,))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Validation deleted successfully'
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Error deleting validation: {e}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+# ==================== BULK DELETE VALIDATIONS ====================
+@validation_bp.route('/api/validations/bulk-delete', methods=['POST'])
+def bulk_delete_validations():
+    """Menghapus multiple validations sekaligus"""
+    conn = None
+    try:
+        data = request.json
+        validation_ids = data.get('validation_ids', [])
+        
+        if not validation_ids:
+            return jsonify({
+                'success': False,
+                'error': 'No validation IDs provided'
+            }), 400
+        
+        conn = get_conn()
+        cur = conn.cursor()
+        
+        deleted_count = 0
+        
+        for val_id in validation_ids:
+            cur.execute("DELETE FROM validations WHERE id_validation = %s", (val_id,))
+            if cur.rowcount > 0:
+                deleted_count += 1
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'{deleted_count} validations deleted successfully',
+            'deleted_count': deleted_count
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Error bulk deleting validations: {e}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()

@@ -696,8 +696,6 @@ def create_validations_table(conn):
                 unique_code VARCHAR(100) UNIQUE,
                 is_approved BOOLEAN DEFAULT FALSE,
                 rejection_reason TEXT,
-                receiver_name VARCHAR(255),
-                receiver_title VARCHAR(255),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
