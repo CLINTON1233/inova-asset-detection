@@ -56,8 +56,12 @@ export default function ScanningPreparationListPage() {
         (s) =>
           s.checking_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           s.checking_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (s.location_name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (s.project_name || "").toLowerCase().includes(searchTerm.toLowerCase())
+          (s.location_name || "")
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          (s.project_name || "")
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()),
       );
     }
 
@@ -86,7 +90,6 @@ export default function ScanningPreparationListPage() {
     setFilteredSessions(filtered);
   }, [searchTerm, statusFilter, typeFilter, sessions, sorting]);
 
-
   const fetchSessionDetail = async (sessionId, type) => {
     if (sessionDetails[sessionId]) return sessionDetails[sessionId];
 
@@ -109,33 +112,39 @@ export default function ScanningPreparationListPage() {
         const itemsList = [];
         let projectName = "-";
 
-        data.items.forEach(item => {
+        data.items.forEach((item) => {
           if (item.project_name && projectName === "-") {
             projectName = item.project_name;
           }
 
           itemsList.push({
-            name: type === "device" ? item.device_name : item.item_name || item.material_name,
-            detail: type === "device" ? item.device_detail : item.specifications,
+            name:
+              type === "device"
+                ? item.device_name
+                : item.item_name || item.material_name,
+            detail:
+              type === "device" ? item.device_detail : item.specifications,
             quantity: item.quantity,
             brand: item.brand,
             model: item.model,
             vendor: item.vendor,
             specifications: item.specifications,
-            uom: item.uom
+            uom: item.uom,
           });
 
           // Departments
           if (item.departments && item.departments.length > 0) {
-            item.departments.forEach(d => {
-              const existing = departmentsList.find(dept => dept.id === d.department_id);
+            item.departments.forEach((d) => {
+              const existing = departmentsList.find(
+                (dept) => dept.id === d.department_id,
+              );
               if (existing) {
                 existing.quantity += d.quantity;
               } else {
                 departmentsList.push({
                   id: d.department_id,
                   name: d.department_name,
-                  quantity: d.quantity
+                  quantity: d.quantity,
                 });
               }
             });
@@ -143,12 +152,15 @@ export default function ScanningPreparationListPage() {
 
           // Receivers - sekarang menggunakan receiver_name dari backend
           if (item.receivers && item.receivers.length > 0) {
-            item.receivers.forEach(r => {
+            item.receivers.forEach((r) => {
               receiversList.push({
                 name: r.receiver_name || `Receiver ${r.receiver_id}`, // Gunakan receiver_name
                 department: r.department_name,
-                item_name: type === "device" ? item.device_name : item.item_name || item.material_name,
-                receiver_id: r.receiver_id
+                item_name:
+                  type === "device"
+                    ? item.device_name
+                    : item.item_name || item.material_name,
+                receiver_id: r.receiver_id,
               });
             });
           }
@@ -160,10 +172,10 @@ export default function ScanningPreparationListPage() {
           items: itemsList,
           project_name: projectName,
           totalItems: data.items.length,
-          totalQty: data.items.reduce((sum, i) => sum + (i.quantity || 0), 0)
+          totalQty: data.items.reduce((sum, i) => sum + (i.quantity || 0), 0),
         };
 
-        setSessionDetails(prev => ({ ...prev, [sessionId]: detail }));
+        setSessionDetails((prev) => ({ ...prev, [sessionId]: detail }));
         return detail;
       }
     } catch (error) {
@@ -191,21 +203,26 @@ export default function ScanningPreparationListPage() {
         const sessionsWithDetails = result.data.map((session) => {
           const items = session.items || [];
           const totalItems = items.length;
-          const totalQty = session.totalQty || items.reduce((sum, i) => sum + (i.quantity || 0), 0);
+          const totalQty =
+            session.totalQty ||
+            items.reduce((sum, i) => sum + (i.quantity || 0), 0);
 
           // Ambil project name dari items (jika ada)
           const projectName = items[0]?.project_name || "-";
 
           // Ambil receiver info dari items
           const receiversList = [];
-          items.forEach(item => {
+          items.forEach((item) => {
             if (item.receivers && item.receivers.length > 0) {
-              item.receivers.forEach(r => {
+              item.receivers.forEach((r) => {
                 if (r.receiver_name || r.receiver_id) {
                   receiversList.push({
                     name: r.receiver_name,
                     department: r.department_name,
-                    item_name: session.type === 'device' ? item.device_name : item.material_name
+                    item_name:
+                      session.type === "device"
+                        ? item.device_name
+                        : item.material_name,
                   });
                 }
               });
@@ -214,17 +231,21 @@ export default function ScanningPreparationListPage() {
 
           // Ambil department distribution
           const departmentsList = [];
-          items.forEach(item => {
+          items.forEach((item) => {
             if (item.departments && item.departments.length > 0) {
-              item.departments.forEach(d => {
-                if (!departmentsList.find(dept => dept.id === d.department_id)) {
+              item.departments.forEach((d) => {
+                if (
+                  !departmentsList.find((dept) => dept.id === d.department_id)
+                ) {
                   departmentsList.push({
                     id: d.department_id,
                     name: d.department_name,
-                    quantity: d.quantity
+                    quantity: d.quantity,
                   });
                 } else {
-                  const existing = departmentsList.find(dept => dept.id === d.department_id);
+                  const existing = departmentsList.find(
+                    (dept) => dept.id === d.department_id,
+                  );
                   if (existing) existing.quantity += d.quantity;
                 }
               });
@@ -235,13 +256,18 @@ export default function ScanningPreparationListPage() {
           let status = session.status || "pending";
 
           if (session.items && session.items.length > 0 && !session.progress) {
-            const totalScanned = session.items.reduce((sum, i) => sum + (i.scanned_count || 0), 0);
-            progress = totalQty > 0 ? Math.round((totalScanned / totalQty) * 100) : 0;
+            const totalScanned = session.items.reduce(
+              (sum, i) => sum + (i.scanned_count || 0),
+              0,
+            );
+            progress =
+              totalQty > 0 ? Math.round((totalScanned / totalQty) * 100) : 0;
             if (progress === 100) status = "completed";
             else if (progress > 0) status = "in-progress";
           }
 
-          const sessionType = session.type || (session.category_id === 1 ? "device" : "material");
+          const sessionType =
+            session.type || (session.category_id === 1 ? "device" : "material");
 
           return {
             ...session,
@@ -255,19 +281,24 @@ export default function ScanningPreparationListPage() {
             departments: departmentsList,
             category_name: session.category_name || "General",
             location_name: session.location_name || "No location",
-            uniqueCode: session.checking_number || `SESS-${session.id_preparation}`,
+            uniqueCode:
+              session.checking_number || `SESS-${session.id_preparation}`,
           };
         });
         setSessions(sessionsWithDetails);
         setFilteredSessions(sessionsWithDetails);
       } else {
-        throw new Error(result.message || result.error || "Failed to load sessions");
+        throw new Error(
+          result.message || result.error || "Failed to load sessions",
+        );
       }
     } catch (error) {
       console.error("Error fetching sessions:", error);
       Swal.fire({
         title: "Error!",
-        text: error.message || "Failed to load sessions. Please check if backend server is running.",
+        text:
+          error.message ||
+          "Failed to load sessions. Please check if backend server is running.",
         icon: "error",
         confirmButtonColor: "#1e40af",
       });
@@ -384,13 +415,13 @@ export default function ScanningPreparationListPage() {
 
         if (data.success) {
           setSessions((prevSessions) =>
-            prevSessions.filter((s) => s.id_preparation !== prepId)
+            prevSessions.filter((s) => s.id_preparation !== prepId),
           );
           setFilteredSessions((prevFiltered) =>
-            prevFiltered.filter((s) => s.id_preparation !== prepId)
+            prevFiltered.filter((s) => s.id_preparation !== prepId),
           );
           // Hapus detail session yang sudah di-cache
-          setSessionDetails(prev => {
+          setSessionDetails((prev) => {
             const newDetails = { ...prev };
             delete newDetails[prepId];
             return newDetails;
@@ -442,11 +473,36 @@ export default function ScanningPreparationListPage() {
   }
 
   const kpis = [
-    { title: "Total Sessions", value: stats.total, sub: "All sessions", accent: "#2563eb" },
-    { title: "Devices", value: stats.devices, sub: "Device sessions", accent: "#3b82f6" },
-    { title: "Materials", value: stats.materials, sub: "Material sessions", accent: "#10b981" },
-    { title: "In Progress", value: stats.inProgress, sub: "Sessions active", accent: "#6366f1" },
-    { title: "Completed", value: stats.completed, sub: "Sessions done", accent: "#10b981" },
+    {
+      title: "Total Sessions",
+      value: stats.total,
+      sub: "All sessions",
+      accent: "#2563eb",
+    },
+    {
+      title: "Devices",
+      value: stats.devices,
+      sub: "Device sessions",
+      accent: "#3b82f6",
+    },
+    {
+      title: "Materials",
+      value: stats.materials,
+      sub: "Material sessions",
+      accent: "#10b981",
+    },
+    {
+      title: "In Progress",
+      value: stats.inProgress,
+      sub: "Sessions active",
+      accent: "#6366f1",
+    },
+    {
+      title: "Completed",
+      value: stats.completed,
+      sub: "Sessions done",
+      accent: "#10b981",
+    },
   ];
 
   return (
@@ -540,7 +596,10 @@ export default function ScanningPreparationListPage() {
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
                   {d.title}
                 </p>
-                <span className="text-4xl font-bold" style={{ color: d.accent }}>
+                <span
+                  className="text-4xl font-bold"
+                  style={{ color: d.accent }}
+                >
                   {d.value}
                 </span>
                 <p className="text-xs text-gray-400 mt-2">{d.sub}</p>
@@ -607,7 +666,9 @@ export default function ScanningPreparationListPage() {
                 disabled={loading}
                 className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
+                />
                 Refresh
               </button>
             </div>
@@ -622,8 +683,12 @@ export default function ScanningPreparationListPage() {
           ) : sessions.length === 0 ? (
             <div className="py-20 text-center">
               <ScanLine className="w-14 h-14 text-gray-200 mx-auto mb-3" />
-              <h3 className="text-gray-800 font-semibold text-lg mb-1">No sessions found</h3>
-              <p className="text-gray-400 text-sm mb-5">Create your first scanning session to get started</p>
+              <h3 className="text-gray-800 font-semibold text-lg mb-1">
+                No sessions found
+              </h3>
+              <p className="text-gray-400 text-sm mb-5">
+                Create your first scanning session to get started
+              </p>
               <button
                 onClick={() => router.push("/create_scanning_preparation")}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
@@ -634,8 +699,12 @@ export default function ScanningPreparationListPage() {
           ) : filteredSessions.length === 0 ? (
             <div className="py-16 text-center">
               <Search className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-              <h3 className="text-gray-800 font-semibold mb-1">No matching sessions</h3>
-              <p className="text-gray-400 text-sm mb-4">Try adjusting your filters</p>
+              <h3 className="text-gray-800 font-semibold mb-1">
+                No matching sessions
+              </h3>
+              <p className="text-gray-400 text-sm mb-4">
+                Try adjusting your filters
+              </p>
               <button
                 onClick={() => {
                   setSearchTerm("");
@@ -652,20 +721,40 @@ export default function ScanningPreparationListPage() {
               <table className="min-w-full">
                 <thead>
                   <tr>
-                    <th className="sp-th text-left" onClick={() => handleSort("checking_name")}>
-                      <span className="flex items-center">Session {getSortIcon("checking_name")}</span>
+                    <th
+                      className="sp-th text-left"
+                      onClick={() => handleSort("checking_name")}
+                    >
+                      <span className="flex items-center">
+                        Session {getSortIcon("checking_name")}
+                      </span>
                     </th>
-                    <th className="sp-th text-left hidden md:table-cell" onClick={() => handleSort("checking_date")}>
-                      <span className="flex items-center">Date {getSortIcon("checking_date")}</span>
+                    <th
+                      className="sp-th text-left hidden md:table-cell"
+                      onClick={() => handleSort("checking_date")}
+                    >
+                      <span className="flex items-center">
+                        Date {getSortIcon("checking_date")}
+                      </span>
                     </th>
-                    <th className="sp-th text-left hidden lg:table-cell" onClick={() => handleSort("location_name")}>
-                      <span className="flex items-center">Location {getSortIcon("location_name")}</span>
+                    <th
+                      className="sp-th text-left hidden lg:table-cell"
+                      onClick={() => handleSort("location_name")}
+                    >
+                      <span className="flex items-center">
+                        Location {getSortIcon("location_name")}
+                      </span>
                     </th>
                     <th className="sp-th text-left hidden xl:table-cell">
                       <span className="flex items-center">Project</span>
                     </th>
-                    <th className="sp-th text-left" onClick={() => handleSort("status")}>
-                      <span className="flex items-center">Status {getSortIcon("status")}</span>
+                    <th
+                      className="sp-th text-left"
+                      onClick={() => handleSort("status")}
+                    >
+                      <span className="flex items-center">
+                        Status {getSortIcon("status")}
+                      </span>
                     </th>
                     <th className="sp-th text-left">Progress</th>
                     <th className="sp-th text-center">Actions</th>
@@ -674,20 +763,30 @@ export default function ScanningPreparationListPage() {
                 <tbody>
                   {filteredSessions.map((session, idx) => {
                     const sc = getStatusConfig(session.status);
-                    const isExpanded = expandedSession === session.id_preparation;
+                    const isExpanded =
+                      expandedSession === session.id_preparation;
                     const detail = sessionDetails[session.id_preparation];
                     const projectName = detail?.project_name || "-";
 
                     return (
-                      <Fragment key={`${session.type}_${session.id_preparation}`}>
+                      <Fragment
+                        key={`${session.type}_${session.id_preparation}`}
+                      >
                         <tr className="sp-row transition-colors">
                           <td className="sp-td">
                             <div className="flex items-center gap-3">
                               <button
-                                onClick={() => toggleExpandSession(session.id_preparation, session.type)}
+                                onClick={() =>
+                                  toggleExpandSession(
+                                    session.id_preparation,
+                                    session.type,
+                                  )
+                                }
                                 className="p-1 hover:bg-gray-100 rounded transition"
                               >
-                                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                                <ChevronDown
+                                  className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                                />
                               </button>
                               <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">
                                 {idx + 1}
@@ -700,51 +799,73 @@ export default function ScanningPreparationListPage() {
                                   {session.checking_number}
                                 </div>
                                 <div className="text-xs text-gray-400 mt-0.5">
-                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${session.type === "device" ? "bg-blue-100 text-blue-700" :
-                                    session.type === "material" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"
-                                    }`}>
-                                    {session.type === "device" ? "Device" : session.type === "material" ? "Material" : "Unknown"}
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                      session.type === "device"
+                                        ? "bg-blue-100 text-blue-700"
+                                        : session.type === "material"
+                                          ? "bg-green-100 text-green-700"
+                                          : "bg-gray-100 text-gray-700"
+                                    }`}
+                                  >
+                                    {session.type === "device"
+                                      ? "Device"
+                                      : session.type === "material"
+                                        ? "Material"
+                                        : "Unknown"}
                                   </span>
                                 </div>
                               </div>
                             </div>
                           </td>
                           <td className="sp-td hidden md:table-cell">
-                            <div className="flex items-center gap-1.5">
-                              <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                              <span className="text-xs text-gray-600">{formatDate(session.checking_date)}</span>
-                            </div>
+                            <span className="text-xs text-gray-600">
+                              {formatDate(session.checking_date)}
+                            </span>
                           </td>
+
                           <td className="sp-td hidden lg:table-cell">
-                            <div className="flex items-center gap-1.5">
-                              <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                              <span className="text-xs text-gray-600 truncate max-w-[140px]">{session.location_name}</span>
-                            </div>
+                            <span className="text-xs text-gray-600 truncate max-w-[140px]">
+                              {session.location_name}
+                            </span>
                           </td>
+
                           <td className="sp-td hidden xl:table-cell">
-                            <div className="flex items-center gap-1.5">
-                              <Building2 className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                              <span className="text-xs text-gray-600 truncate max-w-[120px]">{projectName}</span>
-                            </div>
+                            <span className="text-xs text-gray-600 truncate max-w-[120px]">
+                              {projectName}
+                            </span>
                           </td>
                           <td className="sp-td">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`} />
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`}
+                              />
                               {sc.label}
                             </span>
                           </td>
                           <td className="sp-td">
                             <div className="flex items-center gap-2">
                               <div className="prog-track w-20">
-                                <div className="prog-fill" style={{ width: `${session.progress || 0}%` }} />
+                                <div
+                                  className="prog-fill"
+                                  style={{ width: `${session.progress || 0}%` }}
+                                />
                               </div>
-                              <span className="text-xs font-semibold text-gray-600">{session.progress || 0}%</span>
+                              <span className="text-xs font-semibold text-gray-600">
+                                {session.progress || 0}%
+                              </span>
                             </div>
                           </td>
                           <td className="sp-td text-center">
                             <div className="flex items-center justify-center gap-2">
                               <button
-                                onClick={() => router.push(`/scanning?prep_id=${session.id_preparation}&type=${session.type}`)}
+                                onClick={() =>
+                                  router.push(
+                                    `/scanning?prep_id=${session.id_preparation}&type=${session.type}`,
+                                  )
+                                }
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
                                 title="Start Scanning"
                               >
@@ -752,7 +873,11 @@ export default function ScanningPreparationListPage() {
                                 <span className="hidden sm:inline">Scan</span>
                               </button>
                               <button
-                                onClick={() => router.push(`/edit_scanning_preparation?id=${session.id_preparation}&type=${session.type}`)}
+                                onClick={() =>
+                                  router.push(
+                                    `/edit_scanning_preparation?id=${session.id_preparation}&type=${session.type}`,
+                                  )
+                                }
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-lg hover:bg-gray-700 transition"
                                 title="Edit Session"
                               >
@@ -760,7 +885,13 @@ export default function ScanningPreparationListPage() {
                                 <span className="hidden sm:inline">Edit</span>
                               </button>
                               <button
-                                onClick={() => handleDelete(session.id_preparation, session.checking_name, session.type)}
+                                onClick={() =>
+                                  handleDelete(
+                                    session.id_preparation,
+                                    session.checking_name,
+                                    session.type,
+                                  )
+                                }
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
                                 title="Delete Session"
                               >
@@ -779,9 +910,16 @@ export default function ScanningPreparationListPage() {
                                   <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
                                     <div className="flex items-center gap-2 mb-2">
                                       <Building2 className="w-4 h-4 text-blue-600" />
-                                      <h4 className="text-sm font-semibold text-gray-800">Project Information</h4>
+                                      <h4 className="text-sm font-semibold text-gray-800">
+                                        Project Information
+                                      </h4>
                                     </div>
-                                    <p className="text-sm text-gray-700">Project: <span className="font-medium">{projectName}</span></p>
+                                    <p className="text-sm text-gray-700">
+                                      Project:{" "}
+                                      <span className="font-medium">
+                                        {projectName}
+                                      </span>
+                                    </p>
                                   </div>
                                 )}
 
@@ -790,21 +928,32 @@ export default function ScanningPreparationListPage() {
                                   <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
                                     <div className="flex items-center gap-2">
                                       <Box className="w-4 h-4 text-purple-600" />
-                                      <h4 className="text-sm font-semibold text-gray-800">Items Preparation ({detail.items?.length || 0} items)</h4>
+                                      <h4 className="text-sm font-semibold text-gray-800">
+                                        Items Preparation (
+                                        {detail.items?.length || 0} items)
+                                      </h4>
                                     </div>
                                   </div>
                                   <div className="divide-y divide-gray-100">
                                     {detail.items?.map((item, itemIdx) => (
-                                      <div key={itemIdx} className="p-3 hover:bg-gray-50">
+                                      <div
+                                        key={itemIdx}
+                                        className="p-3 hover:bg-gray-50"
+                                      >
                                         <div className="flex justify-between items-start">
                                           <div className="flex-1">
-                                            <div className="font-medium text-gray-900 text-sm">{item.name}</div>
+                                            <div className="font-medium text-gray-900 text-sm">
+                                              {item.name}
+                                            </div>
                                             {item.detail && (
-                                              <div className="text-xs text-gray-500 mt-0.5">{item.detail}</div>
+                                              <div className="text-xs text-gray-500 mt-0.5">
+                                                {item.detail}
+                                              </div>
                                             )}
                                             <div className="flex flex-wrap gap-2 mt-1">
                                               <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                                                Qty: {item.quantity} {item.uom || ""}
+                                                Qty: {item.quantity}{" "}
+                                                {item.uom || ""}
                                               </span>
                                               {item.brand && (
                                                 <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
@@ -830,50 +979,88 @@ export default function ScanningPreparationListPage() {
                                 </div>
 
                                 {/* Department Distribution */}
-                                {detail.departments && detail.departments.length > 0 && (
-                                  <div className="border border-gray-200 rounded-lg p-3">
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <Users className="w-4 h-4 text-blue-600" />
-                                      <h4 className="text-sm font-semibold text-gray-800">Department Distribution</h4>
+                                {detail.departments &&
+                                  detail.departments.length > 0 && (
+                                    <div className="border border-gray-200 rounded-lg p-3">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <Users className="w-4 h-4 text-blue-600" />
+                                        <h4 className="text-sm font-semibold text-gray-800">
+                                          Department Distribution
+                                        </h4>
+                                      </div>
+                                      <div className="flex flex-wrap gap-2">
+                                        {detail.departments.map(
+                                          (dept, deptIdx) => (
+                                            <span
+                                              key={deptIdx}
+                                              className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full text-xs"
+                                            >
+                                              {dept.name}: {dept.quantity}
+                                            </span>
+                                          ),
+                                        )}
+                                      </div>
                                     </div>
-                                    <div className="flex flex-wrap gap-2">
-                                      {detail.departments.map((dept, deptIdx) => (
-                                        <span key={deptIdx} className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full text-xs">
-                                          {dept.name}: {dept.quantity}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
+                                  )}
 
                                 {/* Receiver Assignments */}
-                                {detail.receivers && detail.receivers.length > 0 && (
-                                  <div className="border border-gray-200 rounded-lg p-3">
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <User className="w-4 h-4 text-green-600" />
-                                      <h4 className="text-sm font-semibold text-gray-800">Receiver Assignments</h4>
+                                {detail.receivers &&
+                                  detail.receivers.length > 0 && (
+                                    <div className="border border-gray-200 rounded-lg p-3">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <User className="w-4 h-4 text-green-600" />
+                                        <h4 className="text-sm font-semibold text-gray-800">
+                                          Receiver Assignments
+                                        </h4>
+                                      </div>
+                                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                                        {detail.receivers.map((rec, recIdx) => (
+                                          <div
+                                            key={recIdx}
+                                            className="text-xs text-gray-600"
+                                          >
+                                            {rec.name} - {rec.department} (
+                                            {rec.item_name})
+                                          </div>
+                                        ))}
+                                      </div>
                                     </div>
-                                    <div className="space-y-1 max-h-40 overflow-y-auto">
-                                      {detail.receivers.map((rec, recIdx) => (
-                                        <div key={recIdx} className="text-xs text-gray-600">
-                                          {rec.name} - {rec.department} ({rec.item_name})
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
+                                  )}
 
                                 {/* Items Summary */}
                                 <div className="border border-gray-200 rounded-lg p-3 bg-blue-50">
                                   <div className="flex items-center gap-2 mb-2">
                                     <Box className="w-4 h-4 text-blue-600" />
-                                    <h4 className="text-sm font-semibold text-gray-800">Items Summary</h4>
+                                    <h4 className="text-sm font-semibold text-gray-800">
+                                      Items Summary
+                                    </h4>
                                   </div>
                                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                                    <div>Total Items: <span className="font-semibold">{detail.totalItems || 0}</span></div>
-                                    <div>Total Quantity: <span className="font-semibold">{detail.totalQty || 0}</span></div>
-                                    <div>Scanned: <span className="font-semibold text-green-600">{session.scannedCount || 0}</span></div>
-                                    <div>Remaining: <span className="font-semibold text-orange-600">{(detail.totalQty || 0) - (session.scannedCount || 0)}</span></div>
+                                    <div>
+                                      Total Items:{" "}
+                                      <span className="font-semibold">
+                                        {detail.totalItems || 0}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      Total Quantity:{" "}
+                                      <span className="font-semibold">
+                                        {detail.totalQty || 0}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      Scanned:{" "}
+                                      <span className="font-semibold text-green-600">
+                                        {session.scannedCount || 0}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      Remaining:{" "}
+                                      <span className="font-semibold text-orange-600">
+                                        {(detail.totalQty || 0) -
+                                          (session.scannedCount || 0)}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -892,13 +1079,39 @@ export default function ScanningPreparationListPage() {
           {!loading && filteredSessions.length > 0 && (
             <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-2 rounded-b-2xl">
               <p className="text-xs text-gray-500">
-                Showing <span className="font-semibold text-gray-700">{filteredSessions.length}</span> of{" "}
-                <span className="font-semibold text-gray-700">{sessions.length}</span> sessions
-                {typeFilter !== "all" && <span className="text-gray-400"> · {typeFilter === "device" ? "Devices" : "Materials"}</span>}
-                {statusFilter !== "all" && <span className="text-gray-400"> · {statusFilter === "pending" ? "Pending" : statusFilter === "in-progress" ? "In Progress" : "Completed"}</span>}
-                {searchTerm && <span className="text-gray-400"> · "{searchTerm}"</span>}
+                Showing{" "}
+                <span className="font-semibold text-gray-700">
+                  {filteredSessions.length}
+                </span>{" "}
+                of{" "}
+                <span className="font-semibold text-gray-700">
+                  {sessions.length}
+                </span>{" "}
+                sessions
+                {typeFilter !== "all" && (
+                  <span className="text-gray-400">
+                    {" "}
+                    · {typeFilter === "device" ? "Devices" : "Materials"}
+                  </span>
+                )}
+                {statusFilter !== "all" && (
+                  <span className="text-gray-400">
+                    {" "}
+                    ·{" "}
+                    {statusFilter === "pending"
+                      ? "Pending"
+                      : statusFilter === "in-progress"
+                        ? "In Progress"
+                        : "Completed"}
+                  </span>
+                )}
+                {searchTerm && (
+                  <span className="text-gray-400"> · "{searchTerm}"</span>
+                )}
               </p>
-              <p className="text-xs text-gray-400">Updated {new Date().toLocaleTimeString("en-US")}</p>
+              <p className="text-xs text-gray-400">
+                Updated {new Date().toLocaleTimeString("en-US")}
+              </p>
             </div>
           )}
         </div>

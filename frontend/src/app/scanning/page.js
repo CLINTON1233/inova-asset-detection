@@ -67,6 +67,18 @@ export default function SerialScanningPage() {
   const [selectedItemForSerial, setSelectedItemForSerial] = useState(null);
   const [itemDetails, setItemDetails] = useState({});
 
+  const [departments, setDepartments] = useState([]);
+  const [masterReceivers, setMasterReceivers] = useState([]);
+
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [pendingManualItem, setPendingManualItem] = useState(null);
+  const [capturedPhoto, setCapturedPhoto] = useState(null);
+  const [isPhotoLoading, setIsPhotoLoading] = useState(false);
+
+  const [photoCaptureItem, setPhotoCaptureItem] = useState(null);
+const [isPhotoCaptureOpen, setIsPhotoCaptureOpen] = useState(false);
+const [photoCaptureMode, setPhotoCaptureMode] = useState("photo_only");
+
   const LoadingSpinner = ({ message, subMessage }) => (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center">
       <div className="text-center">
@@ -81,12 +93,63 @@ export default function SerialScanningPage() {
     </div>
   );
 
+  const openPhotoCapture = (item) => {
+  setPhotoCaptureItem(item);
+  setPhotoCaptureMode("photo_only");
+  setIsPhotoCaptureOpen(true);
+};
+
+const handlePhotoCapture = async (detection) => {
+  if (detection.type === "photo_capture" && detection.photo_data) {
+    const photoData = detection.photo_data;
+    const item = photoCaptureItem;
+    
+    if (item && item.scan_id) {
+      // Show loading indicator
+      setIsPhotoLoading(true);
+      
+      // Upload foto ke server
+      const success = await updateScanPhoto(item.scan_id, photoData);
+      
+      setIsPhotoLoading(false);
+      
+      if (success) {
+        // Update local state dengan photo_url
+        setCheckHistory(prev =>
+          prev.map(i =>
+            i.id === item.id
+              ? { ...i, photo_url: photoData ? "manual_upload" : i.photo_url }
+              : i
+          )
+        );
+        
+        Swal.fire({
+          title: "Photo Added!",
+          text: "Photo has been saved successfully.",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+      } else {
+        Swal.fire({
+          title: "Error!",
+          text: "Failed to save photo. Please try again.",
+          icon: "error",
+        });
+      }
+    }
+  }
+  
+  setIsPhotoCaptureOpen(false);
+  setPhotoCaptureItem(null);
+};
+
   const fetchItemDetails = async (itemId, itemName, category) => {
     if (itemDetails[itemId]) return itemDetails[itemId];
 
     try {
       // Cari item di currentPreparation
-      const item = currentPreparation?.items?.find(i => i.id_item === itemId);
+      const item = currentPreparation?.items?.find((i) => i.id_item === itemId);
       if (!item) return null;
 
       // Ambil departments dan receivers dari item
@@ -101,10 +164,10 @@ export default function SerialScanningPage() {
         item_name: item.device_name || item.material_name || itemName,
         brand: item.brand || item.vendor,
         model: item.model,
-        uom: item.uom
+        uom: item.uom,
       };
 
-      setItemDetails(prev => ({ ...prev, [itemId]: detail }));
+      setItemDetails((prev) => ({ ...prev, [itemId]: detail }));
       return detail;
     } catch (error) {
       console.error("Error fetching item details:", error);
@@ -295,6 +358,35 @@ export default function SerialScanningPage() {
     }
   };
 
+  const fetchDepartments = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.DEPARTMENTS_ALL);
+      const data = await response.json();
+      if (data.success) {
+        setDepartments(data.departments || data.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching departments:", error);
+    }
+  };
+
+  const fetchMasterReceivers = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.MASTER_RECEIVERS_LIST);
+      const data = await response.json();
+      if (data.success) {
+        setMasterReceivers(data.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching master receivers:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchDepartments();
+    fetchMasterReceivers();
+  }, []);
+
   useEffect(() => {
     const prepId = searchParams.get("prep_id");
 
@@ -316,6 +408,12 @@ export default function SerialScanningPage() {
       loadPreparation(prepId);
     }
   }, [searchParams]);
+
+  const getReceiverName = async (receiverId) => {
+    if (!receiverId) return null;
+    const receiver = masterReceivers?.find((r) => r.id_receiver === receiverId);
+    return receiver?.receiver_name || null;
+  };
 
   const loadPreparation = async (prepId) => {
     setLoading(true);
@@ -416,24 +514,45 @@ export default function SerialScanningPage() {
 
           const scannedItems = [];
 
-          if (progressData.data.scan_results && progressData.data.scan_results.length > 0) {
+          if (
+            progressData.data.scan_results &&
+            progressData.data.scan_results.length > 0
+          ) {
             progressData.data.scan_results.forEach((scan) => {
               const item = data.data.items.find(
                 (i) => i.id_item === scan.scanning_item_id,
               );
 
               if (item) {
+                // Ambil data department_name, receiver_name, dan project_name dari scan result
+                // Data ini sudah dikirim dari backend jika query sudah diperbarui
+                const departmentName = scan.department_name || null;
+                const receiverName = scan.receiver_name || null;
+                const projectName =
+                  scan.project_name || item.project_name || null;
+
                 scannedItems.push({
                   id: scan.id_scan,
-                  jenisAset: scan.scan_value || item.device_name || item.material_name || "Unknown",
+                  jenisAset:
+                    scan.scan_value ||
+                    item.device_name ||
+                    item.material_name ||
+                    "Unknown",
                   kategori: prepType === "device" ? "Perangkat" : "Material",
                   brand: item.brand || item.vendor || "Unknown",
                   confidencePercent: 85,
-                  status: scan.serial_number || scan.scan_code ? "serial_scanned" : "device_detected",
+                  status:
+                    scan.serial_number || scan.scan_code
+                      ? "serial_scanned"
+                      : "device_detected",
                   nomorSeri: scan.serial_number || scan.scan_code || "",
                   timestamp: scan.scanned_at,
-                  tanggal: scan.scanned_at ? new Date(scan.scanned_at).toLocaleDateString("id-ID") : new Date().toLocaleDateString("id-ID"),
-                  waktu: scan.scanned_at ? new Date(scan.scanned_at).toLocaleTimeString("id-ID") : new Date().toLocaleTimeString("id-ID"),
+                  tanggal: scan.scanned_at
+                    ? new Date(scan.scanned_at).toLocaleDateString("id-ID")
+                    : new Date().toLocaleDateString("id-ID"),
+                  waktu: scan.scanned_at
+                    ? new Date(scan.scanned_at).toLocaleTimeString("id-ID")
+                    : new Date().toLocaleTimeString("id-ID"),
                   item_id: scan.scanning_item_id,
                   preparation_id: parseInt(prepId),
                   preparation_name: data.data.checking_name,
@@ -443,6 +562,10 @@ export default function SerialScanningPage() {
                   item_preparation_id: scan.item_preparation_id,
                   photo_url: scan.photo_url || null,
                   submitted: scan.status === "submitted",
+                  // TAMBAHKAN FIELD BARU:
+                  department_name: departmentName,
+                  receiver_name: receiverName,
+                  project_name: projectName,
                 });
               }
             });
@@ -579,13 +702,13 @@ export default function SerialScanningPage() {
           const isDevicePrep = currentPreparation.type === "device";
           const endpoint = isDevicePrep
             ? API_ENDPOINTS.DEVICES_ITEMS_PREPARATION_AVAILABLE(
-              currentPreparation.id_preparation,
-              targetItem.id_item,
-            )
+                currentPreparation.id_preparation,
+                targetItem.id_item,
+              )
             : API_ENDPOINTS.MATERIALS_ITEMS_PREPARATION_AVAILABLE(
-              currentPreparation.id_preparation,
-              targetItem.id_item,
-            );
+                currentPreparation.id_preparation,
+                targetItem.id_item,
+              );
 
           const response = await fetch(endpoint);
 
@@ -643,9 +766,34 @@ export default function SerialScanningPage() {
 
         const savedResult = await saveScanResult(scanResultData, isDevice);
 
+        const departmentId = availableItem?.department_id;
+        const receiverId = availableItem?.receiver_id;
+
+        let departmentName = null;
+        let receiverName = null;
+
+        if (departmentId) {
+          const dept = departments?.find(
+            (d) => d.id_department === departmentId,
+          );
+          departmentName = dept?.department_name;
+        }
+
+        if (receiverId) {
+          const receiver = masterReceivers?.find(
+            (r) => r.id_receiver === receiverId,
+          );
+          receiverName = receiver?.receiver_name;
+        }
+
         const scanItem = {
-          id: deviceData.id || `SCAN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          jenisAset: targetItem.device_name || targetItem.material_name || deviceData.asset_type,
+          id:
+            deviceData.id ||
+            `SCAN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          jenisAset:
+            targetItem.device_name ||
+            targetItem.material_name ||
+            deviceData.asset_type,
           kategori: isDevice ? "Perangkat" : "Material",
           brand: targetItem.brand || deviceData.brand || "Unknown",
           confidencePercent: Math.round((deviceData.confidence || 0.85) * 100),
@@ -667,6 +815,9 @@ export default function SerialScanningPage() {
           item_preparation_id: availableItem?.id_item_preparation || null,
           photo_url: savedResult.photo_url || null,
           photo_data: detection.photo_data || null,
+          department_name: departmentName,
+          receiver_name: receiverName,
+          project_name: targetItem.project_name || null,
         };
 
         setPendingDevice(scanItem);
@@ -802,13 +953,13 @@ export default function SerialScanningPage() {
               prev.map((item) =>
                 item.id === targetItem.id
                   ? {
-                    ...item,
-                    nomorSeri: serialData.detected_text,
-                    status: "serial_scanned",
-                    confidencePercent: Math.round(
-                      (serialData.confidence || 0.9) * 100,
-                    ),
-                  }
+                      ...item,
+                      nomorSeri: serialData.detected_text,
+                      status: "serial_scanned",
+                      confidencePercent: Math.round(
+                        (serialData.confidence || 0.9) * 100,
+                      ),
+                    }
                   : item,
               ),
             );
@@ -885,13 +1036,13 @@ export default function SerialScanningPage() {
               prev.map((item) =>
                 item.id === targetItem.id
                   ? {
-                    ...item,
-                    nomorSeri: scanCodeData.detected_text,
-                    status: "serial_scanned",
-                    confidencePercent: Math.round(
-                      (scanCodeData.confidence || 0.9) * 100,
-                    ),
-                  }
+                      ...item,
+                      nomorSeri: scanCodeData.detected_text,
+                      status: "serial_scanned",
+                      confidencePercent: Math.round(
+                        (scanCodeData.confidence || 0.9) * 100,
+                      ),
+                    }
                   : item,
               ),
             );
@@ -918,201 +1069,222 @@ export default function SerialScanningPage() {
     }
   };
 
-  const showManualInputModal = (item) => {
-    const isDevice = item.kategori === "Perangkat";
-    const fieldLabel = isDevice ? "Serial Number" : "Scan Code";
-    const placeholder = isDevice
-      ? "Enter serial number..."
-      : "Enter scan code...";
-
+const updateScanPhoto = async (scanId, photoData) => {
+  try {
+    console.log("Updating photo for scan ID:", scanId);
+    
+    let photoToSend = photoData;
+    
+    // Jika photoData adalah base64 data URL, kirim langsung
+    if (typeof photoData === 'string') {
+      photoToSend = photoData;
+    }
+    
+    const response = await fetch(API_ENDPOINTS.SCAN_RESULTS_UPDATE_PHOTO(scanId), {
+      method: "PUT",
+      headers: { 
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ 
+        photo_data: photoToSend 
+      }),
+    });
+    
+    const result = await response.json();
+    console.log("Update photo response:", result);
+    
+    if (!response.ok) {
+      throw new Error(result.error || `HTTP error! status: ${response.status}`);
+    }
+    
+    return result.success;
+  } catch (error) {
+    console.error("Error updating photo:", error);
     Swal.fire({
-      title: `Enter ${fieldLabel}`,
-      html: `
-      <div class="text-left">
-        <p class="text-sm text-gray-600 mb-2">Item: <span class="font-semibold">${item.jenisAset}</span></p>
-        <p class="text-sm text-gray-600 mb-3">${isDevice ? "Brand" : "Vendor"}: <span class="font-semibold">${item.brand || "Unknown"}</span></p>
-       <input 
-  type="text" 
-  id="manual-input" 
-  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-  placeholder="${placeholder}"
-/>
+      title: "Error!",
+      text: error.message || "Failed to save photo. Please try again.",
+      icon: "error",
+    });
+    return false;
+  }
+};
+const showManualInputModal = (item) => {
+  const isDevice = item.kategori === "Perangkat";
+  const fieldLabel = isDevice ? "Serial Number" : "Scan Code";
+  const placeholder = isDevice
+    ? "Enter serial number..."
+    : "Enter scan code...";
+
+  let capturedPhotoData = null;
+  let modalHtml = `
+    <div class="text-left">
+      <p class="text-sm text-gray-600 mb-2">Item: <span class="font-semibold">${item.jenisAset}</span></p>
+      <p class="text-sm text-gray-600 mb-3">${isDevice ? "Brand" : "Vendor"}: <span class="font-semibold">${item.brand || "Unknown"}</span></p>
+      <input 
+        type="text" 
+        id="manual-input" 
+        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
+        placeholder="${placeholder}"
+      />
+      <div id="photo-preview" class="hidden mt-2">
+        <p class="text-xs text-gray-500 mb-1">Photo Preview:</p>
+        <img id="preview-img" class="w-24 h-24 object-cover rounded-lg border border-gray-300" />
       </div>
-    `,
-      icon: "info",
-      showCancelButton: true,
-      confirmButtonText: "Save",
-      cancelButtonText: "Cancel",
-      buttonsStyling: false,
-      customClass: {
-        popup: "rounded-xl p-6",
-        confirmButton:
-          "px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700",
-        cancelButton:
-          "px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 ml-2",
-        actions: "flex justify-center gap-2 mt-4",
-      },
-      preConfirm: () => {
-        const inputValue = document.getElementById("manual-input").value;
-        if (!inputValue || inputValue.trim() === "") {
-          Swal.showValidationMessage(`${fieldLabel} cannot be empty`);
-          return false;
-        }
-        return inputValue.trim();
-      },
-    }).then(async (result) => {
-      if (result.isConfirmed && result.value) {
-        const inputValue = result.value;
+    </div>
+  `;
 
-        // Proses manual input
-        try {
-          if (isDevice) {
-            // Cek apakah serial number sudah ada
-            const exists = await checkSerialExists(inputValue);
-            if (exists) {
-              Swal.fire({
-                title: "Serial Number Already Exists!",
-                text: `Serial number "${inputValue}" has already been used.`,
-                icon: "warning",
-                confirmButtonColor: "#1e40af",
-              });
-              return;
-            }
-
-            // Update scan result dengan serial number
-            const updateData = {
-              serial_number: inputValue,
-              status: "serial_scanned",
-              scanned_by: 1,
-              scanned_at: new Date().toISOString(),
-              notes: `Manual serial input: ${inputValue}`,
-            };
-
-            await fetch(
-              API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(item.scan_id),
-              {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(updateData),
-              },
-            );
-
-            // Update item preparation
-            if (item.item_preparation_id) {
-              await fetch(
-                `${API_BASE_URL}/api/devices/items-preparation/${item.item_preparation_id}`,
-                {
-                  method: "PUT",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ status: "scanned" }),
-                },
-              );
-            }
-
-            // Update local state
-            setCheckHistory((prev) =>
-              prev.map((i) =>
-                i.id === item.id
-                  ? {
-                    ...i,
-                    nomorSeri: inputValue,
-                    status: "serial_scanned",
-                    confidencePercent: 100,
-                  }
-                  : i,
-              ),
-            );
-
+  Swal.fire({
+    title: `Enter ${fieldLabel}`,
+    html: modalHtml,
+    icon: "info",
+    showCancelButton: true,
+    confirmButtonText: "Save",
+    cancelButtonText: "Cancel",
+    buttonsStyling: false,
+    customClass: {
+      popup: "rounded-xl p-6",
+      confirmButton: "px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700",
+      cancelButton: "px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 ml-2",
+      actions: "flex justify-center gap-2 mt-4",
+    },
+    didOpen: () => {
+      const takePhotoBtn = document.getElementById("take-photo-btn");
+      const photoPreview = document.getElementById("photo-preview");
+      const previewImg = document.getElementById("preview-img");
+      
+      if (takePhotoBtn) {
+        takePhotoBtn.onclick = () => {
+          // Use the FullscreenCamera component for photo capture
+          Swal.close();
+          setPhotoCaptureItem(item);
+          setPhotoCaptureMode("photo_only");
+          setIsPhotoCaptureOpen(true);
+        };
+      }
+    },
+    preConfirm: () => {
+      const inputValue = document.getElementById("manual-input").value;
+      if (!inputValue || inputValue.trim() === "") {
+        Swal.showValidationMessage(`${fieldLabel} cannot be empty`);
+        return false;
+      }
+      return { 
+        value: inputValue.trim(),
+        photoData: capturedPhotoData
+      };
+    },
+  }).then(async (result) => {
+    if (result.isConfirmed && result.value) {
+      const inputValue = result.value.value;
+      // Photo will be handled separately through the photo capture flow
+      
+      // Save the serial/scan code
+      try {
+        if (isDevice) {
+          const exists = await checkSerialExists(inputValue);
+          if (exists) {
             Swal.fire({
-              title: "Success!",
-              text: `Serial number "${inputValue}" has been saved.`,
-              icon: "success",
-              timer: 2000,
-              showConfirmButton: false,
+              title: "Serial Number Already Exists!",
+              text: `Serial number "${inputValue}" has already been used.`,
+              icon: "warning",
+              confirmButtonColor: "#1e40af",
             });
-          } else {
-            // Untuk material (scan code)
-            const exists = await checkScanCodeExists(inputValue);
-            if (exists) {
-              Swal.fire({
-                title: "Scan Code Already Exists!",
-                text: `Scan code "${inputValue}" has already been used.`,
-                icon: "warning",
-                confirmButtonColor: "#1e40af",
-              });
-              return;
-            }
-
-            // Update scan result dengan scan code
-            const updateData = {
-              scan_code: inputValue,
-              status: "serial_scanned",
-              scanned_by: 1,
-              scanned_at: new Date().toISOString(),
-              notes: `Manual scan code input: ${inputValue}`,
-            };
-
-            await fetch(
-              API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(item.scan_id),
-              {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(updateData),
-              },
-            );
-
-            // Update item preparation
-            if (item.item_preparation_id) {
-              await fetch(
-                API_ENDPOINTS.MATERIALS_ITEMS_PREPARATION_UPDATE(
-                  item.item_preparation_id,
-                ),
-                {
-                  method: "PUT",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    status: "scanned",
-                    scan_code: inputValue,
-                  }),
-                },
-              );
-            }
-
-            // Update local state
-            setCheckHistory((prev) =>
-              prev.map((i) =>
-                i.id === item.id
-                  ? {
-                    ...i,
-                    nomorSeri: inputValue,
-                    status: "serial_scanned",
-                    confidencePercent: 100,
-                  }
-                  : i,
-              ),
-            );
-
-            Swal.fire({
-              title: "Success!",
-              text: `Scan code "${inputValue}" has been saved.`,
-              icon: "success",
-              timer: 2000,
-              showConfirmButton: false,
-            });
+            return;
           }
-        } catch (error) {
-          console.error("Error saving manual input:", error);
+
+          const updateData = {
+            serial_number: inputValue,
+            status: "serial_scanned",
+            scanned_by: 1,
+            scanned_at: new Date().toISOString(),
+            notes: `Manual serial input: ${inputValue}`,
+          };
+
+          await fetch(API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(item.scan_id), {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updateData),
+          });
+
+          setCheckHistory((prev) =>
+            prev.map((i) =>
+              i.id === item.id
+                ? {
+                    ...i,
+                    nomorSeri: inputValue,
+                    status: "serial_scanned",
+                    confidencePercent: 100,
+                  }
+                : i,
+            ),
+          );
+
           Swal.fire({
-            title: "Error!",
-            text: "Failed to save. Please try again.",
-            icon: "error",
-            confirmButtonColor: "#1e40af",
+            title: "Success!",
+            text: `Serial number "${inputValue}" has been saved.`,
+            icon: "success",
+            timer: 2000,
+            showConfirmButton: false,
+          });
+        } else {
+          const exists = await checkScanCodeExists(inputValue);
+          if (exists) {
+            Swal.fire({
+              title: "Scan Code Already Exists!",
+              text: `Scan code "${inputValue}" has already been used.`,
+              icon: "warning",
+              confirmButtonColor: "#1e40af",
+            });
+            return;
+          }
+
+          const updateData = {
+            scan_code: inputValue,
+            status: "serial_scanned",
+            scanned_by: 1,
+            scanned_at: new Date().toISOString(),
+            notes: `Manual scan code input: ${inputValue}`,
+          };
+
+          await fetch(API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(item.scan_id), {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updateData),
+          });
+
+          setCheckHistory((prev) =>
+            prev.map((i) =>
+              i.id === item.id
+                ? {
+                    ...i,
+                    nomorSeri: inputValue,
+                    status: "serial_scanned",
+                    confidencePercent: 100,
+                  }
+                : i,
+            ),
+          );
+
+          Swal.fire({
+            title: "Success!",
+            text: `Scan code "${inputValue}" has been saved.`,
+            icon: "success",
+            timer: 2000,
+            showConfirmButton: false,
           });
         }
+      } catch (error) {
+        console.error("Error saving manual input:", error);
+        Swal.fire({
+          title: "Error!",
+          text: "Failed to save. Please try again.",
+          icon: "error",
+          confirmButtonColor: "#1e40af",
+        });
       }
-    });
-  };
-
+    }
+  });
+};
   const handleScanSerialForItem = (item) => {
     const isDevice = item.kategori === "Perangkat";
     const actionLabel = isDevice ? "Scan Serial Number" : "Scan Code";
@@ -1205,268 +1377,307 @@ export default function SerialScanningPage() {
     }
   };
 
-  const handleManualCheck = async (e) => {
-    e.preventDefault();
-    if (!manualInput) return;
+const handleManualCheck = async (e) => {
+  e.preventDefault();
+  if (!manualInput) return;
 
-    setScanResult("loading");
+  setScanResult("loading");
 
-    try {
-      const isMaterialSession = currentPreparation?.type === "material";
-      const inputValue = manualInput.trim();
+  try {
+    const isMaterialSession = currentPreparation?.type === "material";
+    const inputValue = manualInput.trim();
 
-      if (isMaterialSession) {
-        const exists = await checkScanCodeExists(inputValue);
-        if (exists) {
-          Swal.fire({
-            title: "Scan Code Already Exists!",
-            text: `Scan code "${inputValue}" has already been used. Please use a different code.`,
-            icon: "warning",
-          });
-          setScanResult(null);
-          setManualInput("");
-          return;
-        }
-
-        let targetItem = null;
-        let availableItem = null;
-
-        if (currentPreparation) {
-          for (const item of currentPreparation.items) {
-            const progress = scanningProgress[item.id_item];
-            if (progress && progress.scanned < progress.total) {
-              targetItem = item;
-              break;
-            }
-          }
-
-          if (!targetItem) {
-            Swal.fire({
-              title: "No Available Items",
-              text: "All items have reached their quota. Please create a new session.",
-              icon: "info",
-            });
-            setScanResult(null);
-            setManualInput("");
-            return;
-          }
-
-          try {
-            const response = await fetch(
-              API_ENDPOINTS.MATERIALS_ITEMS_PREPARATION_AVAILABLE(
-                currentPreparation.id_preparation,
-                targetItem.id_item,
-              ),
-            );
-
-            if (response.ok) {
-              const result = await response.json();
-              if (result.success && result.data) {
-                availableItem = result.data;
-              }
-            }
-          } catch (error) {
-            console.error("Error fetching available item:", error);
-          }
-
-          const savedResult = await saveManualScanCode(
-            inputValue,
-            targetItem,
-            availableItem,
-          );
-
-          if (savedResult && savedResult.success) {
-            const scanItem = {
-              id: savedResult.scan_id,
-              jenisAset: targetItem.material_name || targetItem.item_name,
-              kategori: "Material",
-              brand: targetItem.vendor || "Unknown",
-              confidencePercent: 100,
-              status: "serial_scanned",
-              nomorSeri: inputValue,
-              timestamp: new Date().toISOString(),
-              tanggal: new Date().toLocaleDateString("id-ID"),
-              waktu: new Date().toLocaleTimeString("id-ID", {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              }),
-              item_id: targetItem.id_item,
-              preparation_id: currentPreparation.id_preparation,
-              preparation_name: currentPreparation.checking_name,
-              lokasi: currentPreparation.location_name || "",
-              lokasiLabel: currentPreparation.location_name || "",
-              scan_id: savedResult.scan_id,
-              item_preparation_id: availableItem?.id_item_preparation || null,
-              submitted: false,
-            };
-
-            setCheckHistory((prev) => [scanItem, ...prev]);
-            setScanResult(scanItem);
-
-            setScanningProgress((prev) => {
-              const np = { ...prev };
-              if (np[targetItem.id_item]) {
-                np[targetItem.id_item] = {
-                  ...np[targetItem.id_item],
-                  scanned: Math.min(
-                    np[targetItem.id_item].scanned + 1,
-                    np[targetItem.id_item].total,
-                  ),
-                  items: [...(np[targetItem.id_item].items || []), scanItem.id],
-                };
-              }
-              return np;
-            });
-
-            Swal.fire({
-              title: "Success!",
-              text: `Scan code "${inputValue}" has been saved successfully.`,
-              icon: "success",
-              timer: 2000,
-              showConfirmButton: false,
-            });
-          } else {
-            Swal.fire({
-              title: "Error!",
-              text: "Failed to save scan code. Please try again.",
-              icon: "error",
-            });
-          }
-        }
-      } else {
-        const exists = await checkSerialExists(inputValue);
-        if (exists) {
-          Swal.fire({
-            title: "Serial Number Already Exists!",
-            text: `Serial number "${inputValue}" has already been used. Please use a different serial number.`,
-            icon: "warning",
-          });
-          setScanResult(null);
-          setManualInput("");
-          return;
-        }
-
-        let targetItem = null;
-        let availableItem = null;
-
-        if (currentPreparation) {
-          for (const item of currentPreparation.items) {
-            const progress = scanningProgress[item.id_item];
-            if (progress && progress.scanned < progress.total) {
-              targetItem = item;
-              break;
-            }
-          }
-
-          if (!targetItem) {
-            Swal.fire({
-              title: "No Available Items",
-              text: "All items have reached their quota. Please create a new session.",
-              icon: "info",
-            });
-            setScanResult(null);
-            setManualInput("");
-            return;
-          }
-
-          try {
-            const response = await fetch(
-              API_ENDPOINTS.DEVICES_ITEMS_PREPARATION_AVAILABLE(
-                currentPreparation.id_preparation,
-                targetItem.id_item,
-              ),
-            );
-
-            if (response.ok) {
-              const result = await response.json();
-              if (result.success && result.data) {
-                availableItem = result.data;
-              }
-            }
-          } catch (error) {
-            console.error("Error fetching available item:", error);
-          }
-
-          const savedResult = await saveManualSerial(
-            inputValue,
-            targetItem,
-            availableItem,
-          );
-
-          if (savedResult && savedResult.success) {
-            const scanItem = {
-              id: savedResult.scan_id,
-              jenisAset: targetItem.device_name || targetItem.item_name,
-              kategori: "Perangkat",
-              brand: targetItem.brand || "Unknown",
-              confidencePercent: 100,
-              status: "serial_scanned",
-              nomorSeri: inputValue,
-              timestamp: new Date().toISOString(),
-              tanggal: new Date().toLocaleDateString("id-ID"),
-              waktu: new Date().toLocaleTimeString("id-ID", {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              }),
-              item_id: targetItem.id_item,
-              preparation_id: currentPreparation.id_preparation,
-              preparation_name: currentPreparation.checking_name,
-              lokasi: currentPreparation.location_name || "",
-              lokasiLabel: currentPreparation.location_name || "",
-              scan_id: savedResult.scan_id,
-              item_preparation_id: availableItem?.id_item_preparation || null,
-              submitted: false,
-            };
-
-            setCheckHistory((prev) => [scanItem, ...prev]);
-            setScanResult(scanItem);
-
-            setScanningProgress((prev) => {
-              const np = { ...prev };
-              if (np[targetItem.id_item]) {
-                np[targetItem.id_item] = {
-                  ...np[targetItem.id_item],
-                  scanned: Math.min(
-                    np[targetItem.id_item].scanned + 1,
-                    np[targetItem.id_item].total,
-                  ),
-                  items: [...(np[targetItem.id_item].items || []), scanItem.id],
-                };
-              }
-              return np;
-            });
-
-            Swal.fire({
-              title: "Success!",
-              text: `Serial number "${inputValue}" has been saved successfully.`,
-              icon: "success",
-              timer: 2000,
-              showConfirmButton: false,
-            });
-          } else {
-            Swal.fire({
-              title: "Error!",
-              text: "Failed to save serial number. Please try again.",
-              icon: "error",
-            });
-          }
-        }
+    if (isMaterialSession) {
+      const exists = await checkScanCodeExists(inputValue);
+      if (exists) {
+        Swal.fire({
+          title: "Scan Code Already Exists!",
+          text: `Scan code "${inputValue}" has already been used. Please use a different code.`,
+          icon: "warning",
+        });
+        setScanResult(null);
+        setManualInput("");
+        return;
       }
 
-      setManualInput("");
-    } catch (error) {
-      console.error("Error in manual check:", error);
-      Swal.fire({
-        title: "Error!",
-        text: "An error occurred while processing your input.",
-        icon: "error",
-      });
-    } finally {
-      setScanResult(null);
-    }
+      let targetItem = null;
+      let availableItem = null;
+
+      if (currentPreparation) {
+        for (const item of currentPreparation.items) {
+          const progress = scanningProgress[item.id_item];
+          if (progress && progress.scanned < progress.total) {
+            targetItem = item;
+            break;
+          }
+        }
+
+        if (!targetItem) {
+          Swal.fire({
+            title: "No Available Items",
+            text: "All items have reached their quota. Please create a new session.",
+            icon: "info",
+          });
+          setScanResult(null);
+          setManualInput("");
+          return;
+        }
+
+        try {
+          const response = await fetch(
+            API_ENDPOINTS.MATERIALS_ITEMS_PREPARATION_AVAILABLE(
+              currentPreparation.id_preparation,
+              targetItem.id_item,
+            ),
+          );
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+              availableItem = result.data;
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching available item:", error);
+        }
+
+        const savedResult = await saveManualScanCode(
+          inputValue,
+          targetItem,
+          availableItem,
+        );
+
+       if (savedResult && savedResult.success) {
+  const scanItem = {
+    id: savedResult.scan_id,
+    jenisAset: targetItem.material_name || targetItem.item_name,
+    kategori: "Material",
+    brand: targetItem.vendor || "Unknown",
+    confidencePercent: 100,
+    status: "serial_scanned",
+    nomorSeri: inputValue,
+    timestamp: new Date().toISOString(),
+    tanggal: new Date().toLocaleDateString("id-ID"),
+    waktu: new Date().toLocaleTimeString("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }),
+    item_id: targetItem.id_item,
+    preparation_id: currentPreparation.id_preparation,
+    preparation_name: currentPreparation.checking_name,
+    lokasi: currentPreparation.location_name || "",
+    lokasiLabel: currentPreparation.location_name || "",
+    scan_id: savedResult.scan_id,
+    item_preparation_id: availableItem?.id_item_preparation || null,
+    submitted: false,
   };
+
+  setCheckHistory((prev) => [scanItem, ...prev]);
+  setScanResult(scanItem);
+
+  setScanningProgress((prev) => {
+    const np = { ...prev };
+    if (np[targetItem.id_item]) {
+      np[targetItem.id_item] = {
+        ...np[targetItem.id_item],
+        scanned: Math.min(
+          np[targetItem.id_item].scanned + 1,
+          np[targetItem.id_item].total,
+        ),
+        items: [...(np[targetItem.id_item].items || []), scanItem.id],
+      };
+    }
+    return np;
+  });
+
+  Swal.fire({
+    title: "Success!",
+    text: `Scan code "${inputValue}" has been saved successfully.`,
+    icon: "success",
+    timer: 2000,
+    showConfirmButton: false,
+  });
+        } else {
+          Swal.fire({
+            title: "Error!",
+            text: "Failed to save scan code. Please try again.",
+            icon: "error",
+          });
+        }
+      }
+    } else {
+      const exists = await checkSerialExists(inputValue);
+      if (exists) {
+        Swal.fire({
+          title: "Serial Number Already Exists!",
+          text: `Serial number "${inputValue}" has already been used. Please use a different serial number.`,
+          icon: "warning",
+        });
+        setScanResult(null);
+        setManualInput("");
+        return;
+      }
+
+      let targetItem = null;
+      let availableItem = null;
+
+      if (currentPreparation) {
+        for (const item of currentPreparation.items) {
+          const progress = scanningProgress[item.id_item];
+          if (progress && progress.scanned < progress.total) {
+            targetItem = item;
+            break;
+          }
+        }
+
+        if (!targetItem) {
+          Swal.fire({
+            title: "No Available Items",
+            text: "All items have reached their quota. Please create a new session.",
+            icon: "info",
+          });
+          setScanResult(null);
+          setManualInput("");
+          return;
+        }
+
+        try {
+          const response = await fetch(
+            API_ENDPOINTS.DEVICES_ITEMS_PREPARATION_AVAILABLE(
+              currentPreparation.id_preparation,
+              targetItem.id_item,
+            ),
+          );
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+              availableItem = result.data;
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching available item:", error);
+        }
+
+        const scanResultData = {
+          preparation_id: currentPreparation.id_preparation,
+          scanning_item_id: targetItem.id_item,
+          item_preparation_id: availableItem?.id_item_preparation || null,
+          user_id: 1,
+          scan_value: targetItem.device_name || targetItem.item_name,
+          serial_number: inputValue,
+          detection_data: {
+            confidence: 100,
+            asset_type: targetItem.device_name || targetItem.item_name,
+            category: "Perangkat",
+            source: "manual",
+          },
+          status: "serial_scanned",
+          scanned_by: 1,
+          scanned_at: new Date().toISOString(),
+          notes: `Manual serial input: ${inputValue}`,
+        };
+
+        const savedResult = await saveScanResult(scanResultData, true);
+
+        const departmentId = availableItem?.department_id;
+        const receiverId = availableItem?.receiver_id;
+
+        let departmentName = null;
+        let receiverName = null;
+
+        if (departmentId) {
+          const dept = departments?.find(
+            (d) => d.id_department === departmentId,
+          );
+          departmentName = dept?.department_name;
+        }
+
+        if (receiverId) {
+          const receiver = masterReceivers?.find(
+            (r) => r.id_receiver === receiverId,
+          );
+          receiverName = receiver?.receiver_name;
+        }
+
+     if (savedResult && savedResult.success) {
+  const scanItem = {
+    id: savedResult.scan_id,
+    jenisAset: targetItem.device_name || targetItem.item_name,
+    kategori: "Perangkat",
+    brand: targetItem.brand || "Unknown",
+    confidencePercent: 100,
+    status: "serial_scanned",
+    nomorSeri: inputValue,
+    timestamp: new Date().toISOString(),
+    tanggal: new Date().toLocaleDateString("id-ID"),
+    waktu: new Date().toLocaleTimeString("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }),
+    item_id: targetItem.id_item,
+    preparation_id: currentPreparation.id_preparation,
+    preparation_name: currentPreparation.checking_name,
+    lokasi: currentPreparation.location_name || "",
+    lokasiLabel: currentPreparation.location_name || "",
+    scan_id: savedResult.scan_id,
+    item_preparation_id: availableItem?.id_item_preparation || null,
+    department_name: departmentName,
+    receiver_name: receiverName,
+    project_name: targetItem.project_name || null,
+    submitted: false,
+  };
+
+  setCheckHistory((prev) => [scanItem, ...prev]);
+  setScanResult(scanItem);
+
+  setScanningProgress((prev) => {
+    const np = { ...prev };
+    if (np[targetItem.id_item]) {
+      np[targetItem.id_item] = {
+        ...np[targetItem.id_item],
+        scanned: Math.min(
+          np[targetItem.id_item].scanned + 1,
+          np[targetItem.id_item].total,
+        ),
+        items: [...(np[targetItem.id_item].items || []), scanItem.id],
+      };
+    }
+    return np;
+  });
+
+  Swal.fire({
+    title: "Success!",
+    text: `Serial number "${inputValue}" has been saved successfully.`,
+    icon: "success",
+    timer: 2000,
+    showConfirmButton: false,
+  });
+
+        } else {
+          Swal.fire({
+            title: "Error!",
+            text: "Failed to save serial number. Please try again.",
+            icon: "error",
+          });
+        }
+      }
+    }
+
+    setManualInput("");
+  } catch (error) {
+    console.error("Error in manual check:", error);
+    Swal.fire({
+      title: "Error!",
+      text: "An error occurred while processing your input.",
+      icon: "error",
+    });
+  } finally {
+    setScanResult(null);
+  }
+};
 
   const saveManualSerial = async (serialNumber, targetItem, availableItem) => {
     if (!serialNumber || serialNumber.trim() === "") {
@@ -1550,205 +1761,182 @@ export default function SerialScanningPage() {
     });
   };
 
-  const handleSubmitSingle = async (item) => {
-    showSubmitSingleModal(item, async () => {
-      setIsSubmitting(true);
-      try {
-        // 1. Update status scan result menjadi "submitted"
-        let updateEndpoint;
-        if (item.kategori === "Perangkat") {
-          updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(
-            item.scan_id,
-          );
-        } else {
-          updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(
-            item.scan_id,
-          );
-        }
+const handleSubmitSingle = async (item) => {
+  setIsSubmitting(true);
+  try {
+    let updateEndpoint;
+    if (item.kategori === "Perangkat") {
+      updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(item.scan_id);
+    } else {
+      updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(item.scan_id);
+    }
 
-        await fetch(updateEndpoint, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "submitted" }),
+    await fetch(updateEndpoint, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "submitted" }),
+    });
+
+    // 2. Create validation record
+    const validationData = {
+      scan_id: item.kategori === "Perangkat" ? item.scan_id : null,
+      scan_material_id: item.kategori === "Material" ? item.scan_id : null,
+      item_preparation_id: item.item_preparation_id,
+      material_item_preparation_id: item.kategori === "Material" ? item.item_preparation_id : null,
+      user_id: 1,
+    };
+
+    console.log("Creating validation with data:", validationData);
+
+    const validationResponse = await fetch(API_ENDPOINTS.VALIDATIONS_CREATE, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(validationData),
+    });
+
+    const validationResult = await validationResponse.json();
+
+    if (validationResult.success) {
+      // 3. Update local state
+      setCheckHistory((prev) =>
+        prev.map((p) =>
+          p.id === item.id
+            ? {
+                ...p,
+                submitted: true,
+                status: "Submitted",
+                validation_id: validationResult.validation_id,
+              }
+            : p,
+        ),
+      );
+
+      Swal.fire({
+        title: "Success!",
+        text: `${item.jenisAset} submitted for validation.`,
+        icon: "success",
+        confirmButtonColor: "#2563eb",
+      }).then(() => {
+        // Redirect ke halaman validation
+        router.push("/validation_verification");
+      });
+    } else {
+      throw new Error(validationResult.error || "Failed to create validation");
+    }
+  } catch (error) {
+    console.error("Submit error:", error);
+    Swal.fire({
+      title: "Error!",
+      text: error.message || "Failed to submit item",
+      icon: "error",
+      confirmButtonColor: "#1e40af",
+    });
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
+const handleSubmitAll = async () => {
+  const itemsToSubmit = checkHistory.filter(
+    (item) => item.status !== "Submitted" && item.lokasi,
+  );
+
+  if (itemsToSubmit.length === 0) {
+    Swal.fire({
+      title: "No Items",
+      text: "All submitted or no location set.",
+      icon: "info",
+    });
+    return;
+  }
+
+  setIsSubmittingAll(true);
+  try {
+    const submittedItems = [];
+
+    for (const item of itemsToSubmit) {
+      // 1. Update status scan result
+      let updateEndpoint;
+      if (item.kategori === "Perangkat") {
+        updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(item.scan_id);
+      } else {
+        updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(item.scan_id);
+      }
+
+      await fetch(updateEndpoint, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "submitted" }),
+      });
+
+      // 2. Create validation record
+      const validationData = {
+        scan_id: item.kategori === "Perangkat" ? item.scan_id : null,
+        scan_material_id: item.kategori === "Material" ? item.scan_id : null,
+        item_preparation_id: item.item_preparation_id,
+        material_item_preparation_id: item.kategori === "Material" ? item.item_preparation_id : null,
+        user_id: 1,
+      };
+
+      const validationResponse = await fetch(API_ENDPOINTS.VALIDATIONS_CREATE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validationData),
+      });
+
+      const validationResult = await validationResponse.json();
+
+      if (validationResult.success) {
+        submittedItems.push({
+          ...item,
+          validation_id: validationResult.validation_id,
         });
 
-        // 2. Create validation record
-        const validationData = {
-          scan_id: item.kategori === "Perangkat" ? item.scan_id : null,
-          scan_material_id: item.kategori === "Material" ? item.scan_id : null,
-          item_preparation_id: item.item_preparation_id,
-          material_item_preparation_id:
-            item.kategori === "Material" ? item.item_preparation_id : null,
-          user_id: 1,
-        };
-
-        const validationResponse = await fetch(
-          API_ENDPOINTS.VALIDATIONS_CREATE,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(validationData),
-          },
-        );
-
-        const validationResult = await validationResponse.json();
-
-        if (validationResult.success) {
-          // 3. Update local state
-          setCheckHistory((prev) =>
-            prev.map((p) =>
-              p.id === item.id
-                ? {
+        // Update local state
+        setCheckHistory((prev) =>
+          prev.map((p) =>
+            p.id === item.id
+              ? {
                   ...p,
                   submitted: true,
                   status: "Submitted",
                   validation_id: validationResult.validation_id,
                 }
-                : p,
-            ),
-          );
-
-          Swal.fire({
-            title: "Success!",
-            text: `${item.jenisAset} submitted for validation.`,
-            icon: "success",
-            confirmButtonColor: "#2563eb",
-          }).then(() => {
-            // Redirect ke halaman validation
-            router.push("/validation_verification");
-          });
-        } else {
-          throw new Error(
-            validationResult.error || "Failed to create validation",
-          );
-        }
-      } catch (error) {
-        console.error("Submit error:", error);
-        Swal.fire({
-          title: "Error!",
-          text: error.message || "Failed to submit item",
-          icon: "error",
-          confirmButtonColor: "#1e40af",
-        });
-      } finally {
-        setIsSubmitting(false);
+              : p,
+          ),
+        );
       }
-    });
-  };
-
-  const handleSubmitAll = async () => {
-    const itemsToSubmit = checkHistory.filter(
-      (item) => item.status !== "Submitted" && item.lokasi,
-    );
-
-    if (itemsToSubmit.length === 0) {
-      Swal.fire({
-        title: "No Items",
-        text: "All submitted or no location set.",
-        icon: "info",
-      });
-      return;
     }
 
-    showSubmitAllModal(itemsToSubmit, async () => {
-      setIsSubmittingAll(true);
-      try {
-        const submittedItems = [];
-
-        for (const item of itemsToSubmit) {
-          // 1. Update status scan result
-          let updateEndpoint;
-          if (item.kategori === "Perangkat") {
-            updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(
-              item.scan_id,
-            );
-          } else {
-            updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(
-              item.scan_id,
-            );
-          }
-
-          await fetch(updateEndpoint, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "submitted" }),
-          });
-
-          // 2. Create validation record
-          const validationData = {
-            scan_id: item.kategori === "Perangkat" ? item.scan_id : null,
-            scan_material_id:
-              item.kategori === "Material" ? item.scan_id : null,
-            item_preparation_id: item.item_preparation_id,
-            material_item_preparation_id:
-              item.kategori === "Material" ? item.item_preparation_id : null,
-            user_id: 1,
-          };
-
-          const validationResponse = await fetch(
-            API_ENDPOINTS.VALIDATIONS_CREATE,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(validationData),
-            },
-          );
-
-          const validationResult = await validationResponse.json();
-
-          if (validationResult.success) {
-            submittedItems.push({
-              ...item,
-              validation_id: validationResult.validation_id,
-            });
-
-            // Update local state
-            setCheckHistory((prev) =>
-              prev.map((p) =>
-                p.id === item.id
-                  ? {
-                    ...p,
-                    submitted: true,
-                    status: "Submitted",
-                    validation_id: validationResult.validation_id,
-                  }
-                  : p,
-              ),
-            );
-          }
-        }
-
-        if (submittedItems.length > 0) {
-          Swal.fire({
-            title: "Success!",
-            text: `${submittedItems.length} items submitted for validation.`,
-            icon: "success",
-            confirmButtonColor: "#2563eb",
-          }).then(() => {
-            // Redirect ke halaman validation
-            router.push("/validation_verification");
-          });
-        } else {
-          Swal.fire({
-            title: "Error!",
-            text: "No items were submitted successfully",
-            icon: "error",
-            confirmButtonColor: "#1e40af",
-          });
-        }
-      } catch (error) {
-        console.error("Submit all error:", error);
-        Swal.fire({
-          title: "Error!",
-          text: error.message || "Failed to submit items",
-          icon: "error",
-          confirmButtonColor: "#1e40af",
-        });
-      } finally {
-        setIsSubmittingAll(false);
-      }
+    if (submittedItems.length > 0) {
+      Swal.fire({
+        title: "Success!",
+        text: `${submittedItems.length} items submitted for validation.`,
+        icon: "success",
+        confirmButtonColor: "#2563eb",
+      }).then(() => {
+        router.push("/validation_verification");
+      });
+    } else {
+      Swal.fire({
+        title: "Error!",
+        text: "No items were submitted successfully",
+        icon: "error",
+        confirmButtonColor: "#1e40af",
+      });
+    }
+  } catch (error) {
+    console.error("Submit all error:", error);
+    Swal.fire({
+      title: "Error!",
+      text: error.message || "Failed to submit items",
+      icon: "error",
+      confirmButtonColor: "#1e40af",
     });
-  };
+  } finally {
+    setIsSubmittingAll(false);
+  }
+};
 
   const handleDeleteData = async (item) => {
     showDeleteItemModal(item, async () => {
@@ -2034,10 +2222,11 @@ export default function SerialScanningPage() {
                               {session.checking_name}
                             </h3>
                             <span
-                              className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${session.type === "device"
-                                ? "bg-blue-100 text-blue-700"
-                                : "bg-green-100 text-green-700"
-                                }`}
+                              className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                                session.type === "device"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : "bg-green-100 text-green-700"
+                              }`}
                             >
                               {session.type === "device"
                                 ? "Device"
@@ -2050,10 +2239,11 @@ export default function SerialScanningPage() {
                           </p>
                         </div>
                         <span
-                          className={`px-2 py-1 text-xs font-semibold rounded-full ${session.status === "pending"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-blue-100 text-blue-700"
-                            }`}
+                          className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            session.status === "pending"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}
                         >
                           {session.status === "pending"
                             ? "Pending"
@@ -2816,8 +3006,12 @@ export default function SerialScanningPage() {
                           "Asset ID",
                           "Type",
                           "Category",
-                          currentPreparation?.type === "material" ? "Vendor" : "Brand",
-                          currentPreparation?.type === "material" ? "Scan Code" : "Serial",
+                          currentPreparation?.type === "material"
+                            ? "Vendor"
+                            : "Brand",
+                          currentPreparation?.type === "material"
+                            ? "Scan Code"
+                            : "Serial",
                           "Project",
                           "Department",
                           "Receiver",
@@ -2826,14 +3020,18 @@ export default function SerialScanningPage() {
                           "Time",
                           "",
                         ].map((h) => (
-                          <th key={h} className="px-4 py-3 text-left" style={{
-                            fontSize: 11,
-                            fontWeight: 600,
-                            color: "#6b7280",
-                            textTransform: "uppercase",
-                            letterSpacing: ".06em",
-                            whiteSpace: "nowrap",
-                          }}>
+                          <th
+                            key={h}
+                            className="px-4 py-3 text-left"
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: "#6b7280",
+                              textTransform: "uppercase",
+                              letterSpacing: ".06em",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
                             {h}
                           </th>
                         ))}
@@ -2842,8 +3040,9 @@ export default function SerialScanningPage() {
                     <tbody>
                       {checkHistory.map((item, idx) => {
                         const cfg = getStatusConfig(item.status);
-                        // Cari detail item dari currentPreparation
-                        const itemDetail = currentPreparation?.items?.find(i => i.id_item === item.item_id);
+                        const itemDetail = currentPreparation?.items?.find(
+                          (i) => i.id_item === item.item_id,
+                        );
                         const projectName = itemDetail?.project_name || "-";
                         const departments = itemDetail?.departments || [];
                         const receivers = itemDetail?.receivers || [];
@@ -2856,17 +3055,29 @@ export default function SerialScanningPage() {
                             <td className="px-4 py-3">
                               {item.photo_url ? (
                                 <img
-                                  src={item.photo_url.startsWith('http') ? item.photo_url : `http://localhost:5001${item.photo_url}`}
+                                  src={
+                                    item.photo_url.startsWith("http")
+                                      ? item.photo_url
+                                      : `http://localhost:5001${item.photo_url}`
+                                  }
                                   alt="Scan result"
                                   className="w-10 h-10 object-cover rounded-lg cursor-pointer hover:opacity-80 transition"
                                   onError={(e) => {
-                                    console.error("Image failed to load:", item.photo_url);
-                                    e.target.style.display = 'none';
-                                    e.target.parentElement.innerHTML = '<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center"><svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg></div>';
+                                    console.error(
+                                      "Image failed to load:",
+                                      item.photo_url,
+                                    );
+                                    e.target.style.display = "none";
+                                    e.target.parentElement.innerHTML =
+                                      '<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center"><svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg></div>';
                                   }}
                                   onClick={() => {
                                     Swal.fire({
-                                      imageUrl: item.photo_url.startsWith('http') ? item.photo_url : `http://localhost:5001${item.photo_url}`,
+                                      imageUrl: item.photo_url.startsWith(
+                                        "http",
+                                      )
+                                        ? item.photo_url
+                                        : `http://localhost:5001${item.photo_url}`,
                                       imageAlt: "Scan Result",
                                       title: "Scan Result Preview",
                                       imageWidth: 400,
@@ -2874,8 +3085,9 @@ export default function SerialScanningPage() {
                                       confirmButtonColor: "#2563eb",
                                       customClass: {
                                         popup: "rounded-xl",
-                                        confirmButton: "px-4 py-2 bg-blue-600 text-white rounded-lg"
-                                      }
+                                        confirmButton:
+                                          "px-4 py-2 bg-blue-600 text-white rounded-lg",
+                                      },
                                     });
                                   }}
                                 />
@@ -2904,15 +3116,23 @@ export default function SerialScanningPage() {
                             <td className="px-4 py-3">
                               <span
                                 style={{
-                                  background: item.kategori === "Perangkat" ? "#dbeafe" : "#dcfce7",
-                                  color: item.kategori === "Perangkat" ? "#1d4ed8" : "#15803d",
+                                  background:
+                                    item.kategori === "Perangkat"
+                                      ? "#dbeafe"
+                                      : "#dcfce7",
+                                  color:
+                                    item.kategori === "Perangkat"
+                                      ? "#1d4ed8"
+                                      : "#15803d",
                                   fontSize: 11,
                                   fontWeight: 500,
                                   padding: "3px 8px",
                                   borderRadius: 20,
                                 }}
                               >
-                                {item.kategori === "Perangkat" ? "Device" : "Material"}
+                                {item.kategori === "Perangkat"
+                                  ? "Device"
+                                  : "Material"}
                               </span>
                             </td>
 
@@ -2929,24 +3149,21 @@ export default function SerialScanningPage() {
                             {/* Kolom Project */}
                             <td className="px-4 py-3">
                               <span className="text-xs text-gray-600">
-                                {projectName}
+                                {item.project_name || "-"}
                               </span>
                             </td>
 
                             {/* Kolom Department */}
                             <td className="px-4 py-3">
                               <div className="flex flex-wrap gap-1">
-                                {departments.length > 0 ? (
-                                  departments.slice(0, 2).map((d, i) => (
-                                    <span key={i} className="text-xs bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded-full">
-                                      {d.department_name}: {d.quantity}
-                                    </span>
-                                  ))
+                                {item.department_name ? (
+                                  <span className="text-xs text-gray-600">
+                                    {item.department_name}
+                                  </span>
                                 ) : (
-                                  <span className="text-xs text-gray-400">—</span>
-                                )}
-                                {departments.length > 2 && (
-                                  <span className="text-xs text-gray-400">+{departments.length - 2}</span>
+                                  <span className="text-xs text-gray-400">
+                                    —
+                                  </span>
                                 )}
                               </div>
                             </td>
@@ -2954,17 +3171,14 @@ export default function SerialScanningPage() {
                             {/* Kolom Receiver */}
                             <td className="px-4 py-3">
                               <div className="flex flex-wrap gap-1">
-                                {receivers.length > 0 ? (
-                                  receivers.slice(0, 2).map((r, i) => (
-                                    <span key={i} className="text-xs bg-green-50 text-green-700 px-1.5 py-0.5 rounded-full">
-                                      {r.receiver_name || `Receiver ${r.receiver_id}`}
-                                    </span>
-                                  ))
+                                {item.receiver_name ? (
+                                  <span className="text-xs text-gray-600">
+                                    {item.receiver_name}
+                                  </span>
                                 ) : (
-                                  <span className="text-xs text-gray-400">—</span>
-                                )}
-                                {receivers.length > 2 && (
-                                  <span className="text-xs text-gray-400">+{receivers.length - 2}</span>
+                                  <span className="text-xs text-gray-400">
+                                    —
+                                  </span>
                                 )}
                               </div>
                             </td>
@@ -2972,8 +3186,18 @@ export default function SerialScanningPage() {
                             <td className="px-4 py-3">
                               <span
                                 style={{
-                                  background: item.confidencePercent >= 80 ? "#dcfce7" : item.confidencePercent >= 60 ? "#fef9c3" : "#fee2e2",
-                                  color: item.confidencePercent >= 80 ? "#15803d" : item.confidencePercent >= 60 ? "#854d0e" : "#b91c1c",
+                                  background:
+                                    item.confidencePercent >= 80
+                                      ? "#dcfce7"
+                                      : item.confidencePercent >= 60
+                                        ? "#fef9c3"
+                                        : "#fee2e2",
+                                  color:
+                                    item.confidencePercent >= 80
+                                      ? "#15803d"
+                                      : item.confidencePercent >= 60
+                                        ? "#854d0e"
+                                        : "#b91c1c",
                                   fontSize: 11,
                                   fontWeight: 600,
                                   padding: "2px 8px",
@@ -3007,36 +3231,50 @@ export default function SerialScanningPage() {
                               </p>
                             </td>
 
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-1">
-                                {item.status === "device_detected" && !item.nomorSeri && (
-                                  <button
-                                    onClick={() => handleScanSerialForItem(item)}
-                                    className="w-7 h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white transition"
-                                    title={item.kategori === "Perangkat" ? "Scan Serial Number" : "Scan Code"}
-                                  >
-                                    <ScanLine className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                                {item.status !== "Submitted" && item.lokasi && (
-                                  <button
-                                    onClick={() => handleSubmitSingle(item)}
-                                    disabled={isSubmitting}
-                                    className="w-7 h-7 rounded-lg flex items-center justify-center bg-green-600 hover:bg-green-700 text-white transition disabled:opacity-50"
-                                    title="Submit"
-                                  >
-                                    <Send className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleDeleteData(item)}
-                                  className="w-7 h-7 rounded-lg flex items-center justify-center bg-red-500 hover:bg-red-600 text-white transition"
-                                  title="Delete"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </td>
+<td className="px-4 py-3">
+  <div className="flex items-center gap-1">
+    {/* Tombol Scan Serial/Code yang sudah ada */}
+    {item.status === "device_detected" && !item.nomorSeri && (
+      <button
+        onClick={() => handleScanSerialForItem(item)}
+        className="w-7 h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white transition"
+        title={item.kategori === "Perangkat" ? "Scan Serial Number" : "Scan Code"}
+      >
+        <ScanLine className="w-3.5 h-3.5" />
+      </button>
+    )}
+    
+    {/* Tombol Add Photo - Tampilkan jika belum ada foto */}
+    {/* {!item.photo_url && (
+      <button
+        onClick={() => openPhotoCapture(item)}
+        className="w-7 h-7 rounded-lg flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white transition"
+        title="Add Photo"
+      >
+        <Camera className="w-3.5 h-3.5" />
+      </button>
+    )} */}
+    
+    {/* Tombol Submit dan Delete yang sudah ada */}
+    {item.status !== "Submitted" && item.lokasi && (
+      <button
+        onClick={() => handleSubmitSingle(item)}
+        disabled={isSubmitting}
+        className="w-7 h-7 rounded-lg flex items-center justify-center bg-green-600 hover:bg-green-700 text-white transition disabled:opacity-50"
+        title="Submit"
+      >
+        <Send className="w-3.5 h-3.5" />
+      </button>
+    )}
+    <button
+      onClick={() => handleDeleteData(item)}
+      className="w-7 h-7 rounded-lg flex items-center justify-center bg-red-500 hover:bg-red-600 text-white transition"
+      title="Delete"
+    >
+      <Trash2 className="w-3.5 h-3.5" />
+    </button>
+  </div>
+</td>
                           </tr>
                         );
                       })}
@@ -3155,14 +3393,27 @@ export default function SerialScanningPage() {
         </div>
 
         <SessionSelectorModal />
+      {/* FullscreenCamera untuk scan normal */}
+      <FullscreenCamera
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onDetect={handleCameraDetection}
+        mode={cameraMode}
+        sessionData={currentPreparation}
+      />
+      
+      {/* FullscreenCamera untuk foto manual */}
+      <FullscreenCamera
+        isOpen={isPhotoCaptureOpen}
+        onClose={() => {
+          setIsPhotoCaptureOpen(false);
+          setPhotoCaptureItem(null);
+        }}
+        onDetect={handlePhotoCapture}
+        mode="photo_only"
+        sessionData={null}
+      />
 
-        <FullscreenCamera
-          isOpen={isCameraOpen}
-          onClose={() => setIsCameraOpen(false)}
-          onDetect={handleCameraDetection}
-          mode={cameraMode}
-          sessionData={currentPreparation}
-        />
       </LayoutDashboard>
     </ProtectedPage>
   );

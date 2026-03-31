@@ -843,16 +843,23 @@ def get_devices_preparation_progress(prep_id):
                 sr.serial_number,
                 sr.status,
                 sr.is_valid,
-                sr.photo_url,  
+                sr.photo_url,
                 ip.scanning_item_id,
                 ip.item_number,
+                ip.department_id,
+                ip.receiver_id,
+                d.department_name,
+                mr.receiver_name,
                 si.id_item,
                 si.device_name as item_name,
                 si.brand,
                 si.model,
-                si.quantity as item_quantity
+                si.quantity as item_quantity,
+                si.project_name
             FROM scan_results_devices sr
             LEFT JOIN devices_items_preparation ip ON sr.item_preparation_id = ip.id_item_preparation
+            LEFT JOIN departments d ON ip.department_id = d.id_department
+            LEFT JOIN master_receivers mr ON ip.receiver_id = mr.id_receiver
             LEFT JOIN devices_scanning_items si ON ip.scanning_item_id = si.id_item
             WHERE si.preparation_id = %s OR ip.preparation_id = %s
             ORDER BY sr.scanned_at DESC
@@ -1591,15 +1598,22 @@ def get_materials_preparation_progress(prep_id):
                 sr.scan_value,
                 sr.scan_code,
                 sr.status,
-                sr.photo_url,  -- TAMBAHKAN INI
+                sr.photo_url,
                 ip.scanning_item_id,
                 ip.item_number,
+                ip.department_id,
+                ip.receiver_id,
+                d.department_name,
+                mr.receiver_name,
                 si.id_item,
                 si.material_name as item_name,
                 si.quantity as item_quantity,
-                si.uom
+                si.uom,
+                si.project_name
             FROM scan_results_materials sr
             LEFT JOIN materials_items_preparation ip ON sr.item_preparation_id = ip.id_item_preparation
+            LEFT JOIN departments d ON ip.department_id = d.id_department
+            LEFT JOIN master_receivers mr ON ip.receiver_id = mr.id_receiver
             LEFT JOIN materials_scanning_items si ON ip.scanning_item_id = si.id_item
             WHERE si.preparation_id = %s OR ip.preparation_id = %s
             ORDER BY sr.scanned_at DESC

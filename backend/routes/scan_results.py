@@ -18,6 +18,7 @@ def handle_error(e, msg="Error"):
 def get_conn():
     return get_db_connection()
 
+# ==================== FUNGSI SAVE PHOTO ====================
 def save_photo_base64(image_data):
     """Menyimpan foto dari base64 ke file dan mengembalikan URL"""
     try:
@@ -28,12 +29,35 @@ def save_photo_base64(image_data):
         if image_data.startswith('/uploads/') or image_data.startswith('http'):
             return image_data, image_data
         
-        # Parse base64
-        if ',' in image_data:
-            image_data = image_data.split(',')[1]
+        # Handle jika image_data adalah dict dengan key 'data'
+        if isinstance(image_data, dict):
+            if 'data' in image_data:
+                image_data = image_data['data']
+            elif 'base64' in image_data:
+                image_data = image_data['base64']
         
-        # Decode base64
-        image_bytes = base64.b64decode(image_data)
+        # Clean the base64 string
+        if isinstance(image_data, str):
+            # Remove data URL prefix if present
+            if 'base64,' in image_data:
+                image_data = image_data.split('base64,')[1]
+            
+            # Remove any whitespace or newlines
+            image_data = image_data.strip()
+            
+            # Try to decode
+            try:
+                image_bytes = base64.b64decode(image_data)
+            except Exception as e:
+                print(f"Error decoding base64: {e}")
+                # Try with padding
+                missing_padding = len(image_data) % 4
+                if missing_padding:
+                    image_data += '=' * (4 - missing_padding)
+                image_bytes = base64.b64decode(image_data)
+        else:
+            print(f"Unexpected image_data type: {type(image_data)}")
+            return None, None
         
         # Generate filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -41,7 +65,6 @@ def save_photo_base64(image_data):
         filename = f"scan_{timestamp}_{unique_id}.jpg"
         
         # Gunakan folder uploads/scan_photos
-        # PERBAIKAN: Gunakan path absolut yang benar
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         upload_folder = os.path.join(base_dir, 'uploads', 'scan_photos')
         os.makedirs(upload_folder, exist_ok=True)
@@ -52,8 +75,7 @@ def save_photo_base64(image_data):
         with open(filepath, 'wb') as f:
             f.write(image_bytes)
         
-        # PERBAIKAN: Pastikan URL yang dikembalikan bisa diakses
-        # Gunakan URL yang sesuai dengan route di app.py
+        # URL yang dikembalikan
         url = f"/uploads/scan_photos/{filename}"
         print(f"Photo saved at: {filepath}")
         print(f"Photo URL: {url}")
@@ -64,8 +86,70 @@ def save_photo_base64(image_data):
         import traceback
         traceback.print_exc()
         return None, None
+    
+# ==================== UPDATE PHOTO ====================
+@scan_results_bp.route('/api/scan-results/update-photo/<int:scan_id>', methods=['PUT'])
+def update_scan_photo(scan_id):
+    """Update photo untuk scan result"""
+    conn = None
+    try:
+        data = request.json
+        photo_data = data.get('photo_data')
+        
+        if not photo_data:
+            return jsonify({'success': False, 'error': 'No photo data provided'}), 400
+        
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        # Save photo
+        photo_url, saved_photo_data = save_photo_base64(photo_data)
+        
+        if not photo_url:
+            return jsonify({'success': False, 'error': 'Failed to save photo'}), 500
+        
+        # Coba update di scan_results_devices
+        cur.execute("""
+            UPDATE scan_results_devices 
+            SET photo_url = %s, photo_data = %s, updated_at = CURRENT_TIMESTAMP
+            WHERE id_scan = %s
+            RETURNING id_scan
+        """, (photo_url, saved_photo_data, scan_id))
+        
+        updated = cur.fetchone()
+        
+        if not updated:
+            # Coba update di scan_results_materials
+            cur.execute("""
+                UPDATE scan_results_materials 
+                SET photo_url = %s, photo_data = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id_scan = %s
+                RETURNING id_scan
+            """, (photo_url, saved_photo_data, scan_id))
+            updated = cur.fetchone()
+        
+        if not updated:
+            return jsonify({'success': False, 'error': f'Scan result with id {scan_id} not found in devices or materials table'}), 404
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'photo_url': photo_url,
+            'message': 'Photo updated successfully'
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Error updating photo: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
 
-# ==================== CREATE ====================
+# ==================== CREATE DEVICE ====================
 @scan_results_bp.route('/api/scan-results/create-device', methods=['POST'])
 def create_scan_result_device():
     try:
@@ -82,7 +166,6 @@ def create_scan_result_device():
             photo_url, photo_data = save_photo_base64(data.get('photo_data'))
             print(f"Saved photo URL: {photo_url}")
         
-        # PERBAIKAN: Pastikan photo_url disimpan di database
         cur.execute("""
             INSERT INTO scan_results_devices (
                 item_preparation_id, user_id, scanned_by, scanned_at,
@@ -122,7 +205,7 @@ def create_scan_result_device():
     finally:
         if 'conn' in locals() and conn: conn.close()
 
-
+# ==================== CREATE MATERIAL ====================
 @scan_results_bp.route('/api/scan-results/create-material', methods=['POST'])
 def create_scan_result_material():
     try:

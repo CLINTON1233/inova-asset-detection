@@ -112,6 +112,7 @@ export const API_ENDPOINTS = {
     `${API_BASE_URL}/api/scan-results/check-serial?serial=${encodeURIComponent(serial)}`,
   SCAN_RESULTS_CHECK_SCAN_CODE: (code) =>
     `${API_BASE_URL}/api/scan-results/check-scan-code?code=${encodeURIComponent(code)}`,
+  SCAN_RESULTS_UPDATE_PHOTO: (id) => `${API_BASE_URL}/api/scan-results/update-photo/${id}`,
 
   // Validations
   VALIDATIONS_CREATE: `${API_BASE_URL}/api/validations/create`,
