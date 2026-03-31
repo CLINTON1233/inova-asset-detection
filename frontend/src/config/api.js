@@ -52,7 +52,8 @@ export const API_ENDPOINTS = {
   MASTER_RECEIVERS_LIST: `${API_BASE_URL}/api/master-receivers/list`,
 
   DEVICES_ITEMS_PREPARATION_DETAIL: (id) => `${API_BASE_URL}/api/devices/items-preparation/${id}`,
-MATERIALS_ITEMS_PREPARATION_DETAIL: (id) => `${API_BASE_URL}/api/materials/items-preparation/${id}`,
+  MATERIALS_ITEMS_PREPARATION_DETAIL: (id) => `${API_BASE_URL}/api/materials/items-preparation/${id}`,
+  
   // Scanning Preparation (Devices)
   DEVICES_SCANNING_PREP_CREATE: `${API_BASE_URL}/api/devices/scanning-preparation/create`,
   DEVICES_SCANNING_PREP_LIST: `${API_BASE_URL}/api/devices/scanning-preparation/list`,
