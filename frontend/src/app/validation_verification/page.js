@@ -82,123 +82,65 @@ export default function ValidationVerificationPage() {
     }
   };
 
-const fetchItemDetails = async (validation) => {
-  if (itemDetails[validation.id_validation]) return itemDetails[validation.id_validation];
+  // Ganti fungsi fetchItemDetails dengan yang ini:
+  const fetchItemDetails = async (validation) => {
+    // Cek apakah sudah ada di state
+    if (itemDetails[validation.id_validation]) return itemDetails[validation.id_validation];
 
-  try {
-    let preparationId = null;
-    let scanningItemId = null;
-    let projectName = "-";
-    let departmentsList = [];
-    let receiversList = [];
+    try {
+      // Gunakan data yang sudah ada dari validation object (dari API /validations)
+      // Karena backend sudah mengirimkan project_name, departments, receivers
+      if (validation.project_name || validation.departments || validation.receivers) {
+        const detail = {
+          project_name: validation.project_name || "-",
+          departments: validation.departments || [],
+          receivers: validation.receivers || []
+        };
 
-    // Cari preparation_id dan scanning_item_id dari scan results
-    if (validation.validation_type === "device" && validation.scan_id) {
-      // Untuk device, ambil dari scan_results_devices
-      const scanResponse = await fetch(
-        `${API_BASE_URL}/api/scan-results/device/${validation.scan_id}`
-      );
-      const scanResult = await scanResponse.json();
-      
-      if (scanResult.success && scanResult.data) {
-        const itemPrepId = scanResult.data.item_preparation_id;
-        
-        if (itemPrepId) {
-          // Cari preparation_id dari devices_items_preparation
-          const itemPrepResponse = await fetch(
-            `${API_BASE_URL}/api/devices/items-preparation/${itemPrepId}`
-          );
-          const itemPrepResult = await itemPrepResponse.json();
-          
-          if (itemPrepResult.success && itemPrepResult.data) {
-            preparationId = itemPrepResult.data.preparation_id;
-            scanningItemId = itemPrepResult.data.scanning_item_id;
-          }
-        }
-      }
-    } else if (validation.validation_type === "material" && validation.scan_id) {
-      // Untuk material, ambil dari scan_results_materials
-      const scanResponse = await fetch(
-        `${API_BASE_URL}/api/scan-results/material/${validation.scan_id}`
-      );
-      const scanResult = await scanResponse.json();
-      
-      if (scanResult.success && scanResult.data) {
-        const itemPrepId = scanResult.data.item_preparation_id;
-        
-        if (itemPrepId) {
-          const itemPrepResponse = await fetch(
-            `${API_BASE_URL}/api/materials/items-preparation/${itemPrepId}`
-          );
-          const itemPrepResult = await itemPrepResponse.json();
-          
-          if (itemPrepResult.success && itemPrepResult.data) {
-            preparationId = itemPrepResult.data.preparation_id;
-            scanningItemId = itemPrepResult.data.scanning_item_id;
-          }
-        }
-      }
-    }
+        // Simpan ke state
+        setItemDetails(prev => ({
+          ...prev,
+          [validation.id_validation]: detail
+        }));
 
-    // Jika masih belum dapat preparation_id, coba dari validation langsung
-    if (!preparationId && validation.preparation_id) {
-      preparationId = validation.preparation_id;
-    }
-    if (!scanningItemId && validation.item_id) {
-      scanningItemId = validation.item_id;
-    }
-
-    // Ambil detail dari scanning items berdasarkan preparation_id dan scanning_item_id
-    if (preparationId && scanningItemId) {
-      let endpoint;
-      if (validation.validation_type === "device") {
-        endpoint = API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(preparationId);
-      } else {
-        endpoint = API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(preparationId);
+        return detail;
       }
 
-      const response = await fetch(endpoint);
+      // Fallback: ambil dari API detail jika tidak ada
+      const response = await fetch(API_ENDPOINTS.VALIDATIONS_DETAIL(validation.id_validation));
       const result = await response.json();
 
-      if (result.success) {
+      if (result.success && result.data) {
         const data = result.data;
-        // Cari item yang sesuai dengan scanning_item_id
-        const item = data.items?.find((i) => i.id_item === scanningItemId);
+        const detail = {
+          project_name: data.project_name || "-",
+          departments: data.departments || [],
+          receivers: data.receivers || []
+        };
 
-        if (item) {
-          // Ambil project_name dari item
-          projectName = item.project_name || "-";
-          
-          // Ambil departments dari item
-          departmentsList = item.departments || [];
-          
-          // Ambil receivers dari item - pastikan receiver_name ada
-          receiversList = (item.receivers || []).map(r => ({
-            receiver_name: r.receiver_name || `Receiver ${r.receiver_id}`,
-            department_name: r.department_name,
-            receiver_id: r.receiver_id
-          }));
-        }
+        // Simpan ke state
+        setItemDetails(prev => ({
+          ...prev,
+          [validation.id_validation]: detail
+        }));
+
+        return detail;
       }
+
+      return {
+        project_name: "-",
+        departments: [],
+        receivers: []
+      };
+    } catch (error) {
+      console.error("Error fetching item details:", error);
+      return {
+        project_name: "-",
+        departments: [],
+        receivers: []
+      };
     }
-
-    const detail = {
-      project_name: projectName,
-      departments: departmentsList,
-      receivers: receiversList,
-    };
-
-    setItemDetails((prev) => ({ ...prev, [validation.id_validation]: detail }));
-    return detail;
-  } catch (error) {
-    console.error("Error fetching item details:", error);
-    return {
-      project_name: "-",
-      departments: [],
-      receivers: []
-    };
-  }
-};
+  };
 
   const loadValidations = async () => {
     setLoading(true);
@@ -250,6 +192,22 @@ const fetchItemDetails = async (validation) => {
       setLoading(false);
     }
   };
+
+  // Tambahkan useEffect ini setelah loadValidations
+  useEffect(() => {
+    if (validations.length > 0) {
+      // Update itemDetails dengan data yang sudah ada di validations
+      const newDetails = {};
+      validations.forEach(validation => {
+        newDetails[validation.id_validation] = {
+          project_name: validation.project_name || "-",
+          departments: validation.departments || [],
+          receivers: validation.receivers || []
+        };
+      });
+      setItemDetails(prev => ({ ...prev, ...newDetails }));
+    }
+  }, [validations]);
 
   const getStatusConfig = (status) => {
     switch (status) {
@@ -482,16 +440,16 @@ const fetchItemDetails = async (validation) => {
       ...(isApprove
         ? {}
         : {
-            input: "textarea",
-            inputPlaceholder: "Rejection reason for all selected items...",
-            inputLabel: "Rejection Reason",
-            inputValidator: (value) => {
-              if (!value || value.trim() === "") {
-                return "Please provide a rejection reason";
-              }
-              return null;
-            },
-          }),
+          input: "textarea",
+          inputPlaceholder: "Rejection reason for all selected items...",
+          inputLabel: "Rejection Reason",
+          inputValidator: (value) => {
+            if (!value || value.trim() === "") {
+              return "Please provide a rejection reason";
+            }
+            return null;
+          },
+        }),
     });
 
     if (result.isConfirmed) {
@@ -1014,11 +972,10 @@ const fetchItemDetails = async (validation) => {
                 </button>
                 <button
                   onClick={toggleCheckboxMode}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${
-                    showCheckboxes
-                      ? "bg-gray-500 text-white hover:bg-gray-600"
-                      : "border border-gray-200 text-gray-600 hover:bg-gray-50"
-                  }`}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${showCheckboxes
+                    ? "bg-gray-500 text-white hover:bg-gray-600"
+                    : "border border-gray-200 text-gray-600 hover:bg-gray-50"
+                    }`}
                 >
                   {showCheckboxes ? "Cancel" : "Multi Select"}
                 </button>
@@ -1072,7 +1029,7 @@ const fetchItemDetails = async (validation) => {
                             type="checkbox"
                             checked={
                               selectedItems.length ===
-                                filteredValidations.length &&
+                              filteredValidations.length &&
                               filteredValidations.length > 0
                             }
                             onChange={handleSelectAll}
@@ -1112,10 +1069,9 @@ const fetchItemDetails = async (validation) => {
                     {paginatedValidations.map((validation, idx) => {
                       const sc = getStatusConfig(validation.validation_status);
                       const photoUrl = validation.photo_url;
-                      const itemDetail = itemDetails[validation.id_validation] || {};
-                      const projectName = itemDetail.project_name || "-";
-                      const departments = itemDetail.departments || [];
-                      const receivers = itemDetail.receivers || [];
+                      const projectName = validation.project_name || "-";
+                      const departments = validation.departments || [];
+                      const receivers = validation.receivers || [];
 
                       return (
                         <tr
@@ -1184,19 +1140,18 @@ const fetchItemDetails = async (validation) => {
                                 </div>
                                 <div className="mt-0.5">
                                   <span
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                      validation.validation_type === "device"
-                                        ? "bg-blue-100 text-blue-700"
-                                        : validation.validation_type === "material"
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${validation.validation_type === "device"
+                                      ? "bg-blue-100 text-blue-700"
+                                      : validation.validation_type === "material"
                                         ? "bg-green-100 text-green-700"
                                         : "bg-gray-100 text-gray-700"
-                                    }`}
+                                      }`}
                                   >
                                     {validation.validation_type === "device"
                                       ? "Device"
                                       : validation.validation_type === "material"
-                                      ? "Material"
-                                      : "Unknown"}
+                                        ? "Material"
+                                        : "Unknown"}
                                   </span>
                                 </div>
                               </div>
@@ -1226,22 +1181,17 @@ const fetchItemDetails = async (validation) => {
                           {/* Kolom Department */}
                           <td className="vv-td hidden xl:table-cell">
                             <div className="flex flex-wrap gap-1">
-                              {departments.length > 0 ? (
-                                departments.slice(0, 2).map((d, i) => (
+                              {departments && departments.length > 0 ? (
+                                departments.map((dept, i) => (
                                   <span
                                     key={i}
                                     className="text-xs bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded-full"
                                   >
-                                    {d.department_name}: {d.quantity}
+                                    {dept.department_name}: {dept.quantity}
                                   </span>
                                 ))
                               ) : (
                                 <span className="text-xs text-gray-400">—</span>
-                              )}
-                              {departments.length > 2 && (
-                                <span className="text-xs text-gray-400">
-                                  +{departments.length - 2}
-                                </span>
                               )}
                             </div>
                           </td>
@@ -1249,27 +1199,20 @@ const fetchItemDetails = async (validation) => {
                           {/* Kolom Receiver */}
                           <td className="vv-td hidden xl:table-cell">
                             <div className="flex flex-wrap gap-1">
-                              {receivers.length > 0 ? (
-                                receivers.slice(0, 2).map((r, i) => (
+                              {receivers && receivers.length > 0 ? (
+                                receivers.map((rec, i) => (
                                   <span
                                     key={i}
                                     className="text-xs bg-green-50 text-green-700 px-1.5 py-0.5 rounded-full"
                                   >
-                                    {r.receiver_name ||
-                                      `Receiver ${r.receiver_id}`}
+                                    {rec.receiver_name || `Receiver ${rec.receiver_id}`}
                                   </span>
                                 ))
                               ) : (
                                 <span className="text-xs text-gray-400">—</span>
                               )}
-                              {receivers.length > 2 && (
-                                <span className="text-xs text-gray-400">
-                                  +{receivers.length - 2}
-                                </span>
-                              )}
                             </div>
                           </td>
-
                           <td className="vv-td">
                             <span
                               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}
@@ -1518,36 +1461,31 @@ const fetchItemDetails = async (validation) => {
                 </div>
 
                 {/* Department Distribution */}
-                {detailModal.departments &&
-                  detailModal.departments.length > 0 && (
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-xs text-gray-500 mb-2">
-                        Department Distribution
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {detailModal.departments.map((dept, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center gap-1 bg-gray-200 px-2 py-1 rounded-full text-xs"
-                          >
-                            {dept.department_name}: {dept.quantity}
-                          </span>
-                        ))}
-                      </div>
+                {/* Department Distribution */}
+                {detailModal.departments && detailModal.departments.length > 0 && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500 mb-2">Department Distribution</p>
+                    <div className="flex flex-wrap gap-2">
+                      {detailModal.departments.map((dept, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1 bg-gray-200 px-2 py-1 rounded-full text-xs"
+                        >
+                          {dept.department_name}: {dept.quantity}
+                        </span>
+                      ))}
                     </div>
-                  )}
+                  </div>
+                )}
 
                 {/* Receiver Assignments */}
                 {detailModal.receivers && detailModal.receivers.length > 0 && (
                   <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500 mb-2">
-                      Receiver Assignments
-                    </p>
+                    <p className="text-xs text-gray-500 mb-2">Receiver Assignments</p>
                     <div className="space-y-1">
                       {detailModal.receivers.map((rec, idx) => (
                         <div key={idx} className="text-xs text-gray-600">
-                          {rec.receiver_name || `Receiver ${rec.receiver_id}`} -{" "}
-                          {rec.department_name}
+                          {rec.receiver_name || `Receiver ${rec.receiver_id}`} - {rec.department_name}
                         </div>
                       ))}
                     </div>
@@ -1624,32 +1562,31 @@ const fetchItemDetails = async (validation) => {
 
                 {(detailModal.validation_notes ||
                   detailModal.rejection_reason) && (
-                  <div
-                    className={`rounded-lg p-3 ${
-                      detailModal.validation_status === "rejected"
+                    <div
+                      className={`rounded-lg p-3 ${detailModal.validation_status === "rejected"
                         ? "bg-red-50 border border-red-100"
                         : "bg-emerald-50 border border-emerald-100"
-                    }`}
-                  >
-                    <p className="text-xs font-semibold mb-1 text-gray-700">
-                      {detailModal.validation_status === "rejected"
-                        ? "Rejection Reason"
-                        : "Validation Notes"}
-                    </p>
-                    <p className="text-sm text-gray-800">
-                      {detailModal.validation_notes ||
-                        detailModal.rejection_reason}
-                    </p>
-                    {detailModal.validated_by_name && (
-                      <p className="text-xs text-gray-500 mt-2">
-                        Validated by {detailModal.validated_by_name} at{" "}
-                        {detailModal.validated_at
-                          ? new Date(detailModal.validated_at).toLocaleString()
-                          : "-"}
+                        }`}
+                    >
+                      <p className="text-xs font-semibold mb-1 text-gray-700">
+                        {detailModal.validation_status === "rejected"
+                          ? "Rejection Reason"
+                          : "Validation Notes"}
                       </p>
-                    )}
-                  </div>
-                )}
+                      <p className="text-sm text-gray-800">
+                        {detailModal.validation_notes ||
+                          detailModal.rejection_reason}
+                      </p>
+                      {detailModal.validated_by_name && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          Validated by {detailModal.validated_by_name} at{" "}
+                          {detailModal.validated_at
+                            ? new Date(detailModal.validated_at).toLocaleString()
+                            : "-"}
+                        </p>
+                      )}
+                    </div>
+                  )}
               </div>
 
               <div className="p-5 border-t border-gray-100 flex justify-end gap-3">

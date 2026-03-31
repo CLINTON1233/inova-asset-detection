@@ -12,12 +12,13 @@ def get_conn():
 # ==================== GET VALIDATIONS ====================
 @validation_bp.route('/api/validations', methods=['GET'])
 def get_validations():
-    """Mendapatkan daftar validations"""
+    """Mendapatkan daftar validations dengan departments dan receivers per item"""
     conn = None
     try:
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
+        # Query utama untuk validations
         cur.execute("""
         SELECT 
             v.id_validation,
@@ -35,28 +36,29 @@ def get_validations():
                 ELSE 'unknown'
             END as validation_type,
             
-            -- Tambahkan preparation_id dan item_id
-            COALESCE(dip.preparation_id, mip.preparation_id) as preparation_id,
-            COALESCE(dip.scanning_item_id, mip.scanning_item_id) as item_id,
-            
             -- Device info
             srd.serial_number,
             srd.scan_value as device_name,
             srd.photo_url as device_photo,
+            srd.item_preparation_id as device_item_prep_id,
             
             -- Material info
             srm.scan_code,
             srm.scan_value as material_name,
             srm.photo_url as material_photo,
+            srm.item_preparation_id as material_item_prep_id,
             
             -- Preparation info
             dsp.checking_number as device_checking_number,
             dsp.checking_name as device_checking_name,
+            dsp.id_preparation as device_preparation_id,
             msp.checking_number as material_checking_number,
             msp.checking_name as material_checking_name,
+            msp.id_preparation as material_preparation_id,
             l.location_name,
             u.username as created_by_name,
             vu.username as validated_by_name
+            
         FROM validations v
         LEFT JOIN scan_results_devices srd ON v.scan_id = srd.id_scan
         LEFT JOIN scan_results_materials srm ON v.scan_material_id = srm.id_scan
@@ -68,7 +70,7 @@ def get_validations():
         LEFT JOIN users u ON v.user_id = u.id_user
         LEFT JOIN users vu ON v.validated_by = vu.id_user
         ORDER BY v.created_at DESC
-    """)
+        """)
         
         validations = cur.fetchall()
         
@@ -76,18 +78,97 @@ def get_validations():
         for val in validations:
             val_dict = dict(val)
             
+            # Tentukan tipe dan siapkan data dasar
             if val_dict['validation_type'] == 'device':
                 val_dict['item_name'] = val_dict.get('device_name')
                 val_dict['serial_or_code'] = val_dict.get('serial_number')
                 val_dict['checking_number'] = val_dict.get('device_checking_number')
                 val_dict['checking_name'] = val_dict.get('device_checking_name')
                 val_dict['photo_url'] = val_dict.get('device_photo')
+                preparation_id = val_dict.get('device_preparation_id')
+                item_prep_id = val_dict.get('device_item_prep_id')
             else:
                 val_dict['item_name'] = val_dict.get('material_name')
                 val_dict['serial_or_code'] = val_dict.get('scan_code')
                 val_dict['checking_number'] = val_dict.get('material_checking_number')
                 val_dict['checking_name'] = val_dict.get('material_checking_name')
                 val_dict['photo_url'] = val_dict.get('material_photo')
+                preparation_id = val_dict.get('material_preparation_id')
+                item_prep_id = val_dict.get('material_item_prep_id')
+            
+            # ========== PERBAIKAN: Ambil data untuk item preparation yang spesifik ==========
+            project_name = None
+            department_name = None
+            receiver_name = None
+            
+            # Ambil data dari item preparation yang terkait dengan validation ini
+            if item_prep_id:
+                if val_dict['validation_type'] == 'device':
+                    cur.execute("""
+                        SELECT 
+                            dip.department_id,
+                            d.department_name,
+                            dip.receiver_id,
+                            mr.receiver_name,
+                            dip.project_name,
+                            dip.scanning_item_id,
+                            si.device_name,
+                            si.brand,
+                            si.vendor
+                        FROM devices_items_preparation dip
+                        LEFT JOIN departments d ON dip.department_id = d.id_department
+                        LEFT JOIN master_receivers mr ON dip.receiver_id = mr.id_receiver
+                        LEFT JOIN devices_scanning_items si ON dip.scanning_item_id = si.id_item
+                        WHERE dip.id_item_preparation = %s
+                    """, (item_prep_id,))
+                else:
+                    cur.execute("""
+                        SELECT 
+                            mip.department_id,
+                            d.department_name,
+                            mip.receiver_id,
+                            mr.receiver_name,
+                            mip.project_name,
+                            mip.scanning_item_id,
+                            si.material_name,
+                            si.vendor
+                        FROM materials_items_preparation mip
+                        LEFT JOIN departments d ON mip.department_id = d.id_department
+                        LEFT JOIN master_receivers mr ON mip.receiver_id = mr.id_receiver
+                        LEFT JOIN materials_scanning_items si ON mip.scanning_item_id = si.id_item
+                        WHERE mip.id_item_preparation = %s
+                    """, (item_prep_id,))
+                
+                item_data = cur.fetchone()
+                
+                if item_data:
+                    project_name = item_data.get('project_name')
+                    department_name = item_data.get('department_name')
+                    receiver_name = item_data.get('receiver_name')
+                    
+                    # Untuk debug
+                    print(f"Validation {val_dict['id_validation']}: item_prep_id={item_prep_id}, department={department_name}, receiver={receiver_name}, project={project_name}")
+            
+            # Format departments dan receivers sebagai array (untuk konsistensi dengan scanning page)
+            departments = []
+            if department_name:
+                departments.append({
+                    'department_id': item_data.get('department_id') if item_data else None,
+                    'department_name': department_name,
+                    'quantity': 1
+                })
+            
+            receivers = []
+            if receiver_name:
+                receivers.append({
+                    'receiver_id': item_data.get('receiver_id') if item_data else None,
+                    'receiver_name': receiver_name,
+                    'department_name': department_name
+                })
+            
+            val_dict['project_name'] = project_name
+            val_dict['departments'] = departments
+            val_dict['receivers'] = receivers
             
             result.append(val_dict)
         
@@ -378,6 +459,7 @@ def get_validation_detail(validation_id):
             result['checking_date'] = result.get('device_checking_date')
             result['detection_data'] = result.get('device_detection')
             result['photo_url'] = result.get('device_photo')
+            item_prep_id = result.get('item_preparation_id')
         else:
             result['item_name'] = result.get('material_name')
             result['serial_or_code'] = result.get('scan_code')
@@ -386,6 +468,66 @@ def get_validation_detail(validation_id):
             result['checking_date'] = result.get('material_checking_date')
             result['detection_data'] = result.get('material_detection')
             result['photo_url'] = result.get('material_photo')
+            item_prep_id = result.get('material_item_preparation_id')
+        
+        # ========== PERBAIKAN: Ambil data department dan receiver dari item preparation ==========
+        department_name = None
+        receiver_name = None
+        project_name = None
+        
+        if item_prep_id:
+            if result['validation_type'] == 'device':
+                cur.execute("""
+                    SELECT 
+                        dip.department_id,
+                        d.department_name,
+                        dip.receiver_id,
+                        mr.receiver_name,
+                        dip.project_name
+                    FROM devices_items_preparation dip
+                    LEFT JOIN departments d ON dip.department_id = d.id_department
+                    LEFT JOIN master_receivers mr ON dip.receiver_id = mr.id_receiver
+                    WHERE dip.id_item_preparation = %s
+                """, (item_prep_id,))
+            else:
+                cur.execute("""
+                    SELECT 
+                        mip.department_id,
+                        d.department_name,
+                        mip.receiver_id,
+                        mr.receiver_name,
+                        mip.project_name
+                    FROM materials_items_preparation mip
+                    LEFT JOIN departments d ON mip.department_id = d.id_department
+                    LEFT JOIN master_receivers mr ON mip.receiver_id = mr.id_receiver
+                    WHERE mip.id_item_preparation = %s
+                """, (item_prep_id,))
+            
+            item_data = cur.fetchone()
+            
+            if item_data:
+                department_name = item_data.get('department_name')
+                receiver_name = item_data.get('receiver_name')
+                project_name = item_data.get('project_name')
+        
+        # Format departments dan receivers sebagai array
+        departments = []
+        if department_name:
+            departments.append({
+                'department_name': department_name,
+                'quantity': 1
+            })
+        
+        receivers = []
+        if receiver_name:
+            receivers.append({
+                'receiver_name': receiver_name,
+                'department_name': department_name
+            })
+        
+        result['project_name'] = project_name
+        result['departments'] = departments
+        result['receivers'] = receivers
         
         return jsonify({
             'success': True,
