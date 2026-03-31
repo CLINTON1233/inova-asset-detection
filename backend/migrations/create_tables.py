@@ -340,6 +340,7 @@ def create_devices_scanning_preparations_table(conn):
     except Exception as e:
         conn.rollback()
         print(f"Error creating devices_scanning_preparations table: {e}")
+        
 
 def create_devices_scanning_items_table(conn):
     """Tabel DETAIL scanning item untuk Devices (master item dengan quantity)"""
