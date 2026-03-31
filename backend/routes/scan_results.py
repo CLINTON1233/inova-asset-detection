@@ -148,6 +148,69 @@ def update_scan_photo(scan_id):
     finally:
         if conn:
             conn.close()
+            
+# ==================== GET SCAN RESULT BY ID ====================
+@scan_results_bp.route('/api/scan-results/device/<int:scan_id>', methods=['GET'])
+def get_scan_result_device(scan_id):
+    """Mendapatkan detail scan result device berdasarkan ID"""
+    conn = None
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        cur.execute("""
+            SELECT * FROM scan_results_devices WHERE id_scan = %s
+        """, (scan_id,))
+        
+        scan = cur.fetchone()
+        
+        if not scan:
+            return jsonify({
+                'success': False,
+                'error': 'Scan result not found'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'data': dict(scan)
+        })
+        
+    except Exception as e:
+        return handle_error(e, "Error getting scan result device")
+    finally:
+        if conn:
+            conn.close()
+
+@scan_results_bp.route('/api/scan-results/material/<int:scan_id>', methods=['GET'])
+def get_scan_result_material(scan_id):
+    """Mendapatkan detail scan result material berdasarkan ID"""
+    conn = None
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        cur.execute("""
+            SELECT * FROM scan_results_materials WHERE id_scan = %s
+        """, (scan_id,))
+        
+        scan = cur.fetchone()
+        
+        if not scan:
+            return jsonify({
+                'success': False,
+                'error': 'Scan result not found'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'data': dict(scan)
+        })
+        
+    except Exception as e:
+        return handle_error(e, "Error getting scan result material")
+    finally:
+        if conn:
+            conn.close()
 
 # ==================== CREATE DEVICE ====================
 @scan_results_bp.route('/api/scan-results/create-device', methods=['POST'])

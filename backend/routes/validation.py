@@ -19,52 +19,56 @@ def get_validations():
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
         cur.execute("""
-            SELECT 
-                v.id_validation,
-                v.unique_code,
-                v.validation_status,
-                v.validation_notes,
-                v.is_approved,
-                v.rejection_reason,
-                v.created_at,
-                v.validated_at,
-                COALESCE(v.scan_id, v.scan_material_id) as scan_id,
-                CASE 
-                    WHEN v.scan_id IS NOT NULL THEN 'device'
-                    WHEN v.scan_material_id IS NOT NULL THEN 'material'
-                    ELSE 'unknown'
-                END as validation_type,
-                
-                -- Device info
-                srd.serial_number,
-                srd.scan_value as device_name,
-                srd.photo_url as device_photo,
-                
-                -- Material info
-                srm.scan_code,
-                srm.scan_value as material_name,
-                srm.photo_url as material_photo,
-                
-                -- Preparation info
-                dsp.checking_number as device_checking_number,
-                dsp.checking_name as device_checking_name,
-                msp.checking_number as material_checking_number,
-                msp.checking_name as material_checking_name,
-                l.location_name,
-                u.username as created_by_name,
-                vu.username as validated_by_name
-            FROM validations v
-            LEFT JOIN scan_results_devices srd ON v.scan_id = srd.id_scan
-            LEFT JOIN scan_results_materials srm ON v.scan_material_id = srm.id_scan
-            LEFT JOIN devices_items_preparation dip ON v.item_preparation_id = dip.id_item_preparation
-            LEFT JOIN materials_items_preparation mip ON v.material_item_preparation_id = mip.id_item_preparation
-            LEFT JOIN devices_scanning_preparations dsp ON dip.preparation_id = dsp.id_preparation
-            LEFT JOIN materials_scanning_preparations msp ON mip.preparation_id = msp.id_preparation
-            LEFT JOIN locations l ON COALESCE(dsp.location_id, msp.location_id) = l.id_location
-            LEFT JOIN users u ON v.user_id = u.id_user
-            LEFT JOIN users vu ON v.validated_by = vu.id_user
-            ORDER BY v.created_at DESC
-        """)
+        SELECT 
+            v.id_validation,
+            v.unique_code,
+            v.validation_status,
+            v.validation_notes,
+            v.is_approved,
+            v.rejection_reason,
+            v.created_at,
+            v.validated_at,
+            COALESCE(v.scan_id, v.scan_material_id) as scan_id,
+            CASE 
+                WHEN v.scan_id IS NOT NULL THEN 'device'
+                WHEN v.scan_material_id IS NOT NULL THEN 'material'
+                ELSE 'unknown'
+            END as validation_type,
+            
+            -- Tambahkan preparation_id dan item_id
+            COALESCE(dip.preparation_id, mip.preparation_id) as preparation_id,
+            COALESCE(dip.scanning_item_id, mip.scanning_item_id) as item_id,
+            
+            -- Device info
+            srd.serial_number,
+            srd.scan_value as device_name,
+            srd.photo_url as device_photo,
+            
+            -- Material info
+            srm.scan_code,
+            srm.scan_value as material_name,
+            srm.photo_url as material_photo,
+            
+            -- Preparation info
+            dsp.checking_number as device_checking_number,
+            dsp.checking_name as device_checking_name,
+            msp.checking_number as material_checking_number,
+            msp.checking_name as material_checking_name,
+            l.location_name,
+            u.username as created_by_name,
+            vu.username as validated_by_name
+        FROM validations v
+        LEFT JOIN scan_results_devices srd ON v.scan_id = srd.id_scan
+        LEFT JOIN scan_results_materials srm ON v.scan_material_id = srm.id_scan
+        LEFT JOIN devices_items_preparation dip ON v.item_preparation_id = dip.id_item_preparation
+        LEFT JOIN materials_items_preparation mip ON v.material_item_preparation_id = mip.id_item_preparation
+        LEFT JOIN devices_scanning_preparations dsp ON dip.preparation_id = dsp.id_preparation
+        LEFT JOIN materials_scanning_preparations msp ON mip.preparation_id = msp.id_preparation
+        LEFT JOIN locations l ON COALESCE(dsp.location_id, msp.location_id) = l.id_location
+        LEFT JOIN users u ON v.user_id = u.id_user
+        LEFT JOIN users vu ON v.validated_by = vu.id_user
+        ORDER BY v.created_at DESC
+    """)
         
         validations = cur.fetchall()
         

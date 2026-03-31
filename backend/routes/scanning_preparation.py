@@ -18,6 +18,115 @@ def generate_item_number(preparation_id, item_index, sub_item_index):
     """Generate item number format: ITEM-{preparation_id}-{item_index}-{sub_item_index}"""
     return f"ITEM-{preparation_id}-{item_index + 1}-{sub_item_index + 1}"
 
+# ==================== GET SINGLE ITEM PREPARATION DETAIL ====================
+@scanning_prep_bp.route('/api/devices/items-preparation/<int:item_prep_id>', methods=['GET'])
+def get_devices_item_preparation_detail(item_prep_id):
+    """Mendapatkan detail single item preparation devices"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        cur.execute("""
+            SELECT 
+                ip.id_item_preparation,
+                ip.scanning_item_id,
+                ip.preparation_id,
+                ip.item_number,
+                ip.serial_number,
+                ip.status,
+                ip.department_id,
+                ip.receiver_id,
+                ip.project_name,
+                ip.scanned_at,
+                ip.created_at,
+                si.device_name,
+                si.brand,
+                si.model,
+                si.specifications
+            FROM devices_items_preparation ip
+            LEFT JOIN devices_scanning_items si ON ip.scanning_item_id = si.id_item
+            WHERE ip.id_item_preparation = %s
+        """, (item_prep_id,))
+        
+        item = cur.fetchone()
+        
+        if not item:
+            return jsonify({
+                'success': False,
+                'error': 'Item preparation not found'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'data': dict(item)
+        })
+        
+    except Exception as e:
+        print(f"Error in get_devices_item_preparation_detail: {e}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+@scanning_prep_bp.route('/api/materials/items-preparation/<int:item_prep_id>', methods=['GET'])
+def get_materials_item_preparation_detail(item_prep_id):
+    """Mendapatkan detail single item preparation materials"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        cur.execute("""
+            SELECT 
+                ip.id_item_preparation,
+                ip.scanning_item_id,
+                ip.preparation_id,
+                ip.item_number,
+                ip.scan_code,
+                ip.status,
+                ip.department_id,
+                ip.receiver_id,
+                ip.project_name,
+                ip.quantity,
+                ip.uom,
+                ip.vendor,
+                ip.scanned_at,
+                ip.created_at,
+                si.material_name
+            FROM materials_items_preparation ip
+            LEFT JOIN materials_scanning_items si ON ip.scanning_item_id = si.id_item
+            WHERE ip.id_item_preparation = %s
+        """, (item_prep_id,))
+        
+        item = cur.fetchone()
+        
+        if not item:
+            return jsonify({
+                'success': False,
+                'error': 'Item preparation not found'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'data': dict(item)
+        })
+        
+    except Exception as e:
+        print(f"Error in get_materials_item_preparation_detail: {e}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
 # ==================== ENDPOINTS MASTER DATA ====================
 @scanning_prep_bp.route('/api/projects/list', methods=['GET'])
 def get_projects_list():

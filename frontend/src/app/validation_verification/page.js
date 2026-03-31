@@ -12,22 +12,15 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-  AlertTriangle,
-  FileText,
   Calendar,
   MapPin,
-  Hash,
   Package,
-  Smartphone,
   Laptop,
   Cable,
   Server,
-  User,
   ThumbsUp,
   ThumbsDown,
   RefreshCw,
-  ExternalLink,
-  Image as ImageIcon,
   ArrowUp,
   CheckCircle,
   ArrowDown,
@@ -35,7 +28,6 @@ import {
   X,
   Camera,
   Trash2,
-  Users,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import LayoutDashboard from "../components/LayoutDashboard";
@@ -65,23 +57,17 @@ export default function ValidationVerificationPage() {
     total: 0,
   });
 
-  const itemsPerPageOptions = [10, 25, 50, 100];
-
   useEffect(() => {
     setMounted(true);
     loadValidations();
   }, []);
 
-  // Tambahkan useEffect untuk memuat item details setelah validations loaded
   useEffect(() => {
     const loadAllItemDetails = async () => {
       if (validations.length > 0) {
         for (const validation of validations) {
           if (!itemDetails[validation.id_validation]) {
-            await fetchItemDetails(
-              validation.id_validation,
-              validation.validation_type,
-            );
+            await fetchItemDetails(validation);
           }
         }
       }
@@ -96,46 +82,74 @@ export default function ValidationVerificationPage() {
     }
   };
 
-  const fetchItemDetails = async (itemId, type) => {
-    if (itemDetails[itemId]) return itemDetails[itemId];
+const fetchItemDetails = async (validation) => {
+  if (itemDetails[validation.id_validation]) return itemDetails[validation.id_validation];
 
-    try {
-      // Cari data dari validations list
-      const validation = validations.find((v) => v.id_validation === itemId);
-      if (!validation) return null;
+  try {
+    let preparationId = null;
+    let scanningItemId = null;
+    let projectName = "-";
+    let departmentsList = [];
+    let receiversList = [];
 
-      // Cari preparation_id dari scan results
-      let preparationId = null;
-      let scanningItemId = null;
-
-      if (validation.validation_type === "device" && validation.scan_id) {
-        const scanResponse = await fetch(
-          `${API_BASE_URL}/api/scan-results/device/${validation.scan_id}`,
-        );
-        const scanResult = await scanResponse.json();
-        if (scanResult.success && scanResult.data) {
-          preparationId = scanResult.data.preparation_id;
-          scanningItemId = scanResult.data.scanning_item_id;
-        }
-      } else if (
-        validation.validation_type === "material" &&
-        validation.scan_id
-      ) {
-        const scanResponse = await fetch(
-          `${API_BASE_URL}/api/scan-results/material/${validation.scan_id}`,
-        );
-        const scanResult = await scanResponse.json();
-        if (scanResult.success && scanResult.data) {
-          preparationId = scanResult.data.preparation_id;
-          scanningItemId = scanResult.data.scanning_item_id;
+    // Cari preparation_id dan scanning_item_id dari scan results
+    if (validation.validation_type === "device" && validation.scan_id) {
+      // Untuk device, ambil dari scan_results_devices
+      const scanResponse = await fetch(
+        `${API_BASE_URL}/api/scan-results/device/${validation.scan_id}`
+      );
+      const scanResult = await scanResponse.json();
+      
+      if (scanResult.success && scanResult.data) {
+        const itemPrepId = scanResult.data.item_preparation_id;
+        
+        if (itemPrepId) {
+          // Cari preparation_id dari devices_items_preparation
+          const itemPrepResponse = await fetch(
+            `${API_BASE_URL}/api/devices/items-preparation/${itemPrepId}`
+          );
+          const itemPrepResult = await itemPrepResponse.json();
+          
+          if (itemPrepResult.success && itemPrepResult.data) {
+            preparationId = itemPrepResult.data.preparation_id;
+            scanningItemId = itemPrepResult.data.scanning_item_id;
+          }
         }
       }
-
-      if (!preparationId || !scanningItemId) {
-        return null;
+    } else if (validation.validation_type === "material" && validation.scan_id) {
+      // Untuk material, ambil dari scan_results_materials
+      const scanResponse = await fetch(
+        `${API_BASE_URL}/api/scan-results/material/${validation.scan_id}`
+      );
+      const scanResult = await scanResponse.json();
+      
+      if (scanResult.success && scanResult.data) {
+        const itemPrepId = scanResult.data.item_preparation_id;
+        
+        if (itemPrepId) {
+          const itemPrepResponse = await fetch(
+            `${API_BASE_URL}/api/materials/items-preparation/${itemPrepId}`
+          );
+          const itemPrepResult = await itemPrepResponse.json();
+          
+          if (itemPrepResult.success && itemPrepResult.data) {
+            preparationId = itemPrepResult.data.preparation_id;
+            scanningItemId = itemPrepResult.data.scanning_item_id;
+          }
+        }
       }
+    }
 
-      // Ambil detail preparation
+    // Jika masih belum dapat preparation_id, coba dari validation langsung
+    if (!preparationId && validation.preparation_id) {
+      preparationId = validation.preparation_id;
+    }
+    if (!scanningItemId && validation.item_id) {
+      scanningItemId = validation.item_id;
+    }
+
+    // Ambil detail dari scanning items berdasarkan preparation_id dan scanning_item_id
+    if (preparationId && scanningItemId) {
       let endpoint;
       if (validation.validation_type === "device") {
         endpoint = API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(preparationId);
@@ -148,30 +162,43 @@ export default function ValidationVerificationPage() {
 
       if (result.success) {
         const data = result.data;
-        const item = data.items.find((i) => i.id_item === scanningItemId);
+        // Cari item yang sesuai dengan scanning_item_id
+        const item = data.items?.find((i) => i.id_item === scanningItemId);
 
         if (item) {
-          const detail = {
-            project_name: item.project_name || "-",
-            departments: item.departments || [],
-            receivers: item.receivers || [],
-            item_name: item.device_name || item.material_name || item.item_name,
-            brand: item.brand || item.vendor,
-            model: item.model,
-            uom: item.uom,
-            preparation_id: preparationId,
-          };
-
-          setItemDetails((prev) => ({ ...prev, [itemId]: detail }));
-          return detail;
+          // Ambil project_name dari item
+          projectName = item.project_name || "-";
+          
+          // Ambil departments dari item
+          departmentsList = item.departments || [];
+          
+          // Ambil receivers dari item - pastikan receiver_name ada
+          receiversList = (item.receivers || []).map(r => ({
+            receiver_name: r.receiver_name || `Receiver ${r.receiver_id}`,
+            department_name: r.department_name,
+            receiver_id: r.receiver_id
+          }));
         }
       }
-      return null;
-    } catch (error) {
-      console.error("Error fetching item details:", error);
-      return null;
     }
-  };
+
+    const detail = {
+      project_name: projectName,
+      departments: departmentsList,
+      receivers: receiversList,
+    };
+
+    setItemDetails((prev) => ({ ...prev, [validation.id_validation]: detail }));
+    return detail;
+  } catch (error) {
+    console.error("Error fetching item details:", error);
+    return {
+      project_name: "-",
+      departments: [],
+      receivers: []
+    };
+  }
+};
 
   const loadValidations = async () => {
     setLoading(true);
@@ -188,19 +215,18 @@ export default function ValidationVerificationPage() {
       }
 
       const result = await response.json();
-      console.log("Validations data:", result);
 
       if (result.success) {
         setValidations(result.data || []);
 
         const pending = (result.data || []).filter(
-          (v) => v.validation_status === "pending",
+          (v) => v.validation_status === "pending"
         ).length;
         const approved = (result.data || []).filter(
-          (v) => v.validation_status === "approved",
+          (v) => v.validation_status === "approved"
         ).length;
         const rejected = (result.data || []).filter(
-          (v) => v.validation_status === "rejected",
+          (v) => v.validation_status === "rejected"
         ).length;
 
         setStats({
@@ -234,7 +260,6 @@ export default function ValidationVerificationPage() {
           bg: "bg-amber-50",
           border: "border-amber-200",
           badge: "bg-amber-100 text-amber-700",
-          icon: Clock,
           label: "Pending",
         };
       case "approved":
@@ -244,7 +269,6 @@ export default function ValidationVerificationPage() {
           bg: "bg-emerald-50",
           border: "border-emerald-200",
           badge: "bg-emerald-100 text-emerald-700",
-          icon: CheckCircle,
           label: "Approved",
         };
       case "rejected":
@@ -254,7 +278,6 @@ export default function ValidationVerificationPage() {
           bg: "bg-red-50",
           border: "border-red-200",
           badge: "bg-red-100 text-red-700",
-          icon: XCircle,
           label: "Rejected",
         };
       default:
@@ -264,7 +287,6 @@ export default function ValidationVerificationPage() {
           bg: "bg-gray-50",
           border: "border-gray-200",
           badge: "bg-gray-100 text-gray-700",
-          icon: Clock,
           label: status,
         };
     }
@@ -272,20 +294,26 @@ export default function ValidationVerificationPage() {
 
   const getTypeIcon = (type) => {
     if (type === "device") return <Laptop className="w-4 h-4 text-blue-600" />;
-    if (type === "material")
-      return <Cable className="w-4 h-4 text-green-600" />;
+    if (type === "material") return <Cable className="w-4 h-4 text-green-600" />;
     return <Package className="w-4 h-4 text-gray-500" />;
   };
 
   const handleViewDetail = async (validation) => {
     try {
       const response = await fetch(
-        API_ENDPOINTS.VALIDATIONS_DETAIL(validation.id_validation),
+        API_ENDPOINTS.VALIDATIONS_DETAIL(validation.id_validation)
       );
       const result = await response.json();
 
       if (result.success) {
-        setDetailModal(result.data);
+        // Tambahkan project_name, departments, receivers dari itemDetails
+        const detail = itemDetails[validation.id_validation] || {};
+        setDetailModal({
+          ...result.data,
+          project_name: detail.project_name,
+          departments: detail.departments,
+          receivers: detail.receivers,
+        });
       } else {
         throw new Error(result.error);
       }
@@ -334,7 +362,7 @@ export default function ValidationVerificationPage() {
               validation_notes: result.value.notes,
               validated_by: 1,
             }),
-          },
+          }
         );
 
         const data = await response.json();
@@ -403,7 +431,7 @@ export default function ValidationVerificationPage() {
               rejection_reason: result.value.reason,
               validated_by: 1,
             }),
-          },
+          }
         );
 
         const data = await response.json();
@@ -528,7 +556,7 @@ export default function ValidationVerificationPage() {
           {
             method: "DELETE",
             headers: { "Content-Type": "application/json" },
-          },
+          }
         );
 
         const data = await response.json();
@@ -588,7 +616,7 @@ export default function ValidationVerificationPage() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ validation_ids: selectedItems }),
-          },
+          }
         );
 
         const data = await response.json();
@@ -664,19 +692,16 @@ export default function ValidationVerificationPage() {
   let filteredValidations = validations.filter((validation) => {
     const matchesSearch =
       (validation.item_name?.toLowerCase() || "").includes(
-        searchTerm.toLowerCase(),
+        searchTerm.toLowerCase()
       ) ||
       (validation.serial_or_code?.toLowerCase() || "").includes(
-        searchTerm.toLowerCase(),
+        searchTerm.toLowerCase()
       ) ||
       (validation.checking_number?.toLowerCase() || "").includes(
-        searchTerm.toLowerCase(),
+        searchTerm.toLowerCase()
       ) ||
       (validation.unique_code?.toLowerCase() || "").includes(
-        searchTerm.toLowerCase(),
-      ) ||
-      (validation.receiver_name?.toLowerCase() || "").includes(
-        searchTerm.toLowerCase(),
+        searchTerm.toLowerCase()
       );
 
     const matchesStatus =
@@ -706,7 +731,7 @@ export default function ValidationVerificationPage() {
   const totalPages = Math.ceil(filteredValidations.length / itemsPerPage);
   const paginatedValidations = filteredValidations.slice(
     (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   const kpis = [
@@ -852,39 +877,6 @@ export default function ValidationVerificationPage() {
             box-shadow: 0 1px 3px rgba(30,64,175,0.3);
           }
           .view-btn:hover { background: #1d3a9e; }
-
-         /* Ganti atau tambahkan style untuk receiver button */
-.add-receiver-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: #10b981;
-  color: #fff;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  transition: background 0.15s;
-  border: none;
-  cursor: pointer;
-}
-.add-receiver-btn:hover { background: #059669; }
-
-.edit-receiver-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: #f59e0b;
-  color: #fff;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  transition: background 0.15s;
-  border: none;
-  cursor: pointer;
-}
-.edit-receiver-btn:hover { background: #d97706; }
         `}</style>
 
         <div className="vv-root space-y-5 max-w-7xl mx-auto px-4 py-2">
@@ -932,7 +924,7 @@ export default function ValidationVerificationPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search by item name, serial/scan code, receiver name..."
+                  placeholder="Search by item name, serial/scan code..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
@@ -1072,60 +1064,58 @@ export default function ValidationVerificationPage() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full">
-
-<thead>
-  <tr style={{ background: "#f8fafc" }}>
-    {showCheckboxes && (
-      <th className="vv-th w-10 text-center">
-        <input
-          type="checkbox"
-          checked={
-            selectedItems.length === filteredValidations.length &&
-            filteredValidations.length > 0
-          }
-          onChange={handleSelectAll}
-          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-        />
-      </th>
-    )}
-    <th className="vv-th text-left">Photo</th>
-    <th className="vv-th text-left" onClick={() => handleSort("item_name")}>
-      <span className="flex items-center">Item {getSortIcon("item_name")}</span>
-    </th>
-    <th className="vv-th text-left hidden md:table-cell" onClick={() => handleSort("serial_or_code")}>
-      <span className="flex items-center">Code {getSortIcon("serial_or_code")}</span>
-    </th>
-    <th className="vv-th text-left hidden lg:table-cell" onClick={() => handleSort("checking_name")}>
-      <span className="flex items-center">Session {getSortIcon("checking_name")}</span>
-    </th>
-    <th className="vv-th text-left hidden xl:table-cell">
-      <span className="flex items-center">Project</span>
-    </th>
-    <th className="vv-th text-left hidden xl:table-cell">
-      <span className="flex items-center">Department</span>
-    </th>
-    <th className="vv-th text-left hidden xl:table-cell">
-      <span className="flex items-center">Receiver</span>
-    </th>
-    <th className="vv-th text-left" onClick={() => handleSort("validation_status")}>
-      <span className="flex items-center">Status {getSortIcon("validation_status")}</span>
-    </th>
-    <th className="vv-th text-left hidden xl:table-cell" onClick={() => handleSort("created_at")}>
-      <span className="flex items-center">Submitted {getSortIcon("created_at")}</span>
-    </th>
-    <th className="vv-th text-center">Actions</th>
-  </tr>
-</thead>
+                  <thead>
+                    <tr style={{ background: "#f8fafc" }}>
+                      {showCheckboxes && (
+                        <th className="vv-th w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={
+                              selectedItems.length ===
+                                filteredValidations.length &&
+                              filteredValidations.length > 0
+                            }
+                            onChange={handleSelectAll}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                        </th>
+                      )}
+                      <th className="vv-th text-left">Photo</th>
+                      <th className="vv-th text-left" onClick={() => handleSort("item_name")}>
+                        <span className="flex items-center">Item {getSortIcon("item_name")}</span>
+                      </th>
+                      <th className="vv-th text-left hidden md:table-cell" onClick={() => handleSort("serial_or_code")}>
+                        <span className="flex items-center">Code {getSortIcon("serial_or_code")}</span>
+                      </th>
+                      <th className="vv-th text-left hidden lg:table-cell" onClick={() => handleSort("checking_name")}>
+                        <span className="flex items-center">Session {getSortIcon("checking_name")}</span>
+                      </th>
+                      <th className="vv-th text-left hidden xl:table-cell">
+                        <span className="flex items-center">Project</span>
+                      </th>
+                      <th className="vv-th text-left hidden xl:table-cell">
+                        <span className="flex items-center">Department</span>
+                      </th>
+                      <th className="vv-th text-left hidden xl:table-cell">
+                        <span className="flex items-center">Receiver</span>
+                      </th>
+                      <th className="vv-th text-left" onClick={() => handleSort("validation_status")}>
+                        <span className="flex items-center">Status {getSortIcon("validation_status")}</span>
+                      </th>
+                      <th className="vv-th text-left hidden xl:table-cell" onClick={() => handleSort("created_at")}>
+                        <span className="flex items-center">Submitted {getSortIcon("created_at")}</span>
+                      </th>
+                      <th className="vv-th text-center">Actions</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {paginatedValidations.map((validation, idx) => {
                       const sc = getStatusConfig(validation.validation_status);
-                      const StatusIcon = sc.icon;
                       const photoUrl = validation.photo_url;
-
-                      const itemDetail = itemDetails[validation.id_validation];
-                      const projectName = itemDetail?.project_name || "-";
-                      const departments = itemDetail?.departments || [];
-                      const receivers = itemDetail?.receivers || [];
+                      const itemDetail = itemDetails[validation.id_validation] || {};
+                      const projectName = itemDetail.project_name || "-";
+                      const departments = itemDetail.departments || [];
+                      const receivers = itemDetail.receivers || [];
 
                       return (
                         <tr
@@ -1137,7 +1127,7 @@ export default function ValidationVerificationPage() {
                               <input
                                 type="checkbox"
                                 checked={selectedItems.includes(
-                                  validation.id_validation,
+                                  validation.id_validation
                                 )}
                                 onChange={() =>
                                   handleSelectItem(validation.id_validation)
@@ -1169,11 +1159,6 @@ export default function ValidationVerificationPage() {
                                     imageWidth: 400,
                                     imageHeight: "auto",
                                     confirmButtonColor: "#2563eb",
-                                    customClass: {
-                                      popup: "rounded-xl",
-                                      confirmButton:
-                                        "px-4 py-2 bg-blue-600 text-white rounded-lg",
-                                    },
                                   });
                                 }}
                                 onError={(e) => {
@@ -1202,19 +1187,16 @@ export default function ValidationVerificationPage() {
                                     className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                                       validation.validation_type === "device"
                                         ? "bg-blue-100 text-blue-700"
-                                        : validation.validation_type ===
-                                            "material"
-                                          ? "bg-green-100 text-green-700"
-                                          : "bg-gray-100 text-gray-700"
+                                        : validation.validation_type === "material"
+                                        ? "bg-green-100 text-green-700"
+                                        : "bg-gray-100 text-gray-700"
                                     }`}
                                   >
                                     {validation.validation_type === "device"
                                       ? "Device"
-                                      : validation.validation_type ===
-                                          "material"
-                                        ? "Material"
-                                        : validation.validation_type ||
-                                          "Unknown"}
+                                      : validation.validation_type === "material"
+                                      ? "Material"
+                                      : "Unknown"}
                                   </span>
                                 </div>
                               </div>
@@ -1288,17 +1270,22 @@ export default function ValidationVerificationPage() {
                             </div>
                           </td>
 
-                         <td className="vv-td">
-  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
-    <span className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`} />
-    {sc.label}
-  </span>
-  {validation.rejection_reason && validation.validation_status === "rejected" && (
-    <p className="text-xs text-red-500 mt-1 max-w-[160px] truncate">
-      {validation.rejection_reason}
-    </p>
-  )}
-</td>
+                          <td className="vv-td">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`}
+                              />
+                              {sc.label}
+                            </span>
+                            {validation.rejection_reason &&
+                              validation.validation_status === "rejected" && (
+                                <p className="text-xs text-red-500 mt-1 max-w-[160px] truncate">
+                                  {validation.rejection_reason}
+                                </p>
+                              )}
+                          </td>
                           <td className="vv-td hidden xl:table-cell">
                             <div className="flex items-center gap-1.5">
                               <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
@@ -1339,7 +1326,6 @@ export default function ValidationVerificationPage() {
                                   </button>
                                 </>
                               )}
-                              {/* Tombol Delete untuk semua status */}
                               <button
                                 onClick={() => handleDeleteSingle(validation)}
                                 disabled={isProcessing}
@@ -1367,7 +1353,7 @@ export default function ValidationVerificationPage() {
                     {(currentPage - 1) * itemsPerPage + 1}–
                     {Math.min(
                       currentPage * itemsPerPage,
-                      filteredValidations.length,
+                      filteredValidations.length
                     )}
                   </span>{" "}
                   of{" "}
@@ -1416,6 +1402,7 @@ export default function ValidationVerificationPage() {
           </div>
         </div>
 
+        {/* Detail Modal */}
         {detailModal && (
           <div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
@@ -1516,7 +1503,7 @@ export default function ValidationVerificationPage() {
                     <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
                       {new Date(detailModal.checking_date).toLocaleDateString(
-                        "id-ID",
+                        "id-ID"
                       )}
                     </p>
                   )}
@@ -1638,7 +1625,11 @@ export default function ValidationVerificationPage() {
                 {(detailModal.validation_notes ||
                   detailModal.rejection_reason) && (
                   <div
-                    className={`rounded-lg p-3 ${detailModal.validation_status === "rejected" ? "bg-red-50 border border-red-100" : "bg-emerald-50 border border-emerald-100"}`}
+                    className={`rounded-lg p-3 ${
+                      detailModal.validation_status === "rejected"
+                        ? "bg-red-50 border border-red-100"
+                        : "bg-emerald-50 border border-emerald-100"
+                    }`}
                   >
                     <p className="text-xs font-semibold mb-1 text-gray-700">
                       {detailModal.validation_status === "rejected"
