@@ -621,58 +621,8 @@ def create_scan_results_materials_table(conn):
         print(f"Error creating scan_results_materials table: {e}")
 
 # ==================== TABEL ASSETS DAN VALIDATIONS ====================
-def create_assets_table(conn):
-    """Tabel assets - data final setelah validasi"""
-    try:
-        cur = conn.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS assets (
-                id_assets SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
-                validation_id INTEGER REFERENCES validations(id_validation) ON DELETE SET NULL,
-                asset_code VARCHAR(100) UNIQUE NOT NULL,
-                asset_name VARCHAR(255) NOT NULL,
-                asset_type VARCHAR(100),
-                category VARCHAR(50),
-                serial_number VARCHAR(100) UNIQUE,
-                scan_code VARCHAR(100) UNIQUE,
-                project_name VARCHAR(255),
-                department_name VARCHAR(255),
-                receiver_name VARCHAR(255),
-                location_id INTEGER REFERENCES locations(id_location) ON DELETE SET NULL,
-                location_name VARCHAR(255),
-                brand VARCHAR(100),
-                vendor VARCHAR(255),
-                model VARCHAR(100),
-                specifications TEXT,
-                quantity DECIMAL(10,2) DEFAULT 1,
-                uom VARCHAR(20),
-                status VARCHAR(50) DEFAULT 'active',
-                photo_url TEXT,
-                validated_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
-                validated_at TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_user ON assets(user_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_validation ON assets(validation_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_code ON assets(asset_code)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_serial ON assets(serial_number)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_scan_code ON assets(scan_code)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_status ON assets(status)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_category ON assets(category)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_project ON assets(project_name)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_department ON assets(department_name)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_receiver ON assets(receiver_name)")
-        conn.commit()
-        print("✓ Tabel assets berhasil dibuat")
-    except Exception as e:
-        conn.rollback()
-        print(f"Error creating assets table: {e}")
-
 def create_validations_table(conn):
-    """Tabel validations - verifikasi sebelum masuk ke assets"""
+    """Tabel validations - verifikasi sebelum masuk ke assets (tanpa referensi ke assets dulu)"""
     try:
         cur = conn.cursor()
         
@@ -684,7 +634,6 @@ def create_validations_table(conn):
                 item_preparation_id INTEGER REFERENCES devices_items_preparation(id_item_preparation) ON DELETE SET NULL,
                 material_item_preparation_id INTEGER REFERENCES materials_items_preparation(id_item_preparation) ON DELETE SET NULL,
                 user_id INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
-                asset_id INTEGER REFERENCES assets(id_assets) ON DELETE SET NULL,
                 validation_status VARCHAR(50) DEFAULT 'pending',
                 validation_notes TEXT,
                 validated_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
@@ -715,6 +664,98 @@ def create_validations_table(conn):
     except Exception as e:
         conn.rollback()
         print(f"Error creating validations table: {e}")
+
+def create_assets_table(conn):
+    """Tabel assets - data final setelah validasi (tanpa referensi ke validations dulu)"""
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS assets (
+                id_assets SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
+                asset_code VARCHAR(100) UNIQUE NOT NULL,
+                asset_name VARCHAR(255) NOT NULL,
+                asset_type VARCHAR(100),
+                category VARCHAR(50),
+                serial_number VARCHAR(100) UNIQUE,
+                scan_code VARCHAR(100) UNIQUE,
+                project_name VARCHAR(255),
+                department_name VARCHAR(255),
+                receiver_name VARCHAR(255),
+                location_id INTEGER REFERENCES locations(id_location) ON DELETE SET NULL,
+                location_name VARCHAR(255),
+                brand VARCHAR(100),
+                vendor VARCHAR(255),
+                model VARCHAR(100),
+                specifications TEXT,
+                quantity DECIMAL(10,2) DEFAULT 1,
+                uom VARCHAR(20),
+                status VARCHAR(50) DEFAULT 'active',
+                photo_url TEXT,
+                validated_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
+                validated_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_user ON assets(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_code ON assets(asset_code)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_serial ON assets(serial_number)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_scan_code ON assets(scan_code)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_status ON assets(status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_category ON assets(category)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_project ON assets(project_name)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_department ON assets(department_name)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_receiver ON assets(receiver_name)")
+        conn.commit()
+        print("✓ Tabel assets berhasil dibuat")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating assets table: {e}")
+
+def add_validation_reference_to_assets(conn):
+    """Menambahkan referensi ke validations setelah kedua tabel dibuat"""
+    try:
+        cur = conn.cursor()
+        # Cek apakah kolom validation_id sudah ada
+        cur.execute("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'assets' AND column_name = 'validation_id'
+        """)
+        if not cur.fetchone():
+            cur.execute("""
+                ALTER TABLE assets 
+                ADD COLUMN validation_id INTEGER REFERENCES validations(id_validation) ON DELETE SET NULL
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_validation ON assets(validation_id)")
+            conn.commit()
+            print("✓ Referensi validation_id ditambahkan ke tabel assets")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error adding validation reference: {e}")
+
+def add_asset_reference_to_validations(conn):
+    """Menambahkan referensi ke assets setelah kedua tabel dibuat"""
+    try:
+        cur = conn.cursor()
+        # Cek apakah kolom asset_id sudah ada
+        cur.execute("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'validations' AND column_name = 'asset_id'
+        """)
+        if not cur.fetchone():
+            cur.execute("""
+                ALTER TABLE validations 
+                ADD COLUMN asset_id INTEGER REFERENCES assets(id_assets) ON DELETE SET NULL
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_validations_asset ON validations(asset_id)")
+            conn.commit()
+            print("✓ Referensi asset_id ditambahkan ke tabel validations")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error adding asset reference: {e}")
 
 def create_history_logs_table(conn):
     """Tabel history logs untuk audit"""
@@ -750,7 +791,7 @@ def create_all_tables():
         print("🚀 Memulai migrasi database...")
         print("-" * 50)
         
-        # Tabel master
+        # Tabel master (tanpa dependencies)
         create_users_table(conn)
         create_asset_categories_table(conn)
         create_locations_table(conn)
@@ -777,9 +818,17 @@ def create_all_tables():
         create_scan_results_devices_table(conn)
         create_scan_results_materials_table(conn)
         
-        # Tabel assets dan validations
-        create_assets_table(conn)
+        # Tabel validations (tanpa foreign key ke assets dulu)
         create_validations_table(conn)
+        
+        # Tabel assets (tanpa foreign key ke validations dulu)
+        create_assets_table(conn)
+        
+        # Tambahkan foreign keys setelah kedua tabel selesai dibuat
+        add_validation_reference_to_assets(conn)
+        add_asset_reference_to_validations(conn)
+        
+        # Tabel history_logs
         create_history_logs_table(conn)
         
         print("-" * 50)
