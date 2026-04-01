@@ -107,12 +107,12 @@ export default function LayoutDashboard({ children, activeMenu }) {
       hasDropdown: true,
       href: "/history",
     },
-    {
-      icon: Settings,
-      label: "Reports & Analytics",
-      hasDropdown: true,
-      href: "/reports-analytics",
-    },
+    // {
+    //   icon: Settings,
+    //   label: "Reports & Analytics",
+    //   hasDropdown: true,
+    //   href: "/reports-analytics",
+    // },
   ];
 
   // Handle click outside untuk menutup dropdown

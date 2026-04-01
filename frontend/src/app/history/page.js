@@ -71,14 +71,14 @@ const MiniDonut = ({ pct, color, size = 80, stroke = 8 }) => {
 
 // ─── Stat Card ───────────────────────────────────────────────────────────────
 const StatCard = ({ label, value, sub, accent, icon: Icon, trend }) => (
-  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col gap-2">
+  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col gap-2 transition-all hover:shadow-md">
     <div className="flex items-center justify-between">
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
       <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: accent + "18" }}>
         <Icon className="w-4 h-4" style={{ color: accent }} />
       </div>
     </div>
-    <span className="text-3xl font-bold" style={{ color: accent }}>{value}</span>
+    <span className="text-2xl md:text-3xl font-bold" style={{ color: accent }}>{value}</span>
     {sub && <p className="text-xs text-gray-400">{sub}</p>}
   </div>
 );
@@ -88,6 +88,7 @@ export default function HistoryLogsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   // Raw data
   const [sessions, setSessions] = useState([]);
@@ -104,6 +105,14 @@ export default function HistoryLogsPage() {
   useEffect(() => {
     setMounted(true);
     fetchAll();
+
+    // Check if mobile
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   const fetchAll = async (isRefresh = false) => {
@@ -361,17 +370,19 @@ export default function HistoryLogsPage() {
   return (
     <ProtectedPage>
       <LayoutDashboard activeMenu={3}>
-        <style>{`
+        <style jsx>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
           .hl-root { font-family: 'DM Sans', sans-serif; }
           .hl-root .mono { font-family: 'DM Mono', monospace; }
-          .hl-card {
-            background: #ffffff;
-            border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04);
+          .hl-card { 
+            background: #ffffff; 
+            border-radius: 16px; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             transition: box-shadow 0.2s ease;
           }
-          .hl-card:hover { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04); }
+          .hl-card:hover { 
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+          }
           .tab-btn {
             display: inline-flex;
             align-items: center;
@@ -404,33 +415,50 @@ export default function HistoryLogsPage() {
             align-items: center;
             gap: 6px;
           }
-          .kpi-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+          .kpi-grid { 
+            display: grid; 
+            gap: 12px; 
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
+          }
+          @media (max-width: 640px) {
+            .kpi-grid {
+              grid-template-columns: repeat(2, 1fr);
+              gap: 10px;
+            }
+            .tab-btn {
+              padding: 6px 12px;
+              font-size: 12px;
+            }
+            .section-label {
+              font-size: 10px;
+            }
+          }
         `}</style>
 
-        <div className="hl-root space-y-5 max-w-7xl mx-auto">
+        <div className="hl-root space-y-4 md:space-y-5 max-w-7xl mx-auto px-2 md:px-0">
           {/* ── Header ── */}
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <History className="w-5 h-5 text-blue-600" />
-                <h1 className="text-xl font-bold text-gray-900">History & Activity Logs</h1>
+                <h1 className="text-lg md:text-xl font-bold text-gray-900">History & Activity Logs</h1>
               </div>
-              <p className="text-sm text-gray-500">
+              <p className="text-xs md:text-sm text-gray-500">
                 Realtime statistics & complete activity records from all modules
               </p>
             </div>
             <button
               onClick={() => fetchAll(true)}
               disabled={refreshing}
-              className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50 bg-white shadow-sm"
+              className="inline-flex items-center gap-2 px-3 md:px-4 py-2 border border-gray-200 rounded-xl text-xs md:text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50 bg-white shadow-sm"
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
               {refreshing ? "Refreshing..." : "Refresh"}
             </button>
           </div>
 
-          {/* ── Tabs ── */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-1">
+          {/* ── Tabs - Responsive Scroll ── */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-hide">
             {TABS.map(tab => (
               <button
                 key={tab.id}
@@ -438,79 +466,80 @@ export default function HistoryLogsPage() {
                 className={`tab-btn ${activeTab === tab.id ? "active" : ""}`}
               >
                 <tab.icon className="w-3.5 h-3.5" />
-                {tab.label}
+                <span className="hidden xs:inline">{tab.label}</span>
+                <span className="xs:hidden">{tab.id === "overview" ? "Overview" : tab.id === "scanning" ? "Scan" : tab.id === "validation" ? "Val" : tab.id === "assets" ? "Assets" : "Logs"}</span>
               </button>
             ))}
           </div>
 
           {/* ═══════════ OVERVIEW ═══════════ */}
           {activeTab === "overview" && (
-            <div className="space-y-5">
-              {/* KPI row */}
+            <div className="space-y-4 md:space-y-5">
+              {/* KPI row - Responsive */}
               <div className="kpi-grid">
                 <StatCard label="Total Sessions" value={derived.totalSessions} sub={`${derived.completedSessions} completed`} accent="#2563eb" icon={ScanLine} />
-                <StatCard label="Items Scanned" value={derived.totalScanned} sub={`of ${derived.totalQty} total qty`} accent="#6366f1" icon={Zap} />
+                <StatCard label="Items Scanned" value={derived.totalScanned} sub={`of ${derived.totalQty} total`} accent="#6366f1" icon={Zap} />
                 <StatCard label="Validations" value={derived.totalValidations} sub={`${derived.approvedVal} approved`} accent="#10b981" icon={Shield} />
-                <StatCard label="Assets Created" value={derived.totalAssets} sub={`${derived.deviceAssets} devices, ${derived.materialAssets} materials`} accent="#f59e0b" icon={Box} />
+                <StatCard label="Assets Created" value={derived.totalAssets} sub={`${derived.deviceAssets} devices`} accent="#f59e0b" icon={Box} />
               </div>
 
-              {/* Donut row */}
-              <div className="hl-card p-5">
-                <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-gray-100">
+              {/* Donut row - Responsive */}
+              <div className="hl-card p-4 md:p-5">
+                <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-gray-100">
                   {[
                     { title: "Scan Progress", pct: derived.scanPct, color: "#2563eb", sub: `${Math.round(derived.scanPct)}% items scanned` },
                     { title: "Session Completion", pct: derived.completionPct, color: "#6366f1", sub: `${derived.completedSessions}/${derived.totalSessions} done` },
                     { title: "Approval Rate", pct: derived.totalValidations > 0 ? (derived.approvedVal / derived.totalValidations) * 100 : 0, color: "#10b981", sub: `${derived.approvedVal} approved` },
                     { title: "Rejection Rate", pct: derived.totalValidations > 0 ? (derived.rejectedVal / derived.totalValidations) * 100 : 0, color: "#ef4444", sub: `${derived.rejectedVal} rejected` },
                   ].map((d, i) => (
-                    <div key={i} className="flex flex-col items-center py-5 px-3 gap-2">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">{d.title}</p>
-                      <MiniDonut pct={d.pct} color={d.color} size={80} stroke={8} />
-                      <p className="text-xs text-gray-400 text-center">{d.sub}</p>
+                    <div key={i} className="flex flex-col items-center py-4 md:py-5 px-2 md:px-3 gap-2">
+                      <p className="text-[10px] md:text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">{d.title}</p>
+                      <MiniDonut pct={d.pct} color={d.color} size={isMobile ? 70 : 80} stroke={8} />
+                      <p className="text-[10px] md:text-xs text-gray-400 text-center">{d.sub}</p>
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* Weekly activity chart */}
-              <div className="hl-card p-5">
+              <div className="hl-card p-4 md:p-5">
                 <p className="section-label"><TrendingUp className="w-3.5 h-3.5" /> Weekly Activity</p>
-                <ResponsiveContainer width="100%" height={220}>
+                <ResponsiveContainer width="100%" height={isMobile ? 180 : 220}>
                   <BarChart data={derived.weeklyData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                     <CartesianGrid vertical={false} stroke="#f3f4f6" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} allowDecimals={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: isMobile ? 9 : 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: isMobile ? 9 : 11, fill: "#9ca3af" }} tickLine={false} axisLine={false} allowDecimals={false} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="Sessions" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={14} />
-                    <Bar dataKey="Validations" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={14} />
-                    <Bar dataKey="Assets" fill="#10b981" radius={[4, 4, 0, 0]} barSize={14} />
+                    <Bar dataKey="Sessions" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={isMobile ? 10 : 14} />
+                    <Bar dataKey="Validations" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={isMobile ? 10 : 14} />
+                    <Bar dataKey="Assets" fill="#10b981" radius={[4, 4, 0, 0]} barSize={isMobile ? 10 : 14} />
                   </BarChart>
                 </ResponsiveContainer>
-                <div className="flex flex-wrap gap-4 justify-center mt-3">
+                <div className="flex flex-wrap gap-3 md:gap-4 justify-center mt-3">
                   {[
                     { color: "#2563eb", label: "Sessions" },
                     { color: "#6366f1", label: "Validations" },
                     { color: "#10b981", label: "Assets" },
                   ].map(item => (
-                    <span key={item.label} className="flex items-center gap-1.5 text-xs text-gray-500">
-                      <span className="w-2.5 h-2.5 rounded-sm" style={{ background: item.color }} />
+                    <span key={item.label} className="flex items-center gap-1.5 text-[10px] md:text-xs text-gray-500">
+                      <span className="w-2 h-2 rounded-sm" style={{ background: item.color }} />
                       {item.label}
                     </span>
                   ))}
                 </div>
               </div>
 
-              {/* Two pie charts */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {/* Two pie charts - Responsive */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
                 {/* Session status */}
-                <div className="hl-card p-5">
-                  <p className="section-label"><ScanLine className="w-3.5 h-3.5" /> Session Status Breakdown</p>
-                  <div className="flex items-center gap-6">
-                    <div style={{ width: 130, height: 130 }}>
+                <div className="hl-card p-4 md:p-5">
+                  <p className="section-label"><ScanLine className="w-3.5 h-3.5" /> Session Status</p>
+                  <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                    <div style={{ width: isMobile ? 100 : 130, height: isMobile ? 100 : 130 }}>
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie data={derived.sessionStatusData} dataKey="value" cx="50%" cy="50%"
-                            innerRadius={38} outerRadius={58} paddingAngle={2} strokeWidth={0}>
+                            innerRadius={isMobile ? 28 : 38} outerRadius={isMobile ? 42 : 58} paddingAngle={2} strokeWidth={0}>
                             {derived.sessionStatusData.map((entry, i) => (
                               <Cell key={i} fill={entry.color} />
                             ))}
@@ -519,17 +548,17 @@ export default function HistoryLogsPage() {
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="flex flex-col gap-2 flex-1">
+                    <div className="flex flex-col gap-2 flex-1 w-full">
                       {derived.sessionStatusData.map((d, i) => (
                         <div key={i} className="flex items-center justify-between text-sm">
                           <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full" style={{ background: d.color }} />
-                            <span className="text-gray-600">{d.name}</span>
+                            <span className="text-gray-600 text-xs md:text-sm">{d.name}</span>
                           </div>
-                          <span className="font-semibold text-gray-800">{d.value}</span>
+                          <span className="font-semibold text-gray-800 text-xs md:text-sm">{d.value}</span>
                         </div>
                       ))}
-                      <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-400">
+                      <div className="mt-2 pt-2 border-t border-gray-100 text-[10px] md:text-xs text-gray-400">
                         Total: {derived.totalSessions} sessions
                       </div>
                     </div>
@@ -537,14 +566,14 @@ export default function HistoryLogsPage() {
                 </div>
 
                 {/* Validation status */}
-                <div className="hl-card p-5">
-                  <p className="section-label"><Shield className="w-3.5 h-3.5" /> Validation Status Breakdown</p>
-                  <div className="flex items-center gap-6">
-                    <div style={{ width: 130, height: 130 }}>
+                <div className="hl-card p-4 md:p-5">
+                  <p className="section-label"><Shield className="w-3.5 h-3.5" /> Validation Status</p>
+                  <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                    <div style={{ width: isMobile ? 100 : 130, height: isMobile ? 100 : 130 }}>
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie data={derived.validationStatusData} dataKey="value" cx="50%" cy="50%"
-                            innerRadius={38} outerRadius={58} paddingAngle={2} strokeWidth={0}>
+                            innerRadius={isMobile ? 28 : 38} outerRadius={isMobile ? 42 : 58} paddingAngle={2} strokeWidth={0}>
                             {derived.validationStatusData.map((entry, i) => (
                               <Cell key={i} fill={entry.color} />
                             ))}
@@ -553,17 +582,17 @@ export default function HistoryLogsPage() {
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="flex flex-col gap-2 flex-1">
+                    <div className="flex flex-col gap-2 flex-1 w-full">
                       {derived.validationStatusData.map((d, i) => (
                         <div key={i} className="flex items-center justify-between text-sm">
                           <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full" style={{ background: d.color }} />
-                            <span className="text-gray-600">{d.name}</span>
+                            <span className="text-gray-600 text-xs md:text-sm">{d.name}</span>
                           </div>
-                          <span className="font-semibold text-gray-800">{d.value}</span>
+                          <span className="font-semibold text-gray-800 text-xs md:text-sm">{d.value}</span>
                         </div>
                       ))}
-                      <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-400">
+                      <div className="mt-2 pt-2 border-t border-gray-100 text-[10px] md:text-xs text-gray-400">
                         Total: {derived.totalValidations} validations
                       </div>
                     </div>
@@ -575,7 +604,7 @@ export default function HistoryLogsPage() {
 
           {/* ═══════════ SCANNING ═══════════ */}
           {activeTab === "scanning" && (
-            <div className="space-y-5">
+            <div className="space-y-4 md:space-y-5">
               <div className="kpi-grid">
                 <StatCard label="Total Sessions" value={derived.totalSessions} sub="All sessions" accent="#2563eb" icon={ScanLine} />
                 <StatCard label="Device Sessions" value={derived.deviceSessions} sub="Device type" accent="#3b82f6" icon={Cpu} />
@@ -586,15 +615,15 @@ export default function HistoryLogsPage() {
               </div>
 
               {/* Scan progress per session */}
-              <div className="hl-card p-5">
+              <div className="hl-card p-4 md:p-5">
                 <p className="section-label"><BarChart2 className="w-3.5 h-3.5" /> Session Scan Progress</p>
                 {derived.sessionProgress.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="space-y-3 md:space-y-4">
                     {derived.sessionProgress.map((s, i) => (
                       <div key={i}>
                         <div className="flex justify-between items-center mb-1">
-                          <span className="text-sm text-gray-700 font-medium">{s.name}</span>
-                          <div className="flex items-center gap-3 text-xs text-gray-500">
+                          <span className="text-xs md:text-sm text-gray-700 font-medium truncate max-w-[120px] md:max-w-none">{s.name}</span>
+                          <div className="flex items-center gap-2 md:gap-3 text-[10px] md:text-xs text-gray-500">
                             <span>{s.scanned}/{s.total}</span>
                             <span className="font-semibold" style={{ color: s.pct === 100 ? "#10b981" : "#2563eb" }}>{s.pct}%</span>
                           </div>
@@ -616,19 +645,19 @@ export default function HistoryLogsPage() {
                 )}
               </div>
 
-              {/* Sessions table */}
+              {/* Sessions table - Responsive */}
               <div className="hl-card overflow-hidden">
-                <div className="p-4 border-b border-gray-100">
+                <div className="p-3 md:p-4 border-b border-gray-100">
                   <p className="section-label mb-0" style={{ marginBottom: 0 }}>
                     <ScanLine className="w-3.5 h-3.5" /> All Scanning Sessions
                   </p>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
+                  <table className="min-w-full text-xs md:text-sm">
                     <thead>
                       <tr className="bg-gray-50">
                         {["Session", "Type", "Location", "Progress", "Status", "Date"].map(h => (
-                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                          <th key={h} className="px-2 md:px-4 py-2 md:py-3 text-left text-[10px] md:text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -644,29 +673,29 @@ export default function HistoryLogsPage() {
                             : "bg-amber-50 text-amber-700 border-amber-200";
                         return (
                           <tr key={i} className="log-row border-t border-gray-50">
-                            <td className="px-4 py-3">
-                              <div className="font-semibold text-gray-900">{s.checking_name}</div>
-                              <div className="text-xs text-gray-400 font-mono">{s.checking_number}</div>
+                            <td className="px-2 md:px-4 py-2 md:py-3">
+                              <div className="font-semibold text-gray-900 text-xs md:text-sm truncate max-w-[120px] md:max-w-none">{s.checking_name}</div>
+                              <div className="text-[10px] md:text-xs text-gray-400 font-mono truncate">{s.checking_number}</div>
                             </td>
-                            <td className="px-4 py-3">
-                              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${s.type === "device" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}>
+                            <td className="px-2 md:px-4 py-2 md:py-3">
+                              <span className={`text-[10px] md:text-xs font-medium px-1.5 md:px-2 py-0.5 rounded-full ${s.type === "device" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}>
                                 {s.type === "device" ? "Device" : "Material"}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-xs text-gray-500">{s.location_name || "-"}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <div className="prog-bar w-20">
+                            <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-500 truncate max-w-[100px] md:max-w-none">{s.location_name || "-"}</td>
+                            <td className="px-2 md:px-4 py-2 md:py-3">
+                              <div className="flex items-center gap-1 md:gap-2">
+                                <div className="prog-bar w-12 md:w-20">
                                   <div className="prog-fill" style={{ width: `${pct}%`, background: pct === 100 ? "#10b981" : "#2563eb" }} />
                                 </div>
-                                <span className="text-xs font-semibold text-gray-600">{pct}%</span>
+                                <span className="text-[10px] md:text-xs font-semibold text-gray-600">{pct}%</span>
                               </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`text-xs font-semibold px-2 py-1 rounded-full border capitalize ${sc}`}>{s.status}</span>
-                            </td>
-                            <td className="px-4 py-3 text-xs text-gray-500">{formatDate(s.created_at || s.checking_date)}</td>
-                          </tr>
+                             </td>
+                            <td className="px-2 md:px-4 py-2 md:py-3">
+                              <span className={`text-[10px] md:text-xs font-semibold px-1.5 md:px-2 py-0.5 md:py-1 rounded-full border capitalize ${sc}`}>{s.status}</span>
+                             </td>
+                            <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-500">{formatDate(s.created_at || s.checking_date)}</td>
+                           </tr>
                         );
                       })}
                     </tbody>
@@ -678,7 +707,7 @@ export default function HistoryLogsPage() {
 
           {/* ═══════════ VALIDATION ═══════════ */}
           {activeTab === "validation" && (
-            <div className="space-y-5">
+            <div className="space-y-4 md:space-y-5">
               <div className="kpi-grid">
                 <StatCard label="Total Validations" value={derived.totalValidations} sub="All records" accent="#6366f1" icon={Shield} />
                 <StatCard label="Approved" value={derived.approvedVal} sub={`${derived.totalValidations > 0 ? Math.round((derived.approvedVal / derived.totalValidations) * 100) : 0}% rate`} accent="#10b981" icon={CheckCircle} />
@@ -688,19 +717,19 @@ export default function HistoryLogsPage() {
 
               {/* Validation detail table */}
               <div className="hl-card overflow-hidden">
-                <div className="p-4 border-b border-gray-100">
+                <div className="p-3 md:p-4 border-b border-gray-100">
                   <p className="section-label mb-0" style={{ marginBottom: 0 }}>
                     <Shield className="w-3.5 h-3.5" /> Validation Records
                   </p>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
+                  <table className="min-w-full text-xs md:text-sm">
                     <thead>
                       <tr className="bg-gray-50">
                         {["Item", "Type", "Code", "Session", "Status", "Date"].map(h => (
-                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                          <th key={h} className="px-2 md:px-4 py-2 md:py-3 text-left text-[10px] md:text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                         ))}
-                      </tr>
+                       </tr>
                     </thead>
                     <tbody>
                       {validations.length === 0 ? (
@@ -715,23 +744,23 @@ export default function HistoryLogsPage() {
                           : v.validation_status === "rejected" ? "Rejected" : "Pending";
                         return (
                           <tr key={i} className="log-row border-t border-gray-50">
-                            <td className="px-4 py-3">
-                              <div className="font-semibold text-gray-900">{v.item_name || "-"}</div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${v.validation_type === "device" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}>
+                            <td className="px-2 md:px-4 py-2 md:py-3">
+                              <div className="font-semibold text-gray-900 text-xs md:text-sm truncate max-w-[100px] md:max-w-none">{v.item_name || "-"}</div>
+                             </td>
+                            <td className="px-2 md:px-4 py-2 md:py-3">
+                              <span className={`text-[10px] md:text-xs font-medium px-1.5 md:px-2 py-0.5 rounded-full ${v.validation_type === "device" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}>
                                 {v.validation_type === "device" ? "Device" : "Material"}
                               </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <code className="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-700">{v.serial_or_code || "-"}</code>
-                            </td>
-                            <td className="px-4 py-3 text-xs text-gray-500">{v.checking_name || "-"}</td>
-                            <td className="px-4 py-3">
-                              <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${sc}`}>{label}</span>
-                            </td>
-                            <td className="px-4 py-3 text-xs text-gray-500">{formatDate(v.created_at)}</td>
-                          </tr>
+                             </td>
+                            <td className="px-2 md:px-4 py-2 md:py-3">
+                              <code className="text-[10px] md:text-xs font-mono bg-gray-100 px-1 md:px-2 py-0.5 rounded text-gray-700 truncate max-w-[80px] md:max-w-none block">{v.serial_or_code || "-"}</code>
+                             </td>
+                            <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-500 truncate max-w-[80px] md:max-w-none">{v.checking_name || "-"}</td>
+                            <td className="px-2 md:px-4 py-2 md:py-3">
+                              <span className={`text-[10px] md:text-xs font-semibold px-1.5 md:px-2 py-0.5 md:py-1 rounded-full border ${sc}`}>{label}</span>
+                             </td>
+                            <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-500">{formatDate(v.created_at)}</td>
+                           </tr>
                         );
                       })}
                     </tbody>
@@ -743,7 +772,7 @@ export default function HistoryLogsPage() {
 
           {/* ═══════════ ASSETS ═══════════ */}
           {activeTab === "assets" && (
-            <div className="space-y-5">
+            <div className="space-y-4 md:space-y-5">
               <div className="kpi-grid">
                 <StatCard label="Total Assets" value={derived.totalAssets} sub="In inventory" accent="#2563eb" icon={Box} />
                 <StatCard label="Devices" value={derived.deviceAssets} sub="IT devices" accent="#3b82f6" icon={Cpu} />
@@ -753,17 +782,17 @@ export default function HistoryLogsPage() {
 
               {/* Asset distribution */}
               {derived.assetDistribution.length > 0 && (
-                <div className="hl-card p-5">
+                <div className="hl-card p-4 md:p-5">
                   <p className="section-label"><BarChart2 className="w-3.5 h-3.5" /> Asset Type Distribution</p>
-                  <div className="space-y-3">
+                  <div className="space-y-2 md:space-y-3">
                     {derived.assetDistribution.map((item, i) => {
                       const total = derived.assetDistribution.reduce((s, a) => s + a.value, 0);
                       const pct = total > 0 ? (item.value / total) * 100 : 0;
                       return (
                         <div key={i}>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="text-gray-600">{item.name}</span>
-                            <span className="font-semibold text-gray-800">{item.value} <span className="text-xs text-gray-400 font-normal">({Math.round(pct)}%)</span></span>
+                          <div className="flex justify-between text-xs md:text-sm mb-1">
+                            <span className="text-gray-600 truncate max-w-[100px] md:max-w-none">{item.name}</span>
+                            <span className="font-semibold text-gray-800 text-xs md:text-sm">{item.value} <span className="text-[10px] md:text-xs text-gray-400 font-normal">({Math.round(pct)}%)</span></span>
                           </div>
                           <div className="prog-bar">
                             <div className="prog-fill" style={{ width: `${pct}%`, background: i % 2 === 0 ? "#2563eb" : "#10b981" }} />
@@ -777,41 +806,41 @@ export default function HistoryLogsPage() {
 
               {/* Assets table */}
               <div className="hl-card overflow-hidden">
-                <div className="p-4 border-b border-gray-100">
+                <div className="p-3 md:p-4 border-b border-gray-100">
                   <p className="section-label mb-0" style={{ marginBottom: 0 }}>
                     <Box className="w-3.5 h-3.5" /> Asset Records
                   </p>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
+                  <table className="min-w-full text-xs md:text-sm">
                     <thead>
                       <tr className="bg-gray-50">
                         {["Asset Code", "Name", "Category", "Department", "Location", "Validated"].map(h => (
-                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                          <th key={h} className="px-2 md:px-4 py-2 md:py-3 text-left text-[10px] md:text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                         ))}
-                      </tr>
+                       </tr>
                     </thead>
                     <tbody>
                       {assets.length === 0 ? (
                         <tr><td colSpan={6} className="text-center py-8 text-gray-400 text-sm">No assets found</td></tr>
                       ) : assets.map((a, i) => (
                         <tr key={i} className="log-row border-t border-gray-50">
-                          <td className="px-4 py-3">
-                            <code className="text-xs font-mono text-blue-700 font-semibold">{a.asset_code}</code>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="font-medium text-gray-900 text-sm">{a.asset_name}</div>
-                            <div className="text-xs text-gray-400">{a.asset_type || "-"}</div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${a.category === "Device" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}>
+                          <td className="px-2 md:px-4 py-2 md:py-3">
+                            <code className="text-[10px] md:text-xs font-mono text-blue-700 font-semibold">{a.asset_code}</code>
+                           </td>
+                          <td className="px-2 md:px-4 py-2 md:py-3">
+                            <div className="font-medium text-gray-900 text-xs md:text-sm truncate max-w-[100px] md:max-w-none">{a.asset_name}</div>
+                            <div className="text-[10px] md:text-xs text-gray-400 truncate">{a.asset_type || "-"}</div>
+                           </td>
+                          <td className="px-2 md:px-4 py-2 md:py-3">
+                            <span className={`text-[10px] md:text-xs font-medium px-1.5 md:px-2 py-0.5 rounded-full ${a.category === "Device" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}>
                               {a.category}
                             </span>
-                          </td>
-                          <td className="px-4 py-3 text-xs text-gray-500">{a.department_name || "-"}</td>
-                          <td className="px-4 py-3 text-xs text-gray-500">{a.location_name || "-"}</td>
-                          <td className="px-4 py-3 text-xs text-gray-500">{formatDate(a.validated_at)}</td>
-                        </tr>
+                           </td>
+                          <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-500 truncate max-w-[80px] md:max-w-none">{a.department_name || "-"}</td>
+                          <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-500 truncate max-w-[80px] md:max-w-none">{a.location_name || "-"}</td>
+                          <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-500">{formatDate(a.validated_at)}</td>
+                         </tr>
                       ))}
                     </tbody>
                   </table>
@@ -822,18 +851,18 @@ export default function HistoryLogsPage() {
 
           {/* ═══════════ ACTIVITY LOGS ═══════════ */}
           {activeTab === "logs" && (
-            <div className="space-y-4">
+            <div className="space-y-3 md:space-y-4">
               {/* Filters toolbar */}
-              <div className="hl-card p-4">
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="relative flex-1 min-w-[200px]">
+              <div className="hl-card p-3 md:p-4">
+                <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 md:gap-3">
+                  <div className="relative flex-1 min-w-[180px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                       type="text"
                       placeholder="Search logs..."
                       value={searchTerm}
                       onChange={e => setSearchTerm(e.target.value)}
-                      className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                      className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
                     />
                     {searchTerm && (
                       <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -842,94 +871,97 @@ export default function HistoryLogsPage() {
                     )}
                   </div>
 
-                  <select
-                    value={logTypeFilter}
-                    onChange={e => setLogTypeFilter(e.target.value)}
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="all">All Types</option>
-                    <option value="session">Sessions</option>
-                    <option value="validation">Validations</option>
-                    <option value="asset">Assets</option>
-                  </select>
+                  <div className="flex gap-2">
+                    <select
+                      value={logTypeFilter}
+                      onChange={e => setLogTypeFilter(e.target.value)}
+                      className="px-2 md:px-3 py-2 border border-gray-200 rounded-lg text-xs md:text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="all">All Types</option>
+                      <option value="session">Sessions</option>
+                      <option value="validation">Validations</option>
+                      <option value="asset">Assets</option>
+                    </select>
 
-                  <select
-                    value={typeFilter}
-                    onChange={e => setTypeFilter(e.target.value)}
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="all">All Categories</option>
-                    <option value="device">Device</option>
-                    <option value="material">Material</option>
-                  </select>
+                    <select
+                      value={typeFilter}
+                      onChange={e => setTypeFilter(e.target.value)}
+                      className="px-2 md:px-3 py-2 border border-gray-200 rounded-lg text-xs md:text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="all">All Categories</option>
+                      <option value="device">Device</option>
+                      <option value="material">Material</option>
+                    </select>
+                  </div>
 
-                  <p className="text-xs text-gray-400 ml-auto">
+                  <p className="text-[10px] md:text-xs text-gray-400 ml-auto">
                     {filteredLogs.length} records
                   </p>
                 </div>
               </div>
 
-              {/* Log entries */}
+              {/* Log entries - Responsive Card View for Mobile */}
               <div className="hl-card overflow-hidden">
                 {filteredLogs.length === 0 ? (
-                  <div className="py-16 text-center">
-                    <Activity className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-                    <p className="text-gray-500 font-medium">No log entries found</p>
-                    <p className="text-sm text-gray-400 mt-1">Try adjusting your filters</p>
+                  <div className="py-12 md:py-16 text-center">
+                    <Activity className="w-10 h-10 md:w-12 md:h-12 text-gray-200 mx-auto mb-3" />
+                    <p className="text-gray-500 font-medium text-sm">No log entries found</p>
+                    <p className="text-xs text-gray-400 mt-1">Try adjusting your filters</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-50">
                     {filteredLogs.map((log, i) => {
                       const sc = getLogStatusConfig(log.type, log.status);
                       return (
-                        <div key={log.id} className="log-row px-5 py-3.5 flex items-center gap-4">
-                          {/* Icon */}
-                          <div className="w-9 h-9 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0">
-                            {getTypeIcon(log.type, log.category)}
-                          </div>
-
-                          {/* Main info */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <span className="font-semibold text-gray-900 text-sm truncate">{log.title}</span>
-                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${getTypeBadge(log.type)}`}>
-                                {log.type}
-                              </span>
+                        <div key={log.id} className="log-row px-3 md:px-5 py-3 md:py-3.5 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                          {/* Icon + Main Info Row */}
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0">
+                              {getTypeIcon(log.type, log.category)}
                             </div>
-                            <div className="flex items-center gap-3 text-xs text-gray-400">
-                              {log.sub && <span className="font-mono">{log.sub}</span>}
-                              {log.location && log.location !== "-" && (
-                                <span className="flex items-center gap-1">
-                                  <MapPin className="w-2.5 h-2.5" /> {log.location}
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
+                                <span className="font-semibold text-gray-900 text-xs md:text-sm truncate max-w-[140px] md:max-w-none">{log.title}</span>
+                                <span className={`text-[8px] md:text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${getTypeBadge(log.type)}`}>
+                                  {log.type}
                                 </span>
-                              )}
-                              {log.detail && log.detail !== "-" && <span>{log.detail}</span>}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 text-[10px] md:text-xs text-gray-400">
+                                {log.sub && <span className="font-mono truncate max-w-[100px] md:max-w-none">{log.sub}</span>}
+                                {log.location && log.location !== "-" && (
+                                  <span className="flex items-center gap-0.5">
+                                    <MapPin className="w-2.5 h-2.5" /> {log.location}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
 
-                          {/* Progress (for sessions) */}
-                          {log.type === "session" && (
-                            <div className="hidden md:flex items-center gap-2 w-28">
-                              <div className="prog-bar flex-1">
-                                <div className="prog-fill" style={{
-                                  width: `${log.progress}%`,
-                                  background: log.progress === 100 ? "#10b981" : log.progress > 50 ? "#2563eb" : "#f59e0b"
-                                }} />
+                          {/* Right side - Status + Date */}
+                          <div className="flex items-center justify-between sm:justify-end gap-3 pl-11 sm:pl-0">
+                            {/* Progress for sessions on mobile */}
+                            {log.type === "session" && (
+                              <div className="flex items-center gap-1.5 w-16 md:w-20">
+                                <div className="prog-bar flex-1">
+                                  <div className="prog-fill" style={{
+                                    width: `${log.progress}%`,
+                                    background: log.progress === 100 ? "#10b981" : log.progress > 50 ? "#2563eb" : "#f59e0b"
+                                  }} />
+                                </div>
+                                <span className="text-[10px] md:text-xs text-gray-500">{log.progress}%</span>
                               </div>
-                              <span className="text-xs text-gray-500 w-8 text-right">{log.progress}%</span>
+                            )}
+
+                            <span className={`inline-flex items-center gap-1 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full text-[9px] md:text-xs font-semibold ${sc.bg} ${sc.text} flex-shrink-0`}>
+                              <span className={`w-1 h-1 md:w-1.5 md:h-1.5 rounded-full ${sc.dot}`} />
+                              {sc.label}
+                            </span>
+
+                            <div className="text-right flex-shrink-0">
+                              <div className="text-[9px] md:text-xs text-gray-500">{formatDate(log.date)}</div>
+                              <div className="text-[8px] md:text-xs text-gray-400 hidden sm:block">{formatTime(log.date)}</div>
                             </div>
-                          )}
-
-                          {/* Status */}
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${sc.bg} ${sc.text} flex-shrink-0`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
-                            {sc.label}
-                          </span>
-
-                          {/* Date */}
-                          <div className="text-right hidden sm:block flex-shrink-0">
-                            <div className="text-xs text-gray-500">{formatDate(log.date)}</div>
-                            <div className="text-xs text-gray-400">{formatTime(log.date)}</div>
                           </div>
                         </div>
                       );
@@ -939,8 +971,8 @@ export default function HistoryLogsPage() {
 
                 {/* Footer */}
                 {filteredLogs.length > 0 && (
-                  <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
-                    <p className="text-xs text-gray-400">
+                  <div className="px-3 md:px-5 py-2 md:py-3 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+                    <p className="text-[10px] md:text-xs text-gray-400 text-center sm:text-left">
                       Showing <span className="font-semibold text-gray-600">{filteredLogs.length}</span> of{" "}
                       <span className="font-semibold text-gray-600">{derived.logs.length}</span> total records
                       {" "}· Updated {new Date().toLocaleTimeString("en-US")}
