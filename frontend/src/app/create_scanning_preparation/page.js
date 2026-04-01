@@ -1070,7 +1070,7 @@ export default function ScanningPreparationPage() {
 
   return (
     <LayoutDashboard activeMenu={1}>
-      <style>{`
+      <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
         .bm-root { font-family: 'DM Sans', sans-serif; }
 
@@ -1124,14 +1124,51 @@ export default function ScanningPreparationPage() {
 
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        
+        /* Mobile Responsive Improvements */
+        @media (max-width: 768px) {
+          .session-card {
+            margin-left: -0.5rem;
+            margin-right: -0.5rem;
+            border-radius: 12px;
+          }
+          
+          .form-card {
+            border-radius: 12px;
+          }
+          
+          .dropdown-menu {
+            position: fixed;
+            left: 1rem;
+            right: 1rem;
+            max-height: 250px;
+            z-index: 60;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .session-card .p-6 {
+            padding: 1rem;
+          }
+          
+          .session-card .px-6 {
+            padding-left: 1rem;
+            padding-right: 1rem;
+          }
+          
+          .flex.items-center.justify-between {
+            flex-wrap: wrap;
+            gap: 0.5rem;
+          }
+        }
       `}</style>
 
       <div className="bm-root">
         {/* Header */}
-        <div className="flex items-start justify-between mb-5">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <Package className="w-5 h-5 text-blue-600" />
+              <Package className="w-5 h-5 text-blue-600 flex-shrink-0" />
               <h1 className="text-xl font-bold text-gray-900">
                 Scanning Preparation
               </h1>
@@ -1141,16 +1178,16 @@ export default function ScanningPreparationPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+            <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
               <Layers className="w-3 h-3 inline mr-1" />
-              {sessions.length} Session
+              {sessions.length} Session{sessions.length !== 1 ? 's' : ''}
             </span>
           </div>
         </div>
 
         {/* Main Form Card */}
         <div className="form-card">
-          <div className="px-6 py-5 border-b border-gray-100 bg-gray-50 rounded-t-2xl">
+          <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 bg-gray-50 rounded-t-2xl">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">
                 <Package className="w-4 h-4 text-blue-600" />
@@ -1166,12 +1203,12 @@ export default function ScanningPreparationPage() {
             </div>
           </div>
 
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             <div className="space-y-6">
               {sessions.map((session, sessionIndex) => (
                 <div key={session.id} className="session-card">
-                  <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 rounded-t-2xl">
-                    <div className="flex items-center justify-between">
+                  <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 bg-gray-50 rounded-t-2xl">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-blue-100 rounded-lg">
                           <Package className="w-4 h-4 text-blue-600" />
@@ -1180,12 +1217,12 @@ export default function ScanningPreparationPage() {
                           <h2 className="text-sm font-bold text-gray-800">
                             Session #{sessionIndex + 1}
                           </h2>
-                          <p className="text-xs font-mono text-blue-600 mt-0.5">
+                          <p className="text-xs font-mono text-blue-600 mt-0.5 break-all">
                             {session.checking_number}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
                         <button
                           onClick={() => duplicateSession(session.id)}
                           className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
@@ -1204,9 +1241,9 @@ export default function ScanningPreparationPage() {
                     </div>
                   </div>
 
-                  <div className="p-6">
+                  <div className="p-4 sm:p-6">
                     <SectionDivider icon={FileText} label="Basic Information" />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-6">
                       <div>
                         <Label required>Checking Name</Label>
                         <input
@@ -1255,7 +1292,7 @@ export default function ScanningPreparationPage() {
                     </div>
 
                     <SectionDivider icon={MapPin} label="Location & Date" />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-6">
                       <div>
                         <Label required>Location Check</Label>
                         <div className="relative">
@@ -1319,10 +1356,10 @@ export default function ScanningPreparationPage() {
                         return (
                           <div
                             key={item.id}
-                            className="border border-gray-200 rounded-lg p-4 bg-white"
+                            className="border border-gray-200 rounded-lg p-3 sm:p-4 bg-white"
                           >
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                              <div className="flex flex-wrap items-center gap-2">
                                 <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
                                   Item #{itemIndex + 1}
                                 </span>
@@ -1346,8 +1383,8 @@ export default function ScanningPreparationPage() {
 
                             {isMaterial ? (
                               // FORM UNTUK MATERIALS
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="col-span-1 md:col-span-2">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="col-span-1 sm:col-span-2">
                                   <Label required>Material Name</Label>
                                   <div className="relative">
                                     <input
@@ -1385,7 +1422,7 @@ export default function ScanningPreparationPage() {
                                   <Hint>Select from list or type new name</Hint>
                                 </div>
 
-                                <div className="col-span-1 md:col-span-2">
+                                <div className="col-span-1 sm:col-span-2">
                                   <Label>Material Details</Label>
                                   <textarea
                                     value={item.material_detail}
@@ -1487,8 +1524,8 @@ export default function ScanningPreparationPage() {
                                 </div>
 
                                 {/* Department Distribution */}
-                                <div className="col-span-1 md:col-span-2 lg:col-span-4">
-                                  <div className="flex items-center justify-between mt-2">
+                                <div className="col-span-1 sm:col-span-2">
+                                  <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
                                     <Label>Department Distribution</Label>
                                     <button
                                       onClick={() =>
@@ -1512,7 +1549,7 @@ export default function ScanningPreparationPage() {
 
                                   {isExpanded && (
                                     <div className="mt-4 space-y-4">
-                                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         {departments.map((dept) => {
                                           const assignedDept =
                                             item.departments.find(
@@ -1570,7 +1607,7 @@ export default function ScanningPreparationPage() {
                                       </div>
 
                                       <div className="p-3 border-t border-gray-200">
-                                        <div className="flex items-center justify-between">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
                                           <span className="text-sm font-medium text-gray-700">
                                             Distribution Summary:
                                           </span>
@@ -1619,8 +1656,8 @@ export default function ScanningPreparationPage() {
                               </div>
                             ) : (
                               // FORM UNTUK DEVICES
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                <div className="col-span-1 md:col-span-2">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="col-span-1 sm:col-span-2">
                                   <Label required>Device Name</Label>
                                   <div className="relative">
                                     <input
@@ -1658,7 +1695,7 @@ export default function ScanningPreparationPage() {
                                   <Hint>Select from list or type new name</Hint>
                                 </div>
 
-                                <div className="col-span-1 md:col-span-2">
+                                <div className="col-span-1 sm:col-span-2">
                                   <Label>Device Details</Label>
                                   <textarea
                                     value={item.device_detail}
@@ -1792,8 +1829,8 @@ export default function ScanningPreparationPage() {
                                 </div>
 
                                 {/* Department Distribution */}
-                                <div className="col-span-1 md:col-span-2 lg:col-span-4">
-                                  <div className="flex items-center justify-between mt-2">
+                                <div className="col-span-1 sm:col-span-2">
+                                  <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
                                     <Label>Department Distribution</Label>
                                     <button
                                       onClick={() =>
@@ -1817,7 +1854,7 @@ export default function ScanningPreparationPage() {
 
                                   {isExpanded && (
                                     <div className="mt-4 space-y-4">
-                                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         {departments.map((dept) => {
                                           const assignedDept =
                                             item.departments.find(
@@ -1875,7 +1912,7 @@ export default function ScanningPreparationPage() {
                                       </div>
 
                                       <div className="p-3 border-t border-gray-200">
-                                        <div className="flex items-center justify-between">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
                                           <span className="text-sm font-medium text-gray-700">
                                             Distribution Summary:
                                           </span>
@@ -1927,16 +1964,14 @@ export default function ScanningPreparationPage() {
                             {/* Receiver Assignment Section */}
                             {item.departments.length > 0 && (
                               <div className="mt-4 pt-4 border-t border-gray-200">
-                                <div className="flex items-center justify-between mb-4">
-                                  <div className="flex items-center gap-2">
-                                    <User className="w-4 h-4 text-green-600" />
-                                    <h4 className="text-sm font-semibold text-gray-800">
-                                      Receiver Assignment
-                                    </h4>
-                                    <span className="text-xs text-gray-500">
-                                      (Select receiver for each item)
-                                    </span>
-                                  </div>
+                                <div className="flex items-center gap-2 mb-4">
+                                  <User className="w-4 h-4 text-green-600" />
+                                  <h4 className="text-sm font-semibold text-gray-800">
+                                    Receiver Assignment
+                                  </h4>
+                                  <span className="text-xs text-gray-500">
+                                    (Select receiver for each item)
+                                  </span>
                                 </div>
 
                                 <div className="space-y-4">
@@ -1958,7 +1993,7 @@ export default function ScanningPreparationPage() {
 
                                     return (
                                       <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
-                                        <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
+                                        <div className="bg-gray-100 px-3 sm:px-4 py-2 border-b border-gray-200">
                                           <div className="flex items-center gap-2">
                                             <Users className="w-4 h-4 text-gray-600" />
                                             <span className="text-sm font-semibold text-gray-800">
@@ -1969,7 +2004,7 @@ export default function ScanningPreparationPage() {
                                             </span>
                                           </div>
                                         </div>
-                                        <div className="p-4 space-y-3">
+                                        <div className="p-3 sm:p-4 space-y-3">
                                           {receiverEntries.map((entry) => {
                                             const receiver = entry.receiver;
                                             return (
@@ -2070,16 +2105,16 @@ export default function ScanningPreparationPage() {
             </div>
           </div>
 
-          <div className="border-t border-gray-100 px-6 py-5 bg-gray-50 rounded-b-2xl">
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-gray-400">
+          <div className="border-t border-gray-100 px-4 sm:px-6 py-4 sm:py-5 bg-gray-50 rounded-b-2xl">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <p className="text-xs text-gray-400 order-2 sm:order-1">
                 <span className="text-red-500">*</span> Required fields
               </p>
-              <div className="flex gap-3">
+              <div className="flex gap-3 w-full sm:w-auto order-1 sm:order-2">
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition shadow-sm"
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-5 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition shadow-sm"
                 >
                   <RotateCcw className="w-4 h-4" />
                   Reset All
@@ -2087,17 +2122,17 @@ export default function ScanningPreparationPage() {
                 <button
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="flex items-center gap-2 px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
                 >
                   {loading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Creating {sessions.length} Sessions...
+                      Creating...
                     </>
                   ) : (
                     <>
                       <Save className="w-4 h-4" />
-                      Create All Sessions ({sessions.length})
+                      Create ({sessions.length})
                     </>
                   )}
                 </button>

@@ -32,12 +32,14 @@ export default function LayoutDashboard({ children, activeMenu }) {
   const [activeMenuIndex, setActiveMenuIndex] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  const [scanDropdownOpen, setScanDropdownOpen] = useState(false); // Renamed from prepDropdownOpen
+  const [scanDropdownOpen, setScanDropdownOpen] = useState(false); // Untuk desktop
+  const [mobileScanDropdownOpen, setMobileScanDropdownOpen] = useState(false); // Untuk mobile
   const [currentDate, setCurrentDate] = useState("");
   const [showWelcome, setShowWelcome] = useState(false);
   const [hasShownWelcome, setHasShownWelcome] = useState(false);
   const userDropdownRef = useRef(null);
-  const scanDropdownRef = useRef(null); // Renamed from prepDropdownRef
+  const scanDropdownRef = useRef(null);
+  const mobileMenuRef = useRef(null);
 
   const router = useRouter();
   const { user, logout } = useAuth();
@@ -64,12 +66,10 @@ export default function LayoutDashboard({ children, activeMenu }) {
   // Show welcome notification when user first loads
   useEffect(() => {
     if (user && !hasShownWelcome) {
-      // Delay sedikit agar page fully loaded dulu
       const timer = setTimeout(() => {
         setShowWelcome(true);
         setHasShownWelcome(true);
 
-        // Auto hide setelah 5 detik
         const hideTimer = setTimeout(() => {
           setShowWelcome(false);
         }, 5000);
@@ -85,7 +85,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
     { icon: Home, label: "Home", hasDropdown: false, href: "/dashboard" },
     {
       icon: ScanLine,
-      label: "Assets Scanning",  // Perhatikan: "Assets Scanning" dengan "s"
+      label: "Assets Scanning",
       hasDropdown: true,
       href: "#",
       submenu: [
@@ -130,13 +130,21 @@ export default function LayoutDashboard({ children, activeMenu }) {
       ) {
         setScanDropdownOpen(false);
       }
+      // Close mobile menu when clicking outside
+      if (
+        mobileMenuRef.current &&
+        !mobileMenuRef.current.contains(event.target) &&
+        mobileMenuOpen
+      ) {
+        setMobileMenuOpen(false);
+      }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, []);
+  }, [mobileMenuOpen]);
 
   const handleCloseWelcome = () => {
     setShowWelcome(false);
@@ -194,7 +202,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
             timer: 1500,
             showConfirmButton: false
           }).then(() => {
-            // Redirect ke login page setelah notifikasi selesai
             router.push("/login");
           });
         }, 1500);
@@ -204,6 +211,8 @@ export default function LayoutDashboard({ children, activeMenu }) {
 
   const handleSubmenuClick = (href) => {
     setScanDropdownOpen(false);
+    setMobileScanDropdownOpen(false);
+    setMobileMenuOpen(false);
     router.push(href);
   };
 
@@ -225,7 +234,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
       {showWelcome && (
         <div className="fixed top-4 right-4 z-50 animate-fade-in">
           <div className="w-80 bg-white rounded-lg shadow-md border border-gray-200">
-            {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-green-600" />
@@ -233,7 +241,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
                   Welcome
                 </span>
               </div>
-
               <button
                 onClick={handleCloseWelcome}
                 className="text-gray-400 hover:text-gray-600 transition"
@@ -241,8 +248,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
                 <X className="w-4 h-4" />
               </button>
             </div>
-
-            {/* Body */}
             <div className="px-4 py-3">
               <p className="text-sm text-gray-700 leading-relaxed">
                 Welcome back,&nbsp;
@@ -250,7 +255,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
                   {user.username}
                 </span>
               </p>
-
               <div className="mt-2 text-xs text-gray-500 space-y-1">
                 <div>
                   <span className="font-medium text-gray-600">Department:</span>{" "}
@@ -267,7 +271,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
       )}
 
       {/* 🔹 Top Navbar - Mobile & Desktop */}
-      <nav className="bg-white shadow-sm">
+      <nav className="bg-white shadow-sm sticky top-0 z-40">
         <div className="px-4 py-3 flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Image
@@ -300,7 +304,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
                 />
               </button>
 
-              {/* Dropdown Menu */}
               {userDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
                   <div className="px-4 py-2 border-b border-gray-100">
@@ -310,19 +313,17 @@ export default function LayoutDashboard({ children, activeMenu }) {
                     <p className="text-xs text-gray-500">{user.email}</p>
                     <p className="text-xs text-gray-500">{user.department}</p>
                   </div>
-
                   <button
-                    className="flex items-center w-full text-grey text-sm hover:bg-blue-500 px-4 py-1 rounded transition"
+                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition"
                     onClick={() => {
                       setUserDropdownOpen(false);
                       setMobileMenuOpen(false);
                       router.push("/profile");
                     }}
                   >
-                    <UserIcon className="w-4 h-4 mr-2" />
+                    <UserIcon className="w-4 h-4 mr-3 text-gray-500" />
                     View Profile
                   </button>
-
                   <button
                     className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition"
                     onClick={() => {
@@ -334,9 +335,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
                     <Key className="w-4 h-4 mr-3 text-gray-500" />
                     Change Password
                   </button>
-
                   <div className="border-t border-gray-100 my-1"></div>
-
                   <button
                     className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition"
                     onClick={handleLogout}
@@ -362,6 +361,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
           </div>
         </div>
 
+        {/* Desktop Menu */}
         <div className="hidden md:block bg-blue-600 px-4">
           <div className="flex flex-wrap items-center gap-1 py-2">
             {menuItems.map((item, index) => {
@@ -370,7 +370,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
                   ? index === activeMenu
                   : index === activeMenuIndex;
 
-              // Special handling untuk Assets Scanning dengan dropdown
               if (item.label === "Assets Scanning") {
                 return (
                   <div key={index} className="relative" ref={scanDropdownRef}>
@@ -387,7 +386,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
                       />
                     </button>
 
-                    {/* Submenu Dropdown */}
                     {scanDropdownOpen && (
                       <div className="absolute left-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
                         {item.submenu.map((subItem, subIndex) => (
@@ -406,7 +404,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
                 );
               }
 
-              // Menu items lainnya
               return (
                 <button
                   key={index}
@@ -439,95 +436,98 @@ export default function LayoutDashboard({ children, activeMenu }) {
       {/* 🔹 Mobile Sidebar Menu */}
       {mobileMenuOpen && (
         <>
-          {/* Overlay */}
           <div
             className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
             onClick={() => setMobileMenuOpen(false)}
           ></div>
 
-          {/* Sidebar */}
-          <div className="fixed top-0 left-0 h-full w-64 bg-blue-600 z-50 md:hidden overflow-y-auto">
-            <div className="bg-blue-700 px-4 py-4 flex items-center justify-between">
+          <div 
+            ref={mobileMenuRef}
+            className="fixed top-0 left-0 h-full w-64 bg-blue-600 z-50 md:hidden overflow-y-auto shadow-xl"
+          >
+            <div className="bg-blue-700 px-4 py-4 flex items-center justify-between sticky top-0 z-10">
               <div className="flex items-center space-x-2">
                 <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
                   <div className="w-4 h-1 border-t-2 border-blue-600 rounded-full"></div>
                 </div>
                 <span className="text-white font-bold">Seatrium</span>
               </div>
-              <button onClick={() => setMobileMenuOpen(false)}>
+              <button 
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-1 hover:bg-blue-800 rounded-lg transition"
+              >
                 <X className="w-5 h-5 text-white" />
               </button>
             </div>
 
-            {/* User Section with Dropdown for Mobile */}
-            <div className="bg-blue-500 px-4 py-3 flex items-center space-x-3">
-              <div className="w-10 h-10 bg-blue-400 rounded flex items-center justify-center text-white">
-                <User className="w-5 h-5" />
-              </div>
-              <div className="flex-1">
-                <div className="text-white font-medium text-sm">
-                  {user.username}
+            {/* User Section */}
+            <div className="bg-blue-500 px-4 py-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-blue-400 rounded-full flex items-center justify-center text-white">
+                  <User className="w-5 h-5" />
                 </div>
-                <div className="text-blue-100 text-xs">{user.department}</div>
-                <button
-                  className="text-blue-100 text-xs flex items-center mt-1"
-                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                >
-                  <span>Account</span>
-                  <ChevronDown
-                    className={`w-3 h-3 ml-1 transition-transform ${userDropdownOpen ? "rotate-180" : ""
-                      }`}
-                  />
-                </button>
+                <div className="flex-1">
+                  <div className="text-white font-medium text-sm">
+                    {user.username}
+                  </div>
+                  <div className="text-blue-100 text-xs">{user.department}</div>
+                  <button
+                    className="text-blue-100 text-xs flex items-center mt-1 hover:text-white transition"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setUserDropdownOpen(!userDropdownOpen);
+                    }}
+                  >
+                    <span>Account Settings</span>
+                    <ChevronDown
+                      className={`w-3 h-3 ml-1 transition-transform ${userDropdownOpen ? "rotate-180" : ""
+                        }`}
+                    />
+                  </button>
+                </div>
               </div>
+
+              {userDropdownOpen && (
+                <div className="mt-2 bg-blue-400 rounded-lg p-2 space-y-1">
+                  <button
+                    className="flex items-center w-full text-white text-sm hover:bg-blue-500 px-3 py-2 rounded transition"
+                    onClick={() => {
+                      setUserDropdownOpen(false);
+                      setMobileMenuOpen(false);
+                      router.push("/profile");
+                    }}
+                  >
+                    <UserIcon className="w-4 h-4 mr-2" />
+                    View Profile
+                  </button>
+                  <button
+                    className="flex items-center w-full text-white text-sm hover:bg-blue-500 px-3 py-2 rounded transition"
+                    onClick={() => {
+                      setUserDropdownOpen(false);
+                      setMobileMenuOpen(false);
+                      router.push("/profile?tab=password");
+                    }}
+                  >
+                    <Key className="w-4 h-4 mr-2" />
+                    Change Password
+                  </button>
+                  <div className="border-t border-blue-300 my-1"></div>
+                  <button
+                    className="flex items-center w-full text-red-200 text-sm hover:bg-blue-500 hover:text-red-100 px-3 py-2 rounded transition"
+                    onClick={() => {
+                      setUserDropdownOpen(false);
+                      setMobileMenuOpen(false);
+                      handleLogout();
+                    }}
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Logout
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Mobile User Dropdown */}
-            {userDropdownOpen && (
-              <div className="bg-blue-400 px-4 py-2 space-y-2">
-                {/* View Profile */}
-                <button
-                  className="flex items-center w-full text-white text-sm hover:bg-blue-500 px-2 py-1 rounded transition"
-                  onClick={() => {
-                    setUserDropdownOpen(false);
-                    setMobileMenuOpen(false);
-                    router.push("/profile");
-                  }}
-                >
-                  <UserIcon className="w-4 h-4 mr-2" />
-                  View Profile
-                </button>
-
-                {/* Change Password */}
-                <button
-                  className="flex items-center w-full text-white text-sm hover:bg-blue-500 px-2 py-1 rounded transition"
-                  onClick={() => {
-                    setUserDropdownOpen(false);
-                    setMobileMenuOpen(false);
-                    router.push("/profile");
-                  }}
-                >
-                  <Key className="w-4 h-4 mr-2" />
-                  Change Password
-                </button>
-
-                <div className="border-t border-blue-300 my-1"></div>
-
-                {/* Logout */}
-                <button
-                  className="flex items-center w-full text-red-200 text-sm hover:bg-blue-500 px-2 py-1 rounded transition"
-                  onClick={() => {
-                    setUserDropdownOpen(false);
-                    setMobileMenuOpen(false);
-                    handleLogout();
-                  }}
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Logout
-                </button>
-              </div>
-            )}
-
+            {/* Menu Items */}
             <div className="py-2">
               {menuItems.map((item, index) => {
                 const isActive =
@@ -538,13 +538,14 @@ export default function LayoutDashboard({ children, activeMenu }) {
                 return (
                   <div key={index}>
                     <button
-                      className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition w-full ${isActive ? "bg-blue-700" : ""
+                      className={`flex items-center space-x-3 px-4 py-3 text-white hover:bg-blue-700 text-sm transition w-full text-left ${isActive ? "bg-blue-700" : ""
                         }`}
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         // Untuk mobile - Assets Scanning
                         if (item.label === "Assets Scanning") {
-                          setScanDropdownOpen(!scanDropdownOpen);
-                        } else if (item.href) {
+                          setMobileScanDropdownOpen(!mobileScanDropdownOpen);
+                        } else if (item.href && item.href !== "#") {
                           router.push(item.href);
                           setMobileMenuOpen(false);
                         } else {
@@ -554,30 +555,31 @@ export default function LayoutDashboard({ children, activeMenu }) {
                         }
                       }}
                     >
-                      <item.icon className="w-4 h-4" />
-                      <span>{item.label}</span>
+                      <item.icon className="w-5 h-5 flex-shrink-0" />
+                      <span className="flex-1 text-left">{item.label}</span>
                       {item.hasDropdown && (
                         <ChevronDown
-                          className={`w-3 h-3 ml-auto transition-transform ${scanDropdownOpen && item.label === "Assets Scanning" ? "rotate-180" : ""
+                          className={`w-4 h-4 transition-transform ${mobileScanDropdownOpen && item.label === "Assets Scanning" ? "rotate-180" : ""
                             }`}
                         />
                       )}
                     </button>
 
                     {/* Submenu untuk mobile - Assets Scanning */}
-                    {item.label === "Assets Scanning" && scanDropdownOpen && (
-                      <div className="bg-blue-500 pl-8 py-1">
+                    {item.label === "Assets Scanning" && mobileScanDropdownOpen && (
+                      <div className="bg-blue-500 py-1">
                         {item.submenu.map((subItem, subIndex) => (
                           <button
                             key={subIndex}
-                            className="flex items-center w-full px-3 py-2 text-white hover:bg-blue-600 text-sm transition"
-                            onClick={() => {
+                            className="flex items-center w-full px-6 py-3 text-white hover:bg-blue-600 text-sm transition text-left"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               router.push(subItem.href);
                               setMobileMenuOpen(false);
-                              setScanDropdownOpen(false);
+                              setMobileScanDropdownOpen(false);
                             }}
                           >
-                            <subItem.icon className="w-3.5 h-3.5 mr-2" />
+                            <subItem.icon className="w-4 h-4 mr-3 flex-shrink-0" />
                             {subItem.label}
                           </button>
                         ))}
@@ -600,7 +602,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
         {children}
       </div>
 
-      {/* Tambahkan custom animation di global CSS atau tailwind config */}
       <style jsx global>{`
         @keyframes fadeIn {
           from {
@@ -614,6 +615,12 @@ export default function LayoutDashboard({ children, activeMenu }) {
         }
         .animate-fade-in {
           animation: fadeIn 0.3s ease-out forwards;
+        }
+        
+        @media (max-width: 768px) {
+          .fixed {
+            pointer-events: auto;
+          }
         }
       `}</style>
     </div>

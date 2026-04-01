@@ -12,7 +12,7 @@ def get_conn():
 # ==================== GET VALIDATIONS ====================
 @validation_bp.route('/api/validations', methods=['GET'])
 def get_validations():
-    """Mendapatkan daftar validations dengan departments dan receivers per item"""
+    """Mendapatkan daftar validations dengan departments, receivers, brand, dan vendor"""
     conn = None
     try:
         conn = get_conn()
@@ -96,10 +96,14 @@ def get_validations():
                 preparation_id = val_dict.get('material_preparation_id')
                 item_prep_id = val_dict.get('material_item_prep_id')
             
-            # ========== PERBAIKAN: Ambil data untuk item preparation yang spesifik ==========
+            # ========== AMBIL DATA BRAND, VENDOR, DAN LAIN-LAIN ==========
             project_name = None
             department_name = None
             receiver_name = None
+            brand = None
+            vendor = None
+            model = None
+            specifications = None
             
             # Ambil data dari item preparation yang terkait dengan validation ini
             if item_prep_id:
@@ -114,7 +118,9 @@ def get_validations():
                             dip.scanning_item_id,
                             si.device_name,
                             si.brand,
-                            si.vendor
+                            si.vendor,
+                            si.model,
+                            si.specifications
                         FROM devices_items_preparation dip
                         LEFT JOIN departments d ON dip.department_id = d.id_department
                         LEFT JOIN master_receivers mr ON dip.receiver_id = mr.id_receiver
@@ -131,7 +137,9 @@ def get_validations():
                             mip.project_name,
                             mip.scanning_item_id,
                             si.material_name,
-                            si.vendor
+                            si.vendor,
+                            si.uom,
+                            si.material_detail as specifications
                         FROM materials_items_preparation mip
                         LEFT JOIN departments d ON mip.department_id = d.id_department
                         LEFT JOIN master_receivers mr ON mip.receiver_id = mr.id_receiver
@@ -146,10 +154,20 @@ def get_validations():
                     department_name = item_data.get('department_name')
                     receiver_name = item_data.get('receiver_name')
                     
+                    # AMBIL BRAND ATAU VENDOR
+                    if val_dict['validation_type'] == 'device':
+                        brand = item_data.get('brand')
+                        vendor = item_data.get('vendor')
+                        model = item_data.get('model')
+                        specifications = item_data.get('specifications')
+                    else:
+                        vendor = item_data.get('vendor')
+                        specifications = item_data.get('specifications')
+                    
                     # Untuk debug
-                    print(f"Validation {val_dict['id_validation']}: item_prep_id={item_prep_id}, department={department_name}, receiver={receiver_name}, project={project_name}")
+                    print(f"Validation {val_dict['id_validation']}: type={val_dict['validation_type']}, item_prep_id={item_prep_id}, brand={brand}, vendor={vendor}, department={department_name}, receiver={receiver_name}, project={project_name}")
             
-            # Format departments dan receivers sebagai array (untuk konsistensi dengan scanning page)
+            # Format departments dan receivers sebagai array
             departments = []
             if department_name:
                 departments.append({
@@ -166,9 +184,14 @@ def get_validations():
                     'department_name': department_name
                 })
             
+            # Tambahkan brand dan vendor ke response
             val_dict['project_name'] = project_name
             val_dict['departments'] = departments
             val_dict['receivers'] = receivers
+            val_dict['brand'] = brand
+            val_dict['vendor'] = vendor
+            val_dict['model'] = model
+            val_dict['specifications'] = specifications
             
             result.append(val_dict)
         
@@ -310,16 +333,13 @@ def update_validation(validation_id):
                 from routes.assets import create_asset_from_validation
                 from flask import current_app as app
                 
-                # Buat request data untuk create asset
                 asset_data = {
                     'validation_id': validation_id,
                     'user_id': validated_by,
                     'validated_by': validated_by
                 }
                 
-                # Buat asset menggunakan fungsi yang sudah ada
                 with app.app_context():
-                    # Simulasi request dengan data yang sudah disiapkan
                     from flask import Request
                     req = Request.from_values(json=asset_data)
                     response = create_asset_from_validation()
@@ -504,10 +524,14 @@ def get_validation_detail(validation_id):
             result['photo_url'] = result.get('material_photo')
             item_prep_id = result.get('material_item_preparation_id')
         
-        # ========== PERBAIKAN: Ambil data department dan receiver dari item preparation ==========
+        # ========== AMBIL DATA DEPARTMENT, RECEIVER, PROJECT, BRAND, VENDOR ==========
         department_name = None
         receiver_name = None
         project_name = None
+        brand = None
+        vendor = None
+        model = None
+        specifications = None
         
         if item_prep_id:
             if result['validation_type'] == 'device':
@@ -517,10 +541,15 @@ def get_validation_detail(validation_id):
                         d.department_name,
                         dip.receiver_id,
                         mr.receiver_name,
-                        dip.project_name
+                        dip.project_name,
+                        si.brand,
+                        si.vendor,
+                        si.model,
+                        si.specifications
                     FROM devices_items_preparation dip
                     LEFT JOIN departments d ON dip.department_id = d.id_department
                     LEFT JOIN master_receivers mr ON dip.receiver_id = mr.id_receiver
+                    LEFT JOIN devices_scanning_items si ON dip.scanning_item_id = si.id_item
                     WHERE dip.id_item_preparation = %s
                 """, (item_prep_id,))
             else:
@@ -530,10 +559,14 @@ def get_validation_detail(validation_id):
                         d.department_name,
                         mip.receiver_id,
                         mr.receiver_name,
-                        mip.project_name
+                        mip.project_name,
+                        si.vendor,
+                        si.uom,
+                        si.material_detail as specifications
                     FROM materials_items_preparation mip
                     LEFT JOIN departments d ON mip.department_id = d.id_department
                     LEFT JOIN master_receivers mr ON mip.receiver_id = mr.id_receiver
+                    LEFT JOIN materials_scanning_items si ON mip.scanning_item_id = si.id_item
                     WHERE mip.id_item_preparation = %s
                 """, (item_prep_id,))
             
@@ -543,6 +576,15 @@ def get_validation_detail(validation_id):
                 department_name = item_data.get('department_name')
                 receiver_name = item_data.get('receiver_name')
                 project_name = item_data.get('project_name')
+                
+                if result['validation_type'] == 'device':
+                    brand = item_data.get('brand')
+                    vendor = item_data.get('vendor')
+                    model = item_data.get('model')
+                    specifications = item_data.get('specifications')
+                else:
+                    vendor = item_data.get('vendor')
+                    specifications = item_data.get('specifications')
         
         # Format departments dan receivers sebagai array
         departments = []
@@ -562,6 +604,10 @@ def get_validation_detail(validation_id):
         result['project_name'] = project_name
         result['departments'] = departments
         result['receivers'] = receivers
+        result['brand'] = brand
+        result['vendor'] = vendor
+        result['model'] = model
+        result['specifications'] = specifications
         
         return jsonify({
             'success': True,
@@ -588,7 +634,6 @@ def delete_validation(validation_id):
         conn = get_conn()
         cur = conn.cursor()
         
-        # Cek apakah validation exists
         cur.execute("SELECT id_validation FROM validations WHERE id_validation = %s", (validation_id,))
         if not cur.fetchone():
             return jsonify({
@@ -596,7 +641,6 @@ def delete_validation(validation_id):
                 'error': 'Validation not found'
             }), 404
         
-        # Delete validation
         cur.execute("DELETE FROM validations WHERE id_validation = %s", (validation_id,))
         
         conn.commit()

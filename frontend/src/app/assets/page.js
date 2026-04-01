@@ -49,6 +49,7 @@ export default function InventoryDataPage() {
   const [viewMode, setViewMode] = useState("list");
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [sorting, setSorting] = useState({ id: "created_at", desc: true });
+  const [sessions, setSessions] = useState({});
 
   // Load assets dari API
   const loadAssets = async () => {
@@ -59,6 +60,29 @@ export default function InventoryDataPage() {
 
       if (result.success) {
         setAssets(result.data || []);
+
+        // Load session info untuk setiap asset
+        const sessionMap = {};
+        for (const asset of result.data) {
+          if (asset.validation_id) {
+            try {
+              const sessionResp = await fetch(
+                `${API_BASE_URL}/api/validations/${asset.validation_id}/detail`,
+              );
+              const sessionResult = await sessionResp.json();
+              if (sessionResult.success && sessionResult.data) {
+                sessionMap[asset.id_assets] = {
+                  checking_name: sessionResult.data.checking_name,
+                  checking_number: sessionResult.data.checking_number,
+                  checking_date: sessionResult.data.checking_date,
+                };
+              }
+            } catch (err) {
+              console.error("Error loading session:", err);
+            }
+          }
+        }
+        setSessions(sessionMap);
       } else {
         throw new Error(result.error);
       }
@@ -93,11 +117,25 @@ export default function InventoryDataPage() {
     let filtered = assets.filter((item) => {
       const matchesSearch =
         searchTerm === "" ||
-        (item.asset_code?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-        (item.asset_name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-        (item.location_name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-        (item.serial_number?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-        (item.scan_code?.toLowerCase() || "").includes(searchTerm.toLowerCase());
+        (item.asset_code?.toLowerCase() || "").includes(
+          searchTerm.toLowerCase(),
+        ) ||
+        (item.asset_name?.toLowerCase() || "").includes(
+          searchTerm.toLowerCase(),
+        ) ||
+        (item.brand?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+        (item.location_name?.toLowerCase() || "").includes(
+          searchTerm.toLowerCase(),
+        ) ||
+        (item.serial_number?.toLowerCase() || "").includes(
+          searchTerm.toLowerCase(),
+        ) ||
+        (item.scan_code?.toLowerCase() || "").includes(
+          searchTerm.toLowerCase(),
+        ) ||
+        (item.project_name?.toLowerCase() || "").includes(
+          searchTerm.toLowerCase(),
+        );
 
       const matchesCategory =
         categoryFilter === "all" || item.category === categoryFilter;
@@ -139,9 +177,11 @@ export default function InventoryDataPage() {
     if (sorting.id !== columnId) {
       return <span className="text-gray-300 ml-1 text-xs">⇅</span>;
     }
-    return sorting.desc
-      ? <ArrowDown className="w-3 h-3 ml-1 text-blue-500" />
-      : <ArrowUp className="w-3 h-3 ml-1 text-blue-500" />;
+    return sorting.desc ? (
+      <ArrowDown className="w-3 h-3 ml-1 text-blue-500" />
+    ) : (
+      <ArrowUp className="w-3 h-3 ml-1 text-blue-500" />
+    );
   };
 
   const getStatusColor = (status) => {
@@ -175,12 +215,14 @@ export default function InventoryDataPage() {
     return new Date(dateString).toLocaleDateString("id-ID", {
       day: "numeric",
       month: "short",
-      year: "numeric"
+      year: "numeric",
     });
   };
 
   // Fungsi untuk menampilkan detail dengan SweetAlert
   const handleShowDetail = (item) => {
+    const session = sessions[item.id_assets] || {};
+
     Swal.fire({
       title: `<div class="font-dm-sans text-lg font-semibold text-gray-900">Asset Details</div>`,
       html: `
@@ -190,6 +232,25 @@ export default function InventoryDataPage() {
           <p class="text-xs text-gray-500 mt-1">${item.asset_type || item.category} • ${item.category}</p>
         </div>
 
+        ${
+          item.photo_url
+            ? `
+        <div>
+          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">PHOTO</h5>
+          <div class="bg-gray-50 rounded-lg p-3 flex justify-center">
+            <img 
+              src="${item.photo_url.startsWith("http") ? item.photo_url : `http://localhost:5001${item.photo_url}`}" 
+              alt="Asset photo" 
+              class="max-w-full h-auto rounded-lg max-h-48 object-contain cursor-pointer"
+              onclick="window.open(this.src, '_blank')"
+              onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\\'w-24 h-24 bg-gray-200 rounded-lg flex items-center justify-center\\'><svg class=\\'w-8 h-8 text-gray-400\\' fill=\\'none\\' stroke=\\'currentColor\\' viewBox=\\'0 0 24 24\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'2\\' d=\\'M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z\\'></path><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'2\\' d=\\'M15 13a3 3 0 11-6 0 3 3 0 016 0z\\'></path></svg></div>'"
+            />
+          </div>
+        </div>
+        `
+            : ""
+        }
+
         <div>
           <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">INFORMATION</h5>
           <div class="bg-gray-50 rounded-lg p-3 space-y-2">
@@ -197,24 +258,26 @@ export default function InventoryDataPage() {
               <span class="text-xs text-gray-600">Asset Code</span>
               <span class="text-xs font-mono text-blue-600">${item.asset_code}</span>
             </div>
-            ${item.serial_number
-          ? `
+            ${
+              item.serial_number
+                ? `
             <div class="flex justify-between items-center">
               <span class="text-xs text-gray-600">Serial Number</span>
               <span class="text-xs font-mono text-gray-700">${item.serial_number}</span>
             </div>
             `
-          : ""
-        }
-            ${item.scan_code
-          ? `
+                : ""
+            }
+            ${
+              item.scan_code
+                ? `
             <div class="flex justify-between items-center">
               <span class="text-xs text-gray-600">Scan Code</span>
               <span class="text-xs font-mono text-gray-700">${item.scan_code}</span>
             </div>
             `
-          : ""
-        }
+                : ""
+            }
           </div>
         </div>
 
@@ -224,7 +287,24 @@ export default function InventoryDataPage() {
             <p class="text-xs text-gray-700">${item.specifications || "No specifications"}</p>
             ${item.brand ? `<p class="text-xs text-gray-500 mt-1">Brand: ${item.brand}</p>` : ""}
             ${item.model ? `<p class="text-xs text-gray-500">Model: ${item.model}</p>` : ""}
-            ${item.vendor ? `<p class="text-xs text-gray-500">Vendor: ${item.vendor}</p>` : ""}
+          </div>
+        </div>
+
+        <div>
+          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">SESSION</h5>
+          <div class="bg-gray-50 rounded-lg p-3 space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-gray-600">Session Name</span>
+              <span class="text-xs font-medium text-gray-700">${session.checking_name || "-"}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-gray-600">Session Number</span>
+              <span class="text-xs font-mono text-gray-600">${session.checking_number || "-"}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-gray-600">Session Date</span>
+              <span class="text-xs text-gray-700">${session.checking_date ? formatDate(session.checking_date) : "-"}</span>
+            </div>
           </div>
         </div>
 
@@ -295,10 +375,13 @@ export default function InventoryDataPage() {
 
     if (result.isConfirmed) {
       try {
-        const response = await fetch(API_ENDPOINTS.ASSETS_DELETE(item.id_assets), {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-        });
+        const response = await fetch(
+          API_ENDPOINTS.ASSETS_DELETE(item.id_assets),
+          {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+          },
+        );
 
         const data = await response.json();
 
@@ -329,35 +412,41 @@ export default function InventoryDataPage() {
       let dataToExport = [];
 
       if (exportType === "current") {
-        dataToExport = filteredItems.map((item) => ({
-          "Asset Code": item.asset_code,
-          "Asset Name": item.asset_name,
-          "Type": item.asset_type,
-          "Category": item.category,
-          "Serial/Barcode": item.serial_number || item.scan_code || "N/A",
-          "Project": item.project_name || "-",
-          "Department": item.department_name || "-",
-          "Receiver": item.receiver_name || "-",
-          "Location": item.location_name || "-",
-          "Status": getStatusLabel(item.status),
-          "Validated At": formatDate(item.validated_at),
-          "Validated By": item.validated_by_name || "System",
-        }));
+        dataToExport = filteredItems.map((item) => {
+          const session = sessions[item.id_assets] || {};
+          return {
+            "Asset Code": item.asset_code,
+            "Asset Name": item.asset_name,
+            "Brand/Vendor": item.brand || "-",
+            "Type": item.asset_type,
+            "Category": item.category,
+            "Serial/Scan Code": item.serial_number || item.scan_code || "N/A",
+            "Project": item.project_name || "-",
+            "Session": session.checking_name || "-",
+            "Location": item.location_name || "-",
+            "Status": getStatusLabel(item.status),
+            "Validated At": formatDate(item.validated_at),
+            "Validated By": item.validated_by_name || "System",
+          };
+        });
       } else if (exportType === "all") {
-        dataToExport = assets.map((item) => ({
-          "Asset Code": item.asset_code,
-          "Asset Name": item.asset_name,
-          "Type": item.asset_type,
-          "Category": item.category,
-          "Serial/Barcode": item.serial_number || item.scan_code || "N/A",
-          "Project": item.project_name || "-",
-          "Department": item.department_name || "-",
-          "Receiver": item.receiver_name || "-",
-          "Location": item.location_name || "-",
-          "Status": getStatusLabel(item.status),
-          "Validated At": formatDate(item.validated_at),
-          "Validated By": item.validated_by_name || "System",
-        }));
+        dataToExport = assets.map((item) => {
+          const session = sessions[item.id_assets] || {};
+          return {
+            "Asset Code": item.asset_code,
+            "Asset Name": item.asset_name,
+            "Brand/Vendor": item.brand || "-",
+            "Type": item.asset_type,
+            "Category": item.category,
+            "Serial/Scan Code": item.serial_number || item.scan_code || "N/A",
+            "Project": item.project_name || "-",
+            "Session": session.checking_name || "-",
+            "Location": item.location_name || "-",
+            "Status": getStatusLabel(item.status),
+            "Validated At": formatDate(item.validated_at),
+            "Validated By": item.validated_by_name || "System",
+          };
+        });
       }
 
       if (dataToExport.length === 0) {
@@ -369,7 +458,10 @@ export default function InventoryDataPage() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Assets");
 
-      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      const timestamp = new Date()
+        .toISOString()
+        .slice(0, 19)
+        .replace(/[:T]/g, "-");
       let filename = `assets_${exportType}_${timestamp}.xlsx`;
 
       XLSX.writeFile(wb, filename);
@@ -381,10 +473,30 @@ export default function InventoryDataPage() {
   };
 
   const kpis = [
-    { title: "Total Assets", value: stats.total, sub: "All IT assets", accent: "#2563eb" },
-    { title: "Devices", value: stats.devices, sub: "Computers, Servers, etc", accent: "#6366f1" },
-    { title: "Materials", value: stats.materials, sub: "Cables, Connectors, etc", accent: "#10b981" },
-    { title: "Active", value: stats.active, sub: "Active assets", accent: "#059669" },
+    {
+      title: "Total Assets",
+      value: stats.total,
+      sub: "All IT assets",
+      accent: "#2563eb",
+    },
+    {
+      title: "Devices",
+      value: stats.devices,
+      sub: "Computers, Servers, etc",
+      accent: "#6366f1",
+    },
+    {
+      title: "Materials",
+      value: stats.materials,
+      sub: "Cables, Connectors, etc",
+      accent: "#10b981",
+    },
+    {
+      title: "Active",
+      value: stats.active,
+      sub: "Active assets",
+      accent: "#059669",
+    },
   ];
 
   return (
@@ -440,9 +552,13 @@ export default function InventoryDataPage() {
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <Box className="w-5 h-5 text-blue-600" />
-                <h1 className="text-xl font-bold text-gray-900">IT Asset Inventory</h1>
+                <h1 className="text-xl font-bold text-gray-900">
+                  IT Asset Inventory
+                </h1>
               </div>
-              <p className="text-sm text-gray-500">Monitor and manage all validated IT assets</p>
+              <p className="text-sm text-gray-500">
+                Monitor and manage all validated IT assets
+              </p>
             </div>
             <button
               onClick={() => router.push("/validation_verification")}
@@ -461,7 +577,10 @@ export default function InventoryDataPage() {
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
                     {d.title}
                   </p>
-                  <span className="text-4xl font-bold" style={{ color: d.accent }}>
+                  <span
+                    className="text-4xl font-bold"
+                    style={{ color: d.accent }}
+                  >
                     {d.value}
                   </span>
                   <p className="text-xs text-gray-400 mt-2">{d.sub}</p>
@@ -478,13 +597,16 @@ export default function InventoryDataPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search by code, name, location, serial..."
+                  placeholder="Search by code, name, brand, location, serial, project..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
                 />
                 {searchTerm && (
-                  <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <button
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
                     <X className="w-3.5 h-3.5" />
                   </button>
                 )}
@@ -540,7 +662,9 @@ export default function InventoryDataPage() {
                   disabled={loading}
                   className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+                  <RefreshCw
+                    className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
+                  />
                   Refresh
                 </button>
 
@@ -555,13 +679,24 @@ export default function InventoryDataPage() {
                   </button>
                   {showExportDropdown && (
                     <>
-                      <div className="fixed inset-0 z-40" onClick={() => setShowExportDropdown(false)} />
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowExportDropdown(false)}
+                      />
                       <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
-                        <button onClick={() => exportToExcel("current")} className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                          <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Current View ({filteredItems.length})
+                        <button
+                          onClick={() => exportToExcel("current")}
+                          className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                        >
+                          <FileSpreadsheet className="w-4 h-4 text-emerald-600" />{" "}
+                          Current View ({filteredItems.length})
                         </button>
-                        <button onClick={() => exportToExcel("all")} className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2">
-                          <FileSpreadsheet className="w-4 h-4 text-blue-600" /> All Assets ({assets.length})
+                        <button
+                          onClick={() => exportToExcel("all")}
+                          className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                        >
+                          <FileSpreadsheet className="w-4 h-4 text-blue-600" />{" "}
+                          All Assets ({assets.length})
                         </button>
                       </div>
                     </>
@@ -579,8 +714,12 @@ export default function InventoryDataPage() {
             ) : assets.length === 0 ? (
               <div className="py-20 text-center">
                 <Box className="w-14 h-14 text-gray-200 mx-auto mb-3" />
-                <h3 className="text-gray-800 font-semibold text-lg mb-1">No assets found</h3>
-                <p className="text-gray-400 text-sm mb-5">Start by approving validations</p>
+                <h3 className="text-gray-800 font-semibold text-lg mb-1">
+                  No assets found
+                </h3>
+                <p className="text-gray-400 text-sm mb-5">
+                  Start by approving validations
+                </p>
                 <button
                   onClick={() => router.push("/validation_verification")}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700"
@@ -591,197 +730,314 @@ export default function InventoryDataPage() {
             ) : filteredItems.length === 0 ? (
               <div className="py-16 text-center">
                 <Search className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-                <h3 className="text-gray-800 font-semibold mb-1">No matching assets</h3>
-                <p className="text-gray-400 text-sm mb-4">Try adjusting your filters</p>
-                <button onClick={() => { setSearchTerm(""); setCategoryFilter("all"); setStatusFilter("all"); }} className="text-sm text-blue-600 hover:underline">
+                <h3 className="text-gray-800 font-semibold mb-1">
+                  No matching assets
+                </h3>
+                <p className="text-gray-400 text-sm mb-4">
+                  Try adjusting your filters
+                </p>
+                <button
+                  onClick={() => {
+                    setSearchTerm("");
+                    setCategoryFilter("all");
+                    setStatusFilter("all");
+                  }}
+                  className="text-sm text-blue-600 hover:underline"
+                >
                   Clear filters
                 </button>
               </div>
             ) : viewMode === "grid" ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 p-4">
-                {filteredItems.map((item, idx) => (
-                  <div
-                    key={item.id_assets}
-                    className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-all cursor-pointer"
-                    onClick={() => handleShowDetail(item)}
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm flex-shrink-0">
-                          {idx + 1}
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className="font-semibold text-gray-900 text-sm truncate">
-                            {item.asset_name}
-                          </h4>
-                          <p className="text-xs text-gray-500 font-mono truncate mt-0.5">
-                            {item.asset_code}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteItem(item);
-                        }}
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500">Status</span>
-                        <span className={`text-xs font-medium ${getStatusColor(item.status)}`}>
-                          {getStatusLabel(item.status)}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500">Type</span>
-                        <span className="text-xs font-medium text-gray-700">
-                          {item.asset_type || item.category}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500">Location</span>
-                        <span className="text-xs text-gray-700 truncate max-w-[120px]">
-                          {item.location_name || "-"}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500">Department</span>
-                        <span className="text-xs text-gray-700 truncate max-w-[120px]">
-                          {item.department_name || "-"}
-                        </span>
-                      </div>
-
-                      <div className="pt-2 border-t mt-2">
-                        <div className="flex justify-between items-center">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleShowDetail(item);
-                            }}
-                            className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
-                          >
-                            <Eye className="w-3 h-3" />
-                            View Details
-                          </button>
-                          <span className="text-xs text-gray-400">
-                            {formatDate(item.validated_at)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead>
-                    <tr>
-                      <th className="inv-th text-left" onClick={() => handleSort("asset_code")}>
-                        <span className="flex items-center">Asset Code {getSortIcon("asset_code")}</span>
-                      </th>
-                      <th className="inv-th text-left" onClick={() => handleSort("asset_name")}>
-                        <span className="flex items-center">Asset Name {getSortIcon("asset_name")}</span>
-                      </th>
-                      <th className="inv-th text-left">Type</th>
-                      <th className="inv-th text-left hidden lg:table-cell">Serial/Code</th>
-                      <th className="inv-th text-left hidden lg:table-cell" onClick={() => handleSort("location_name")}>
-                        <span className="flex items-center">Location {getSortIcon("location_name")}</span>
-                      </th>
-                      <th className="inv-th text-left hidden xl:table-cell" onClick={() => handleSort("department_name")}>
-                        <span className="flex items-center">Department {getSortIcon("department_name")}</span>
-                      </th>
-                      <th className="inv-th text-left" onClick={() => handleSort("status")}>
-                        <span className="flex items-center">Status {getSortIcon("status")}</span>
-                      </th>
-                      <th className="inv-th text-left hidden xl:table-cell" onClick={() => handleSort("validated_at")}>
-                        <span className="flex items-center">Validated {getSortIcon("validated_at")}</span>
-                      </th>
-                      <th className="inv-th text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredItems.map((item, idx) => (
-                      <tr
-                        key={item.id_assets}
-                        className="inv-row transition-colors cursor-pointer"
-                        onClick={() => handleShowDetail(item)}
-                      >
-                        <td className="inv-td">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">
-                              {idx + 1}
-                            </div>
-                            <span className="font-mono text-xs font-semibold text-blue-700">
+                {filteredItems.map((item, idx) => {
+                  const session = sessions[item.id_assets] || {};
+                  return (
+                    <div
+                      key={item.id_assets}
+                      className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-all cursor-pointer"
+                      onClick={() => handleShowDetail(item)}
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="min-w-0">
+                            <h4 className="font-semibold text-gray-900 text-sm truncate">
+                              {item.asset_name}
+                            </h4>
+                            <p className="text-xs text-gray-500 font-mono truncate mt-0.5">
                               {item.asset_code}
-                            </span>
+                            </p>
                           </div>
-                        </td>
-                        <td className="inv-td">
-                          <div className="font-semibold text-gray-900 text-sm">{item.asset_name}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">{item.specifications?.substring(0, 50)}</div>
-                        </td>
-                        <td className="inv-td">
-                          <span className="text-xs text-gray-600">{item.asset_type || "-"}</span>
-                          <div className="text-[10px] text-gray-400 mt-0.5">{item.category}</div>
-                        </td>
-                        <td className="inv-td hidden lg:table-cell">
-                          <span className="text-xs font-mono text-gray-600">
-                            {item.serial_number || item.scan_code || "-"}
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteItem(item);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Photo */}
+                      {item.photo_url && (
+                        <div className="mb-3 rounded-lg overflow-hidden bg-gray-50">
+                          <img
+                            src={
+                              item.photo_url.startsWith("http")
+                                ? item.photo_url
+                                : `http://localhost:5001${item.photo_url}`
+                            }
+                            alt={item.asset_name}
+                            className="w-full h-24 object-cover"
+                            onError={(e) => {
+                              e.target.style.display = "none";
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500">Brand</span>
+                          <span className="text-xs font-medium text-gray-700">
+                            {item.brand || item.vendor || "-"}
                           </span>
-                        </td>
-                        <td className="inv-td hidden lg:table-cell">
-                          <div className="text-sm text-gray-700">{item.location_name || "-"}</div>
-                        </td>
-                        <td className="inv-td hidden xl:table-cell">
-                          <div className="text-sm text-gray-700">{item.department_name || "-"}</div>
-                          {item.receiver_name && (
-                            <div className="text-xs text-gray-400">Receiver: {item.receiver_name}</div>
-                          )}
-                        </td>
-                        <td className="inv-td">
-                          <span className={`text-sm font-medium ${getStatusColor(item.status)}`}>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500">Status</span>
+                          <span
+                            className={`text-xs font-medium ${getStatusColor(item.status)}`}
+                          >
                             {getStatusLabel(item.status)}
                           </span>
-                        </td>
-                        <td className="inv-td hidden xl:table-cell">
-                          <div className="text-sm text-gray-700">{formatDate(item.validated_at)}</div>
-                          <div className="text-xs text-gray-400">{item.validated_by_name || "System"}</div>
-                        </td>
-                        <td className="inv-td text-center">
-                          <div className="flex items-center justify-center gap-1">
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500">Project</span>
+                          <span className="text-xs text-gray-700 truncate max-w-[120px]">
+                            {item.project_name || "-"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500">Location</span>
+                          <span className="text-xs text-gray-700 truncate max-w-[120px]">
+                            {item.location_name || "-"}
+                          </span>
+                        </div>
+
+                        <div className="pt-2 border-t mt-2">
+                          <div className="flex justify-between items-center">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleShowDetail(item);
                               }}
-                              className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="View Details"
+                              className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
                             >
-                              <Eye className="w-4 h-4" />
+                              <Eye className="w-3 h-3" />
+                              View Details
                             </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteItem(item);
-                              }}
-                              className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Delete Asset"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <span className="text-xs text-gray-400">
+                              {formatDate(item.validated_at)}
+                            </span>
                           </div>
-                        </td>
-                      </tr>
-                    ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr style={{ background: "#f8fafc" }}>
+                      <th
+                        className="inv-th text-left"
+                        onClick={() => handleSort("asset_code")}
+                      >
+                        <span className="flex items-center">
+                          Asset Code {getSortIcon("asset_code")}
+                        </span>
+                      </th>
+                      <th
+                        className="inv-th text-left"
+                        onClick={() => handleSort("asset_name")}
+                      >
+                        <span className="flex items-center">
+                          Asset Name {getSortIcon("asset_name")}
+                        </span>
+                      </th>
+                      <th className="inv-th text-left">Photo</th>
+                      <th
+                        className="inv-th text-left"
+                        onClick={() => handleSort("brand")}
+                      >
+                        <span className="flex items-center">
+                          Brand {getSortIcon("brand")}
+                        </span>
+                      </th>
+                      <th className="inv-th text-left">
+                        <span>Type</span>
+                      </th>
+                      <th className="inv-th text-left">
+                        <span>Serial/Scan Code</span>
+                      </th>
+                      <th className="inv-th text-left hidden xl:table-cell">
+                        <span>Project</span>
+                      </th>
+                      <th className="inv-th text-left hidden xl:table-cell">
+                        <span>Session</span>
+                      </th>
+                      <th
+                        className="inv-th text-left"
+                        onClick={() => handleSort("location_name")}
+                      >
+                        <span className="flex items-center">
+                          Location {getSortIcon("location_name")}
+                        </span>
+                      </th>
+                      <th
+                        className="inv-th text-left"
+                        onClick={() => handleSort("status")}
+                      >
+                        <span className="flex items-center">
+                          Status {getSortIcon("status")}
+                        </span>
+                      </th>
+                      <th
+                        className="inv-th text-left hidden xl:table-cell"
+                        onClick={() => handleSort("validated_at")}
+                      >
+                        <span className="flex items-center">
+                          Validated {getSortIcon("validated_at")}
+                        </span>
+                      </th>
+                      <th className="inv-th text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredItems.map((item, idx) => {
+                      const session = sessions[item.id_assets] || {};
+                      return (
+                        <tr
+                          key={item.id_assets}
+                          className="inv-row transition-colors cursor-pointer"
+                          onClick={() => handleShowDetail(item)}
+                        >
+                               <td className="inv-td">
+                            <span className="font-mono text-xs font-semibold text-blue-700">
+                              {item.asset_code}
+                            </span>
+                          </td>
+                             <td className="inv-td">
+                            <div className="font-semibold text-gray-900 text-sm">
+                              {item.asset_name}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-0.5">
+                              {item.specifications?.substring(0, 50)}
+                            </div>
+                          </td>
+                          <td className="inv-td">
+                            {item.photo_url ? (
+                              <img
+                                src={
+                                  item.photo_url.startsWith("http")
+                                    ? item.photo_url
+                                    : `http://localhost:5001${item.photo_url}`
+                                }
+                                alt="Asset"
+                                className="w-10 h-10 rounded-lg object-cover"
+                                onError={(e) => {
+                                  e.target.style.display = "none";
+                                  e.target.parentElement.innerHTML =
+                                    '<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center"><Camera className="w-5 h-5 text-gray-400" /></div>';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                                <Camera className="w-5 h-5 text-gray-400" />
+                              </div>
+                            )}
+                          </td>
+                     
+                          <td className="inv-td">
+                            <span className="text-xs text-gray-700">
+                              {item.brand || item.vendor || "-"}
+                            </span>
+                          </td>
+                          <td className="inv-td">
+                            <span className="text-xs text-gray-600">
+                              {item.category === "Device" ? "Device" : item.category === "Material" ? "Material" : item.category || "-"}
+                            </span>
+                          </td>
+                          <td className="inv-td">
+                            <span className="text-xs font-mono text-gray-600">
+                              {item.serial_number || item.scan_code || "-"}
+                            </span>
+                          </td>
+                          <td className="inv-td hidden xl:table-cell">
+                            <span className="text-xs text-gray-600">
+                              {item.project_name || "-"}
+                            </span>
+                          </td>
+                          <td className="inv-td hidden xl:table-cell">
+                            <div className="text-xs text-gray-700">
+                              {session.checking_name || "-"}
+                            </div>
+                            {/* {session.checking_number && (
+                              <div className="text-[10px] text-gray-400 font-mono mt-0.5">
+                                {session.checking_number}
+                              </div>
+                            )} */}
+                          </td>
+                          <td className="inv-td">
+                            <div className="text-xs text-gray-700">
+                              {item.location_name || "-"}
+                            </div>
+                          </td>
+                          <td className="inv-td">
+                            <span
+                              className={`text-xs font-medium ${getStatusColor(item.status)}`}
+                            >
+                              {getStatusLabel(item.status)}
+                            </span>
+                          </td>
+                          <td className="inv-td hidden xl:table-cell">
+                            <div className="text-xs text-gray-700">
+                              {formatDate(item.validated_at)}
+                            </div>
+                            <div className="text-[10px] text-gray-400 mt-0.5">
+                              {item.validated_by_name || "System"}
+                            </div>
+                          </td>
+                          <td className="inv-td text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleShowDetail(item);
+                                }}
+                                className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="View Details"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteItem(item);
+                                }}
+                                className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Delete Asset"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -792,15 +1048,30 @@ export default function InventoryDataPage() {
               <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-2 rounded-b-2xl">
                 <p className="text-xs text-gray-500">
                   Showing{" "}
-                  <span className="font-semibold text-gray-700">{filteredItems.length}</span>{" "}
+                  <span className="font-semibold text-gray-700">
+                    {filteredItems.length}
+                  </span>{" "}
                   of{" "}
-                  <span className="font-semibold text-gray-700">{assets.length}</span>{" "}
+                  <span className="font-semibold text-gray-700">
+                    {assets.length}
+                  </span>{" "}
                   assets
-                  {categoryFilter !== "all" && <span className="text-gray-400"> · {categoryFilter === "Device" ? "Devices" : "Materials"}</span>}
-                  {statusFilter !== "all" && <span className="text-gray-400"> · {statusFilter}</span>}
-                  {searchTerm && <span className="text-gray-400"> · "{searchTerm}"</span>}
+                  {categoryFilter !== "all" && (
+                    <span className="text-gray-400">
+                      {" "}
+                      · {categoryFilter === "Device" ? "Devices" : "Materials"}
+                    </span>
+                  )}
+                  {statusFilter !== "all" && (
+                    <span className="text-gray-400"> · {statusFilter}</span>
+                  )}
+                  {searchTerm && (
+                    <span className="text-gray-400"> · "{searchTerm}"</span>
+                  )}
                 </p>
-                <p className="text-xs text-gray-400">Updated {new Date().toLocaleTimeString("id-ID")}</p>
+                <p className="text-xs text-gray-400">
+                  Updated {new Date().toLocaleTimeString("id-ID")}
+                </p>
               </div>
             )}
           </div>

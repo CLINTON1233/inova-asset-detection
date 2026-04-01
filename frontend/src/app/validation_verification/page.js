@@ -28,6 +28,7 @@ import {
   X,
   Camera,
   Trash2,
+  Cpu,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import LayoutDashboard from "../components/LayoutDashboard";
@@ -82,32 +83,38 @@ export default function ValidationVerificationPage() {
     }
   };
 
-  // Ganti fungsi fetchItemDetails dengan yang ini:
+  // Fungsi fetchItemDetails dengan brand
   const fetchItemDetails = async (validation) => {
-    // Cek apakah sudah ada di state
-    if (itemDetails[validation.id_validation]) return itemDetails[validation.id_validation];
+    if (itemDetails[validation.id_validation])
+      return itemDetails[validation.id_validation];
 
     try {
-      // Gunakan data yang sudah ada dari validation object (dari API /validations)
-      // Karena backend sudah mengirimkan project_name, departments, receivers
-      if (validation.project_name || validation.departments || validation.receivers) {
+      // Gunakan data yang sudah ada dari validation object
+      if (
+        validation.project_name ||
+        validation.departments ||
+        validation.receivers ||
+        validation.brand
+      ) {
         const detail = {
           project_name: validation.project_name || "-",
           departments: validation.departments || [],
-          receivers: validation.receivers || []
+          receivers: validation.receivers || [],
+          brand: validation.brand || null,
         };
 
-        // Simpan ke state
-        setItemDetails(prev => ({
+        setItemDetails((prev) => ({
           ...prev,
-          [validation.id_validation]: detail
+          [validation.id_validation]: detail,
         }));
 
         return detail;
       }
 
-      // Fallback: ambil dari API detail jika tidak ada
-      const response = await fetch(API_ENDPOINTS.VALIDATIONS_DETAIL(validation.id_validation));
+      // Fallback: ambil dari API detail
+      const response = await fetch(
+        API_ENDPOINTS.VALIDATIONS_DETAIL(validation.id_validation),
+      );
       const result = await response.json();
 
       if (result.success && result.data) {
@@ -115,13 +122,14 @@ export default function ValidationVerificationPage() {
         const detail = {
           project_name: data.project_name || "-",
           departments: data.departments || [],
-          receivers: data.receivers || []
+          receivers: data.receivers || [],
+          brand: data.brand || null,
+          vendor: data.vendor || null,
         };
 
-        // Simpan ke state
-        setItemDetails(prev => ({
+        setItemDetails((prev) => ({
           ...prev,
-          [validation.id_validation]: detail
+          [validation.id_validation]: detail,
         }));
 
         return detail;
@@ -130,14 +138,18 @@ export default function ValidationVerificationPage() {
       return {
         project_name: "-",
         departments: [],
-        receivers: []
+        receivers: [],
+        brand: null,
+        vendor: null,
       };
     } catch (error) {
       console.error("Error fetching item details:", error);
       return {
         project_name: "-",
         departments: [],
-        receivers: []
+        receivers: [],
+        brand: null,
+        vendor: null,
       };
     }
   };
@@ -162,13 +174,13 @@ export default function ValidationVerificationPage() {
         setValidations(result.data || []);
 
         const pending = (result.data || []).filter(
-          (v) => v.validation_status === "pending"
+          (v) => v.validation_status === "pending",
         ).length;
         const approved = (result.data || []).filter(
-          (v) => v.validation_status === "approved"
+          (v) => v.validation_status === "approved",
         ).length;
         const rejected = (result.data || []).filter(
-          (v) => v.validation_status === "rejected"
+          (v) => v.validation_status === "rejected",
         ).length;
 
         setStats({
@@ -193,19 +205,18 @@ export default function ValidationVerificationPage() {
     }
   };
 
-  // Tambahkan useEffect ini setelah loadValidations
   useEffect(() => {
     if (validations.length > 0) {
-      // Update itemDetails dengan data yang sudah ada di validations
       const newDetails = {};
-      validations.forEach(validation => {
+      validations.forEach((validation) => {
         newDetails[validation.id_validation] = {
           project_name: validation.project_name || "-",
           departments: validation.departments || [],
-          receivers: validation.receivers || []
+          receivers: validation.receivers || [],
+          brand: validation.brand || null,
         };
       });
-      setItemDetails(prev => ({ ...prev, ...newDetails }));
+      setItemDetails((prev) => ({ ...prev, ...newDetails }));
     }
   }, [validations]);
 
@@ -252,25 +263,27 @@ export default function ValidationVerificationPage() {
 
   const getTypeIcon = (type) => {
     if (type === "device") return <Laptop className="w-4 h-4 text-blue-600" />;
-    if (type === "material") return <Cable className="w-4 h-4 text-green-600" />;
+    if (type === "material")
+      return <Cable className="w-4 h-4 text-green-600" />;
     return <Package className="w-4 h-4 text-gray-500" />;
   };
 
   const handleViewDetail = async (validation) => {
     try {
       const response = await fetch(
-        API_ENDPOINTS.VALIDATIONS_DETAIL(validation.id_validation)
+        API_ENDPOINTS.VALIDATIONS_DETAIL(validation.id_validation),
       );
       const result = await response.json();
 
       if (result.success) {
-        // Tambahkan project_name, departments, receivers dari itemDetails
         const detail = itemDetails[validation.id_validation] || {};
         setDetailModal({
           ...result.data,
           project_name: detail.project_name,
           departments: detail.departments,
           receivers: detail.receivers,
+          brand: detail.brand,
+          vendor: detail.vendor,
         });
       } else {
         throw new Error(result.error);
@@ -291,6 +304,7 @@ export default function ValidationVerificationPage() {
       html: `
       <div class="text-left">
         <p class="text-sm text-gray-600 mb-2">Item: <span class="font-semibold">${validation.item_name || "-"}</span></p>
+        <p class="text-sm text-gray-600 mb-2">Brand: <span class="font-semibold">${validation.brand || "-"}</span></p>
         <p class="text-sm text-gray-600 mb-4">Code: <span class="font-mono">${validation.serial_or_code || "-"}</span></p>
         <textarea id="notes" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" rows="3" placeholder="Validation notes (optional)"></textarea>
       </div>
@@ -309,7 +323,6 @@ export default function ValidationVerificationPage() {
     if (result.isConfirmed) {
       setIsProcessing(true);
       try {
-        // 1. Update validation status
         const response = await fetch(
           API_ENDPOINTS.VALIDATIONS_UPDATE(validation.id_validation),
           {
@@ -321,22 +334,24 @@ export default function ValidationVerificationPage() {
               validation_notes: result.value.notes,
               validated_by: 1,
             }),
-          }
+          },
         );
 
         const data = await response.json();
 
         if (data.success) {
-          // 2. Buat asset dari validation yang di-approve
-          const assetResponse = await fetch(API_ENDPOINTS.ASSETS_CREATE_FROM_VALIDATION, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              validation_id: validation.id_validation,
-              user_id: 1,
-              validated_by: 1,
-            }),
-          });
+          const assetResponse = await fetch(
+            API_ENDPOINTS.ASSETS_CREATE_FROM_VALIDATION,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                validation_id: validation.id_validation,
+                user_id: 1,
+                validated_by: 1,
+              }),
+            },
+          );
 
           const assetResult = await assetResponse.json();
 
@@ -380,6 +395,7 @@ export default function ValidationVerificationPage() {
       html: `
         <div class="text-left">
           <p class="text-sm text-gray-600 mb-2">Item: <span class="font-semibold">${validation.item_name || "-"}</span></p>
+          <p class="text-sm text-gray-600 mb-2">Brand: <span class="font-semibold">${validation.brand || "-"}</span></p>
           <p class="text-sm text-gray-600 mb-4">Code: <span class="font-mono">${validation.serial_or_code || "-"}</span></p>
           <label class="block text-sm font-medium text-gray-700 mb-1">Rejection Reason</label>
           <textarea id="reason" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" rows="3" placeholder="Please provide reason for rejection..." required></textarea>
@@ -414,7 +430,7 @@ export default function ValidationVerificationPage() {
               rejection_reason: result.value.reason,
               validated_by: 1,
             }),
-          }
+          },
         );
 
         const data = await response.json();
@@ -465,16 +481,16 @@ export default function ValidationVerificationPage() {
       ...(isApprove
         ? {}
         : {
-          input: "textarea",
-          inputPlaceholder: "Rejection reason for all selected items...",
-          inputLabel: "Rejection Reason",
-          inputValidator: (value) => {
-            if (!value || value.trim() === "") {
-              return "Please provide a rejection reason";
-            }
-            return null;
-          },
-        }),
+            input: "textarea",
+            inputPlaceholder: "Rejection reason for all selected items...",
+            inputLabel: "Rejection Reason",
+            inputValidator: (value) => {
+              if (!value || value.trim() === "") {
+                return "Please provide a rejection reason";
+              }
+              return null;
+            },
+          }),
     });
 
     if (result.isConfirmed) {
@@ -539,7 +555,7 @@ export default function ValidationVerificationPage() {
           {
             method: "DELETE",
             headers: { "Content-Type": "application/json" },
-          }
+          },
         );
 
         const data = await response.json();
@@ -599,7 +615,7 @@ export default function ValidationVerificationPage() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ validation_ids: selectedItems }),
-          }
+          },
         );
 
         const data = await response.json();
@@ -675,16 +691,19 @@ export default function ValidationVerificationPage() {
   let filteredValidations = validations.filter((validation) => {
     const matchesSearch =
       (validation.item_name?.toLowerCase() || "").includes(
-        searchTerm.toLowerCase()
+        searchTerm.toLowerCase(),
       ) ||
       (validation.serial_or_code?.toLowerCase() || "").includes(
-        searchTerm.toLowerCase()
+        searchTerm.toLowerCase(),
       ) ||
       (validation.checking_number?.toLowerCase() || "").includes(
-        searchTerm.toLowerCase()
+        searchTerm.toLowerCase(),
       ) ||
       (validation.unique_code?.toLowerCase() || "").includes(
-        searchTerm.toLowerCase()
+        searchTerm.toLowerCase(),
+      ) ||
+      (validation.brand?.toLowerCase() || "").includes(
+        searchTerm.toLowerCase(),
       );
 
     const matchesStatus =
@@ -714,7 +733,7 @@ export default function ValidationVerificationPage() {
   const totalPages = Math.ceil(filteredValidations.length / itemsPerPage);
   const paginatedValidations = filteredValidations.slice(
     (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    currentPage * itemsPerPage,
   );
 
   const kpis = [
@@ -907,7 +926,7 @@ export default function ValidationVerificationPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search by item name, serial/scan code..."
+                  placeholder="Search by item name, brand, serial/scan code..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
@@ -997,10 +1016,11 @@ export default function ValidationVerificationPage() {
                 </button>
                 <button
                   onClick={toggleCheckboxMode}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${showCheckboxes
-                    ? "bg-gray-500 text-white hover:bg-gray-600"
-                    : "border border-gray-200 text-gray-600 hover:bg-gray-50"
-                    }`}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                    showCheckboxes
+                      ? "bg-gray-500 text-white hover:bg-gray-600"
+                      : "border border-gray-200 text-gray-600 hover:bg-gray-50"
+                  }`}
                 >
                   {showCheckboxes ? "Cancel" : "Multi Select"}
                 </button>
@@ -1054,7 +1074,7 @@ export default function ValidationVerificationPage() {
                             type="checkbox"
                             checked={
                               selectedItems.length ===
-                              filteredValidations.length &&
+                                filteredValidations.length &&
                               filteredValidations.length > 0
                             }
                             onChange={handleSelectAll}
@@ -1062,15 +1082,38 @@ export default function ValidationVerificationPage() {
                           />
                         </th>
                       )}
+                      <th
+                        className="vv-th text-left hidden lg:table-cell"
+                        onClick={() => handleSort("checking_name")}
+                      >
+                        <span className="flex items-center">
+                          Session {getSortIcon("checking_name")}
+                        </span>
+                      </th>
                       <th className="vv-th text-left">Photo</th>
-                      <th className="vv-th text-left" onClick={() => handleSort("item_name")}>
-                        <span className="flex items-center">Item {getSortIcon("item_name")}</span>
+                      <th
+                        className="vv-th text-left"
+                        onClick={() => handleSort("item_name")}
+                      >
+                        <span className="flex items-center">
+                          Item {getSortIcon("item_name")}
+                        </span>
                       </th>
-                      <th className="vv-th text-left hidden md:table-cell" onClick={() => handleSort("serial_or_code")}>
-                        <span className="flex items-center">Code {getSortIcon("serial_or_code")}</span>
+                      <th
+                        className="vv-th text-left hidden md:table-cell"
+                        onClick={() => handleSort("brand")}
+                      >
+                        <span className="flex items-center">
+                          Brand {getSortIcon("brand")}
+                        </span>
                       </th>
-                      <th className="vv-th text-left hidden lg:table-cell" onClick={() => handleSort("checking_name")}>
-                        <span className="flex items-center">Session {getSortIcon("checking_name")}</span>
+                      <th
+                        className="vv-th text-left hidden md:table-cell"
+                        onClick={() => handleSort("serial_or_code")}
+                      >
+                        <span className="flex items-center">
+                          Code {getSortIcon("serial_or_code")}
+                        </span>
                       </th>
                       <th className="vv-th text-left hidden xl:table-cell">
                         <span className="flex items-center">Project</span>
@@ -1081,11 +1124,21 @@ export default function ValidationVerificationPage() {
                       <th className="vv-th text-left hidden xl:table-cell">
                         <span className="flex items-center">Receiver</span>
                       </th>
-                      <th className="vv-th text-left" onClick={() => handleSort("validation_status")}>
-                        <span className="flex items-center">Status {getSortIcon("validation_status")}</span>
+                      <th
+                        className="vv-th text-left"
+                        onClick={() => handleSort("validation_status")}
+                      >
+                        <span className="flex items-center">
+                          Status {getSortIcon("validation_status")}
+                        </span>
                       </th>
-                      <th className="vv-th text-left hidden xl:table-cell" onClick={() => handleSort("created_at")}>
-                        <span className="flex items-center">Submitted {getSortIcon("created_at")}</span>
+                      <th
+                        className="vv-th text-left hidden xl:table-cell"
+                        onClick={() => handleSort("created_at")}
+                      >
+                        <span className="flex items-center">
+                          Submitted {getSortIcon("created_at")}
+                        </span>
                       </th>
                       <th className="vv-th text-center">Actions</th>
                     </tr>
@@ -1097,6 +1150,7 @@ export default function ValidationVerificationPage() {
                       const projectName = validation.project_name || "-";
                       const departments = validation.departments || [];
                       const receivers = validation.receivers || [];
+                      const brand = validation.brand || "-";
 
                       return (
                         <tr
@@ -1108,7 +1162,7 @@ export default function ValidationVerificationPage() {
                               <input
                                 type="checkbox"
                                 checked={selectedItems.includes(
-                                  validation.id_validation
+                                  validation.id_validation,
                                 )}
                                 onChange={() =>
                                   handleSelectItem(validation.id_validation)
@@ -1120,6 +1174,16 @@ export default function ValidationVerificationPage() {
                               />
                             </td>
                           )}
+
+                          <td className="vv-td hidden lg:table-cell">
+                            <div className="font-medium text-gray-800 text-sm">
+                              {validation.checking_name || "-"}
+                            </div>
+                            <div className="text-xs text-gray-400 mono mt-0.5">
+                              {validation.checking_number || "-"}
+                            </div>
+                          </td>
+
                           <td className="vv-td">
                             {photoUrl ? (
                               <img
@@ -1156,25 +1220,25 @@ export default function ValidationVerificationPage() {
                           </td>
                           <td className="vv-td">
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
-                                {getTypeIcon(validation.validation_type)}
-                              </div>
                               <div>
                                 <div className="font-semibold text-gray-900 text-sm leading-tight">
                                   {validation.item_name || "-"}
                                 </div>
                                 <div className="mt-0.5">
                                   <span
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${validation.validation_type === "device"
-                                      ? "bg-blue-100 text-blue-700"
-                                      : validation.validation_type === "material"
-                                        ? "bg-green-100 text-green-700"
-                                        : "bg-gray-100 text-gray-700"
-                                      }`}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                      validation.validation_type === "device"
+                                        ? "bg-blue-100 text-blue-700"
+                                        : validation.validation_type ===
+                                            "material"
+                                          ? "bg-green-100 text-green-700"
+                                          : "bg-gray-100 text-gray-700"
+                                    }`}
                                   >
                                     {validation.validation_type === "device"
                                       ? "Device"
-                                      : validation.validation_type === "material"
+                                      : validation.validation_type ===
+                                          "material"
                                         ? "Material"
                                         : "Unknown"}
                                   </span>
@@ -1183,17 +1247,14 @@ export default function ValidationVerificationPage() {
                             </div>
                           </td>
                           <td className="vv-td hidden md:table-cell">
-                            <code className="text-xs font-mono bg-gray-100 px-2 py-1 rounded text-gray-700">
+                            <span className="text-xs font-medium text-gray-500">
+                              {brand}
+                            </span>
+                          </td>
+                          <td className="vv-td hidden md:table-cell">
+                            <code className="text-xs font-mono  px-2 py-1 rounded text-gray-500">
                               {validation.serial_or_code || "-"}
                             </code>
-                          </td>
-                          <td className="vv-td hidden lg:table-cell">
-                            <div className="font-medium text-gray-800 text-sm">
-                              {validation.checking_name || "-"}
-                            </div>
-                            <div className="text-xs text-gray-400 mono mt-0.5">
-                              {validation.checking_number || "-"}
-                            </div>
                           </td>
 
                           {/* Kolom Project */}
@@ -1210,7 +1271,7 @@ export default function ValidationVerificationPage() {
                                 departments.map((dept, i) => (
                                   <span
                                     key={i}
-                                    className="text-xs bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded-full"
+                                    className="text-xs text-gray-700"
                                   >
                                     {dept.department_name}: {dept.quantity}
                                   </span>
@@ -1228,9 +1289,10 @@ export default function ValidationVerificationPage() {
                                 receivers.map((rec, i) => (
                                   <span
                                     key={i}
-                                    className="text-xs bg-green-50 text-green-700 px-1.5 py-0.5 rounded-full"
+                                    className="text-xs text-gray-700"
                                   >
-                                    {rec.receiver_name || `Receiver ${rec.receiver_id}`}
+                                    {rec.receiver_name ||
+                                      `Receiver ${rec.receiver_id}`}
                                   </span>
                                 ))
                               ) : (
@@ -1321,7 +1383,7 @@ export default function ValidationVerificationPage() {
                     {(currentPage - 1) * itemsPerPage + 1}–
                     {Math.min(
                       currentPage * itemsPerPage,
-                      filteredValidations.length
+                      filteredValidations.length,
                     )}
                   </span>{" "}
                   of{" "}
@@ -1442,6 +1504,12 @@ export default function ValidationVerificationPage() {
                     </p>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500 mb-1">Brand</p>
+                    <p className="font-semibold text-gray-900 text-sm">
+                      {detailModal.brand || "-"}
+                    </p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3">
                     <p className="text-xs text-gray-500 mb-1">
                       {detailModal.validation_type === "device"
                         ? "Serial Number"
@@ -1471,7 +1539,7 @@ export default function ValidationVerificationPage() {
                     <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
                       {new Date(detailModal.checking_date).toLocaleDateString(
-                        "id-ID"
+                        "id-ID",
                       )}
                     </p>
                   )}
@@ -1486,31 +1554,36 @@ export default function ValidationVerificationPage() {
                 </div>
 
                 {/* Department Distribution */}
-                {/* Department Distribution */}
-                {detailModal.departments && detailModal.departments.length > 0 && (
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500 mb-2">Department Distribution</p>
-                    <div className="flex flex-wrap gap-2">
-                      {detailModal.departments.map((dept, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center gap-1 bg-gray-200 px-2 py-1 rounded-full text-xs"
-                        >
-                          {dept.department_name}: {dept.quantity}
-                        </span>
-                      ))}
+                {detailModal.departments &&
+                  detailModal.departments.length > 0 && (
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <p className="text-xs text-gray-500 mb-2">
+                        Department Distribution
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {detailModal.departments.map((dept, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 bg-gray-200 px-2 py-1 rounded-full text-xs"
+                          >
+                            {dept.department_name}: {dept.quantity}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Receiver Assignments */}
                 {detailModal.receivers && detailModal.receivers.length > 0 && (
                   <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500 mb-2">Receiver Assignments</p>
+                    <p className="text-xs text-gray-500 mb-2">
+                      Receiver Assignments
+                    </p>
                     <div className="space-y-1">
                       {detailModal.receivers.map((rec, idx) => (
                         <div key={idx} className="text-xs text-gray-600">
-                          {rec.receiver_name || `Receiver ${rec.receiver_id}`} - {rec.department_name}
+                          {rec.receiver_name || `Receiver ${rec.receiver_id}`} -{" "}
+                          {rec.department_name}
                         </div>
                       ))}
                     </div>
@@ -1587,31 +1660,32 @@ export default function ValidationVerificationPage() {
 
                 {(detailModal.validation_notes ||
                   detailModal.rejection_reason) && (
-                    <div
-                      className={`rounded-lg p-3 ${detailModal.validation_status === "rejected"
+                  <div
+                    className={`rounded-lg p-3 ${
+                      detailModal.validation_status === "rejected"
                         ? "bg-red-50 border border-red-100"
                         : "bg-emerald-50 border border-emerald-100"
-                        }`}
-                    >
-                      <p className="text-xs font-semibold mb-1 text-gray-700">
-                        {detailModal.validation_status === "rejected"
-                          ? "Rejection Reason"
-                          : "Validation Notes"}
+                    }`}
+                  >
+                    <p className="text-xs font-semibold mb-1 text-gray-700">
+                      {detailModal.validation_status === "rejected"
+                        ? "Rejection Reason"
+                        : "Validation Notes"}
+                    </p>
+                    <p className="text-sm text-gray-800">
+                      {detailModal.validation_notes ||
+                        detailModal.rejection_reason}
+                    </p>
+                    {detailModal.validated_by_name && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        Validated by {detailModal.validated_by_name} at{" "}
+                        {detailModal.validated_at
+                          ? new Date(detailModal.validated_at).toLocaleString()
+                          : "-"}
                       </p>
-                      <p className="text-sm text-gray-800">
-                        {detailModal.validation_notes ||
-                          detailModal.rejection_reason}
-                      </p>
-                      {detailModal.validated_by_name && (
-                        <p className="text-xs text-gray-500 mt-2">
-                          Validated by {detailModal.validated_by_name} at{" "}
-                          {detailModal.validated_at
-                            ? new Date(detailModal.validated_at).toLocaleString()
-                            : "-"}
-                        </p>
-                      )}
-                    </div>
-                  )}
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="p-5 border-t border-gray-100 flex justify-end gap-3">
