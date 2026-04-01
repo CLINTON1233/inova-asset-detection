@@ -995,25 +995,25 @@ export default function ValidationVerificationPage() {
             </div>
           </div>
 
-          {/* KPI Cards */}
-          <div className="vv-section" style={{ border: "none", boxShadow: "none" }}>
-            <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-gray-100">
-              {kpis.map((d, i) => (
-                <div key={i} className="kpi-cell">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                    {d.title}
-                  </p>
-                  <span
-                    className="text-4xl font-bold"
-                    style={{ color: d.accent }}
-                  >
-                    {d.value}
-                  </span>
-                  <p className="text-xs text-gray-400 mt-2">{d.sub}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+     {/* KPI Cards */}
+<div className="vv-section">
+  <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-gray-100">
+    {kpis.map((d, i) => (
+      <div key={i} className="kpi-cell">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          {d.title}
+        </p>
+        <span
+          className="text-4xl font-bold"
+          style={{ color: d.accent }}
+        >
+          {d.value}
+        </span>
+        <p className="text-xs text-gray-400 mt-2">{d.sub}</p>
+      </div>
+    ))}
+  </div>
+</div>
 
           {/* Main Section Card */}
           <div className="vv-section">
