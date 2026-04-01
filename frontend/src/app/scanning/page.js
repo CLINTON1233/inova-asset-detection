@@ -2207,12 +2207,10 @@ const handleSubmitAll = async () => {
                     <div
                       key={uniqueKey}
                       className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition cursor-pointer"
-                      onClick={() => {
-                        setShowSessionSelector(false);
-                        router.push(
-                          `/scanning?prep_id=${session.id_preparation}`,
-                        );
-                      }}
+                    onClick={() => {
+  setShowSessionSelector(false);
+  router.push(`/scanning?prep_id=${session.id_preparation}&type=${session.type}`);
+}}
                     >
                       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-2">
                         <div>
