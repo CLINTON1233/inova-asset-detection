@@ -29,7 +29,12 @@ import {
   Camera,
   Trash2,
   Cpu,
+  Box,
+  FileSpreadsheet,
+  LayoutGrid,
+  List,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import Swal from "sweetalert2";
 import LayoutDashboard from "../components/LayoutDashboard";
 import ProtectedPage from "../components/ProtectedPage";
@@ -51,6 +56,8 @@ export default function ValidationVerificationPage() {
   const [mounted, setMounted] = useState(false);
   const [showCheckboxes, setShowCheckboxes] = useState(false);
   const [itemDetails, setItemDetails] = useState({});
+  const [viewMode, setViewMode] = useState("list");
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [stats, setStats] = useState({
     pending: 0,
     approved: 0,
@@ -83,13 +90,11 @@ export default function ValidationVerificationPage() {
     }
   };
 
-  // Fungsi fetchItemDetails dengan brand
   const fetchItemDetails = async (validation) => {
     if (itemDetails[validation.id_validation])
       return itemDetails[validation.id_validation];
 
     try {
-      // Gunakan data yang sudah ada dari validation object
       if (
         validation.project_name ||
         validation.departments ||
@@ -111,7 +116,6 @@ export default function ValidationVerificationPage() {
         return detail;
       }
 
-      // Fallback: ambil dari API detail
       const response = await fetch(
         API_ENDPOINTS.VALIDATIONS_DETAIL(validation.id_validation),
       );
@@ -264,7 +268,7 @@ export default function ValidationVerificationPage() {
   const getTypeIcon = (type) => {
     if (type === "device") return <Laptop className="w-4 h-4 text-blue-600" />;
     if (type === "material")
-      return <Cable className="w-4 h-4 text-green-600" />;
+      return <Package className="w-4 h-4 text-emerald-600" />;
     return <Package className="w-4 h-4 text-gray-500" />;
   };
 
@@ -670,21 +674,54 @@ export default function ValidationVerificationPage() {
 
   const getSortIcon = (columnId) => {
     if (sorting.id !== columnId)
-      return <span className="text-gray-300 ml-1 text-xs">⇅</span>;
+      return <span style={{ color: "#d1d5db", marginLeft: 4, fontSize: 11 }}>⇅</span>;
     return sorting.desc ? (
-      <ArrowDown className="w-3 h-3 ml-1 text-blue-500" />
+      <ArrowDown style={{ width: 12, height: 12, marginLeft: 4, color: "#2563eb" }} />
     ) : (
-      <ArrowUp className="w-3 h-3 ml-1 text-blue-500" />
+      <ArrowUp style={{ width: 12, height: 12, marginLeft: 4, color: "#2563eb" }} />
     );
   };
 
   const formatDate = (dateString) => {
     if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-US", {
+    return new Date(dateString).toLocaleDateString("id-ID", {
       day: "numeric",
       month: "short",
       year: "numeric",
     });
+  };
+
+  const exportToExcel = (exportType = "current") => {
+    try {
+      const source = exportType === "current" ? filteredValidations : validations;
+
+      if (!source.length) {
+        alert("No data to export");
+        return;
+      }
+
+      const dataToExport = source.map((v) => ({
+        "Item Name": v.item_name || "-",
+        Brand: v.brand || "-",
+        "Serial/Code": v.serial_or_code || "-",
+        Type: v.validation_type === "device" ? "Device" : "Material",
+        Status: v.validation_status === "pending" ? "Pending" : v.validation_status === "approved" ? "Approved" : "Rejected",
+        "Session Name": v.checking_name || "-",
+        "Session Number": v.checking_number || "-",
+        "Submitted Date": formatDate(v.created_at),
+        "Submitted By": v.created_by_name || "System",
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      ws["!cols"] = [{ wch: 30 }, { wch: 20 }, { wch: 25 }, { wch: 12 }, { wch: 12 }, { wch: 30 }, { wch: 20 }, { wch: 16 }, { wch: 20 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Validations");
+      const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      XLSX.writeFile(wb, `validations_${exportType}_${ts}.xlsx`);
+      setShowExportDropdown(false);
+    } catch {
+      alert("Failed to export data.");
+    }
   };
 
   // Filter validations
@@ -779,18 +816,108 @@ export default function ValidationVerificationPage() {
     <ProtectedPage>
       <LayoutDashboard activeMenu={1}>
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap');
           .vv-root { font-family: 'DM Sans', sans-serif; }
-          .vv-root .mono { font-family: 'DM Mono', monospace; }
+          .vv-root * { box-sizing: border-box; }
 
-          .vv-card {
-            background: #ffffff;
-            border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
-            transition: box-shadow 0.2s ease;
+          .vv-stat-card {
+            border-radius: 14px;
+            padding: 16px;
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+            transition: box-shadow 0.2s, transform 0.2s;
           }
-          .vv-card:hover {
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+          .vv-stat-card:hover {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.16);
+            transform: translateY(-2px);
+          }
+
+          .vv-section {
+            background: #ffffff;
+            border-radius: 18px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            overflow: hidden;
+          }
+
+          .vv-th {
+            padding: 10px 14px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            background: #f9fafb;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+            border-bottom: 1px solid #e5e7eb;
+          }
+          .vv-th:hover { color: #374151; }
+          .vv-td {
+            padding: 13px 14px;
+            font-size: 13px;
+            color: #374151;
+            border-top: 1px solid #f3f4f6;
+            vertical-align: middle;
+          }
+          .vv-row { cursor: pointer; transition: background 0.1s; }
+          .vv-row:hover { background: #f8faff; }
+
+          .vv-grid-card {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            padding: 16px;
+            cursor: pointer;
+            transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
+          }
+          .vv-grid-card:hover {
+            box-shadow: 0 6px 20px rgba(37,99,235,0.1);
+            border-color: #bfdbfe;
+            transform: translateY(-2px);
+          }
+
+          .badge-pending { background: #fef3c7; color: #b45309; border: 1px solid #fed7aa; }
+          .badge-approved { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+          .badge-rejected { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
+          .vv-view-tog {
+            display: flex;
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            overflow: hidden;
+          }
+          .vv-view-tog button {
+            padding: 7px 10px; background: #fff; color: #6b7280;
+            border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.15s, color 0.15s;
+          }
+          .vv-view-tog button.active,
+          .vv-view-tog button:hover { background: #2563eb; color: #fff; }
+
+          .vv-export-drop {
+            position: absolute; right: 0; top: calc(100% + 6px);
+            background: #fff; border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+            z-index: 50; min-width: 220px; overflow: hidden;
+          }
+
+          .vv-search { border: 1px solid #d1d5db; border-radius: 12px; }
+          .vv-search:focus { box-shadow: 0 0 0 3px rgba(37,99,235,0.12); border-color: #93c5fd; outline: none; }
+
+          .vv-footer {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 18px; background: #f9fafb;
+            border-top: 1px solid #f3f4f6;
+            border-radius: 0 0 18px 18px;
+          }
+
+          .vv-empty {
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; padding: 72px 24px; text-align: center;
           }
 
           .kpi-cell {
@@ -802,104 +929,74 @@ export default function ValidationVerificationPage() {
             text-align: center;
           }
 
-          .vv-th {
-            font-size: 11px;
-            font-weight: 600;
-            color: #6b7280;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            padding: 10px 16px;
-            background: #f9fafb;
-            cursor: pointer;
-            user-select: none;
-            white-space: nowrap;
-          }
-          .vv-th:hover { color: #374151; }
-          .vv-td {
-            padding: 13px 16px;
-            font-size: 13px;
-            color: #374151;
-            border-top: 1px solid #f3f4f6;
-            vertical-align: middle;
-          }
-          .vv-row:hover { background: #f8faff; }
-
-          .approve-btn {
+          .approve-btn-sm {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
             background: #16a34a;
             color: #fff;
-            padding: 7px 16px;
+            padding: 5px 10px;
             border-radius: 8px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             transition: background 0.15s;
             border: none;
             cursor: pointer;
             white-space: nowrap;
-            box-shadow: 0 1px 3px rgba(22,163,74,0.3);
           }
-          .approve-btn:hover { background: #15803d; }
-          .approve-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+          .approve-btn-sm:hover { background: #15803d; }
 
-          .reject-btn {
+          .reject-btn-sm {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
             background: #dc2626;
             color: #fff;
-            padding: 7px 16px;
+            padding: 5px 10px;
             border-radius: 8px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             transition: background 0.15s;
             border: none;
             cursor: pointer;
             white-space: nowrap;
-            box-shadow: 0 1px 3px rgba(220,38,38,0.3);
           }
-          .reject-btn:hover { background: #b91c1c; }
-          .reject-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+          .reject-btn-sm:hover { background: #b91c1c; }
 
-          .view-btn {
+          .view-btn-sm {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            background: #1e40af;
+            gap: 4px;
+            background: #2563eb;
             color: #fff;
-            padding: 7px 16px;
+            padding: 5px 10px;
             border-radius: 8px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             transition: background 0.15s;
             border: none;
             cursor: pointer;
             white-space: nowrap;
-            box-shadow: 0 1px 3px rgba(30,64,175,0.3);
           }
-          .view-btn:hover { background: #1d3a9e; }
+          .view-btn-sm:hover { background: #1d4ed8; }
         `}</style>
 
         <div className="vv-root space-y-5 max-w-7xl mx-auto px-4 py-2">
-          {/* Header */}
-          <div className="flex items-start justify-between">
+          {/* Page Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <CheckCircle className="w-5 h-5 text-blue-600" />
-                <h1 className="text-xl font-bold text-gray-900">
-                  Validation & Verification
-                </h1>
-              </div>
-              <p className="text-sm text-gray-500">
-                Review and validate scanned assets before added to inventory
-                assets
+              <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <Shield className="w-5 h-5 text-blue-600" />
+                Validation & Verification
+              </h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Review and validate scanned assets before adding to inventory
               </p>
             </div>
           </div>
 
-          {/* KPI Card */}
-          <div className="vv-card">
+          {/* KPI Cards */}
+          <div className="vv-section" style={{ border: "none", boxShadow: "none" }}>
             <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-gray-100">
               {kpis.map((d, i) => (
                 <div key={i} className="kpi-cell">
@@ -918,139 +1015,285 @@ export default function ValidationVerificationPage() {
             </div>
           </div>
 
-          {/* Main Table Card */}
-          <div className="vv-card overflow-hidden">
-            {/* Toolbar */}
-            <div className="flex flex-wrap items-center gap-3 p-4 md:p-5 border-b border-gray-100">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search by item name, brand, serial/scan code..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
-                />
-                {searchTerm && (
+          {/* Main Section Card */}
+          <div className="vv-section">
+            {/* Section Header */}
+            <div className="p-5 border-b border-gray-200">
+              <div className="flex flex-col gap-4">
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-blue-600" />
+                    All Validations
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    Manage and review all validation requests
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Export Button */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowExportDropdown(!showExportDropdown)}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-all"
+                      style={{
+                        background: "linear-gradient(135deg,#059669,#10b981)",
+                      }}
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      Export Excel
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                    {showExportDropdown && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setShowExportDropdown(false)}
+                        />
+                        <div className="vv-export-drop">
+                          <div
+                            style={{
+                              padding: "10px 16px 8px",
+                              fontSize: 10,
+                              fontWeight: 700,
+                              color: "#9ca3af",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.07em",
+                              borderBottom: "1px solid #f3f4f6",
+                            }}
+                          >
+                            Export Options
+                          </div>
+                          {[
+                            {
+                              label: "Export Current View",
+                              sub: `${filteredValidations.length} validations`,
+                              type: "current",
+                              color: "#059669",
+                            },
+                            {
+                              label: "Export All Validations",
+                              sub: `${validations.length} total`,
+                              type: "all",
+                              color: "#2563eb",
+                            },
+                          ].map((opt) => (
+                            <button
+                              key={opt.type}
+                              onClick={() => exportToExcel(opt.type)}
+                              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left transition-colors"
+                              style={{ background: "transparent" }}
+                              onMouseEnter={(e) =>
+                                (e.currentTarget.style.background = "#f9fafb")
+                              }
+                              onMouseLeave={(e) =>
+                                (e.currentTarget.style.background =
+                                  "transparent")
+                              }
+                            >
+                              <FileSpreadsheet
+                                className="w-4 h-4 flex-shrink-0"
+                                style={{ color: opt.color }}
+                              />
+                              <div>
+                                <div
+                                  style={{
+                                    fontWeight: 500,
+                                    color: "#111827",
+                                    fontSize: 13,
+                                  }}
+                                >
+                                  {opt.label}
+                                </div>
+                                <div style={{ fontSize: 11, color: "#9ca3af" }}>
+                                  {opt.sub}
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                          <div
+                            style={{
+                              padding: "8px 16px",
+                              fontSize: 11,
+                              color: "#9ca3af",
+                              borderTop: "1px solid #f3f4f6",
+                            }}
+                          >
+                            Downloads as .xlsx format
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Refresh Button */}
                   <button
-                    onClick={() => setSearchTerm("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    onClick={loadValidations}
+                    disabled={loading}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all disabled:opacity-50"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <RefreshCw
+                      className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+                    />
+                    {loading ? "Refreshing..." : "Refresh"}
                   </button>
-                )}
-              </div>
 
-              {/* Type Filter */}
-              <div className="relative">
-                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                <select
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
-                  className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer min-w-[130px]"
-                >
-                  <option value="all">All Types</option>
-                  <option value="device">Devices</option>
-                  <option value="material">Materials</option>
-                </select>
-                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-              </div>
+                  {/* Multi Select Toggle */}
+                  <button
+                    onClick={toggleCheckboxMode}
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                      showCheckboxes
+                        ? "bg-gray-500 text-white hover:bg-gray-600"
+                        : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    {showCheckboxes ? "Cancel" : "Multi Select"}
+                  </button>
 
-              {/* Status Filter */}
-              <div className="relative">
-                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer min-w-[130px]"
-                >
-                  <option value="all">All Status</option>
-                  <option value="pending">Pending</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-              </div>
+                  {/* View Toggle */}
+                  <div className="vv-view-tog" style={{ marginLeft: "auto" }}>
+                    <button
+                      className={viewMode === "list" ? "active" : ""}
+                      onClick={() => setViewMode("list")}
+                      title="List View"
+                    >
+                      <List className="w-4 h-4" />
+                    </button>
+                    <button
+                      className={viewMode === "grid" ? "active" : ""}
+                      onClick={() => setViewMode("grid")}
+                      title="Grid View"
+                    >
+                      <LayoutGrid className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
 
-              <div className="flex items-center gap-2 ml-auto">
+                {/* Bulk Action Buttons */}
                 {showCheckboxes && selectedItems.length > 0 && (
-                  <>
-                    <span className="text-xs text-gray-500 font-medium">
+                  <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                    <span className="text-xs font-medium text-gray-500">
                       {selectedItems.length} selected
                     </span>
                     <button
                       onClick={() => handleBulkAction("approve")}
                       disabled={isProcessing}
-                      className="approve-btn"
+                      className="approve-btn-sm"
                     >
-                      <ThumbsUp className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Approve</span>
+                      <ThumbsUp className="w-3 h-3" />
+                      Approve
                     </button>
                     <button
                       onClick={() => handleBulkAction("reject")}
                       disabled={isProcessing}
-                      className="reject-btn"
+                      className="reject-btn-sm"
                     >
-                      <ThumbsDown className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Reject</span>
+                      <ThumbsDown className="w-3 h-3" />
+                      Reject
                     </button>
                     <button
                       onClick={handleBulkDelete}
                       disabled={isProcessing}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-gray-600 rounded-lg hover:bg-gray-700 transition shadow-sm disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-lg hover:bg-gray-700 transition disabled:opacity-50"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Delete</span>
+                      <Trash2 className="w-3 h-3" />
+                      Delete
                     </button>
-                  </>
+                  </div>
                 )}
-                <button
-                  onClick={loadValidations}
-                  disabled={loading}
-                  className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
-                >
-                  <RefreshCw
-                    className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
-                  />
-                  Refresh
-                </button>
-                <button
-                  onClick={toggleCheckboxMode}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${
-                    showCheckboxes
-                      ? "bg-gray-500 text-white hover:bg-gray-600"
-                      : "border border-gray-200 text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  {showCheckboxes ? "Cancel" : "Multi Select"}
-                </button>
               </div>
             </div>
 
-            {/* Table */}
+            {/* Search & Filter */}
+            <div
+              style={{
+                padding: "14px 20px",
+                borderBottom: "1px solid #e5e7eb",
+                background: "#f9fafb",
+              }}
+            >
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by item name, brand, serial/scan code..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="vv-search w-full pl-9 pr-8 py-2.5 rounded-xl text-sm text-gray-800 bg-white transition"
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm("")}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                    style={{ border: "1px solid #d1d5db" }}
+                    className="rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-white focus:outline-none min-w-[130px]"
+                  >
+                    <option value="all">All Types</option>
+                    <option value="device">Devices</option>
+                    <option value="material">Materials</option>
+                  </select>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    style={{ border: "1px solid #d1d5db" }}
+                    className="rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-white focus:outline-none min-w-[130px]"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
             {loading ? (
-              <div className="py-20 text-center">
-                <Loader2 className="w-7 h-7 animate-spin text-blue-600 mx-auto mb-3" />
-                <p className="text-sm text-gray-500">Loading validations...</p>
+              <div className="vv-empty">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-4" />
+                <p className="text-gray-500 text-sm font-medium">
+                  Loading validations...
+                </p>
               </div>
             ) : validations.length === 0 ? (
-              <div className="py-20 text-center">
-                <Shield className="w-14 h-14 text-gray-200 mx-auto mb-3" />
-                <h3 className="text-gray-800 font-semibold text-lg mb-1">
+              <div className="vv-empty">
+                <div
+                  style={{
+                    padding: 20,
+                    borderRadius: 20,
+                    background: "linear-gradient(135deg,#eff6ff,#dbeafe)",
+                    display: "inline-block",
+                    marginBottom: 16,
+                  }}
+                >
+                  <Shield className="w-12 h-12 text-blue-400" />
+                </div>
+                <h3 className="text-gray-900 font-semibold text-base mb-2">
                   No validations found
                 </h3>
-                <p className="text-gray-400 text-sm">
-                  Scan results will appear here for review
+                <p className="text-gray-500 text-sm mb-5 max-w-xs">
+                  Scan results will appear here for review.
                 </p>
               </div>
             ) : filteredValidations.length === 0 ? (
-              <div className="py-16 text-center">
-                <Search className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-                <h3 className="text-gray-800 font-semibold mb-1">
+              <div className="vv-empty">
+                <Search className="w-12 h-12 text-gray-300 mb-4" />
+                <h3 className="text-gray-900 font-semibold mb-2">
                   No matching validations
                 </h3>
-                <p className="text-gray-400 text-sm mb-4">
-                  Try adjusting your filters
+                <p className="text-gray-500 text-sm mb-4">
+                  Try adjusting your search or filter.
                 </p>
                 <button
                   onClick={() => {
@@ -1058,16 +1301,207 @@ export default function ValidationVerificationPage() {
                     setStatusFilter("all");
                     setTypeFilter("all");
                   }}
-                  className="text-sm text-blue-600 hover:underline"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm hover:bg-gray-200 transition"
                 >
-                  Clear all filters
+                  <RefreshCw className="w-4 h-4" /> Clear Filters
                 </button>
               </div>
+            ) : viewMode === "grid" ? (
+              /* Grid View */
+              <div
+                style={{
+                  padding: 20,
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(280px,1fr))",
+                  gap: 16,
+                }}
+              >
+                {paginatedValidations.map((validation) => {
+                  const sc = getStatusConfig(validation.validation_status);
+                  const photoUrl = validation.photo_url;
+                  return (
+                    <div
+                      key={validation.id_validation}
+                      className="vv-grid-card"
+                      onClick={() => handleViewDetail(validation)}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
+                          marginBottom: 12,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 12,
+                            flexShrink: 0,
+                            background:
+                              validation.validation_type === "device"
+                                ? "#eff6ff"
+                                : "#ecfdf5",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {photoUrl ? (
+                            <img
+                              src={
+                                photoUrl.startsWith("http")
+                                  ? photoUrl
+                                  : `http://localhost:5001${photoUrl}`
+                              }
+                              alt="Scan result"
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.style.display = "none";
+                                e.target.parentElement.innerHTML = validation.validation_type === "device" ? '<Laptop className="w-5 h-5 text-blue-600" />' : '<Package className="w-5 h-5 text-emerald-600" />';
+                              }}
+                            />
+                          ) : validation.validation_type === "device" ? (
+                            <Laptop className="w-5 h-5 text-blue-600" />
+                          ) : (
+                            <Package className="w-5 h-5 text-emerald-600" />
+                          )}
+                        </div>
+                        <span
+                          className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border ${sc.badge} ${sc.border}`}
+                        >
+                          {sc.label}
+                        </span>
+                      </div>
+                      <h3
+                        style={{
+                          fontWeight: 600,
+                          fontSize: 14,
+                          color: "#111827",
+                          marginBottom: 2,
+                        }}
+                        className="truncate"
+                      >
+                        {validation.item_name || "-"}
+                      </h3>
+                      <p
+                        style={{
+                          fontFamily: "DM Mono, monospace",
+                          fontSize: 11,
+                          color: "#9ca3af",
+                          marginBottom: 8,
+                        }}
+                        className="truncate"
+                      >
+                        {validation.serial_or_code || "-"}
+                      </p>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 6,
+                          marginBottom: 12,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <Calendar
+                            style={{
+                              width: 12,
+                              height: 12,
+                              color: "#9ca3af",
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span style={{ fontSize: 11, color: "#6b7280" }}>
+                            {formatDate(validation.created_at)}
+                          </span>
+                        </div>
+                        {validation.brand && (
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            <span style={{ fontSize: 11, color: "#6b7280" }}>
+                              Brand: {validation.brand}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          paddingTop: 12,
+                          borderTop: "1px solid #e5e7eb",
+                        }}
+                      >
+                        <span
+                          className={`px-2 py-1 text-[10px] font-medium rounded-full ${
+                            validation.validation_type === "device"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-emerald-100 text-emerald-700"
+                          }`}
+                        >
+                          {validation.validation_type === "device"
+                            ? "Device"
+                            : "Material"}
+                        </span>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewDetail(validation);
+                            }}
+                            className="view-btn-sm"
+                          >
+                            <Eye className="w-3 h-3" /> View
+                          </button>
+                          {validation.validation_status === "pending" && (
+                            <>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleApprove(validation);
+                                }}
+                                className="approve-btn-sm"
+                              >
+                                <ThumbsUp className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleReject(validation);
+                                }}
+                                className="reject-btn-sm"
+                              >
+                                <ThumbsDown className="w-3 h-3" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
+              /* List View */
               <div className="overflow-x-auto">
                 <table className="min-w-full">
                   <thead>
-                    <tr style={{ background: "#f8fafc" }}>
+                    <tr>
                       {showCheckboxes && (
                         <th className="vv-th w-10 text-center">
                           <input
@@ -1086,7 +1520,7 @@ export default function ValidationVerificationPage() {
                         className="vv-th text-left hidden lg:table-cell"
                         onClick={() => handleSort("checking_name")}
                       >
-                        <span className="flex items-center">
+                        <span style={{ display: "flex", alignItems: "center" }}>
                           Session {getSortIcon("checking_name")}
                         </span>
                       </th>
@@ -1095,7 +1529,7 @@ export default function ValidationVerificationPage() {
                         className="vv-th text-left"
                         onClick={() => handleSort("item_name")}
                       >
-                        <span className="flex items-center">
+                        <span style={{ display: "flex", alignItems: "center" }}>
                           Item {getSortIcon("item_name")}
                         </span>
                       </th>
@@ -1103,7 +1537,7 @@ export default function ValidationVerificationPage() {
                         className="vv-th text-left hidden md:table-cell"
                         onClick={() => handleSort("brand")}
                       >
-                        <span className="flex items-center">
+                        <span style={{ display: "flex", alignItems: "center" }}>
                           Brand {getSortIcon("brand")}
                         </span>
                       </th>
@@ -1111,24 +1545,15 @@ export default function ValidationVerificationPage() {
                         className="vv-th text-left hidden md:table-cell"
                         onClick={() => handleSort("serial_or_code")}
                       >
-                        <span className="flex items-center">
+                        <span style={{ display: "flex", alignItems: "center" }}>
                           Code {getSortIcon("serial_or_code")}
                         </span>
-                      </th>
-                      <th className="vv-th text-left hidden xl:table-cell">
-                        <span className="flex items-center">Project</span>
-                      </th>
-                      <th className="vv-th text-left hidden xl:table-cell">
-                        <span className="flex items-center">Department</span>
-                      </th>
-                      <th className="vv-th text-left hidden xl:table-cell">
-                        <span className="flex items-center">Receiver</span>
                       </th>
                       <th
                         className="vv-th text-left"
                         onClick={() => handleSort("validation_status")}
                       >
-                        <span className="flex items-center">
+                        <span style={{ display: "flex", alignItems: "center" }}>
                           Status {getSortIcon("validation_status")}
                         </span>
                       </th>
@@ -1136,7 +1561,7 @@ export default function ValidationVerificationPage() {
                         className="vv-th text-left hidden xl:table-cell"
                         onClick={() => handleSort("created_at")}
                       >
-                        <span className="flex items-center">
+                        <span style={{ display: "flex", alignItems: "center" }}>
                           Submitted {getSortIcon("created_at")}
                         </span>
                       </th>
@@ -1144,18 +1569,16 @@ export default function ValidationVerificationPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedValidations.map((validation, idx) => {
+                    {paginatedValidations.map((validation) => {
                       const sc = getStatusConfig(validation.validation_status);
                       const photoUrl = validation.photo_url;
-                      const projectName = validation.project_name || "-";
-                      const departments = validation.departments || [];
-                      const receivers = validation.receivers || [];
                       const brand = validation.brand || "-";
 
                       return (
                         <tr
                           key={validation.id_validation}
-                          className="vv-row transition-colors"
+                          className="vv-row"
+                          onClick={() => handleViewDetail(validation)}
                         >
                           {showCheckboxes && (
                             <td className="vv-td text-center">
@@ -1164,9 +1587,10 @@ export default function ValidationVerificationPage() {
                                 checked={selectedItems.includes(
                                   validation.id_validation,
                                 )}
-                                onChange={() =>
-                                  handleSelectItem(validation.id_validation)
-                                }
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectItem(validation.id_validation);
+                                }}
                                 disabled={
                                   validation.validation_status !== "pending"
                                 }
@@ -1174,16 +1598,14 @@ export default function ValidationVerificationPage() {
                               />
                             </td>
                           )}
-
                           <td className="vv-td hidden lg:table-cell">
                             <div className="font-medium text-gray-800 text-sm">
                               {validation.checking_name || "-"}
                             </div>
-                            <div className="text-xs text-gray-400 mono mt-0.5">
+                            <div className="text-xs text-gray-400 font-mono mt-0.5">
                               {validation.checking_number || "-"}
                             </div>
                           </td>
-
                           <td className="vv-td">
                             {photoUrl ? (
                               <img
@@ -1194,7 +1616,8 @@ export default function ValidationVerificationPage() {
                                 }
                                 alt="Scan result"
                                 className="w-10 h-10 rounded-lg object-cover cursor-pointer hover:opacity-80 transition"
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   Swal.fire({
                                     imageUrl: photoUrl.startsWith("http")
                                       ? photoUrl
@@ -1231,7 +1654,7 @@ export default function ValidationVerificationPage() {
                                         ? "bg-blue-100 text-blue-700"
                                         : validation.validation_type ===
                                             "material"
-                                          ? "bg-green-100 text-green-700"
+                                          ? "bg-emerald-100 text-emerald-700"
                                           : "bg-gray-100 text-gray-700"
                                     }`}
                                   >
@@ -1252,53 +1675,9 @@ export default function ValidationVerificationPage() {
                             </span>
                           </td>
                           <td className="vv-td hidden md:table-cell">
-                            <code className="text-xs font-mono  px-2 py-1 rounded text-gray-500">
+                            <code className="text-xs font-mono px-2 py-1 rounded text-gray-500">
                               {validation.serial_or_code || "-"}
                             </code>
-                          </td>
-
-                          {/* Kolom Project */}
-                          <td className="vv-td hidden xl:table-cell">
-                            <span className="text-xs text-gray-600">
-                              {projectName}
-                            </span>
-                          </td>
-
-                          {/* Kolom Department */}
-                          <td className="vv-td hidden xl:table-cell">
-                            <div className="flex flex-wrap gap-1">
-                              {departments && departments.length > 0 ? (
-                                departments.map((dept, i) => (
-                                  <span
-                                    key={i}
-                                    className="text-xs text-gray-700"
-                                  >
-                                    {dept.department_name}: {dept.quantity}
-                                  </span>
-                                ))
-                              ) : (
-                                <span className="text-xs text-gray-400">—</span>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Kolom Receiver */}
-                          <td className="vv-td hidden xl:table-cell">
-                            <div className="flex flex-wrap gap-1">
-                              {receivers && receivers.length > 0 ? (
-                                receivers.map((rec, i) => (
-                                  <span
-                                    key={i}
-                                    className="text-xs text-gray-700"
-                                  >
-                                    {rec.receiver_name ||
-                                      `Receiver ${rec.receiver_id}`}
-                                  </span>
-                                ))
-                              ) : (
-                                <span className="text-xs text-gray-400">—</span>
-                              )}
-                            </div>
                           </td>
                           <td className="vv-td">
                             <span
@@ -1309,12 +1688,6 @@ export default function ValidationVerificationPage() {
                               />
                               {sc.label}
                             </span>
-                            {validation.rejection_reason &&
-                              validation.validation_status === "rejected" && (
-                                <p className="text-xs text-red-500 mt-1 max-w-[160px] truncate">
-                                  {validation.rejection_reason}
-                                </p>
-                              )}
                           </td>
                           <td className="vv-td hidden xl:table-cell">
                             <div className="flex items-center gap-1.5">
@@ -1328,41 +1701,53 @@ export default function ValidationVerificationPage() {
                             </div>
                           </td>
                           <td className="vv-td text-center">
-                            <div className="flex items-center justify-center gap-2">
+                            <div className="flex items-center justify-center gap-1">
                               <button
-                                onClick={() => handleViewDetail(validation)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition shadow-sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewDetail(validation);
+                                }}
+                                className="view-btn-sm"
                                 title="View Details"
                               >
-                                <Eye className="w-3.5 h-3.5" />
+                                <Eye className="w-3 h-3" />
                               </button>
                               {validation.validation_status === "pending" && (
                                 <>
                                   <button
-                                    onClick={() => handleApprove(validation)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleApprove(validation);
+                                    }}
                                     disabled={isProcessing}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="approve-btn-sm disabled:opacity-50"
                                     title="Approve"
                                   >
-                                    <ThumbsUp className="w-3.5 h-3.5" />
+                                    <ThumbsUp className="w-3 h-3" />
                                   </button>
                                   <button
-                                    onClick={() => handleReject(validation)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleReject(validation);
+                                    }}
                                     disabled={isProcessing}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="reject-btn-sm disabled:opacity-50"
                                     title="Reject"
                                   >
-                                    <ThumbsDown className="w-3.5 h-3.5" />
+                                    <ThumbsDown className="w-3 h-3" />
                                   </button>
                                 </>
                               )}
                               <button
-                                onClick={() => handleDeleteSingle(validation)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSingle(validation);
+                                }}
                                 disabled={isProcessing}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-lg hover:bg-gray-700 transition shadow-sm disabled:opacity-50"
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-gray-500 rounded-lg hover:bg-gray-600 transition disabled:opacity-50"
                                 title="Delete"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Trash2 className="w-3 h-3" />
                               </button>
                             </div>
                           </td>
@@ -1376,10 +1761,10 @@ export default function ValidationVerificationPage() {
 
             {/* Footer / Pagination */}
             {!loading && filteredValidations.length > 0 && (
-              <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-2 rounded-b-2xl">
-                <p className="text-xs text-gray-500">
+              <div className="vv-footer">
+                <p style={{ fontSize: 12, color: "#6b7280" }}>
                   Showing{" "}
-                  <span className="font-semibold text-gray-700">
+                  <span style={{ fontWeight: 600, color: "#374151" }}>
                     {(currentPage - 1) * itemsPerPage + 1}–
                     {Math.min(
                       currentPage * itemsPerPage,
@@ -1387,21 +1772,44 @@ export default function ValidationVerificationPage() {
                     )}
                   </span>{" "}
                   of{" "}
-                  <span className="font-semibold text-gray-700">
+                  <span style={{ fontWeight: 600, color: "#374151" }}>
                     {filteredValidations.length}
                   </span>{" "}
                   validations
                   {typeFilter !== "all" && (
-                    <span className="text-gray-400">
-                      {" "}
-                      · {typeFilter === "device" ? "Devices" : "Materials"}
+                    <span
+                      style={{
+                        marginLeft: 6,
+                        padding: "2px 8px",
+                        background: "#eff6ff",
+                        color: "#2563eb",
+                        borderRadius: 20,
+                        fontSize: 11,
+                        fontWeight: 500,
+                      }}
+                    >
+                      {typeFilter === "device" ? "Devices" : "Materials"}
                     </span>
                   )}
                   {statusFilter !== "all" && (
-                    <span className="text-gray-400"> · {statusFilter}</span>
+                    <span
+                      style={{
+                        marginLeft: 6,
+                        padding: "2px 8px",
+                        background: "#fef3c7",
+                        color: "#b45309",
+                        borderRadius: 20,
+                        fontSize: 11,
+                        fontWeight: 500,
+                      }}
+                    >
+                      {statusFilter}
+                    </span>
                   )}
                   {searchTerm && (
-                    <span className="text-gray-400"> · "{searchTerm}"</span>
+                    <span style={{ color: "#9ca3af", marginLeft: 4 }}>
+                      · "{searchTerm}"
+                    </span>
                   )}
                 </p>
                 {totalPages > 1 && (
@@ -1432,7 +1840,7 @@ export default function ValidationVerificationPage() {
           </div>
         </div>
 
-        {/* Detail Modal */}
+        {/* Detail Modal - Keep existing modal code */}
         {detailModal && (
           <div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
@@ -1602,62 +2010,6 @@ export default function ValidationVerificationPage() {
                   </div>
                 )}
 
-                {detailModal.detection_data &&
-                  (() => {
-                    let detectionData = detailModal.detection_data;
-                    if (typeof detectionData === "string") {
-                      try {
-                        detectionData = JSON.parse(detectionData);
-                      } catch (e) {
-                        return null;
-                      }
-                    }
-
-                    const confidencePercent = detectionData.confidence
-                      ? Math.round(detectionData.confidence * 100)
-                      : null;
-
-                    return (
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500 mb-2">
-                          Detection Result
-                        </p>
-                        <div className="space-y-2">
-                          {detectionData.asset_type && (
-                            <div>
-                              <p className="text-xs text-gray-400">
-                                Detected Asset
-                              </p>
-                              <p className="text-sm font-medium text-gray-800">
-                                {detectionData.asset_type}
-                              </p>
-                            </div>
-                          )}
-                          {detectionData.category && (
-                            <div>
-                              <p className="text-xs text-gray-400">Category</p>
-                              <p className="text-sm font-medium text-gray-800">
-                                {detectionData.category === "Perangkat"
-                                  ? "Device"
-                                  : detectionData.category}
-                              </p>
-                            </div>
-                          )}
-                          {confidencePercent !== null && (
-                            <div>
-                              <p className="text-xs text-gray-400">
-                                Confidence Level
-                              </p>
-                              <p className="text-sm font-medium text-gray-800">
-                                {confidencePercent}%
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
                 {(detailModal.validation_notes ||
                   detailModal.rejection_reason) && (
                   <div
@@ -1702,7 +2054,7 @@ export default function ValidationVerificationPage() {
                         setDetailModal(null);
                         handleApprove(detailModal);
                       }}
-                      className="approve-btn"
+                      className="approve-btn-sm px-3 py-2"
                     >
                       <ThumbsUp className="w-4 h-4" />
                       Approve
@@ -1712,7 +2064,7 @@ export default function ValidationVerificationPage() {
                         setDetailModal(null);
                         handleReject(detailModal);
                       }}
-                      className="reject-btn"
+                      className="reject-btn-sm px-3 py-2"
                     >
                       <ThumbsDown className="w-4 h-4" />
                       Reject
