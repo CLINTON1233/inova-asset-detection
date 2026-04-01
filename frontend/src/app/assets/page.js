@@ -1,96 +1,104 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Search,
-  Filter,
-  Download,
-  Plus,
-  Eye,
-  Edit,
-  Trash2,
-  Cpu,
-  Cable,
-  Server,
-  Monitor,
-  Camera,
   Box,
-  CheckCircle,
-  MapPin,
-  ScanLine,
   Calendar,
-  User,
-  ChevronDown,
-  ChevronUp,
-  X,
-  FileSpreadsheet,
+  MapPin,
+  Loader2,
+  Search,
   RefreshCw,
-  Grid,
-  List,
-  AlertCircle,
   ArrowUp,
   ArrowDown,
-  Loader2,
+  ScanLine,
+  Filter,
+  ChevronDown,
+  X,
+  Eye,
+  Building2,
+  Clock,
+  CheckCircle,
+  Package,
+  Laptop,
 } from "lucide-react";
 import Swal from "sweetalert2";
-import * as XLSX from "xlsx";
 import LayoutDashboard from "../components/LayoutDashboard";
 import ProtectedPage from "../components/ProtectedPage";
 import API_BASE_URL, { API_ENDPOINTS } from "../../config/api";
 
-export default function InventoryDataPage() {
+export default function AssetsInventoryPage() {
   const router = useRouter();
-  const [assets, setAssets] = useState([]);
+  const [sessions, setSessions] = useState([]);
+  const [filteredSessions, setFilteredSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [viewMode, setViewMode] = useState("list");
-  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [typeFilter, setTypeFilter] = useState("all");
   const [sorting, setSorting] = useState({ id: "created_at", desc: true });
-  const [sessions, setSessions] = useState({});
+  const [mounted, setMounted] = useState(false);
 
-  // Load assets dari API
-  const loadAssets = async () => {
+  useEffect(() => {
+    setMounted(true);
+    fetchCompletedSessions();
+  }, []);
+
+  useEffect(() => {
+    let filtered = [...sessions];
+
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (s) =>
+          s.checking_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          s.checking_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (s.location_name || "")
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          (s.project_name || "")
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()),
+      );
+    }
+
+    if (typeFilter !== "all") {
+      filtered = filtered.filter((s) => s.type === typeFilter);
+    }
+
+    if (sorting.id) {
+      filtered.sort((a, b) => {
+        let aVal = a[sorting.id];
+        let bVal = b[sorting.id];
+        if (sorting.id === "created_at") {
+          aVal = new Date(a.created_at || a.checking_date);
+          bVal = new Date(b.created_at || b.checking_date);
+        }
+        if (aVal < bVal) return sorting.desc ? 1 : -1;
+        if (aVal > bVal) return sorting.desc ? -1 : 1;
+        return 0;
+      });
+    }
+
+    setFilteredSessions(filtered);
+  }, [searchTerm, typeFilter, sessions, sorting]);
+
+  const fetchCompletedSessions = async () => {
     setLoading(true);
     try {
-      const response = await fetch(API_ENDPOINTS.ASSETS_LIST);
+      const response = await fetch(
+        `${API_BASE_URL}/api/assets/sessions-with-assets`,
+      );
       const result = await response.json();
 
       if (result.success) {
-        setAssets(result.data || []);
-
-        // Load session info untuk setiap asset
-        const sessionMap = {};
-        for (const asset of result.data) {
-          if (asset.validation_id) {
-            try {
-              const sessionResp = await fetch(
-                `${API_BASE_URL}/api/validations/${asset.validation_id}/detail`,
-              );
-              const sessionResult = await sessionResp.json();
-              if (sessionResult.success && sessionResult.data) {
-                sessionMap[asset.id_assets] = {
-                  checking_name: sessionResult.data.checking_name,
-                  checking_number: sessionResult.data.checking_number,
-                  checking_date: sessionResult.data.checking_date,
-                };
-              }
-            } catch (err) {
-              console.error("Error loading session:", err);
-            }
-          }
-        }
-        setSessions(sessionMap);
+        setSessions(result.data);
+        setFilteredSessions(result.data);
       } else {
-        throw new Error(result.error);
+        throw new Error(result.error || "Failed to load sessions");
       }
     } catch (error) {
-      console.error("Error loading assets:", error);
+      console.error("Error fetching sessions:", error);
       Swal.fire({
         title: "Error!",
-        text: "Failed to load inventory data",
+        text: error.message || "Failed to load inventory data",
         icon: "error",
       });
     } finally {
@@ -98,73 +106,9 @@ export default function InventoryDataPage() {
     }
   };
 
-  useEffect(() => {
-    loadAssets();
-  }, []);
-
-  // Hitung statistik
-  const stats = useMemo(() => {
-    return {
-      total: assets.length,
-      devices: assets.filter((item) => item.category === "Device").length,
-      materials: assets.filter((item) => item.category === "Material").length,
-      active: assets.filter((item) => item.status === "active").length,
-    };
-  }, [assets]);
-
-  // Filter data
-  const filteredItems = useMemo(() => {
-    let filtered = assets.filter((item) => {
-      const matchesSearch =
-        searchTerm === "" ||
-        (item.asset_code?.toLowerCase() || "").includes(
-          searchTerm.toLowerCase(),
-        ) ||
-        (item.asset_name?.toLowerCase() || "").includes(
-          searchTerm.toLowerCase(),
-        ) ||
-        (item.brand?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-        (item.location_name?.toLowerCase() || "").includes(
-          searchTerm.toLowerCase(),
-        ) ||
-        (item.serial_number?.toLowerCase() || "").includes(
-          searchTerm.toLowerCase(),
-        ) ||
-        (item.scan_code?.toLowerCase() || "").includes(
-          searchTerm.toLowerCase(),
-        ) ||
-        (item.project_name?.toLowerCase() || "").includes(
-          searchTerm.toLowerCase(),
-        );
-
-      const matchesCategory =
-        categoryFilter === "all" || item.category === categoryFilter;
-
-      const matchesStatus =
-        statusFilter === "all" || item.status === statusFilter;
-
-      return matchesSearch && matchesCategory && matchesStatus;
-    });
-
-    // Sorting
-    if (sorting.id) {
-      filtered.sort((a, b) => {
-        let aVal = a[sorting.id];
-        let bVal = b[sorting.id];
-
-        if (sorting.id === "created_at") {
-          aVal = new Date(a.created_at);
-          bVal = new Date(b.created_at);
-        }
-
-        if (aVal < bVal) return sorting.desc ? 1 : -1;
-        if (aVal > bVal) return sorting.desc ? -1 : 1;
-        return 0;
-      });
-    }
-
-    return filtered;
-  }, [assets, searchTerm, categoryFilter, statusFilter, sorting]);
+  const handleViewAssets = (sessionId, type) => {
+    router.push(`/assets/${sessionId}?type=${type}`);
+  };
 
   const handleSort = (columnId) => {
     setSorting((prev) => ({
@@ -174,9 +118,8 @@ export default function InventoryDataPage() {
   };
 
   const getSortIcon = (columnId) => {
-    if (sorting.id !== columnId) {
+    if (sorting.id !== columnId)
       return <span className="text-gray-300 ml-1 text-xs">⇅</span>;
-    }
     return sorting.desc ? (
       <ArrowDown className="w-3 h-3 ml-1 text-blue-500" />
     ) : (
@@ -184,30 +127,9 @@ export default function InventoryDataPage() {
     );
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "active":
-        return "text-emerald-600";
-      case "inactive":
-        return "text-gray-500";
-      case "maintenance":
-        return "text-amber-600";
-      default:
-        return "text-gray-600";
-    }
-  };
-
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case "active":
-        return "Active";
-      case "inactive":
-        return "Inactive";
-      case "maintenance":
-        return "Maintenance";
-      default:
-        return status;
-    }
+  const getTypeIcon = (type) => {
+    if (type === "device") return <Laptop className="w-4 h-4 text-blue-600" />;
+    return <Package className="w-4 h-4 text-green-600" />;
   };
 
   const formatDate = (dateString) => {
@@ -219,285 +141,51 @@ export default function InventoryDataPage() {
     });
   };
 
-  // Fungsi untuk menampilkan detail dengan SweetAlert
-  const handleShowDetail = (item) => {
-    const session = sessions[item.id_assets] || {};
-
-    Swal.fire({
-      title: `<div class="font-dm-sans text-lg font-semibold text-gray-900">Asset Details</div>`,
-      html: `
-      <div class="font-dm-sans text-left space-y-3 max-h-[50vh] overflow-y-auto pr-2">
-        <div>
-          <h4 class="text-base font-semibold text-gray-900">${item.asset_name}</h4>
-          <p class="text-xs text-gray-500 mt-1">${item.asset_type || item.category} • ${item.category}</p>
-        </div>
-
-        ${
-          item.photo_url
-            ? `
-        <div>
-          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">PHOTO</h5>
-          <div class="bg-gray-50 rounded-lg p-3 flex justify-center">
-            <img 
-              src="${item.photo_url.startsWith("http") ? item.photo_url : `http://localhost:5001${item.photo_url}`}" 
-              alt="Asset photo" 
-              class="max-w-full h-auto rounded-lg max-h-48 object-contain cursor-pointer"
-              onclick="window.open(this.src, '_blank')"
-              onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\\'w-24 h-24 bg-gray-200 rounded-lg flex items-center justify-center\\'><svg class=\\'w-8 h-8 text-gray-400\\' fill=\\'none\\' stroke=\\'currentColor\\' viewBox=\\'0 0 24 24\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'2\\' d=\\'M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z\\'></path><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'2\\' d=\\'M15 13a3 3 0 11-6 0 3 3 0 016 0z\\'></path></svg></div>'"
-            />
-          </div>
-        </div>
-        `
-            : ""
-        }
-
-        <div>
-          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">INFORMATION</h5>
-          <div class="bg-gray-50 rounded-lg p-3 space-y-2">
-            <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Asset Code</span>
-              <span class="text-xs font-mono text-blue-600">${item.asset_code}</span>
-            </div>
-            ${
-              item.serial_number
-                ? `
-            <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Serial Number</span>
-              <span class="text-xs font-mono text-gray-700">${item.serial_number}</span>
-            </div>
-            `
-                : ""
-            }
-            ${
-              item.scan_code
-                ? `
-            <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Scan Code</span>
-              <span class="text-xs font-mono text-gray-700">${item.scan_code}</span>
-            </div>
-            `
-                : ""
-            }
-          </div>
-        </div>
-
-        <div>
-          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">SPECIFICATION</h5>
-          <div class="bg-gray-50 rounded-lg p-3">
-            <p class="text-xs text-gray-700">${item.specifications || "No specifications"}</p>
-            ${item.brand ? `<p class="text-xs text-gray-500 mt-1">Brand: ${item.brand}</p>` : ""}
-            ${item.model ? `<p class="text-xs text-gray-500">Model: ${item.model}</p>` : ""}
-          </div>
-        </div>
-
-        <div>
-          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">SESSION</h5>
-          <div class="bg-gray-50 rounded-lg p-3 space-y-2">
-            <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Session Name</span>
-              <span class="text-xs font-medium text-gray-700">${session.checking_name || "-"}</span>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Session Number</span>
-              <span class="text-xs font-mono text-gray-600">${session.checking_number || "-"}</span>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Session Date</span>
-              <span class="text-xs text-gray-700">${session.checking_date ? formatDate(session.checking_date) : "-"}</span>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">ASSIGNMENT</h5>
-          <div class="bg-gray-50 rounded-lg p-3 space-y-2">
-            <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Project</span>
-              <span class="text-xs font-medium text-gray-700">${item.project_name || "-"}</span>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Department</span>
-              <span class="text-xs font-medium text-gray-700">${item.department_name || "-"}</span>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Receiver</span>
-              <span class="text-xs font-medium text-gray-700">${item.receiver_name || "-"}</span>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Location</span>
-              <span class="text-xs font-medium text-gray-700">${item.location_name || "-"}</span>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <h5 class="text-xs font-medium text-gray-700 mb-2 uppercase tracking-wide">VALIDATION</h5>
-          <div class="bg-gray-50 rounded-lg p-3 space-y-2">
-            <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Validated By</span>
-              <span class="text-xs font-medium text-gray-700">${item.validated_by_name || "System"}</span>
-            </div>
-            <div class="flex justify-between items-center">
-              <span class="text-xs text-gray-600">Validated At</span>
-              <span class="text-xs font-medium text-gray-700">${formatDate(item.validated_at)}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    `,
-      width: "500px",
-      padding: "16px",
-      showCloseButton: true,
-      showConfirmButton: true,
-      confirmButtonText: "Close",
-      confirmButtonColor: "#2563eb",
-      customClass: {
-        popup: "rounded-xl font-dm-sans",
-        closeButton: "text-gray-400 hover:text-gray-600 text-lg -mt-1 -mr-1",
-        confirmButton: "font-dm-sans font-medium text-sm px-10 py-2",
-      },
-    });
-  };
-
-  // Function to delete an item with confirmation
-  const handleDeleteItem = async (item) => {
-    const result = await Swal.fire({
-      title: "Delete Asset?",
-      text: `Are you sure you want to delete ${item.asset_name} (${item.asset_code})?`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#4CAF50",
-      cancelButtonColor: "#d33",
-      confirmButtonText: "Yes, Delete!",
-      cancelButtonText: "Cancel",
-      reverseButtons: true,
-    });
-
-    if (result.isConfirmed) {
-      try {
-        const response = await fetch(
-          API_ENDPOINTS.ASSETS_DELETE(item.id_assets),
-          {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-          },
-        );
-
-        const data = await response.json();
-
-        if (data.success) {
-          Swal.fire({
-            title: "Deleted!",
-            text: `The asset ${item.asset_name} has been successfully deleted.`,
-            icon: "success",
-            confirmButtonColor: "#2563eb",
-          });
-          loadAssets();
-        } else {
-          throw new Error(data.error);
-        }
-      } catch (error) {
-        Swal.fire({
-          title: "Error!",
-          text: "Failed to delete asset",
-          icon: "error",
-        });
-      }
-    }
-  };
-
-  // Export to Excel
-  const exportToExcel = (exportType = "current") => {
-    try {
-      let dataToExport = [];
-
-      if (exportType === "current") {
-        dataToExport = filteredItems.map((item) => {
-          const session = sessions[item.id_assets] || {};
-          return {
-            "Asset Code": item.asset_code,
-            "Asset Name": item.asset_name,
-            "Brand/Vendor": item.brand || "-",
-            "Type": item.asset_type,
-            "Category": item.category,
-            "Serial/Scan Code": item.serial_number || item.scan_code || "N/A",
-            "Project": item.project_name || "-",
-            "Session": session.checking_name || "-",
-            "Location": item.location_name || "-",
-            "Status": getStatusLabel(item.status),
-            "Validated At": formatDate(item.validated_at),
-            "Validated By": item.validated_by_name || "System",
-          };
-        });
-      } else if (exportType === "all") {
-        dataToExport = assets.map((item) => {
-          const session = sessions[item.id_assets] || {};
-          return {
-            "Asset Code": item.asset_code,
-            "Asset Name": item.asset_name,
-            "Brand/Vendor": item.brand || "-",
-            "Type": item.asset_type,
-            "Category": item.category,
-            "Serial/Scan Code": item.serial_number || item.scan_code || "N/A",
-            "Project": item.project_name || "-",
-            "Session": session.checking_name || "-",
-            "Location": item.location_name || "-",
-            "Status": getStatusLabel(item.status),
-            "Validated At": formatDate(item.validated_at),
-            "Validated By": item.validated_by_name || "System",
-          };
-        });
-      }
-
-      if (dataToExport.length === 0) {
-        Swal.fire("No Data", "No data to export", "info");
-        return;
-      }
-
-      const ws = XLSX.utils.json_to_sheet(dataToExport);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Assets");
-
-      const timestamp = new Date()
-        .toISOString()
-        .slice(0, 19)
-        .replace(/[:T]/g, "-");
-      let filename = `assets_${exportType}_${timestamp}.xlsx`;
-
-      XLSX.writeFile(wb, filename);
-      setShowExportDropdown(false);
-    } catch (error) {
-      console.error("Error exporting to Excel:", error);
-      Swal.fire("Error", "Failed to export data", "error");
-    }
+  const stats = {
+    total: sessions.length,
+    devices: sessions.filter((s) => s.type === "device").length,
+    materials: sessions.filter((s) => s.type === "material").length,
+    totalItems: sessions.reduce((sum, s) => sum + (s.total_items || 0), 0),
   };
 
   const kpis = [
     {
-      title: "Total Assets",
+      title: "Total Sessions",
       value: stats.total,
-      sub: "All IT assets",
+      sub: "Completed sessions",
       accent: "#2563eb",
     },
     {
       title: "Devices",
       value: stats.devices,
-      sub: "Computers, Servers, etc",
-      accent: "#6366f1",
+      sub: "Device sessions",
+      accent: "#3b82f6",
     },
     {
       title: "Materials",
       value: stats.materials,
-      sub: "Cables, Connectors, etc",
+      sub: "Material sessions",
       accent: "#10b981",
     },
     {
-      title: "Active",
-      value: stats.active,
-      sub: "Active assets",
+      title: "Total Assets",
+      value: stats.totalItems,
+      sub: "Validated items",
       accent: "#059669",
     },
   ];
+
+  if (!mounted) {
+    return (
+      <ProtectedPage>
+        <LayoutDashboard activeMenu={2}>
+          <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          </div>
+        </LayoutDashboard>
+      </ProtectedPage>
+    );
+  }
 
   return (
     <ProtectedPage>
@@ -544,6 +232,7 @@ export default function InventoryDataPage() {
             vertical-align: middle;
           }
           .inv-row:hover { background: #f8faff; }
+          .inv-row { cursor: pointer; }
         `}</style>
 
         <div className="inv-root space-y-5">
@@ -597,7 +286,7 @@ export default function InventoryDataPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search by code, name, brand, location, serial, project..."
+                  placeholder="Search by session name, number, location, project..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
@@ -615,50 +304,20 @@ export default function InventoryDataPage() {
               <div className="relative">
                 <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                 <select
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer min-w-[130px]"
                 >
-                  <option value="all">All Categories</option>
-                  <option value="Device">Devices</option>
-                  <option value="Material">Materials</option>
+                  <option value="all">All Types</option>
+                  <option value="device">Devices</option>
+                  <option value="material">Materials</option>
                 </select>
                 <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-              </div>
-
-              <div className="relative">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="pl-3 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
-                >
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="maintenance">Maintenance</option>
-                </select>
-                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-              </div>
-
-              {/* View Toggle */}
-              <div className="flex border border-gray-200 rounded-lg overflow-hidden">
-                <button
-                  onClick={() => setViewMode("list")}
-                  className={`p-2 ${viewMode === "list" ? "bg-blue-50 text-blue-600" : "bg-white text-gray-600 hover:bg-gray-50"}`}
-                >
-                  <List className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode("grid")}
-                  className={`p-2 ${viewMode === "grid" ? "bg-blue-50 text-blue-600" : "bg-white text-gray-600 hover:bg-gray-50"}`}
-                >
-                  <Grid className="w-4 h-4" />
-                </button>
               </div>
 
               <div className="flex items-center gap-2 ml-auto">
                 <button
-                  onClick={loadAssets}
+                  onClick={fetchCompletedSessions}
                   disabled={loading}
                   className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
@@ -667,41 +326,6 @@ export default function InventoryDataPage() {
                   />
                   Refresh
                 </button>
-
-                <div className="relative">
-                  <button
-                    onClick={() => setShowExportDropdown(!showExportDropdown)}
-                    className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5" />
-                    Export
-                    <ChevronDown className="w-3 h-3" />
-                  </button>
-                  {showExportDropdown && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setShowExportDropdown(false)}
-                      />
-                      <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
-                        <button
-                          onClick={() => exportToExcel("current")}
-                          className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                        >
-                          <FileSpreadsheet className="w-4 h-4 text-emerald-600" />{" "}
-                          Current View ({filteredItems.length})
-                        </button>
-                        <button
-                          onClick={() => exportToExcel("all")}
-                          className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                        >
-                          <FileSpreadsheet className="w-4 h-4 text-blue-600" />{" "}
-                          All Assets ({assets.length})
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
               </div>
             </div>
 
@@ -711,7 +335,7 @@ export default function InventoryDataPage() {
                 <Loader2 className="w-7 h-7 animate-spin text-blue-600 mx-auto mb-3" />
                 <p className="text-sm text-gray-500">Loading assets...</p>
               </div>
-            ) : assets.length === 0 ? (
+            ) : sessions.length === 0 ? (
               <div className="py-20 text-center">
                 <Box className="w-14 h-14 text-gray-200 mx-auto mb-3" />
                 <h3 className="text-gray-800 font-semibold text-lg mb-1">
@@ -727,11 +351,11 @@ export default function InventoryDataPage() {
                   <CheckCircle className="w-4 h-4" /> Go to Validations
                 </button>
               </div>
-            ) : filteredItems.length === 0 ? (
+            ) : filteredSessions.length === 0 ? (
               <div className="py-16 text-center">
                 <Search className="w-10 h-10 text-gray-200 mx-auto mb-3" />
                 <h3 className="text-gray-800 font-semibold mb-1">
-                  No matching assets
+                  No matching sessions
                 </h3>
                 <p className="text-gray-400 text-sm mb-4">
                   Try adjusting your filters
@@ -739,113 +363,12 @@ export default function InventoryDataPage() {
                 <button
                   onClick={() => {
                     setSearchTerm("");
-                    setCategoryFilter("all");
-                    setStatusFilter("all");
+                    setTypeFilter("all");
                   }}
                   className="text-sm text-blue-600 hover:underline"
                 >
                   Clear filters
                 </button>
-              </div>
-            ) : viewMode === "grid" ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 p-4">
-                {filteredItems.map((item, idx) => {
-                  const session = sessions[item.id_assets] || {};
-                  return (
-                    <div
-                      key={item.id_assets}
-                      className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-all cursor-pointer"
-                      onClick={() => handleShowDetail(item)}
-                    >
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="min-w-0">
-                            <h4 className="font-semibold text-gray-900 text-sm truncate">
-                              {item.asset_name}
-                            </h4>
-                            <p className="text-xs text-gray-500 font-mono truncate mt-0.5">
-                              {item.asset_code}
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteItem(item);
-                          }}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-
-                      {/* Photo */}
-                      {item.photo_url && (
-                        <div className="mb-3 rounded-lg overflow-hidden bg-gray-50">
-                          <img
-                            src={
-                              item.photo_url.startsWith("http")
-                                ? item.photo_url
-                                : `http://localhost:5001${item.photo_url}`
-                            }
-                            alt={item.asset_name}
-                            className="w-full h-24 object-cover"
-                            onError={(e) => {
-                              e.target.style.display = "none";
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-500">Brand</span>
-                          <span className="text-xs font-medium text-gray-700">
-                            {item.brand || item.vendor || "-"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-500">Status</span>
-                          <span
-                            className={`text-xs font-medium ${getStatusColor(item.status)}`}
-                          >
-                            {getStatusLabel(item.status)}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-500">Project</span>
-                          <span className="text-xs text-gray-700 truncate max-w-[120px]">
-                            {item.project_name || "-"}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-500">Location</span>
-                          <span className="text-xs text-gray-700 truncate max-w-[120px]">
-                            {item.location_name || "-"}
-                          </span>
-                        </div>
-
-                        <div className="pt-2 border-t mt-2">
-                          <div className="flex justify-between items-center">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleShowDetail(item);
-                              }}
-                              className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
-                            >
-                              <Eye className="w-3 h-3" />
-                              View Details
-                            </button>
-                            <span className="text-xs text-gray-400">
-                              {formatDate(item.validated_at)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -854,216 +377,142 @@ export default function InventoryDataPage() {
                     <tr style={{ background: "#f8fafc" }}>
                       <th
                         className="inv-th text-left"
-                        onClick={() => handleSort("asset_code")}
+                        onClick={() => handleSort("checking_name")}
                       >
                         <span className="flex items-center">
-                          Asset Code {getSortIcon("asset_code")}
+                          Session {getSortIcon("checking_name")}
                         </span>
                       </th>
                       <th
                         className="inv-th text-left"
-                        onClick={() => handleSort("asset_name")}
+                        onClick={() => handleSort("checking_date")}
                       >
                         <span className="flex items-center">
-                          Asset Name {getSortIcon("asset_name")}
+                          Date {getSortIcon("checking_date")}
                         </span>
                       </th>
-                      <th className="inv-th text-left">Photo</th>
-                      <th
-                        className="inv-th text-left"
-                        onClick={() => handleSort("brand")}
-                      >
-                        <span className="flex items-center">
-                          Brand {getSortIcon("brand")}
-                        </span>
-                      </th>
-                      <th className="inv-th text-left">
+                      <th className="inv-th text-left hidden md:table-cell">
                         <span>Type</span>
                       </th>
-                      <th className="inv-th text-left">
-                        <span>Serial/Scan Code</span>
+                      <th className="inv-th text-left hidden lg:table-cell">
+                        <span>Location</span>
                       </th>
                       <th className="inv-th text-left hidden xl:table-cell">
                         <span>Project</span>
                       </th>
-                      <th className="inv-th text-left hidden xl:table-cell">
-                        <span>Session</span>
-                      </th>
-                      <th
-                        className="inv-th text-left"
-                        onClick={() => handleSort("location_name")}
-                      >
-                        <span className="flex items-center">
-                          Location {getSortIcon("location_name")}
-                        </span>
-                      </th>
-                      <th
-                        className="inv-th text-left"
-                        onClick={() => handleSort("status")}
-                      >
-                        <span className="flex items-center">
-                          Status {getSortIcon("status")}
-                        </span>
-                      </th>
-                      <th
-                        className="inv-th text-left hidden xl:table-cell"
-                        onClick={() => handleSort("validated_at")}
-                      >
-                        <span className="flex items-center">
-                          Validated {getSortIcon("validated_at")}
-                        </span>
+                      <th className="inv-th text-left">
+                        <span>Items</span>
                       </th>
                       <th className="inv-th text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredItems.map((item, idx) => {
-                      const session = sessions[item.id_assets] || {};
-                      return (
-                        <tr
-                          key={item.id_assets}
-                          className="inv-row transition-colors cursor-pointer"
-                          onClick={() => handleShowDetail(item)}
-                        >
-                               <td className="inv-td">
-                            <span className="font-mono text-xs font-semibold text-blue-700">
-                              {item.asset_code}
-                            </span>
-                          </td>
-                             <td className="inv-td">
-                            <div className="font-semibold text-gray-900 text-sm">
-                              {item.asset_name}
+                    {filteredSessions.map((session, idx) => (
+                      <tr
+                        key={`${session.type}_${session.id_preparation}`}
+                        className="inv-row transition-colors"
+                        onClick={() =>
+                          handleViewAssets(session.id_preparation, session.type)
+                        }
+                      >
+                        <td className="inv-td">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
+                              {getTypeIcon(session.type)}
                             </div>
-                            <div className="text-xs text-gray-500 mt-0.5">
-                              {item.specifications?.substring(0, 50)}
-                            </div>
-                          </td>
-                          <td className="inv-td">
-                            {item.photo_url ? (
-                              <img
-                                src={
-                                  item.photo_url.startsWith("http")
-                                    ? item.photo_url
-                                    : `http://localhost:5001${item.photo_url}`
-                                }
-                                alt="Asset"
-                                className="w-10 h-10 rounded-lg object-cover"
-                                onError={(e) => {
-                                  e.target.style.display = "none";
-                                  e.target.parentElement.innerHTML =
-                                    '<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center"><Camera className="w-5 h-5 text-gray-400" /></div>';
-                                }}
-                              />
-                            ) : (
-                              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                                <Camera className="w-5 h-5 text-gray-400" />
+                            <div>
+                              <div className="font-semibold text-gray-900 text-sm leading-tight">
+                                {session.checking_name}
                               </div>
-                            )}
-                          </td>
-                     
-                          <td className="inv-td">
-                            <span className="text-xs text-gray-700">
-                              {item.brand || item.vendor || "-"}
-                            </span>
-                          </td>
-                          <td className="inv-td">
-                            <span className="text-xs text-gray-600">
-                              {item.category === "Device" ? "Device" : item.category === "Material" ? "Material" : item.category || "-"}
-                            </span>
-                          </td>
-                          <td className="inv-td">
-                            <span className="text-xs font-mono text-gray-600">
-                              {item.serial_number || item.scan_code || "-"}
-                            </span>
-                          </td>
-                          <td className="inv-td hidden xl:table-cell">
-                            <span className="text-xs text-gray-600">
-                              {item.project_name || "-"}
-                            </span>
-                          </td>
-                          <td className="inv-td hidden xl:table-cell">
-                            <div className="text-xs text-gray-700">
-                              {session.checking_name || "-"}
-                            </div>
-                            {/* {session.checking_number && (
-                              <div className="text-[10px] text-gray-400 font-mono mt-0.5">
+                              <div className="text-xs text-gray-400 font-mono mt-0.5">
                                 {session.checking_number}
                               </div>
-                            )} */}
-                          </td>
-                          <td className="inv-td">
-                            <div className="text-xs text-gray-700">
-                              {item.location_name || "-"}
                             </div>
-                          </td>
-                          <td className="inv-td">
-                            <span
-                              className={`text-xs font-medium ${getStatusColor(item.status)}`}
-                            >
-                              {getStatusLabel(item.status)}
+                          </div>
+                        </td>
+                        <td className="inv-td">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                            <span className="text-xs text-gray-600">
+                              {formatDate(session.checking_date)}
                             </span>
-                          </td>
-                          <td className="inv-td hidden xl:table-cell">
-                            <div className="text-xs text-gray-700">
-                              {formatDate(item.validated_at)}
-                            </div>
-                            <div className="text-[10px] text-gray-400 mt-0.5">
-                              {item.validated_by_name || "System"}
-                            </div>
-                          </td>
-                          <td className="inv-td text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleShowDetail(item);
-                                }}
-                                className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                title="View Details"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteItem(item);
-                                }}
-                                className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                title="Delete Asset"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                          </div>
+                        </td>
+                        <td className="inv-td hidden md:table-cell">
+                          <span
+                            className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              session.type === "device"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-green-100 text-green-700"
+                            }`}
+                          >
+                            {session.type === "device" ? "Device" : "Material"}
+                          </span>
+                        </td>
+                        <td className="inv-td hidden lg:table-cell">
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                            <span className="text-xs text-gray-600 truncate max-w-[140px]">
+                              {session.location_name || "-"}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="inv-td hidden xl:table-cell">
+                          <div className="flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                            <span className="text-xs text-gray-600 truncate max-w-[120px]">
+                              {session.project_name || "-"}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="inv-td">
+                          <span className="text-xs font-semibold text-gray-700">
+                            {session.total_items || 0}
+                          </span>
+                          <span className="text-xs text-gray-400 ml-1">
+                            items
+                          </span>
+                        </td>
+                        <td className="inv-td text-center">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewAssets(
+                                session.id_preparation,
+                                session.type,
+                              );
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            View Assets
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             )}
 
             {/* Footer */}
-            {!loading && filteredItems.length > 0 && (
+            {!loading && filteredSessions.length > 0 && (
               <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-2 rounded-b-2xl">
                 <p className="text-xs text-gray-500">
                   Showing{" "}
                   <span className="font-semibold text-gray-700">
-                    {filteredItems.length}
+                    {filteredSessions.length}
                   </span>{" "}
                   of{" "}
                   <span className="font-semibold text-gray-700">
-                    {assets.length}
+                    {sessions.length}
                   </span>{" "}
-                  assets
-                  {categoryFilter !== "all" && (
+                  sessions
+                  {typeFilter !== "all" && (
                     <span className="text-gray-400">
                       {" "}
-                      · {categoryFilter === "Device" ? "Devices" : "Materials"}
+                      · {typeFilter === "device" ? "Devices" : "Materials"}
                     </span>
-                  )}
-                  {statusFilter !== "all" && (
-                    <span className="text-gray-400"> · {statusFilter}</span>
                   )}
                   {searchTerm && (
                     <span className="text-gray-400"> · "{searchTerm}"</span>

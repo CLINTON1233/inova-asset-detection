@@ -9,6 +9,83 @@ validation_bp = Blueprint('validation', __name__)
 def get_conn():
     return get_db_connection()
 
+# ==================== UPDATE SESSION STATUS ====================
+def check_and_update_session_status(preparation_id, validation_type):
+    """Memeriksa apakah semua item dalam session sudah divalidasi, jika ya update status menjadi completed"""
+    conn = None
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        if validation_type == 'device':
+            # Hitung total item preparation dalam session
+            cur.execute("""
+                SELECT COUNT(*) as total_items
+                FROM devices_items_preparation
+                WHERE preparation_id = %s
+            """, (preparation_id,))
+            total_items = cur.fetchone()['total_items']
+            
+            # Hitung jumlah item yang sudah divalidasi (approved)
+            cur.execute("""
+                SELECT COUNT(DISTINCT dip.id_item_preparation) as validated_items
+                FROM devices_items_preparation dip
+                INNER JOIN validations v ON dip.id_item_preparation = v.item_preparation_id
+                WHERE dip.preparation_id = %s 
+                AND v.validation_status = 'approved'
+            """, (preparation_id,))
+            validated_items = cur.fetchone()['validated_items']
+            
+            # Jika semua item sudah divalidasi, update status session menjadi completed
+            if total_items == validated_items and total_items > 0:
+                cur.execute("""
+                    UPDATE devices_scanning_preparations 
+                    SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+                    WHERE id_preparation = %s
+                """, (preparation_id,))
+                conn.commit()
+                print(f"✅ Session {preparation_id} (device) updated to completed")
+                return True
+                
+        else:  # material
+            # Hitung total item preparation dalam session
+            cur.execute("""
+                SELECT COUNT(*) as total_items
+                FROM materials_items_preparation
+                WHERE preparation_id = %s
+            """, (preparation_id,))
+            total_items = cur.fetchone()['total_items']
+            
+            # Hitung jumlah item yang sudah divalidasi (approved)
+            cur.execute("""
+                SELECT COUNT(DISTINCT mip.id_item_preparation) as validated_items
+                FROM materials_items_preparation mip
+                INNER JOIN validations v ON mip.id_item_preparation = v.material_item_preparation_id
+                WHERE mip.preparation_id = %s 
+                AND v.validation_status = 'approved'
+            """, (preparation_id,))
+            validated_items = cur.fetchone()['validated_items']
+            
+            # Jika semua item sudah divalidasi, update status session menjadi completed
+            if total_items == validated_items and total_items > 0:
+                cur.execute("""
+                    UPDATE materials_scanning_preparations 
+                    SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+                    WHERE id_preparation = %s
+                """, (preparation_id,))
+                conn.commit()
+                print(f"✅ Session {preparation_id} (material) updated to completed")
+                return True
+                
+        return False
+        
+    except Exception as e:
+        print(f"Error checking session status: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
 # ==================== GET VALIDATIONS ====================
 @validation_bp.route('/api/validations', methods=['GET'])
 def get_validations():
@@ -296,6 +373,25 @@ def update_validation(validation_id):
         validation_notes = data.get('validation_notes')
         validated_by = data.get('validated_by', 1)
         
+        # Ambil informasi preparation_id dan validation_type sebelum update
+        cur.execute("""
+            SELECT 
+                v.item_preparation_id,
+                v.material_item_preparation_id,
+                CASE 
+                    WHEN v.scan_id IS NOT NULL THEN 'device'
+                    WHEN v.scan_material_id IS NOT NULL THEN 'material'
+                    ELSE 'unknown'
+                END as validation_type
+            FROM validations v
+            WHERE v.id_validation = %s
+        """, (validation_id,))
+        val_info = cur.fetchone()
+        
+        item_preparation_id = val_info[0] if val_info else None
+        material_item_preparation_id = val_info[1] if val_info else None
+        validation_type = val_info[2] if val_info else None
+        
         cur.execute("""
             UPDATE validations 
             SET validation_status = %s,
@@ -356,6 +452,34 @@ def update_validation(validation_id):
                         
             except Exception as asset_error:
                 print(f"Error creating asset for validation {validation_id}: {asset_error}")
+                print(traceback.format_exc())
+            
+            # ==================== UPDATE SESSION STATUS ====================
+            try:
+                if validation_type == 'device' and item_preparation_id:
+                    # Ambil preparation_id dari devices_items_preparation
+                    cur.execute("""
+                        SELECT dip.preparation_id
+                        FROM devices_items_preparation dip
+                        WHERE dip.id_item_preparation = %s
+                    """, (item_preparation_id,))
+                    prep = cur.fetchone()
+                    if prep:
+                        from routes.validations import check_and_update_session_status
+                        check_and_update_session_status(prep[0], 'device')
+                elif validation_type == 'material' and material_item_preparation_id:
+                    # Ambil preparation_id dari materials_items_preparation
+                    cur.execute("""
+                        SELECT mip.preparation_id
+                        FROM materials_items_preparation mip
+                        WHERE mip.id_item_preparation = %s
+                    """, (material_item_preparation_id,))
+                    prep = cur.fetchone()
+                    if prep:
+                        from routes.validations import check_and_update_session_status
+                        check_and_update_session_status(prep[0], 'material')
+            except Exception as session_error:
+                print(f"Error updating session status for validation {validation_id}: {session_error}")
                 print(traceback.format_exc())
            
         return jsonify({

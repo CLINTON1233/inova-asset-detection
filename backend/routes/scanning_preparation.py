@@ -18,6 +18,74 @@ def generate_item_number(preparation_id, item_index, sub_item_index):
     """Generate item number format: ITEM-{preparation_id}-{item_index}-{sub_item_index}"""
     return f"ITEM-{preparation_id}-{item_index + 1}-{sub_item_index + 1}"
 
+@scanning_prep_bp.route('/api/scanning-preparation/sync-status', methods=['POST'])
+def sync_session_status():
+    """Sinkronisasi status semua session (cek apakah sudah completed)"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        # Sync devices sessions
+        cur.execute("""
+            SELECT dsp.id_preparation,
+                   COUNT(DISTINCT dip.id_item_preparation) as total_items,
+                   COUNT(DISTINCT v.id_validation) as validated_items
+            FROM devices_scanning_preparations dsp
+            LEFT JOIN devices_items_preparation dip ON dsp.id_preparation = dip.preparation_id
+            LEFT JOIN validations v ON dip.id_item_preparation = v.item_preparation_id AND v.validation_status = 'approved'
+            GROUP BY dsp.id_preparation
+            HAVING COUNT(DISTINCT dip.id_item_preparation) = COUNT(DISTINCT v.id_validation)
+            AND COUNT(DISTINCT dip.id_item_preparation) > 0
+        """)
+        
+        completed_devices = cur.fetchall()
+        for prep in completed_devices:
+            cur.execute("""
+                UPDATE devices_scanning_preparations 
+                SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+                WHERE id_preparation = %s
+            """, (prep['id_preparation'],))
+        
+        # Sync materials sessions
+        cur.execute("""
+            SELECT msp.id_preparation,
+                   COUNT(DISTINCT mip.id_item_preparation) as total_items,
+                   COUNT(DISTINCT v.id_validation) as validated_items
+            FROM materials_scanning_preparations msp
+            LEFT JOIN materials_items_preparation mip ON msp.id_preparation = mip.preparation_id
+            LEFT JOIN validations v ON mip.id_item_preparation = v.material_item_preparation_id AND v.validation_status = 'approved'
+            GROUP BY msp.id_preparation
+            HAVING COUNT(DISTINCT mip.id_item_preparation) = COUNT(DISTINCT v.id_validation)
+            AND COUNT(DISTINCT mip.id_item_preparation) > 0
+        """)
+        
+        completed_materials = cur.fetchall()
+        for prep in completed_materials:
+            cur.execute("""
+                UPDATE materials_scanning_preparations 
+                SET status = 'completed', updated_at = CURRENT_TIMESTAMP
+                WHERE id_preparation = %s
+            """, (prep['id_preparation'],))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Updated {len(completed_devices)} device sessions and {len(completed_materials)} material sessions to completed',
+            'devices_updated': len(completed_devices),
+            'materials_updated': len(completed_materials)
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Error syncing session status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
 # ==================== GET SINGLE ITEM PREPARATION DETAIL ====================
 @scanning_prep_bp.route('/api/devices/items-preparation/<int:item_prep_id>', methods=['GET'])
 def get_devices_item_preparation_detail(item_prep_id):

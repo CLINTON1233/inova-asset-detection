@@ -140,6 +140,9 @@ export const API_ENDPOINTS = {
   ASSETS_BULK_DELETE: `${API_BASE_URL}/api/assets/bulk-delete`,
   ASSETS_BY_PREPARATION: (prepId) => `${API_BASE_URL}/api/assets/by-preparation/${prepId}`,
   ASSETS_PREPARATIONS_COMPLETED: `${API_BASE_URL}/api/assets/preparations/completed`,
+
+  // Di dalam API_ENDPOINTS
+  SYNC_SESSION_STATUS: `${API_BASE_URL}/api/scanning-preparation/sync-status`,
 };
 
 export default API_BASE_URL;

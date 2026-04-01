@@ -2167,10 +2167,10 @@ const handleSubmitAll = async () => {
                 <p className="text-sm text-gray-400 mb-4">
                   Create a new session or go to preparation list
                 </p>
-                <div className="flex gap-2 justify-center">
+                <div className="flex flex-col sm:flex-row gap-2 justify-center">
                   <button
                     onClick={() => router.push("/create_scanning_preparation")}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center gap-2"
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2"
                   >
                     <Plus className="w-4 h-4" /> New Session
                   </button>
@@ -2201,7 +2201,6 @@ const handleSubmitAll = async () => {
                       ? Math.round((scannedCount / totalQty) * 100)
                       : 0;
 
-                  // PERBAIKAN: Buat key yang unik dengan menggabungkan type dan id_preparation
                   const uniqueKey = `${session.type || "unknown"}_${session.id_preparation}`;
 
                   return (
@@ -2215,10 +2214,10 @@ const handleSubmitAll = async () => {
                         );
                       }}
                     >
-                      <div className="flex items-start justify-between mb-2">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-2">
                         <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold text-gray-900">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-semibold text-gray-900 text-sm sm:text-base">
                               {session.checking_name}
                             </h3>
                             <span
@@ -2233,13 +2232,13 @@ const handleSubmitAll = async () => {
                                 : "Material"}
                             </span>
                           </div>
-                          <p className="text-xs text-gray-500 mt-0.5">
+                          <p className="text-xs text-gray-500 mt-0.5 break-all">
                             {session.checking_number} •{" "}
                             {session.location_name || "No location"}
                           </p>
                         </div>
                         <span
-                          className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                          className={`px-2 py-1 text-xs font-semibold rounded-full self-start ${
                             session.status === "pending"
                               ? "bg-amber-100 text-amber-700"
                               : "bg-blue-100 text-blue-700"
@@ -2293,7 +2292,7 @@ const handleSubmitAll = async () => {
             )}
           </div>
 
-          <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-between">
+          <div className="p-4 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row justify-between gap-2">
             <button
               onClick={() => router.push("/scanning_preparation_list")}
               className="text-sm text-gray-600 hover:text-gray-900"
@@ -2302,7 +2301,7 @@ const handleSubmitAll = async () => {
             </button>
             <button
               onClick={() => router.push("/create_scanning_preparation")}
-              className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-1"
+              className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-1"
             >
               <Plus className="w-3.5 h-3.5" /> New Session
             </button>
@@ -2337,7 +2336,7 @@ const handleSubmitAll = async () => {
   return (
     <ProtectedPage>
       <LayoutDashboard activeMenu={1}>
-        <style>{`
+        <style jsx global>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
           .scan-root { font-family: 'DM Sans', sans-serif; }
           .scan-root .mono { font-family: 'DM Mono', monospace; }
@@ -2505,19 +2504,46 @@ const handleSubmitAll = async () => {
           .animate-spin {
             animation: spin 1s linear infinite;
           }
+          
+          /* Mobile Responsive Styles */
+          @media (max-width: 768px) {
+            .scan-card {
+              border-radius: 12px;
+            }
+            .section-label {
+              font-size: 11px;
+              margin-bottom: 12px;
+            }
+            .btn-primary, .btn-secondary {
+              padding: 10px 16px;
+              font-size: 13px;
+            }
+            .stat-value {
+              font-size: 1.2rem;
+            }
+          }
+          
+          @media (max-width: 480px) {
+            .scan-card .p-4, .scan-card .p-5 {
+              padding: 0.75rem;
+            }
+            .history-row td {
+              white-space: normal !important;
+            }
+          }
         `}</style>
 
-        <div className="scan-root max-w-7xl mx-auto px-4 py-4 space-y-5">
+        <div className="scan-root max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 space-y-4 sm:space-y-5">
           {/* Page Header */}
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <ScanLine className="w-5 h-5 text-blue-600" />
-                <h1 className="text-xl font-bold text-gray-900">
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900">
                   Scanning Assets
                 </h1>
               </div>
-              <p className="text-sm text-gray-500">
+              <p className="text-xs sm:text-sm text-gray-500">
                 Scan devices or materials from your active session
               </p>
             </div>
@@ -2528,17 +2554,17 @@ const handleSubmitAll = async () => {
                     setShowSessionSelector(true);
                     loadAvailableSessions();
                   }}
-                  className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg px-3 py-2 text-sm font-medium flex items-center gap-1.5"
+                  className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium flex items-center gap-1.5"
                 >
-                  <Package className="w-4 h-4" /> Select Session
+                  <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Select Session
                 </button>
               )}
               <button
                 onClick={() => router.push("/create_scanning_preparation")}
                 className="btn-primary"
-                style={{ width: "auto", padding: "10px 16px" }}
+                style={{ width: "auto", padding: "8px 14px", fontSize: "13px" }}
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">New Session</span>
                 <span className="sm:hidden">New</span>
               </button>
@@ -2548,25 +2574,25 @@ const handleSubmitAll = async () => {
           {/* Active Session Banner */}
           {currentPreparation && (
             <div
-              className="scan-card p-4"
+              className="scan-card p-3 sm:p-4"
               style={{
                 borderLeft: `4px solid ${currentPreparation.type === "material" ? "#10b981" : "#2563eb"}`,
               }}
             >
-              <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${currentPreparation.type === "material" ? "bg-green-50" : "bg-blue-50"}`}
+                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${currentPreparation.type === "material" ? "bg-green-50" : "bg-blue-50"}`}
                   >
                     {currentPreparation.type === "material" ? (
-                      <Cable className="w-5 h-5 text-green-600" />
+                      <Cable className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
                     ) : (
-                      <Target className="w-5 h-5 text-blue-600" />
+                      <Target className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                     )}
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-gray-900 text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold text-gray-900 text-xs sm:text-sm">
                         {currentPreparation.checking_name}
                       </h3>
                       <span
@@ -2579,18 +2605,18 @@ const handleSubmitAll = async () => {
                             currentPreparation.type === "material"
                               ? "#15803d"
                               : "#1d4ed8",
-                          fontSize: "11px",
+                          fontSize: "10px",
                           fontWeight: 600,
-                          padding: "2px 8px",
+                          padding: "2px 6px",
                           borderRadius: "20px",
                         }}
                       >
                         {currentPreparation.type === "material"
-                          ? "Material Session"
-                          : "Device Session"}
+                          ? "Material"
+                          : "Device"}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5">
+                    <p className="text-xs text-gray-500 mt-0.5 break-all">
                       {currentPreparation.checking_number} &nbsp;·&nbsp;{" "}
                       {currentPreparation.location_name}
                     </p>
@@ -2598,8 +2624,8 @@ const handleSubmitAll = async () => {
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="flex flex-col items-center">
-                    <div className="relative w-12 h-12">
-                      <svg viewBox="0 0 48 48" className="w-12 h-12 -rotate-90">
+                    <div className="relative w-10 h-10 sm:w-12 sm:h-12">
+                      <svg viewBox="0 0 48 48" className="w-10 h-10 sm:w-12 sm:h-12 -rotate-90">
                         <circle
                           cx="24"
                           cy="24"
@@ -2621,7 +2647,7 @@ const handleSubmitAll = async () => {
                           style={{ transition: "stroke-dashoffset .5s ease" }}
                         />
                       </svg>
-                      <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-gray-800">
+                      <span className="absolute inset-0 flex items-center justify-center text-[10px] sm:text-xs font-bold text-gray-800">
                         {overallPct}%
                       </span>
                     </div>
@@ -2632,9 +2658,9 @@ const handleSubmitAll = async () => {
                       setScanningProgress({});
                       router.push("/scanning");
                     }}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
+                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </button>
                 </div>
               </div>
@@ -2651,8 +2677,8 @@ const handleSubmitAll = async () => {
                     item.device_name || item.material_name || item.item_name;
                   return (
                     <div key={item.id_item}>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <div
                             className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${done ? "bg-green-500" : "bg-blue-400"}`}
                           />
@@ -2700,20 +2726,20 @@ const handleSubmitAll = async () => {
           )}
 
           {/* Main Grid: Camera + Input */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-5">
             {/* Camera */}
-            <div className="lg:col-span-3 scan-card p-4 sm:p-5">
+            <div className="lg:col-span-3 scan-card p-3 sm:p-5">
               <p className="section-label flex items-center gap-2">
                 <Camera className="w-3.5 h-3.5" /> Camera Scanner
               </p>
 
               <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden flex items-center justify-center mb-4">
-                <div className="text-center">
-                  <Camera className="w-16 h-16 text-gray-700 mx-auto mb-4" />
-                  <p className="text-gray-400 text-base font-semibold mb-2">
+                <div className="text-center px-4">
+                  <Camera className="w-12 h-12 sm:w-16 sm:h-16 text-gray-700 mx-auto mb-4" />
+                  <p className="text-gray-400 text-sm sm:text-base font-semibold mb-2">
                     Camera Off
                   </p>
-                  <p className="text-gray-500 text-sm">
+                  <p className="text-gray-500 text-xs sm:text-sm">
                     Click Start Scan to activate camera
                   </p>
                 </div>
@@ -2721,29 +2747,29 @@ const handleSubmitAll = async () => {
 
               <div className="w-full">
                 <button
-                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 text-base shadow-md"
+                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 sm:py-3 px-4 rounded-xl transition-all duration-200 text-sm sm:text-base shadow-md"
                   onClick={() => {
                     const isMaterial = currentPreparation?.type === "material";
                     setCameraMode(isMaterial ? "material" : "device");
                     setIsCameraOpen(true);
                   }}
                 >
-                  <Camera className="w-5 h-5" />
+                  <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
                   Start Scan
                 </button>
               </div>
             </div>
 
             {/* Right Panel */}
-            <div className="lg:col-span-2 flex flex-col gap-5">
+            <div className="lg:col-span-2 flex flex-col gap-4 sm:gap-5">
               {/* Manual Input */}
-              <div className="scan-card p-4 sm:p-5">
+              <div className="scan-card p-3 sm:p-5">
                 <p className="section-label flex items-center gap-2">
                   <Clipboard className="w-3.5 h-3.5" /> Manual Input
                 </p>
                 <form onSubmit={handleManualCheck} className="space-y-3">
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1.5">
+                    <label className="block text-xs sm:text-sm text-gray-600 mb-1.5">
                       {currentPreparation?.type === "material"
                         ? "Scan Code"
                         : "Serial number"}
@@ -2757,13 +2783,13 @@ const handleSubmitAll = async () => {
                       }
                       value={manualInput}
                       onChange={(e) => setManualInput(e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-sm"
+                      className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-sm"
                       required
                     />
                   </div>
                   <button
                     type="submit"
-                    className="w-full flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 px-4 rounded-lg transition-all duration-200 text-sm"
+                    className="w-full flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 sm:py-2.5 px-4 rounded-lg transition-all duration-200 text-sm"
                     disabled={scanResult === "loading"}
                   >
                     {scanResult === "loading" ? (
@@ -2782,22 +2808,21 @@ const handleSubmitAll = async () => {
               </div>
 
               {/* Last Detection Result */}
-              <div className="scan-card p-4 sm:p-5 flex-1">
+              <div className="scan-card p-3 sm:p-5 flex-1">
                 <p className="section-label flex items-center gap-2">
                   <Eye className="w-3.5 h-3.5" /> Last Detection Result
                 </p>
 
                 {!scanResult && checkHistory.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
-                      <Scan className="w-6 h-6 text-gray-400" />
+                  <div className="flex flex-col items-center justify-center py-6 sm:py-8 text-center">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
+                      <Scan className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
                     </div>
-                    <p className="text-lg text-gray-500 font-medium">
+                    <p className="text-base sm:text-lg text-gray-500 font-medium">
                       No scan results yet
                     </p>
-                    <p className="text-sm text-gray-400 mt-2">
-                      Scan a device or material and enter the serial number or
-                      scan the code
+                    <p className="text-xs sm:text-sm text-gray-400 mt-2">
+                      Scan a device or material
                     </p>
                   </div>
                 )}
@@ -2809,7 +2834,7 @@ const handleSubmitAll = async () => {
                     const cfg = getStatusConfig(latestScan.status);
                     return (
                       <div
-                        className={`rounded-xl p-3.5 border ${cfg.bg} ${cfg.border}`}
+                        className={`rounded-xl p-3 border ${cfg.bg} ${cfg.border}`}
                       >
                         <div
                           className={`flex items-center gap-2 mb-3 ${cfg.text}`}
@@ -2861,7 +2886,7 @@ const handleSubmitAll = async () => {
                                   {row.label}
                                 </span>
                                 <span
-                                  className={`text-gray-800 ${row.mono ? "font-mono" : ""}`}
+                                  className={`text-gray-800 ${row.mono ? "font-mono" : ""} truncate max-w-[150px] sm:max-w-none`}
                                 >
                                   {row.value}
                                 </span>
@@ -2885,7 +2910,7 @@ const handleSubmitAll = async () => {
                     const cfg = getStatusConfig(scanResult.status);
                     return (
                       <div
-                        className={`rounded-xl p-3.5 border ${cfg.bg} ${cfg.border}`}
+                        className={`rounded-xl p-3 border ${cfg.bg} ${cfg.border}`}
                       >
                         <div
                           className={`flex items-center gap-2 mb-3 ${cfg.text}`}
@@ -2937,7 +2962,7 @@ const handleSubmitAll = async () => {
                                   {row.label}
                                 </span>
                                 <span
-                                  className={`text-gray-800 ${row.mono ? "font-mono" : ""}`}
+                                  className={`text-gray-800 ${row.mono ? "font-mono" : ""} truncate max-w-[150px] sm:max-w-none`}
                                 >
                                   {row.value}
                                 </span>
@@ -2952,7 +2977,7 @@ const handleSubmitAll = async () => {
           </div>
 
           {/* Scan History */}
-          <div className="scan-card p-4 sm:p-5">
+          <div className="scan-card p-3 sm:p-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div className="flex items-center gap-3">
                 <p className="section-label mb-0" style={{ marginBottom: 0 }}>
@@ -2978,7 +3003,7 @@ const handleSubmitAll = async () => {
               {checkHistory.length > 0 && (
                 <button
                   onClick={handleDeleteAll}
-                  className="bg-white border border-red-500 text-red-500 hover:bg-red-50 rounded-lg px-2.5 py-1 text-xs font-medium flex items-center gap-1 transition-colors"
+                  className="bg-white border border-red-500 text-red-500 hover:bg-red-50 rounded-lg px-2.5 py-1 text-xs font-medium flex items-center gap-1 transition-colors self-start sm:self-auto"
                 >
                   <Trash2 className="w-3.5 h-3.5" /> Clear All
                 </button>
@@ -2986,18 +3011,19 @@ const handleSubmitAll = async () => {
             </div>
 
             {checkHistory.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
-                  <Box className="w-7 h-7 text-gray-400" />
+              <div className="flex flex-col items-center justify-center py-8 sm:py-12 text-center">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
+                  <Box className="w-6 h-6 sm:w-7 sm:h-7 text-gray-400" />
                 </div>
-                <p className="text-lg text-gray-500">No scan history</p>
-                <p className="text-sm text-gray-400 mt-1">
+                <p className="text-base sm:text-lg text-gray-500">No scan history</p>
+                <p className="text-xs sm:text-sm text-gray-400 mt-1">
                   Your scanned items will appear here
                 </p>
               </div>
             ) : (
               <>
-                <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-100">
+                {/* Desktop Table View - Hidden on mobile */}
+                <div className="hidden lg:block overflow-x-auto rounded-xl border border-gray-100">
                   <table className="w-full text-sm">
                     <thead>
                       <tr style={{ background: "#f8fafc" }}>
@@ -3022,7 +3048,7 @@ const handleSubmitAll = async () => {
                         ].map((h) => (
                           <th
                             key={h}
-                            className="px-4 py-3 text-left"
+                            className="px-3 py-3 text-left"
                             style={{
                               fontSize: 11,
                               fontWeight: 600,
@@ -3044,15 +3070,13 @@ const handleSubmitAll = async () => {
                           (i) => i.id_item === item.item_id,
                         );
                         const projectName = itemDetail?.project_name || "-";
-                        const departments = itemDetail?.departments || [];
-                        const receivers = itemDetail?.receivers || [];
 
                         return (
                           <tr
                             key={item.id}
                             className="history-row border-t border-gray-50"
                           >
-                            <td className="px-4 py-3">
+                            <td className="px-3 py-3">
                               {item.photo_url ? (
                                 <img
                                   src={
@@ -3061,7 +3085,7 @@ const handleSubmitAll = async () => {
                                       : `http://localhost:5001${item.photo_url}`
                                   }
                                   alt="Scan result"
-                                  className="w-10 h-10 object-cover rounded-lg cursor-pointer hover:opacity-80 transition"
+                                  className="w-8 h-8 sm:w-10 sm:h-10 object-cover rounded-lg cursor-pointer hover:opacity-80 transition"
                                   onError={(e) => {
                                     console.error(
                                       "Image failed to load:",
@@ -3069,7 +3093,7 @@ const handleSubmitAll = async () => {
                                     );
                                     e.target.style.display = "none";
                                     e.target.parentElement.innerHTML =
-                                      '<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center"><svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg></div>';
+                                      '<div class="w-8 h-8 sm:w-10 sm:h-10 bg-gray-100 rounded-lg flex items-center justify-center"><svg class="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg></div>';
                                   }}
                                   onClick={() => {
                                     Swal.fire({
@@ -3092,28 +3116,25 @@ const handleSubmitAll = async () => {
                                   }}
                                 />
                               ) : (
-                                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                                  <Camera className="w-5 h-5 text-gray-400" />
+                                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                                  <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
                                 </div>
                               )}
-                            </td>
-
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                             </td>
+                            <td className="px-3 py-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
                                   {getCategoryIcon(item.kategori)}
                                 </div>
-                                <span className="font-mono text-gray-900 text-xs">
+                                <span className="font-mono text-gray-900 text-xs break-all">
                                   {item.id}
                                 </span>
                               </div>
-                            </td>
-
-                            <td className="px-4 py-3 text-xs text-gray-600">
+                             </td>
+                            <td className="px-3 py-3 text-xs text-gray-600 max-w-[150px] truncate">
                               {item.jenisAset}
-                            </td>
-
-                            <td className="px-4 py-3">
+                             </td>
+                            <td className="px-3 py-3">
                               <span
                                 style={{
                                   background:
@@ -3124,9 +3145,9 @@ const handleSubmitAll = async () => {
                                     item.kategori === "Perangkat"
                                       ? "#1d4ed8"
                                       : "#15803d",
-                                  fontSize: 11,
+                                  fontSize: 10,
                                   fontWeight: 500,
-                                  padding: "3px 8px",
+                                  padding: "2px 6px",
                                   borderRadius: 20,
                                 }}
                               >
@@ -3134,56 +3155,31 @@ const handleSubmitAll = async () => {
                                   ? "Device"
                                   : "Material"}
                               </span>
-                            </td>
-
-                            <td className="px-4 py-3 text-xs text-gray-500">
+                             </td>
+                            <td className="px-3 py-3 text-xs text-gray-500">
                               {item.brand || "—"}
-                            </td>
-
-                            <td className="px-4 py-3">
-                              <span className="font-mono text-xs text-gray-600">
+                             </td>
+                            <td className="px-3 py-3">
+                              <span className="font-mono text-xs text-gray-600 break-all">
                                 {item.nomorSeri || "—"}
                               </span>
-                            </td>
-
-                            {/* Kolom Project */}
-                            <td className="px-4 py-3">
+                             </td>
+                            <td className="px-3 py-3">
                               <span className="text-xs text-gray-600">
                                 {item.project_name || "-"}
                               </span>
-                            </td>
-
-                            {/* Kolom Department */}
-                            <td className="px-4 py-3">
-                              <div className="flex flex-wrap gap-1">
-                                {item.department_name ? (
-                                  <span className="text-xs text-gray-600">
-                                    {item.department_name}
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-gray-400">
-                                    —
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-
-                            {/* Kolom Receiver */}
-                            <td className="px-4 py-3">
-                              <div className="flex flex-wrap gap-1">
-                                {item.receiver_name ? (
-                                  <span className="text-xs text-gray-600">
-                                    {item.receiver_name}
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-gray-400">
-                                    —
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-
-                            <td className="px-4 py-3">
+                             </td>
+                            <td className="px-3 py-3">
+                              <span className="text-xs text-gray-600">
+                                {item.department_name || "-"}
+                              </span>
+                             </td>
+                            <td className="px-3 py-3">
+                              <span className="text-xs text-gray-600">
+                                {item.receiver_name || "-"}
+                              </span>
+                             </td>
+                            <td className="px-3 py-3">
                               <span
                                 style={{
                                   background:
@@ -3198,91 +3194,75 @@ const handleSubmitAll = async () => {
                                       : item.confidencePercent >= 60
                                         ? "#854d0e"
                                         : "#b91c1c",
-                                  fontSize: 11,
+                                  fontSize: 10,
                                   fontWeight: 600,
-                                  padding: "2px 8px",
+                                  padding: "2px 6px",
                                   borderRadius: 20,
                                 }}
                               >
                                 {item.confidencePercent || "—"}%
                               </span>
-                            </td>
-
-                            <td className="px-4 py-3">
+                             </td>
+                            <td className="px-3 py-3">
                               <span
                                 style={{
-                                  fontSize: 11,
+                                  fontSize: 10,
                                   fontWeight: 500,
-                                  padding: "3px 10px",
+                                  padding: "2px 8px",
                                   borderRadius: 20,
                                 }}
                                 className={cfg.badge}
                               >
                                 {cfg.label}
                               </span>
-                            </td>
-
-                            <td className="px-4 py-3">
-                              <p className="text-xs text-gray-500">
+                             </td>
+                            <td className="px-3 py-3">
+                              <p className="text-xs text-gray-500 whitespace-nowrap">
                                 {item.tanggal}
                               </p>
-                              <p className="text-xs text-gray-400">
+                              <p className="text-xs text-gray-400 whitespace-nowrap">
                                 {item.waktu}
                               </p>
-                            </td>
-
-<td className="px-4 py-3">
-  <div className="flex items-center gap-1">
-    {/* Tombol Scan Serial/Code yang sudah ada */}
-    {item.status === "device_detected" && !item.nomorSeri && (
-      <button
-        onClick={() => handleScanSerialForItem(item)}
-        className="w-7 h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white transition"
-        title={item.kategori === "Perangkat" ? "Scan Serial Number" : "Scan Code"}
-      >
-        <ScanLine className="w-3.5 h-3.5" />
-      </button>
-    )}
-    
-    {/* Tombol Add Photo - Tampilkan jika belum ada foto */}
-    {/* {!item.photo_url && (
-      <button
-        onClick={() => openPhotoCapture(item)}
-        className="w-7 h-7 rounded-lg flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white transition"
-        title="Add Photo"
-      >
-        <Camera className="w-3.5 h-3.5" />
-      </button>
-    )} */}
-    
-    {/* Tombol Submit dan Delete yang sudah ada */}
-    {item.status !== "Submitted" && item.lokasi && (
-      <button
-        onClick={() => handleSubmitSingle(item)}
-        disabled={isSubmitting}
-        className="w-7 h-7 rounded-lg flex items-center justify-center bg-green-600 hover:bg-green-700 text-white transition disabled:opacity-50"
-        title="Submit"
-      >
-        <Send className="w-3.5 h-3.5" />
-      </button>
-    )}
-    <button
-      onClick={() => handleDeleteData(item)}
-      className="w-7 h-7 rounded-lg flex items-center justify-center bg-red-500 hover:bg-red-600 text-white transition"
-      title="Delete"
-    >
-      <Trash2 className="w-3.5 h-3.5" />
-    </button>
-  </div>
-</td>
-                          </tr>
+                             </td>
+                            <td className="px-3 py-3">
+                              <div className="flex items-center gap-1">
+                                {item.status === "device_detected" && !item.nomorSeri && (
+                                  <button
+                                    onClick={() => handleScanSerialForItem(item)}
+                                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white transition"
+                                    title={item.kategori === "Perangkat" ? "Scan Serial" : "Scan Code"}
+                                  >
+                                    <ScanLine className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                  </button>
+                                )}
+                                {item.status !== "Submitted" && item.lokasi && (
+                                  <button
+                                    onClick={() => handleSubmitSingle(item)}
+                                    disabled={isSubmitting}
+                                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center bg-green-600 hover:bg-green-700 text-white transition disabled:opacity-50"
+                                    title="Submit"
+                                  >
+                                    <Send className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleDeleteData(item)}
+                                  className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center bg-red-500 hover:bg-red-600 text-white transition"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                </button>
+                              </div>
+                             </td>
+                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
                 </div>
 
-                <div className="md:hidden space-y-2">
+                {/* Mobile Card View - Visible on mobile */}
+                <div className="lg:hidden space-y-2">
                   {checkHistory.map((item) => {
                     const cfg = getStatusConfig(item.status);
                     return (
@@ -3292,14 +3272,14 @@ const handleSubmitAll = async () => {
                       >
                         <div className="flex items-start justify-between mb-2.5">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center">
+                            <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center">
                               {getCategoryIcon(item.kategori)}
                             </div>
                             <div>
-                              <p className="font-mono text-xs text-gray-900">
+                              <p className="font-mono text-xs text-gray-900 break-all">
                                 {item.id}
                               </p>
-                              <p className="text-xs text-gray-500">
+                              <p className="text-xs text-gray-500 max-w-[180px] truncate">
                                 {item.jenisAset}
                               </p>
                             </div>
@@ -3313,11 +3293,9 @@ const handleSubmitAll = async () => {
                         <div className="grid grid-cols-2 gap-1 text-xs mb-2.5">
                           <div>
                             <span className="text-gray-400">
-                              {item.kategori === "Perangkat"
-                                ? "Brand:"
-                                : "Vendor:"}
+                              {item.kategori === "Perangkat" ? "Brand:" : "Vendor:"}
                             </span>
-                            <span className="text-gray-700">
+                            <span className="text-gray-700 ml-1">
                               {item.brand || "—"}
                             </span>
                           </div>
@@ -3330,20 +3308,43 @@ const handleSubmitAll = async () => {
                           {item.nomorSeri && (
                             <div className="col-span-2">
                               <span className="text-gray-400">
-                                {item.kategori === "Perangkat"
-                                  ? "Serial:"
-                                  : "Scan Code:"}
+                                {item.kategori === "Perangkat" ? "Serial:" : "Scan Code:"}
                               </span>
-                              <span className="font-mono text-gray-700">
+                              <span className="font-mono text-gray-700 ml-1 break-all">
                                 {item.nomorSeri}
                               </span>
                             </div>
                           )}
-                          <div className="col-span-2 text-gray-400">
+                          {item.department_name && (
+                            <div className="col-span-2">
+                              <span className="text-gray-400">Dept:</span>
+                              <span className="text-gray-700 ml-1">
+                                {item.department_name}
+                              </span>
+                            </div>
+                          )}
+                          {item.receiver_name && (
+                            <div className="col-span-2">
+                              <span className="text-gray-400">Receiver:</span>
+                              <span className="text-gray-700 ml-1">
+                                {item.receiver_name}
+                              </span>
+                            </div>
+                          )}
+                          <div className="col-span-2 text-gray-400 text-xs">
                             {item.tanggal} &nbsp;{item.waktu}
                           </div>
                         </div>
                         <div className="flex gap-2 pt-2 border-t border-gray-50">
+                          {item.status === "device_detected" && !item.nomorSeri && (
+                            <button
+                              onClick={() => handleScanSerialForItem(item)}
+                              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition"
+                            >
+                              <ScanLine className="w-3 h-3" /> 
+                              {item.kategori === "Perangkat" ? "Scan Serial" : "Scan Code"}
+                            </button>
+                          )}
                           {item.status !== "Submitted" && item.lokasi && (
                             <button
                               onClick={() => handleSubmitSingle(item)}
