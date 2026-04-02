@@ -296,6 +296,7 @@ export default function AssetDetailPage() {
                                 asset.photo_url.startsWith("http")
                                   ? asset.photo_url
                                   : `http://localhost:5001${asset.photo_url}`
+                                  
                               }
                               alt="Asset"
                               className="w-10 h-10 rounded-lg object-cover"
