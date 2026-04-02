@@ -16,21 +16,17 @@ import {
   CheckCircle,
   Camera,
   X,
-  ChevronLeft,
+  ChevronDown,
+  ChevronUp,
   Package,
   Laptop,
   Tag,
   QrCode,
-  Globe,
   Info,
-  Award,
   Clock,
   FileText,
   Activity,
-  Shield,
-  Download,
   FileSpreadsheet,
-  BarChart3,
   RefreshCw,
 } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -66,7 +62,6 @@ export default function AssetDetailPage() {
         `${API_BASE_URL}/api/assets/by-preparation/${prepId}?type=${prepType}`
       );
       const result = await response.json();
-
       if (result.success) {
         setAssets(result.data);
         setSessionInfo(result.session_info);
@@ -75,11 +70,7 @@ export default function AssetDetailPage() {
       }
     } catch (error) {
       console.error("Error fetching assets:", error);
-      Swal.fire({
-        title: "Error!",
-        text: error.message || "Failed to load asset details",
-        icon: "error",
-      });
+      Swal.fire({ title: "Error!", text: error.message || "Failed to load asset details", icon: "error" });
     } finally {
       setLoading(false);
     }
@@ -87,11 +78,7 @@ export default function AssetDetailPage() {
 
   const formatDate = (dateString) => {
     if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
+    return new Date(dateString).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
   };
 
   const formatDateTime = (dateString) => {
@@ -102,70 +89,44 @@ export default function AssetDetailPage() {
       date.getDate() === today.getDate() &&
       date.getMonth() === today.getMonth() &&
       date.getFullYear() === today.getFullYear();
-
     if (isToday) {
-      return date.toLocaleDateString("id-ID", {
-        day: "numeric",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      return date.toLocaleDateString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
     }
-
-    return date.toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return date.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   };
 
   const getTypeIcon = (type) => {
-    if (type === "Device") return <Cpu className="w-5 h-5 text-blue-600" />;
-    return <Cable className="w-5 h-5 text-green-600" />;
+    if (type === "Device") return <Cpu className="w-4 h-4 text-blue-600" />;
+    return <Cable className="w-4 h-4 text-emerald-600" />;
   };
 
   const getTypeBadge = (type) => {
-    if (type === "Device") {
-      return "bg-blue-100 text-blue-700 border-blue-200";
-    }
-    return "bg-green-100 text-green-700 border-green-200";
+    if (type === "Device") return "badge-device";
+    return "badge-material";
   };
 
   const getStatusColor = (status) => {
     switch (status) {
-      case "active":
-        return "bg-green-100 text-green-700 border-green-200";
-      case "inactive":
-        return "bg-gray-100 text-gray-700 border-gray-200";
-      case "maintenance":
-        return "bg-orange-100 text-orange-700 border-orange-200";
-      default:
-        return "bg-gray-100 text-gray-700 border-gray-200";
+      case "active": return "badge-active";
+      case "inactive": return "badge-inactive";
+      case "maintenance": return "badge-maintenance";
+      default: return "badge-inactive";
     }
   };
 
   const getStatusLabel = (status) => {
     switch (status) {
-      case "active":
-        return "Active";
-      case "inactive":
-        return "Inactive";
-      case "maintenance":
-        return "Maintenance";
-      default:
-        return status || "Unknown";
+      case "active": return "Active";
+      case "inactive": return "Inactive";
+      case "maintenance": return "Maintenance";
+      default: return status || "Unknown";
     }
   };
 
-  const handleShowDetail = (asset) => {
-    setSelectedAsset(asset);
-  };
+  const handleShowDetail = (asset) => setSelectedAsset(asset);
 
   const handleExportExcel = async () => {
     if (!assets.length) return;
-
     setIsExporting(true);
     try {
       const summaryData = [
@@ -178,71 +139,27 @@ export default function AssetDetailPage() {
         [],
         ["ASSETS DETAILS"],
         [],
-        [
-          "No.",
-          "Asset Code",
-          "Asset Name",
-          "Type",
-          "Brand/Vendor",
-          "Serial/Code",
-          "Status",
-          "Department",
-          "Receiver",
-          "Validated By",
-          "Validated At",
-        ],
+        ["No.", "Asset Code", "Asset Name", "Type", "Brand/Vendor", "Serial/Code", "Status", "Department", "Receiver", "Validated By", "Validated At"],
       ];
-
       assets.forEach((asset, index) => {
         summaryData.push([
-          index + 1,
-          asset.asset_code,
-          asset.asset_name,
-          asset.category || "-",
+          index + 1, asset.asset_code, asset.asset_name, asset.category || "-",
           asset.brand || asset.vendor || "-",
           asset.serial_number || asset.scan_code || "-",
-          getStatusLabel(asset.status),
-          asset.department_name || "-",
-          asset.receiver_name || "-",
-          asset.validated_by_name || "System",
+          getStatusLabel(asset.status), asset.department_name || "-",
+          asset.receiver_name || "-", asset.validated_by_name || "System",
           formatDateTime(asset.validated_at),
         ]);
       });
-
       const ws = XLSX.utils.aoa_to_sheet(summaryData);
-      ws["!cols"] = [
-        { wch: 6 },
-        { wch: 18 },
-        { wch: 30 },
-        { wch: 12 },
-        { wch: 20 },
-        { wch: 25 },
-        { wch: 12 },
-        { wch: 20 },
-        { wch: 20 },
-        { wch: 20 },
-        { wch: 22 },
-      ];
-
+      ws["!cols"] = [{ wch: 6 }, { wch: 18 }, { wch: 30 }, { wch: 12 }, { wch: 20 }, { wch: 25 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 22 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Assets Report");
       const timestamp = new Date().toISOString().slice(0, 19).replace(/[:]/g, "-");
       XLSX.writeFile(wb, `assets_report_${timestamp}.xlsx`);
-
-      Swal.fire({
-        title: "Success!",
-        text: "Excel report exported successfully",
-        icon: "success",
-        timer: 2000,
-        showConfirmButton: false,
-      });
+      Swal.fire({ title: "Success!", text: "Excel report exported successfully", icon: "success", timer: 2000, showConfirmButton: false });
     } catch (error) {
-      console.error("Error exporting Excel:", error);
-      Swal.fire({
-        title: "Error!",
-        text: "Failed to export Excel file",
-        icon: "error",
-      });
+      Swal.fire({ title: "Error!", text: "Failed to export Excel file", icon: "error" });
     } finally {
       setIsExporting(false);
     }
@@ -252,7 +169,7 @@ export default function AssetDetailPage() {
     return (
       <ProtectedPage>
         <LayoutDashboard activeMenu={2}>
-          <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+          <div className="min-h-screen flex items-center justify-center">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
           </div>
         </LayoutDashboard>
@@ -269,324 +186,393 @@ export default function AssetDetailPage() {
     materials: assets.filter((a) => a.category === "Material").length,
   };
 
+  const displayedAssets = expandedAssets ? assets : assets.slice(0, 5);
+
   return (
     <ProtectedPage>
       <LayoutDashboard activeMenu={2}>
-        <style jsx>{`
-          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-          .asset-root { font-family: 'DM Sans', sans-serif; }
-          .asset-root .mono { font-family: 'DM Mono', monospace; }
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap');
+          .ad-root { font-family: 'DM Sans', sans-serif; }
+          .ad-root * { box-sizing: border-box; }
 
-          @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-          .animate-spin { animation: spin 1s linear infinite; }
-
-          .asset-card {
+          /* ─── Shared card shell ─── */
+          .vv-card {
             background: #ffffff;
             border-radius: 16px;
             box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
             transition: box-shadow 0.2s ease;
           }
-          .asset-card:hover {
+          .vv-card:hover {
             box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
           }
 
-          .asset-th {
+          /* ─── Section card (table container) ─── */
+          .ai-section {
+            background: #ffffff;
+            border-radius: 18px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            overflow: hidden;
+          }
+
+          /* ─── Table ─── */
+          .ai-th {
+            padding: 10px 14px;
             font-size: 11px;
-            font-weight: 600;
+            font-weight: 700;
             color: #6b7280;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
-            padding: 12px 16px;
+            letter-spacing: 0.07em;
             background: #f9fafb;
             white-space: nowrap;
+            border-bottom: 1px solid #e5e7eb;
           }
-          .asset-td {
-            padding: 14px 16px;
+          .ai-td {
+            padding: 13px 14px;
             font-size: 13px;
             color: #374151;
             border-top: 1px solid #f3f4f6;
             vertical-align: middle;
           }
-          .asset-row {
-            transition: background 0.2s ease;
-            cursor: pointer;
-          }
-          .asset-row:hover {
-            background: #f8faff;
+          .ai-row { cursor: pointer; transition: background 0.1s; }
+          .ai-row:hover { background: #f8faff; }
+
+          /* ─── Badges ─── */
+          .badge-device   { background:#dbeafe; color:#1d4ed8; border:1px solid #bfdbfe; }
+          .badge-material { background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; }
+          .badge-active      { background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; }
+          .badge-inactive    { background:#f3f4f6; color:#6b7280; border:1px solid #e5e7eb; }
+          .badge-maintenance { background:#ffedd5; color:#9a3412; border:1px solid #fed7aa; }
+
+          .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: 9999px;
+            font-size: 11px;
+            font-weight: 600;
           }
 
-          .stat-card {
-            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
-            border-radius: 12px;
-            padding: 16px;
+          /* ─── View button ─── */
+          .ai-view-btn {
+            opacity: 1;
+            transition: opacity 0.15s, transform 0.15s;
+          }
+
+          /* ─── Footer bar ─── */
+          .ai-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 18px;
+            background: #f9fafb;
+            border-top: 1px solid #f3f4f6;
+          }
+
+          /* ─── Empty state ─── */
+          .ai-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 72px 24px;
             text-align: center;
-            transition: all 0.2s ease;
           }
-          .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+
+          /* ─── Modal backdrop ─── */
+          .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            padding: 16px;
           }
+          .modal-box {
+            background: #fff;
+            border-radius: 20px;
+            max-width: 640px;
+            width: 100%;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+          }
+
+          /* ─── Spin ─── */
+          @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+          .animate-spin { animation: spin 1s linear infinite; }
         `}</style>
 
-        <div className="asset-root space-y-6 max-w-7xl mx-auto px-4 py-4">
-          {/* Header with Back Button */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="ad-root space-y-5">
+
+          {/* ── Page Header ── */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => router.push("/assets")}
-                className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back
               </button>
               <div>
-                <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                  <Box className="w-6 h-6 text-blue-600" />
+                <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <Box className="w-5 h-5 text-blue-600" />
                   Asset Details
                 </h1>
-                <p className="text-gray-500 text-sm mt-1">
+                <p className="text-sm text-gray-500 mt-0.5">
                   View and manage assets from scanning session
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <button
                 onClick={handleExportExcel}
                 disabled={isExporting || assets.length === 0}
-                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-all disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg,#059669,#10b981)" }}
               >
                 {isExporting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Exporting...
-                  </>
+                  <><Loader2 className="w-4 h-4 animate-spin" />Exporting...</>
                 ) : (
-                  <>
-                    <FileSpreadsheet className="w-4 h-4" />
-                    Export Excel
-                  </>
+                  <><FileSpreadsheet className="w-4 h-4" />Export Excel</>
                 )}
               </button>
               <button
                 onClick={fetchAssets}
                 disabled={loading}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                Refresh
+                {loading ? "Refreshing..." : "Refresh"}
               </button>
             </div>
           </div>
 
-          {/* Session Info Card */}
+          {/* ── Session Info KPI Card ── */}
           {sessionInfo && (
-            <div className="asset-card p-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
+            <div className="vv-card">
+              {/* Session identity row */}
+              <div
+                style={{
+                  padding: "20px 24px",
+                  borderBottom: "1px solid #f3f4f6",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 16,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                   <div
-                    className={`w-14 h-14 rounded-xl flex items-center justify-center ${
-                      prepType === "device" ? "bg-blue-100" : "bg-green-100"
-                    }`}
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 14,
+                      background: prepType === "device" ? "#eff6ff" : "#ecfdf5",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
                   >
-                    {prepType === "device" ? (
-                      <Laptop className="w-7 h-7 text-blue-600" />
-                    ) : (
-                      <Package className="w-7 h-7 text-green-600" />
-                    )}
+                    {prepType === "device"
+                      ? <Laptop className="w-6 h-6 text-blue-600" />
+                      : <Package className="w-6 h-6 text-emerald-600" />}
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900">
+                    <h2 style={{ fontSize: 17, fontWeight: 700, color: "#111827" }}>
                       {sessionInfo.session_name}
                     </h2>
-                    <p className="text-sm text-gray-500 font-mono mt-0.5">
+                    <p style={{ fontFamily: "DM Mono,monospace", fontSize: 12, color: "#9ca3af", marginTop: 2 }}>
                       {sessionInfo.session_number}
                     </p>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-4">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Calendar className="w-4 h-4 text-gray-400" />
-                    <span>{formatDate(sessionInfo.session_date)}</span>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <Calendar style={{ width: 14, height: 14, color: "#9ca3af" }} />
+                    <span style={{ fontSize: 13, color: "#6b7280" }}>{formatDate(sessionInfo.session_date)}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <MapPin className="w-4 h-4 text-gray-400" />
-                    <span>{sessionInfo.location_name || "No location"}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <MapPin style={{ width: 14, height: 14, color: "#9ca3af" }} />
+                    <span style={{ fontSize: 13, color: "#6b7280" }}>{sessionInfo.location_name || "No location"}</span>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* Statistics Cards */}
-          {assets.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              <div className="stat-card border border-gray-100">
-                <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-                <div className="text-xs text-gray-500 mt-1">Total Assets</div>
-              </div>
-              <div className="stat-card border border-gray-100">
-                <div className="text-2xl font-bold text-green-600">{stats.active}</div>
-                <div className="text-xs text-gray-500 mt-1">Active</div>
-              </div>
-              <div className="stat-card border border-gray-100">
-                <div className="text-2xl font-bold text-gray-500">{stats.inactive}</div>
-                <div className="text-xs text-gray-500 mt-1">Inactive</div>
-              </div>
-              <div className="stat-card border border-gray-100">
-                <div className="text-2xl font-bold text-orange-600">{stats.maintenance}</div>
-                <div className="text-xs text-gray-500 mt-1">Maintenance</div>
-              </div>
-              <div className="stat-card border border-gray-100">
-                <div className="text-2xl font-bold text-blue-600">{stats.devices}</div>
-                <div className="text-xs text-gray-500 mt-1">Devices</div>
-              </div>
-              <div className="stat-card border border-gray-100">
-                <div className="text-2xl font-bold text-green-600">{stats.materials}</div>
-                <div className="text-xs text-gray-500 mt-1">Materials</div>
-              </div>
-            </div>
-          )}
-
-          {/* Assets Table Card */}
-          <div className="asset-card overflow-hidden">
-            <div className="px-6 py-5 border-b border-gray-100">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <Box className="w-5 h-5 text-blue-600" />
-                    Assets in this session
-                  </h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {assets.length} validated items
-                  </p>
-                </div>
-                {assets.length > 3 && (
-                  <button
-                    onClick={() => setExpandedAssets(!expandedAssets)}
-                    className="flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-medium"
+              {/* KPI stats row — same pattern as inventory page */}
+              <div className="grid grid-cols-3 lg:grid-cols-6 divide-x divide-gray-100">
+                {[
+                  { label: "Total Assets", value: stats.total, accent: "#2563eb" },
+                  { label: "Active", value: stats.active, accent: "#059669" },
+                  { label: "Inactive", value: stats.inactive, accent: "#6b7280" },
+                  { label: "Maintenance", value: stats.maintenance, accent: "#d97706" },
+                  { label: "Devices", value: stats.devices, accent: "#3b82f6" },
+                  { label: "Materials", value: stats.materials, accent: "#10b981" },
+                ].map((d, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "20px 12px",
+                      textAlign: "center",
+                    }}
                   >
-                    {expandedAssets ? (
-                      <>Show Less <ChevronUp className="w-4 h-4" /></>
-                    ) : (
-                      <>Show All ({assets.length}) <ChevronDown className="w-4 h-4" /></>
-                    )}
-                  </button>
-                )}
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
+                      {d.label}
+                    </p>
+                    <span style={{ fontSize: 30, fontWeight: 700, color: d.accent }}>{d.value}</span>
+                  </div>
+                ))}
               </div>
             </div>
+          )}
 
+          {/* ── Assets Table Card ── */}
+          <div className="ai-section">
+            {/* Section Header */}
+            <div style={{ padding: "18px 20px", borderBottom: "1px solid #e5e7eb", display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <div>
+                <h2 style={{ fontSize: 15, fontWeight: 700, color: "#111827", display: "flex", alignItems: "center", gap: 8 }}>
+                  <Box className="w-4 h-4 text-blue-600" />
+                  Assets in this session
+                </h2>
+                <p style={{ fontSize: 13, color: "#9ca3af", marginTop: 2 }}>
+                  {assets.length} validated items
+                </p>
+              </div>
+
+              {assets.length > 5 && (
+                <button
+                  onClick={() => setExpandedAssets(!expandedAssets)}
+                  className="flex items-center gap-1.5 text-blue-600 hover:text-blue-800 text-sm font-medium"
+                >
+                  {expandedAssets
+                    ? <><ChevronUp className="w-4 h-4" />Show Less</>
+                    : <><ChevronDown className="w-4 h-4" />Show All ({assets.length})</>}
+                </button>
+              )}
+            </div>
+
+            {/* Content */}
             {loading ? (
-              <div className="py-20 text-center">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-3" />
-                <p className="text-sm text-gray-500">Loading assets...</p>
+              <div className="ai-empty">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-4" />
+                <p style={{ fontSize: 13, color: "#6b7280", fontWeight: 500 }}>Loading assets...</p>
               </div>
             ) : assets.length === 0 ? (
-              <div className="py-20 text-center">
-                <div className="inline-block p-4 bg-gray-50 rounded-full mb-4">
-                  <Box className="w-12 h-12 text-gray-300" strokeWidth={1.5} />
+              <div className="ai-empty">
+                <div style={{ padding: 12, borderRadius: 60, background: "transparent", display: "inline-block", marginBottom: 16 }}>
+                  <Box className="w-10 h-10 text-gray-300" strokeWidth={1.5} />
                 </div>
-                <h3 className="text-gray-500 font-medium text-base mb-1">
-                  No assets found
-                </h3>
-                <p className="text-gray-400 text-sm">
-                  This session has no validated assets
-                </p>
+                <h3 style={{ fontSize: 14, fontWeight: 500, color: "#6b7280", marginBottom: 4 }}>No assets found</h3>
+                <p style={{ fontSize: 12, color: "#9ca3af" }}>This session has no validated assets</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full">
                   <thead>
-                    <tr className="bg-gray-50">
-                      <th className="asset-th text-left">Photo</th>
-                      <th className="asset-th text-left">Asset Code</th>
-                      <th className="asset-th text-left">Asset Name</th>
-                      <th className="asset-th text-left hidden md:table-cell">Type</th>
-                      <th className="asset-th text-left hidden lg:table-cell">Serial/Code</th>
-                      <th className="asset-th text-left">Status</th>
-                      <th className="asset-th text-left hidden xl:table-cell">Validated</th>
-                      <th className="asset-th text-center">Actions</th>
+                    <tr>
+                      <th className="ai-th text-left">Photo</th>
+                      <th className="ai-th text-left">Asset Code</th>
+                      <th className="ai-th text-left">Asset Name</th>
+                      <th className="ai-th text-left" style={{ display: "none" }} data-md="true">Type</th>
+                      <th className="ai-th text-left hidden md:table-cell">Type</th>
+                      <th className="ai-th text-left hidden lg:table-cell">Serial / Code</th>
+                      <th className="ai-th text-left">Status</th>
+                      <th className="ai-th text-left hidden xl:table-cell">Validated</th>
+                      <th className="ai-th text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(expandedAssets ? assets : assets.slice(0, 5)).map((asset, idx) => (
+                    {displayedAssets.map((asset) => (
                       <tr
                         key={asset.id_assets}
-                        className="asset-row"
+                        className="ai-row"
                         onClick={() => handleShowDetail(asset)}
                       >
-                        <td className="asset-td">
+                        {/* Photo */}
+                        <td className="ai-td">
                           {asset.photo_url ? (
                             <img
-                              src={
-                                asset.photo_url.startsWith("http")
-                                  ? asset.photo_url
-                                  : `http://localhost:5001${asset.photo_url}`
-                              }
+                              src={asset.photo_url.startsWith("http") ? asset.photo_url : `http://localhost:5001${asset.photo_url}`}
                               alt="Asset"
-                              className="w-10 h-10 rounded-lg object-cover"
+                              style={{ width: 36, height: 36, borderRadius: 10, objectFit: "cover" }}
                               onError={(e) => {
                                 e.target.style.display = "none";
-                                e.target.parentElement.innerHTML =
-                                  '<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center"><Camera className="w-5 h-5 text-gray-400" /></div>';
+                                e.target.parentElement.innerHTML = `<div style="width:36px;height:36px;border-radius:10px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="#9ca3af" stroke-width="2" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>`;
                               }}
                             />
                           ) : (
-                            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                              <Camera className="w-5 h-5 text-gray-400" />
+                            <div style={{ width: 36, height: 36, borderRadius: 10, background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <Camera style={{ width: 16, height: 16, color: "#9ca3af" }} />
                             </div>
                           )}
                         </td>
-                        <td className="asset-td">
-                          <span className="font-mono text-xs font-semibold text-blue-700">
+
+                        {/* Asset Code */}
+                        <td className="ai-td">
+                          <span style={{ fontFamily: "DM Mono,", fontSize: 11, fontWeight: 600, color: "#2563eb" }}>
                             {asset.asset_code}
                           </span>
                         </td>
-                        <td className="asset-td">
-                          <div className="font-semibold text-gray-900 text-sm">
+
+                        {/* Asset Name */}
+                        <td className="ai-td">
+                          <div style={{ fontWeight: 600, fontSize: 13, color: "#111827", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {asset.asset_name}
                           </div>
-                          <div className="text-xs text-gray-500 mt-0.5 truncate max-w-[200px]">
+                          <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {asset.brand || asset.vendor || "-"}
                           </div>
                         </td>
-                        <td className="asset-td hidden md:table-cell">
-                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getTypeBadge(asset.category)}`}>
+
+                        {/* Type */}
+                        <td className="ai-td hidden md:table-cell">
+                          <span className={`badge ${getTypeBadge(asset.category)}`}>
                             {getTypeIcon(asset.category)}
-                            <span>{asset.category === "Device" ? "Device" : "Material"}</span>
+                            {asset.category === "Device" ? "Device" : "Material"}
                           </span>
                         </td>
-                        <td className="asset-td hidden lg:table-cell">
-                          <code className="text-xs font-mono text-gray-600">
+
+                        {/* Serial */}
+                        <td className="ai-td hidden lg:table-cell">
+                          <code style={{ fontFamily: "DM Mono,monospace", fontSize: 11, color: "#6b7280" }}>
                             {asset.serial_number || asset.scan_code || "-"}
                           </code>
                         </td>
-                        <td className="asset-td">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(asset.status)}`}>
+
+                        {/* Status */}
+                        <td className="ai-td">
+                          <span className={`badge ${getStatusColor(asset.status)}`}>
                             {getStatusLabel(asset.status)}
                           </span>
                         </td>
-                        <td className="asset-td hidden xl:table-cell">
-                          <div className="text-xs text-gray-700">
-                            {formatDateTime(asset.validated_at)}
-                          </div>
-                          <div className="text-[10px] text-gray-400 mt-0.5">
-                            by {asset.validated_by_name || "System"}
-                          </div>
+
+                        {/* Validated */}
+                        <td className="ai-td hidden xl:table-cell">
+                          <div style={{ fontSize: 12, color: "#374151" }}>{formatDateTime(asset.validated_at)}</div>
+                          <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 2 }}>by {asset.validated_by_name || "System"}</div>
                         </td>
-                        <td className="asset-td text-center">
+
+                        {/* Actions */}
+                        <td className="ai-td text-center">
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleShowDetail(asset);
-                            }}
-                            className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="View Details"
+                            onClick={(e) => { e.stopPropagation(); handleShowDetail(asset); }}
+                            className="ai-view-btn inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg"
+                            style={{ background: "#2563eb" }}
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-3.5 h-3.5" /> View
                           </button>
                         </td>
                       </tr>
@@ -598,17 +584,17 @@ export default function AssetDetailPage() {
 
             {/* Footer */}
             {!loading && assets.length > 0 && (
-              <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center rounded-b-2xl">
-                <p className="text-xs text-gray-500">
+              <div className="ai-footer">
+                <p style={{ fontSize: 12, color: "#6b7280" }}>
                   Showing{" "}
-                  <span className="font-semibold text-gray-700">
+                  <span style={{ fontWeight: 600, color: "#374151" }}>
                     {expandedAssets ? assets.length : Math.min(5, assets.length)}
                   </span>{" "}
                   of{" "}
-                  <span className="font-semibold text-gray-700">{assets.length}</span>{" "}
+                  <span style={{ fontWeight: 600, color: "#374151" }}>{assets.length}</span>{" "}
                   assets
                 </p>
-                <p className="text-xs text-gray-400">
+                <p style={{ fontSize: 11, color: "#9ca3af" }}>
                   Updated {new Date().toLocaleTimeString("id-ID")}
                 </p>
               </div>
@@ -616,172 +602,149 @@ export default function AssetDetailPage() {
           </div>
         </div>
 
-        {/* Detail Modal */}
+        {/* ── Detail Modal ── */}
         {selectedAsset && (
-          <div
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-            onClick={() => setSelectedAsset(null)}
-          >
-            <div
-              className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-5 border-b border-gray-100 flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${getTypeBadge(selectedAsset.category)}`}>
-                    {getTypeIcon(selectedAsset.category)}
+          <div className="modal-backdrop" onClick={() => setSelectedAsset(null)}>
+            <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+
+              {/* Modal Header */}
+              <div style={{ padding: "18px 20px", borderBottom: "1px solid #f3f4f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+                    background: selectedAsset.category === "Device" ? "#eff6ff" : "#ecfdf5",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {selectedAsset.category === "Device"
+                      ? <Laptop className="w-5 h-5 text-blue-600" />
+                      : <Package className="w-5 h-5 text-emerald-600" />}
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      Asset Details
-                    </h2>
-                    <p className="text-xs text-gray-500 font-mono">
+                    <h2 style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Asset Details</h2>
+                    <p style={{ fontFamily: "DM Mono,monospace", fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
                       {selectedAsset.asset_code}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => setSelectedAsset(null)}
-                  className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
+                  style={{ padding: 6, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#9ca3af" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "#f3f4f6"; e.currentTarget.style.color = "#374151"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#9ca3af"; }}
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)] space-y-5">
+              {/* Modal Body */}
+              <div style={{ padding: "20px", overflowY: "auto", maxHeight: "calc(90vh - 140px)", display: "flex", flexDirection: "column", gap: 16 }}>
+
+                {/* Photo */}
                 {selectedAsset.photo_url && (
-                  <div className="rounded-xl overflow-hidden bg-gray-100 max-h-64 border border-gray-200">
+                  <div style={{ borderRadius: 14, overflow: "hidden", background: "#f9fafb", border: "1px solid #e5e7eb", maxHeight: 220 }}>
                     <img
-                      src={
-                        selectedAsset.photo_url.startsWith("http")
-                          ? selectedAsset.photo_url
-                          : `http://localhost:5001${selectedAsset.photo_url}`
-                      }
+                      src={selectedAsset.photo_url.startsWith("http") ? selectedAsset.photo_url : `http://localhost:5001${selectedAsset.photo_url}`}
                       alt="Asset"
-                      className="w-full h-full object-contain"
+                      style={{ width: "100%", height: "100%", objectFit: "contain" }}
                     />
                   </div>
                 )}
 
-                {/* Main Info Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Tag className="w-4 h-4 text-gray-400" />
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Asset Name</p>
+                {/* Main Info — 2-col grid */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  {[
+                    { icon: <Tag style={{ width: 14, height: 14, color: "#9ca3af" }} />, label: "Asset Name", value: selectedAsset.asset_name, mono: false },
+                    {
+                      icon: <QrCode style={{ width: 14, height: 14, color: "#9ca3af" }} />,
+                      label: selectedAsset.category === "Device" ? "Serial Number" : "Scan Code",
+                      value: selectedAsset.serial_number || selectedAsset.scan_code || "-",
+                      mono: true,
+                    },
+                    { icon: <Building2 style={{ width: 14, height: 14, color: "#9ca3af" }} />, label: "Brand / Vendor", value: selectedAsset.brand || selectedAsset.vendor || "-", mono: false },
+                    {
+                      icon: <Activity style={{ width: 14, height: 14, color: "#9ca3af" }} />,
+                      label: "Status",
+                      value: null,
+                      badge: getStatusColor(selectedAsset.status),
+                      badgeLabel: getStatusLabel(selectedAsset.status),
+                    },
+                  ].map((item, i) => (
+                    <div key={i} style={{ background: "#f9fafb", borderRadius: 12, padding: "12px 14px", border: "1px solid #f3f4f6" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                        {item.icon}
+                        <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.07em" }}>{item.label}</p>
+                      </div>
+                      {item.badge ? (
+                        <span className={`badge ${item.badge}`}>{item.badgeLabel}</span>
+                      ) : (
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", fontFamily: item.mono ? "DM Mono,monospace" : "inherit", wordBreak: "break-all" }}>
+                          {item.value}
+                        </p>
+                      )}
                     </div>
-                    <p className="font-semibold text-gray-900 text-base">
-                      {selectedAsset.asset_name}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <QrCode className="w-4 h-4 text-gray-400" />
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">
-                        {selectedAsset.category === "Device" ? "Serial Number" : "Scan Code"}
-                      </p>
-                    </div>
-                    <code className="text-sm font-mono text-gray-800 break-all">
-                      {selectedAsset.serial_number || selectedAsset.scan_code || "-"}
-                    </code>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Building2 className="w-4 h-4 text-gray-400" />
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Brand / Vendor</p>
-                    </div>
-                    <p className="font-medium text-gray-800">
-                      {selectedAsset.brand || selectedAsset.vendor || "-"}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Activity className="w-4 h-4 text-gray-400" />
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Status</p>
-                    </div>
-                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(selectedAsset.status)}`}>
-                      {getStatusLabel(selectedAsset.status)}
-                    </span>
-                  </div>
+                  ))}
                 </div>
 
                 {/* Specifications */}
                 {selectedAsset.specifications && (
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <FileText className="w-4 h-4 text-gray-400" />
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Specifications</p>
+                  <div style={{ background: "#f9fafb", borderRadius: 12, padding: "14px", border: "1px solid #f3f4f6" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                      <FileText style={{ width: 14, height: 14, color: "#9ca3af" }} />
+                      <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.07em" }}>Specifications</p>
                     </div>
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap">
-                      {selectedAsset.specifications}
-                    </p>
+                    <p style={{ fontSize: 13, color: "#374151", whiteSpace: "pre-wrap" }}>{selectedAsset.specifications}</p>
                     {selectedAsset.model && (
-                      <p className="text-xs text-gray-500 mt-2">Model: {selectedAsset.model}</p>
+                      <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 8 }}>Model: {selectedAsset.model}</p>
                     )}
                   </div>
                 )}
 
-                {/* Assignment Info */}
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <User className="w-4 h-4 text-gray-400" />
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Assignment</p>
+                {/* Assignment */}
+                <div style={{ background: "#f9fafb", borderRadius: 12, padding: "14px", border: "1px solid #f3f4f6" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                    <User style={{ width: 14, height: 14, color: "#9ca3af" }} />
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.07em" }}>Assignment</p>
                   </div>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-500">Project</span>
-                      <span className="text-sm font-medium text-gray-800">
-                        {selectedAsset.project_name || "-"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-500">Department</span>
-                      <span className="text-sm font-medium text-gray-800">
-                        {selectedAsset.department_name || "-"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-500">Receiver</span>
-                      <span className="text-sm font-medium text-gray-800">
-                        {selectedAsset.receiver_name || "-"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-500">Location</span>
-                      <span className="text-sm font-medium text-gray-800">
-                        {selectedAsset.location_name || "-"}
-                      </span>
-                    </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {[
+                      { label: "Project", value: selectedAsset.project_name || "-" },
+                      { label: "Department", value: selectedAsset.department_name || "-" },
+                      { label: "Receiver", value: selectedAsset.receiver_name || "-" },
+                      { label: "Location", value: selectedAsset.location_name || "-" },
+                    ].map((row, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span style={{ fontSize: 12, color: "#9ca3af" }}>{row.label}</span>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>{row.value}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
                 {/* Validation Info */}
-                <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-                  <div className="flex items-center gap-2 mb-3">
-                    <CheckCircle className="w-4 h-4 text-blue-600" />
-                    <p className="text-xs text-blue-700 uppercase tracking-wide font-semibold">Validation Information</p>
+                <div style={{ background: "#eff6ff", borderRadius: 12, padding: "14px", border: "1px solid #bfdbfe" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                    <CheckCircle style={{ width: 14, height: 14, color: "#2563eb" }} />
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.07em" }}>Validation Information</p>
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-blue-600">Validated By</span>
-                      <span className="text-sm font-medium text-blue-800">
-                        {selectedAsset.validated_by_name || "System"}
-                      </span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 12, color: "#3b82f6" }}>Validated By</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#1d4ed8" }}>{selectedAsset.validated_by_name || "System"}</span>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-blue-600">Validated At</span>
-                      <span className="text-sm font-medium text-blue-800">
-                        {formatDateTime(selectedAsset.validated_at)}
-                      </span>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 12, color: "#3b82f6" }}>Validated At</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#1d4ed8" }}>{formatDateTime(selectedAsset.validated_at)}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="p-5 border-t border-gray-100 flex justify-end">
+              {/* Modal Footer */}
+              <div style={{ padding: "14px 20px", borderTop: "1px solid #f3f4f6", display: "flex", justifyContent: "flex-end" }}>
                 <button
                   onClick={() => setSelectedAsset(null)}
-                  className="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition text-sm font-medium shadow-sm"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl"
+                  style={{ background: "linear-gradient(135deg,#1d4ed8,#2563eb)" }}
                 >
                   Close
                 </button>
