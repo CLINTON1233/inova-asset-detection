@@ -795,6 +795,7 @@ def get_devices_scanning_preparations():
                                 'specifications', si.specifications,
                                 'device_detail', si.device_detail,
                                 'quantity', si.quantity,
+                                'project_name', si.project_name, 
                                 'scanned_count', COALESCE((
                                     SELECT COUNT(*) 
                                     FROM devices_items_preparation dip 
@@ -825,9 +826,13 @@ def get_devices_scanning_preparations():
             items = prep_dict.get('items', [])
             total_items = len(items)
             total_qty = sum(item.get('quantity', 0) for item in items)
+        
+            project_name_from_items = "-"
+            for item in items:
+                if item.get('project_name') and item.get('project_name') != "-":
+                    project_name_from_items = item.get('project_name')
+                    break
             
-            # PERBAIKAN: Hitung scanned_count dari scan_results_devices
-            # Ambil semua scan_results untuk preparation ini
             cur.execute("""
                 SELECT COUNT(DISTINCT sr.id_scan) as scanned_count
                 FROM scan_results_devices sr
@@ -840,7 +845,6 @@ def get_devices_scanning_preparations():
             scan_result = cur.fetchone()
             total_scanned = scan_result['scanned_count'] if scan_result else 0
             
-            # Juga hitung dari items_preparation yang sudah di-scan
             cur.execute("""
                 SELECT COUNT(*) as scanned_count
                 FROM devices_items_preparation
@@ -863,10 +867,11 @@ def get_devices_scanning_preparations():
             
             prep_dict['totalItems'] = total_items
             prep_dict['totalQty'] = total_qty
-            prep_dict['scannedCount'] = total_scanned  # Tambahkan scanned count
+            prep_dict['scannedCount'] = total_scanned
             prep_dict['progress'] = progress
             prep_dict['status'] = status
             prep_dict['type'] = 'device'
+            prep_dict['project_name'] = project_name_from_items  
             
             result.append(prep_dict)
         
@@ -1694,7 +1699,14 @@ def get_materials_scanning_preparations():
             total_items = len(items)
             total_qty = sum(item.get('quantity', 0) for item in items)
             
-            # Hitung scanned_count dari scan_results_materials
+            # AMBIL PROJECT_NAME DARI ITEMS YANG PERTAMA
+            project_name_from_items = "-"
+            for item in items:
+                if item.get('project_name') and item.get('project_name') != "-":
+                    project_name_from_items = item.get('project_name')
+                    break
+            
+            # Hitung scanned_count
             cur.execute("""
                 SELECT COUNT(DISTINCT sr.id_scan) as scanned_count
                 FROM scan_results_materials sr
@@ -1707,7 +1719,6 @@ def get_materials_scanning_preparations():
             scan_result = cur.fetchone()
             total_scanned = scan_result['scanned_count'] if scan_result else 0
             
-            # Juga hitung dari items_preparation yang sudah di-scan
             cur.execute("""
                 SELECT COUNT(*) as scanned_count
                 FROM materials_items_preparation
@@ -1733,7 +1744,8 @@ def get_materials_scanning_preparations():
             prep_dict['scannedCount'] = total_scanned
             prep_dict['progress'] = progress
             prep_dict['status'] = status
-            prep_dict['type'] = 'material'  # Tambahkan type
+            prep_dict['type'] = 'material'
+            prep_dict['project_name'] = project_name_from_items  
             
             result.append(prep_dict)
         
