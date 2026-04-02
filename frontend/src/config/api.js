@@ -117,6 +117,8 @@ export const API_ENDPOINTS = {
     `${API_BASE_URL}/api/scan-results/check-scan-code?code=${encodeURIComponent(code)}`,
   SCAN_RESULTS_UPDATE_PHOTO: (id) =>
     `${API_BASE_URL}/api/scan-results/update-photo/${id}`,
+  // Di dalam API_ENDPOINTS
+SCAN_RESULTS_RESET: (id) => `${API_BASE_URL}/api/scan-results/reset/${id}`,
 
   // Validations
   VALIDATIONS_CREATE: `${API_BASE_URL}/api/validations/create`,

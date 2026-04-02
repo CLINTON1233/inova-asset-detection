@@ -84,7 +84,6 @@ def search_locations():
 def get_location_by_code(location_code):
     """Mendapatkan detail lokasi berdasarkan kode"""
     try:
-        # Parse location_code (format: LOC-XXX)
         try:
             location_id = int(location_code.split('-')[1])
         except (IndexError, ValueError):
@@ -121,8 +120,6 @@ def get_asset_location(asset_id):
     try:
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
-        # Cek di scan_results_devices dan scan_results_materials untuk lokasi asset
         cur.execute("""
             SELECT 
                 asset_id,
@@ -193,7 +190,6 @@ def assign_multiple_locations():
         return jsonify({"success": False, "message": "asset_ids cannot be empty"}), 400
     
     try:
-        # Parse location_code (format: LOC-XXX)
         try:
             location_id = int(data['location_code'].split('-')[1])
         except (IndexError, ValueError):
@@ -201,8 +197,6 @@ def assign_multiple_locations():
         
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
-        # Cek apakah location exists
         cur.execute("SELECT id_location, location_name FROM locations WHERE id_location = %s", (location_id,))
         location = cur.fetchone()
         
@@ -218,7 +212,6 @@ def assign_multiple_locations():
         
         for asset_id in data['asset_ids']:
             try:
-                # Update detection_data di scan_results_devices atau scan_results_materials
                 cur.execute("""
                     UPDATE scan_results_devices 
                     SET detection_data = detection_data || %s::jsonb,

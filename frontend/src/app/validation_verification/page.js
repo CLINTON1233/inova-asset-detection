@@ -393,150 +393,151 @@ export default function ValidationVerificationPage() {
     }
   };
 
-  const handleReject = async (validation) => {
-    const result = await Swal.fire({
-      title: "Reject Validation?",
-      html: `
-        <div class="text-left">
-          <p class="text-sm text-gray-600 mb-2">Item: <span class="font-semibold">${validation.item_name || "-"}</span></p>
-          <p class="text-sm text-gray-600 mb-2">Brand: <span class="font-semibold">${validation.brand || "-"}</span></p>
-          <p class="text-sm text-gray-600 mb-4">Code: <span class="font-mono">${validation.serial_or_code || "-"}</span></p>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Rejection Reason</label>
-          <textarea id="reason" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" rows="3" placeholder="Please provide reason for rejection..." required></textarea>
-        </div>
-      `,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Yes, Reject",
-      cancelButtonText: "Cancel",
-      confirmButtonColor: "#ef4444",
-      preConfirm: () => {
-        const reason = document.getElementById("reason").value;
-        if (!reason || reason.trim() === "") {
-          Swal.showValidationMessage("Please provide a rejection reason");
-          return false;
-        }
-        return { reason };
-      },
-    });
-
-    if (result.isConfirmed) {
-      setIsProcessing(true);
-      try {
-        const response = await fetch(
-          API_ENDPOINTS.VALIDATIONS_UPDATE(validation.id_validation),
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              validation_status: "rejected",
-              is_approved: false,
-              rejection_reason: result.value.reason,
-              validated_by: 1,
-            }),
-          },
-        );
-
-        const data = await response.json();
-
-        if (data.success) {
-          Swal.fire({
-            title: "Rejected!",
-            text: "Validation has been rejected.",
-            icon: "warning",
-            timer: 2000,
-            showConfirmButton: false,
-          });
-          loadValidations();
-        } else {
-          throw new Error(data.error);
-        }
-      } catch (error) {
-        Swal.fire({
-          title: "Error!",
-          text: error.message || "Failed to reject validation",
-          icon: "error",
-        });
-      } finally {
-        setIsProcessing(false);
+const handleReject = async (validation) => {
+  const result = await Swal.fire({
+    title: "Reject Validation?",
+    html: `
+      <div class="text-left">
+        <p class="text-sm text-gray-600 mb-2">Item: <span class="font-semibold">${validation.item_name || "-"}</span></p>
+        <p class="text-sm text-gray-600 mb-2">Brand: <span class="font-semibold">${validation.brand || "-"}</span></p>
+        <p class="text-sm text-gray-600 mb-4">Code: <span class="font-mono">${validation.serial_or_code || "-"}</span></p>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Rejection Reason</label>
+        <textarea id="reason" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" rows="3" placeholder="Please provide reason for rejection..." required></textarea>
+      </div>
+    `,
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonText: "Yes, Reject",
+    cancelButtonText: "Cancel",
+    confirmButtonColor: "#ef4444",
+    preConfirm: () => {
+      const reason = document.getElementById("reason").value;
+      if (!reason || reason.trim() === "") {
+        Swal.showValidationMessage("Please provide a rejection reason");
+        return false;
       }
-    }
-  };
+      return { reason };
+    },
+  });
 
-  const handleBulkAction = async (action) => {
-    if (selectedItems.length === 0) {
-      Swal.fire({
-        title: "No Items Selected",
-        text: "Please select at least one item to process.",
-        icon: "info",
-      });
-      return;
-    }
-
-    const isApprove = action === "approve";
-
-    const result = await Swal.fire({
-      title: isApprove ? "Approve Selected Items?" : "Reject Selected Items?",
-      text: `Are you sure you want to ${action} ${selectedItems.length} item(s)?`,
-      icon: isApprove ? "question" : "warning",
-      showCancelButton: true,
-      confirmButtonText: isApprove ? "Yes, Approve" : "Yes, Reject",
-      confirmButtonColor: isApprove ? "#22c55e" : "#ef4444",
-      ...(isApprove
-        ? {}
-        : {
-            input: "textarea",
-            inputPlaceholder: "Rejection reason for all selected items...",
-            inputLabel: "Rejection Reason",
-            inputValidator: (value) => {
-              if (!value || value.trim() === "") {
-                return "Please provide a rejection reason";
-              }
-              return null;
-            },
-          }),
-    });
-
-    if (result.isConfirmed) {
-      setIsProcessing(true);
-      try {
-        const response = await fetch(API_ENDPOINTS.VALIDATIONS_BULK, {
-          method: "POST",
+  if (result.isConfirmed) {
+    setIsProcessing(true);
+    try {
+      const response = await fetch(
+        API_ENDPOINTS.VALIDATIONS_UPDATE(validation.id_validation),
+        {
+          method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            validation_ids: selectedItems,
-            action: action,
-            rejection_reason: result.value,
+            validation_status: "rejected",
+            is_approved: false,
+            rejection_reason: result.value.reason,
             validated_by: 1,
           }),
-        });
+        },
+      );
 
-        const data = await response.json();
+      const data = await response.json();
 
-        if (data.success) {
-          Swal.fire({
-            title: "Success!",
-            text: data.message,
-            icon: "success",
-            timer: 2000,
-            showConfirmButton: false,
-          });
-          setSelectedItems([]);
-          loadValidations();
-        } else {
-          throw new Error(data.error);
-        }
-      } catch (error) {
+      if (data.success) {
         Swal.fire({
-          title: "Error!",
-          text: error.message || `Failed to ${action} items`,
-          icon: "error",
+          title: "Rejected!",
+          text: "Validation has been rejected. You can now rescan the item.",
+          icon: "warning",
+          timer: 2000,
+          showConfirmButton: false,
         });
-      } finally {
-        setIsProcessing(false);
+
+        loadValidations();
+      } else {
+        throw new Error(data.error);
       }
+    } catch (error) {
+      Swal.fire({
+        title: "Error!",
+        text: error.message || "Failed to reject validation",
+        icon: "error",
+      });
+    } finally {
+      setIsProcessing(false);
     }
-  };
+  }
+};
+
+const handleBulkAction = async (action) => {
+  if (selectedItems.length === 0) {
+    Swal.fire({
+      title: "No Items Selected",
+      text: "Please select at least one item to process.",
+      icon: "info",
+    });
+    return;
+  }
+
+  const isApprove = action === "approve";
+
+  const result = await Swal.fire({
+    title: isApprove ? "Approve Selected Items?" : "Reject Selected Items?",
+    text: `Are you sure you want to ${action} ${selectedItems.length} item(s)?`,
+    icon: isApprove ? "question" : "warning",
+    showCancelButton: true,
+    confirmButtonText: isApprove ? "Yes, Approve" : "Yes, Reject",
+    confirmButtonColor: isApprove ? "#22c55e" : "#ef4444",
+    ...(isApprove
+      ? {}
+      : {
+          input: "textarea",
+          inputPlaceholder: "Rejection reason for all selected items...",
+          inputLabel: "Rejection Reason",
+          inputValidator: (value) => {
+            if (!value || value.trim() === "") {
+              return "Please provide a rejection reason";
+            }
+            return null;
+          },
+        }),
+  });
+
+  if (result.isConfirmed) {
+    setIsProcessing(true);
+    try {
+      const response = await fetch(API_ENDPOINTS.VALIDATIONS_BULK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          validation_ids: selectedItems,
+          action: action,
+          rejection_reason: isApprove ? null : result.value,
+          validated_by: 1,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        Swal.fire({
+          title: "Success!",
+          text: data.message,
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+        setSelectedItems([]);
+        loadValidations();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error) {
+      Swal.fire({
+        title: "Error!",
+        text: error.message || `Failed to ${action} items`,
+        icon: "error",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+};
 
   const handleDeleteSingle = async (validation) => {
     const result = await Swal.fire({

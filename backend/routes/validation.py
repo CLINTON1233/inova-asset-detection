@@ -18,7 +18,6 @@ def check_and_update_session_status(preparation_id, validation_type):
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
         if validation_type == 'device':
-            # Hitung total item preparation dalam session
             cur.execute("""
                 SELECT COUNT(*) as total_items
                 FROM devices_items_preparation
@@ -26,7 +25,6 @@ def check_and_update_session_status(preparation_id, validation_type):
             """, (preparation_id,))
             total_items = cur.fetchone()['total_items']
             
-            # Hitung jumlah item yang sudah divalidasi (approved)
             cur.execute("""
                 SELECT COUNT(DISTINCT dip.id_item_preparation) as validated_items
                 FROM devices_items_preparation dip
@@ -36,7 +34,6 @@ def check_and_update_session_status(preparation_id, validation_type):
             """, (preparation_id,))
             validated_items = cur.fetchone()['validated_items']
             
-            # Jika semua item sudah divalidasi, update status session menjadi completed
             if total_items == validated_items and total_items > 0:
                 cur.execute("""
                     UPDATE devices_scanning_preparations 
@@ -528,6 +525,27 @@ def bulk_update_validations():
         
         for val_id in validation_ids:
             cur.execute("""
+                SELECT 
+                    item_preparation_id,
+                    material_item_preparation_id,
+                    CASE 
+                        WHEN scan_id IS NOT NULL THEN 'device'
+                        WHEN scan_material_id IS NOT NULL THEN 'material'
+                        ELSE 'unknown'
+                    END as validation_type
+                FROM validations 
+                WHERE id_validation = %s
+            """, (val_id,))
+            val_info = cur.fetchone()
+            
+            if not val_info:
+                continue
+                
+            item_prep_id = val_info[0] if val_info else None
+            material_item_prep_id = val_info[1] if val_info else None
+            validation_type = val_info[2] if val_info else None
+            
+            cur.execute("""
                 UPDATE validations 
                 SET validation_status = %s,
                     is_approved = %s,
@@ -548,6 +566,86 @@ def bulk_update_validations():
             
             if cur.fetchone():
                 updated_count += 1
+          
+                if validation_status == 'approved' and is_approved:
+                    try:
+                        from routes.assets import create_asset_from_validation
+                        from flask import current_app as app
+                        
+                        asset_data = {
+                            'validation_id': val_id,
+                            'user_id': validated_by,
+                            'validated_by': validated_by
+                        }
+                        
+                        with app.app_context():
+                            from flask import Request
+                            req = Request.from_values(json=asset_data)
+                            response = create_asset_from_validation()
+                            
+                            if hasattr(response, 'get_json'):
+                                asset_result = response.get_json()
+                            else:
+                                asset_result = response
+                            
+                            if asset_result and asset_result.get('success'):
+                                print(f"✅ Asset created for validation {val_id}: {asset_result.get('asset_code')}")
+                            else:
+                                print(f" Asset creation failed for validation {val_id}: {asset_result}")
+                                
+                    except Exception as asset_error:
+                        print(f"Error creating asset for validation {val_id}: {asset_error}")
+                        print(traceback.format_exc())
+                
+        
+                if validation_status == 'rejected':
+                    try:
+                        cur.execute("""
+                            SELECT scan_id, scan_material_id 
+                            FROM validations 
+                            WHERE id_validation = %s
+                        """, (val_id,))
+                        scan_info = cur.fetchone()
+                        
+                        if scan_info and scan_info[0]:  
+                            cur.execute("""
+                                UPDATE scan_results_devices 
+                                SET status = 'rejected', notes = %s, updated_at = CURRENT_TIMESTAMP
+                                WHERE id_scan = %s
+                            """, (rejection_reason, scan_info[0]))
+                        elif scan_info and scan_info[1]:  
+                            cur.execute("""
+                                UPDATE scan_results_materials 
+                                SET status = 'rejected', notes = %s, updated_at = CURRENT_TIMESTAMP
+                                WHERE id_scan = %s
+                            """, (rejection_reason, scan_info[1]))
+                    except Exception as scan_error:
+                        print(f"Error updating scan result for validation {val_id}: {scan_error}")
+                
+                # ==================== UPDATE SESSION STATUS ====================
+                try:
+                    if validation_type == 'device' and item_prep_id:
+                        cur.execute("""
+                            SELECT dip.preparation_id
+                            FROM devices_items_preparation dip
+                            WHERE dip.id_item_preparation = %s
+                        """, (item_prep_id,))
+                        prep = cur.fetchone()
+                        if prep:
+                            from routes.validations import check_and_update_session_status
+                            check_and_update_session_status(prep[0], 'device')
+                    elif validation_type == 'material' and material_item_prep_id:
+                        cur.execute("""
+                            SELECT mip.preparation_id
+                            FROM materials_items_preparation mip
+                            WHERE mip.id_item_preparation = %s
+                        """, (material_item_prep_id,))
+                        prep = cur.fetchone()
+                        if prep:
+                            from routes.validations import check_and_update_session_status
+                            check_and_update_session_status(prep[0], 'material')
+                except Exception as session_error:
+                    print(f"Error updating session status for validation {val_id}: {session_error}")
         
         conn.commit()
         

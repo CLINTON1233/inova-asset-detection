@@ -125,7 +125,6 @@ def get_department_by_id(department_id):
 def get_department_by_code(department_code):
     """Mendapatkan detail department berdasarkan kode (DEPT-XXX)"""
     try:
-        # Parse department_code (format: DEPT-XXX)
         try:
             department_id = int(department_code.split('-')[1])
         except (IndexError, ValueError):

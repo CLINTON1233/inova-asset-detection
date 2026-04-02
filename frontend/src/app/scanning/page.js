@@ -415,29 +415,46 @@ export default function SerialScanningPage() {
     return receiver?.receiver_name || null;
   };
 
-  const loadPreparation = async (prepId) => {
-    setLoading(true);
-    setLoadingMessage("Loading");
+const loadPreparation = async (prepId) => {
+  setLoading(true);
+  setLoadingMessage("Loading");
 
-    try {
-      const urlType = searchParams.get("type");
-      console.log("URL type param:", urlType);
+  try {
+    const urlType = searchParams.get("type");
+    console.log("URL type param:", urlType);
 
-      let response;
-      let data;
-      let prepType = null;
+    let response;
+    let data;
+    let prepType = null;
 
-      if (urlType === "device") {
-        console.log("Loading device preparation with ID:", prepId);
-        response = await fetch(
-          API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId),
-        );
-        data = await response.json();
-        if (data.success) {
-          prepType = "device";
-        }
-      } else if (urlType === "material") {
-        console.log("Loading material preparation with ID:", prepId);
+    if (urlType === "device") {
+      console.log("Loading device preparation with ID:", prepId);
+      response = await fetch(
+        API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId),
+      );
+      data = await response.json();
+      if (data.success) {
+        prepType = "device";
+      }
+    } else if (urlType === "material") {
+      console.log("Loading material preparation with ID:", prepId);
+      response = await fetch(
+        API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId),
+      );
+      data = await response.json();
+      if (data.success) {
+        prepType = "material";
+      }
+    } else {
+      // Auto-detect
+      console.log("Auto-detecting preparation type...");
+      response = await fetch(
+        API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId),
+      );
+      data = await response.json();
+      if (data.success) {
+        prepType = "device";
+      } else {
         response = await fetch(
           API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId),
         );
@@ -445,92 +462,113 @@ export default function SerialScanningPage() {
         if (data.success) {
           prepType = "material";
         }
-      } else {
-        // Auto-detect
-        console.log("Auto-detecting preparation type...");
-        response = await fetch(
-          API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId),
+      }
+    }
+
+    if (data && data.success && prepType) {
+      console.log("Loaded preparation type:", prepType);
+      console.log("Loaded data:", data.data);
+
+      setCurrentPreparation({ ...data.data, type: prepType });
+
+      // Load progress
+      let progressResponse;
+      if (prepType === "device") {
+        progressResponse = await fetch(
+          API_ENDPOINTS.DEVICES_SCANNING_PREP_PROGRESS(prepId),
         );
-        data = await response.json();
-        if (data.success) {
-          prepType = "device";
-        } else {
-          response = await fetch(
-            API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId),
-          );
-          data = await response.json();
-          if (data.success) {
-            prepType = "material";
-          }
-        }
+      } else {
+        progressResponse = await fetch(
+          API_ENDPOINTS.MATERIALS_SCANNING_PREP_PROGRESS(prepId),
+        );
       }
 
-      if (data && data.success && prepType) {
-        console.log("Loaded preparation type:", prepType);
-        console.log("Loaded data:", data.data);
+      const progressData = await progressResponse.json();
+      console.log("Progress data:", progressData);
 
-        setCurrentPreparation({ ...data.data, type: prepType });
+      const progress = {};
+      if (progressData.success) {
+        data.data.items.forEach((item) => {
+          const itemId = item.id_item;
+          const quantity = item.quantity || 0;
 
-        // Load progress
-        let progressResponse;
-        if (prepType === "device") {
-          progressResponse = await fetch(
-            API_ENDPOINTS.DEVICES_SCANNING_PREP_PROGRESS(prepId),
+          const itemProgress = progressData.data.progress?.find(
+            (p) => p.id_item === itemId,
           );
-        } else {
-          progressResponse = await fetch(
-            API_ENDPOINTS.MATERIALS_SCANNING_PREP_PROGRESS(prepId),
-          );
-        }
+          const scannedCount = itemProgress ? itemProgress.scanned : 0;
 
-        const progressData = await progressResponse.json();
-        console.log("Progress data:", progressData);
+          progress[itemId] = {
+            total: quantity,
+            scanned: scannedCount,
+            items: [],
+            item_name:
+              item.device_name || item.material_name || item.item_name,
+            brand: item.brand || item.vendor,
+            model: item.model,
+            uom: item.uom,
+          };
+        });
 
-        const progress = {};
-        if (progressData.success) {
-          data.data.items.forEach((item) => {
-            const itemId = item.id_item;
-            const quantity = item.quantity || 0;
+        setScanningProgress(progress);
+        console.log("Set scanningProgress:", progress);
 
-            const itemProgress = progressData.data.progress?.find(
-              (p) => p.id_item === itemId,
+        const scannedItems = [];
+
+        if (
+          progressData.data.scan_results &&
+          progressData.data.scan_results.length > 0
+        ) {
+          progressData.data.scan_results.forEach((scan) => {
+            const item = data.data.items.find(
+              (i) => i.id_item === scan.scanning_item_id,
             );
-            const scannedCount = itemProgress ? itemProgress.scanned : 0;
 
-            progress[itemId] = {
-              total: quantity,
-              scanned: scannedCount,
-              items: [],
-              item_name:
-                item.device_name || item.material_name || item.item_name,
-              brand: item.brand || item.vendor,
-              model: item.model,
-              uom: item.uom,
-            };
-          });
+            if (item) {
+              // Ambil data department_name, receiver_name, dan project_name dari scan result
+              const departmentName = scan.department_name || null;
+              const receiverName = scan.receiver_name || null;
+              const projectName =
+                scan.project_name || item.project_name || null;
 
-          setScanningProgress(progress);
-          console.log("Set scanningProgress:", progress);
-
-          const scannedItems = [];
-
-          if (
-            progressData.data.scan_results &&
-            progressData.data.scan_results.length > 0
-          ) {
-            progressData.data.scan_results.forEach((scan) => {
-              const item = data.data.items.find(
-                (i) => i.id_item === scan.scanning_item_id,
-              );
-
-              if (item) {
-                // Ambil data department_name, receiver_name, dan project_name dari scan result
-                // Data ini sudah dikirim dari backend jika query sudah diperbarui
-                const departmentName = scan.department_name || null;
-                const receiverName = scan.receiver_name || null;
-                const projectName =
-                  scan.project_name || item.project_name || null;
-
+              // ========== TAMBAHKAN LOGIKA UNTUK STATUS REJECTED ==========
+              if (scan.status === "rejected") {
+                // Item yang direject akan ditampilkan kembali dengan status device_detected agar bisa discan ulang
+                scannedItems.push({
+                  id: scan.id_scan,
+                  jenisAset:
+                    scan.scan_value ||
+                    item.device_name ||
+                    item.material_name ||
+                    "Unknown",
+                  kategori: prepType === "device" ? "Perangkat" : "Material",
+                  brand: item.brand || item.vendor || "Unknown",
+                  confidencePercent: 85,
+                  status: "device_detected", // Set sebagai detected agar bisa discan ulang
+                  submitted: false,
+                  rejected: true,
+                  nomorSeri: scan.serial_number || scan.scan_code || "",
+                  timestamp: scan.scanned_at,
+                  tanggal: scan.scanned_at
+                    ? new Date(scan.scanned_at).toLocaleDateString("id-ID")
+                    : new Date().toLocaleDateString("id-ID"),
+                  waktu: scan.scanned_at
+                    ? new Date(scan.scanned_at).toLocaleTimeString("id-ID")
+                    : new Date().toLocaleTimeString("id-ID"),
+                  item_id: scan.scanning_item_id,
+                  preparation_id: parseInt(prepId),
+                  preparation_name: data.data.checking_name,
+                  lokasi: data.data.location_name,
+                  lokasiLabel: data.data.location_name,
+                  scan_id: scan.id_scan,
+                  item_preparation_id: scan.item_preparation_id,
+                  photo_url: scan.photo_url || null,
+                  department_name: departmentName,
+                  receiver_name: receiverName,
+                  project_name: projectName,
+                });
+              } 
+              // ========== UNTUK STATUS LAINNYA ==========
+              else {
                 scannedItems.push({
                   id: scan.id_scan,
                   jenisAset:
@@ -567,48 +605,49 @@ export default function SerialScanningPage() {
                   project_name: projectName,
                 });
               }
-            });
-          }
-
-          if (scannedItems.length > 0) {
-            setCheckHistory(scannedItems);
-            localStorage.setItem(
-              "scanCheckHistory",
-              JSON.stringify(scannedItems),
-            );
-          } else {
-            setCheckHistory([]);
-          }
-        } else {
-          const fallbackProgress = {};
-          data.data.items.forEach((item) => {
-            fallbackProgress[item.id_item] = {
-              total: item.quantity || 0,
-              scanned: 0,
-              items: [],
-              item_name:
-                item.device_name || item.material_name || item.item_name,
-            };
+            }
           });
-          setScanningProgress(fallbackProgress);
+        }
+
+        if (scannedItems.length > 0) {
+          setCheckHistory(scannedItems);
+          localStorage.setItem(
+            "scanCheckHistory",
+            JSON.stringify(scannedItems),
+          );
+        } else {
           setCheckHistory([]);
         }
       } else {
-        throw new Error("Preparation not found");
+        const fallbackProgress = {};
+        data.data.items.forEach((item) => {
+          fallbackProgress[item.id_item] = {
+            total: item.quantity || 0,
+            scanned: 0,
+            items: [],
+            item_name:
+              item.device_name || item.material_name || item.item_name,
+          };
+        });
+        setScanningProgress(fallbackProgress);
+        setCheckHistory([]);
       }
-    } catch (error) {
-      console.error("Error loading preparation:", error);
-      Swal.fire({
-        title: "Error!",
-        text: "Failed to load scanning session",
-        icon: "error",
-      }).then(() => router.push("/scanning"));
-    } finally {
-      setLoading(false);
-      setLoadingMessage("");
-      setLoadingSubMessage("");
+    } else {
+      throw new Error("Preparation not found");
     }
-  };
+  } catch (error) {
+    console.error("Error loading preparation:", error);
+    Swal.fire({
+      title: "Error!",
+      text: "Failed to load scanning session",
+      icon: "error",
+    }).then(() => router.push("/scanning"));
+  } finally {
+    setLoading(false);
+    setLoadingMessage("");
+    setLoadingSubMessage("");
+  }
+};
 
   const validateScanCodeFormat = async (scanCode, materialType) => {
     try {

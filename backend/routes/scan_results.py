@@ -18,6 +18,59 @@ def handle_error(e, msg="Error"):
 def get_conn():
     return get_db_connection()
 
+# ==================== RESET SCAN RESULT ====================
+@scan_results_bp.route('/api/scan-results/reset/<int:scan_id>', methods=['PUT'])
+def reset_scan_result(scan_id):
+    """Reset scan result status to pending (for rescan after rejection)"""
+    conn = None
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            UPDATE scan_results_devices 
+            SET status = 'pending', 
+                notes = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id_scan = %s AND status = 'rejected'
+            RETURNING id_scan
+        """, (scan_id,))
+        
+        updated = cur.fetchone()
+        
+        if not updated:
+            cur.execute("""
+                UPDATE scan_results_materials 
+                SET status = 'pending', 
+                    notes = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id_scan = %s AND status = 'rejected'
+                RETURNING id_scan
+            """, (scan_id,))
+            updated = cur.fetchone()
+        
+        if not updated:
+            return jsonify({
+                'success': False, 
+                'error': 'Scan result not found or not in rejected status'
+            }), 404
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Scan result reset successfully, ready for rescan'
+        })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Error resetting scan result: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
 # ==================== FUNGSI SAVE PHOTO ====================
 def save_photo_base64(image_data):
     """Menyimpan foto dari base64 ke file dan mengembalikan URL"""
