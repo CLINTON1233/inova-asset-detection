@@ -342,7 +342,8 @@ export default function ValidationVerificationPage() {
           },
         );
 
-        const data = await response.json();
+         const data = await response.json();
+      console.log("Approve response:", data); 
 
         if (data.success) {
           const assetResponse = await fetch(
@@ -383,6 +384,7 @@ export default function ValidationVerificationPage() {
           throw new Error(data.error);
         }
       } catch (error) {
+        console.error("Error in approve:", error); 
         Swal.fire({
           title: "Error!",
           text: error.message || "Failed to approve validation",

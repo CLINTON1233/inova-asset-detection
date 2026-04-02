@@ -498,6 +498,7 @@ def update_validation(validation_id):
             conn.close()
 
 # ==================== BULK UPDATE ====================
+# ==================== BULK UPDATE ====================
 @validation_bp.route('/api/validations/bulk', methods=['POST'])
 def bulk_update_validations():
     """Bulk update validations (approve/reject multiple)"""
@@ -524,6 +525,7 @@ def bulk_update_validations():
         updated_count = 0
         
         for val_id in validation_ids:
+            # Ambil informasi validation sebelum update untuk mendapatkan preparation_id
             cur.execute("""
                 SELECT 
                     item_preparation_id,
@@ -545,6 +547,7 @@ def bulk_update_validations():
             material_item_prep_id = val_info[1] if val_info else None
             validation_type = val_info[2] if val_info else None
             
+            # Update validation status
             cur.execute("""
                 UPDATE validations 
                 SET validation_status = %s,
@@ -566,7 +569,8 @@ def bulk_update_validations():
             
             if cur.fetchone():
                 updated_count += 1
-          
+                
+                # ==================== CREATE ASSET IF APPROVED ====================
                 if validation_status == 'approved' and is_approved:
                     try:
                         from routes.assets import create_asset_from_validation
@@ -591,7 +595,7 @@ def bulk_update_validations():
                             if asset_result and asset_result.get('success'):
                                 print(f"✅ Asset created for validation {val_id}: {asset_result.get('asset_code')}")
                             else:
-                                print(f" Asset creation failed for validation {val_id}: {asset_result}")
+                                print(f"⚠️ Asset creation failed for validation {val_id}: {asset_result}")
                                 
                     except Exception as asset_error:
                         print(f"Error creating asset for validation {val_id}: {asset_error}")
@@ -613,7 +617,7 @@ def bulk_update_validations():
                                 SET status = 'rejected', notes = %s, updated_at = CURRENT_TIMESTAMP
                                 WHERE id_scan = %s
                             """, (rejection_reason, scan_info[0]))
-                        elif scan_info and scan_info[1]:  
+                        elif scan_info and scan_info[1]:  # material
                             cur.execute("""
                                 UPDATE scan_results_materials 
                                 SET status = 'rejected', notes = %s, updated_at = CURRENT_TIMESTAMP
