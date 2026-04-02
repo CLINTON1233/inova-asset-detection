@@ -43,6 +43,7 @@ export default function ScanningPreparationListPage() {
   const [expandedSession, setExpandedSession] = useState(null);
   const [sessionDetails, setSessionDetails] = useState({});
   const [isMobile, setIsMobile] = useState(false);
+  const [sessionProjects, setSessionProjects] = useState({});
 
   useEffect(() => {
     setMounted(true);
@@ -99,219 +100,222 @@ export default function ScanningPreparationListPage() {
     setFilteredSessions(filtered);
   }, [searchTerm, statusFilter, typeFilter, sessions, sorting]);
 
-  const fetchSessionDetail = async (sessionId, type) => {
-    if (sessionDetails[sessionId]) return sessionDetails[sessionId];
+const fetchSessionDetail = async (sessionId, type) => {
+  if (sessionDetails[sessionId]) return sessionDetails[sessionId];
 
-    try {
-      let endpoint;
-      if (type === "device") {
-        endpoint = API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(sessionId);
-      } else {
-        endpoint = API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(sessionId);
-      }
+  try {
+    let endpoint;
+    if (type === "device") {
+      endpoint = API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(sessionId);
+    } else {
+      endpoint = API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(sessionId);
+    }
 
-      const response = await fetch(endpoint);
-      const result = await response.json();
+    const response = await fetch(endpoint);
+    const result = await response.json();
 
-      if (result.success) {
-        const data = result.data;
+    if (result.success) {
+      const data = result.data;
 
-        const departmentsList = [];
-        const receiversList = [];
-        const itemsList = [];
-        let projectName = "-";
+      const departmentsList = [];
+      const receiversList = [];
+      const itemsList = [];
+      let projectName = "-";
 
-        data.items.forEach((item) => {
-          if (item.project_name && projectName === "-") {
-            projectName = item.project_name;
-          }
+      data.items.forEach((item) => {
+        if (item.project_name && projectName === "-") {
+          projectName = item.project_name;
+        }
 
-          itemsList.push({
-            name:
-              type === "device"
-                ? item.device_name
-                : item.item_name || item.material_name,
-            detail:
-              type === "device" ? item.device_detail : item.specifications,
-            quantity: item.quantity,
-            brand: item.brand,
-            model: item.model,
-            vendor: item.vendor,
-            specifications: item.specifications,
-            uom: item.uom,
+        itemsList.push({
+          name: type === "device" ? item.device_name : item.item_name || item.material_name,
+          detail: type === "device" ? item.device_detail : item.specifications,
+          quantity: item.quantity,
+          brand: item.brand,
+          model: item.model,
+          vendor: item.vendor,
+          specifications: item.specifications,
+          uom: item.uom,
+          project_name: item.project_name,
+        });
+
+        // Departments
+        if (item.departments && item.departments.length > 0) {
+          item.departments.forEach((d) => {
+            const existing = departmentsList.find(dept => dept.id === d.department_id);
+            if (existing) {
+              existing.quantity += d.quantity;
+            } else {
+              departmentsList.push({
+                id: d.department_id,
+                name: d.department_name,
+                quantity: d.quantity,
+              });
+            }
           });
+        }
 
-          // Departments
+        // Receivers
+        if (item.receivers && item.receivers.length > 0) {
+          item.receivers.forEach((r) => {
+            receiversList.push({
+              name: r.receiver_name || `Receiver ${r.receiver_id}`,
+              department: r.department_name,
+              item_name: type === "device" ? item.device_name : item.item_name || item.material_name,
+              receiver_id: r.receiver_id,
+            });
+          });
+        }
+      });
+
+      const detail = {
+        departments: departmentsList,
+        receivers: receiversList,
+        items: itemsList,
+        project_name: projectName, // PERBAIKAN: project_name disimpan
+        totalItems: data.items.length,
+        totalQty: data.items.reduce((sum, i) => sum + (i.quantity || 0), 0),
+      };
+
+      setSessionDetails((prev) => ({ ...prev, [sessionId]: detail }));
+      return detail;
+    }
+  } catch (error) {
+    console.error("Error fetching session detail:", error);
+    return null;
+  }
+};
+
+const fetchSessions = async () => {
+  setLoading(true);
+  try {
+    const response = await fetch(API_ENDPOINTS.SCANNING_PREP_LIST_ALL, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log("API Response:", result);
+
+    if (result.success) {
+      const sessionsWithDetails = result.data.map((session) => {
+        const items = session.items || [];
+        
+        // PERBAIKAN: Ambil project_name langsung dari items tanpa perlu dropdown
+        let projectName = "-";
+        
+        // Cari project_name dari items yang ada
+        for (const item of items) {
+          if (item.project_name && item.project_name !== "-") {
+            projectName = item.project_name;
+            break;
+          }
+          // Cek juga di item properties
+          if (item.project_name) {
+            projectName = item.project_name;
+            break;
+          }
+        }
+        
+        // Jika tidak ada di items, cek di session level
+        if (projectName === "-" && session.project_name) {
+          projectName = session.project_name;
+        }
+        
+        const totalItems = items.length;
+        const totalQty = session.totalQty ||
+          items.reduce((sum, i) => sum + (i.quantity || 0), 0);
+
+        const receiversList = [];
+        const departmentsList = [];
+        
+        items.forEach((item) => {
+          // Process receivers
+          if (item.receivers && item.receivers.length > 0) {
+            item.receivers.forEach((r) => {
+              if (r.receiver_name || r.receiver_id) {
+                receiversList.push({
+                  name: r.receiver_name,
+                  department: r.department_name,
+                  item_name: session.type === "device" 
+                    ? item.device_name 
+                    : item.material_name,
+                });
+              }
+            });
+          }
+          
+          // Process departments
           if (item.departments && item.departments.length > 0) {
             item.departments.forEach((d) => {
-              const existing = departmentsList.find(
-                (dept) => dept.id === d.department_id,
-              );
-              if (existing) {
-                existing.quantity += d.quantity;
-              } else {
+              if (!departmentsList.find(dept => dept.id === d.department_id)) {
                 departmentsList.push({
                   id: d.department_id,
                   name: d.department_name,
                   quantity: d.quantity,
                 });
+              } else {
+                const existing = departmentsList.find(dept => dept.id === d.department_id);
+                if (existing) existing.quantity += d.quantity;
               }
             });
           }
-
-          // Receivers - sekarang menggunakan receiver_name dari backend
-          if (item.receivers && item.receivers.length > 0) {
-            item.receivers.forEach((r) => {
-              receiversList.push({
-                name: r.receiver_name || `Receiver ${r.receiver_id}`,
-                department: r.department_name,
-                item_name:
-                  type === "device"
-                    ? item.device_name
-                    : item.item_name || item.material_name,
-                receiver_id: r.receiver_id,
-              });
-            });
-          }
         });
 
-        const detail = {
-          departments: departmentsList,
+        let progress = session.progress || 0;
+        let status = session.status || "pending";
+
+        if (session.items && session.items.length > 0 && !session.progress) {
+          const totalScanned = session.items.reduce(
+            (sum, i) => sum + (i.scanned_count || 0),
+            0
+          );
+          progress = totalQty > 0 ? Math.round((totalScanned / totalQty) * 100) : 0;
+          if (progress === 100) status = "completed";
+          else if (progress > 0) status = "in-progress";
+        }
+
+        const sessionType = session.type || 
+          (session.category_id === 1 ? "device" : "material");
+
+        return {
+          ...session,
+          type: sessionType,
+          status: session.status || status,
+          progress: session.progress || progress,
+          totalItems,
+          totalQty,
+          project_name: projectName, // PERBAIKAN: project_name langsung tersedia
           receivers: receiversList,
-          items: itemsList,
-          project_name: projectName,
-          totalItems: data.items.length,
-          totalQty: data.items.reduce((sum, i) => sum + (i.quantity || 0), 0),
+          departments: departmentsList,
+          category_name: session.category_name || "General",
+          location_name: session.location_name || "No location",
+          uniqueCode: session.checking_number || `SESS-${session.id_preparation}`,
         };
-
-        setSessionDetails((prev) => ({ ...prev, [sessionId]: detail }));
-        return detail;
-      }
-    } catch (error) {
-      console.error("Error fetching session detail:", error);
-      return null;
-    }
-  };
-
-  const fetchSessions = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(API_ENDPOINTS.SCANNING_PREP_LIST_ALL, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log("API Response:", result);
-
-      if (result.success) {
-        const sessionsWithDetails = result.data.map((session) => {
-          const items = session.items || [];
-          const totalItems = items.length;
-          const totalQty =
-            session.totalQty ||
-            items.reduce((sum, i) => sum + (i.quantity || 0), 0);
-
-          const projectName = items[0]?.project_name || "-";
-
-          const receiversList = [];
-          items.forEach((item) => {
-            if (item.receivers && item.receivers.length > 0) {
-              item.receivers.forEach((r) => {
-                if (r.receiver_name || r.receiver_id) {
-                  receiversList.push({
-                    name: r.receiver_name,
-                    department: r.department_name,
-                    item_name:
-                      session.type === "device"
-                        ? item.device_name
-                        : item.material_name,
-                  });
-                }
-              });
-            }
-          });
-
-          const departmentsList = [];
-          items.forEach((item) => {
-            if (item.departments && item.departments.length > 0) {
-              item.departments.forEach((d) => {
-                if (
-                  !departmentsList.find((dept) => dept.id === d.department_id)
-                ) {
-                  departmentsList.push({
-                    id: d.department_id,
-                    name: d.department_name,
-                    quantity: d.quantity,
-                  });
-                } else {
-                  const existing = departmentsList.find(
-                    (dept) => dept.id === d.department_id,
-                  );
-                  if (existing) existing.quantity += d.quantity;
-                }
-              });
-            }
-          });
-
-          let progress = session.progress || 0;
-          let status = session.status || "pending";
-
-          if (session.items && session.items.length > 0 && !session.progress) {
-            const totalScanned = session.items.reduce(
-              (sum, i) => sum + (i.scanned_count || 0),
-              0,
-            );
-            progress =
-              totalQty > 0 ? Math.round((totalScanned / totalQty) * 100) : 0;
-            if (progress === 100) status = "completed";
-            else if (progress > 0) status = "in-progress";
-          }
-
-          const sessionType =
-            session.type || (session.category_id === 1 ? "device" : "material");
-
-          return {
-            ...session,
-            type: sessionType,
-            status: session.status || status,
-            progress: session.progress || progress,
-            totalItems,
-            totalQty,
-            project_name: projectName,
-            receivers: receiversList,
-            departments: departmentsList,
-            category_name: session.category_name || "General",
-            location_name: session.location_name || "No location",
-            uniqueCode:
-              session.checking_number || `SESS-${session.id_preparation}`,
-          };
-        });
-        setSessions(sessionsWithDetails);
-        setFilteredSessions(sessionsWithDetails);
-      } else {
-        throw new Error(
-          result.message || result.error || "Failed to load sessions",
-        );
-      }
-    } catch (error) {
-      console.error("Error fetching sessions:", error);
-      Swal.fire({
-        title: "Error!",
-        text:
-          error.message ||
-          "Failed to load sessions. Please check if backend server is running.",
-        icon: "error",
-        confirmButtonColor: "#1e40af",
-      });
-    } finally {
-      setLoading(false);
+      
+      setSessions(sessionsWithDetails);
+      setFilteredSessions(sessionsWithDetails);
+    } else {
+      throw new Error(result.message || result.error || "Failed to load sessions");
     }
-  };
+  } catch (error) {
+    console.error("Error fetching sessions:", error);
+    Swal.fire({
+      title: "Error!",
+      text: error.message || "Failed to load sessions. Please check if backend server is running.",
+      icon: "error",
+      confirmButtonColor: "#1e40af",
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const stats = {
     total: sessions.length,
@@ -457,15 +461,16 @@ export default function ScanningPreparationListPage() {
   };
 
   const toggleExpandSession = async (sessionId, type) => {
-    if (expandedSession === sessionId) {
-      setExpandedSession(null);
-    } else {
-      setExpandedSession(sessionId);
-      if (!sessionDetails[sessionId]) {
-        await fetchSessionDetail(sessionId, type);
-      }
+  if (expandedSession === sessionId) {
+    setExpandedSession(null);
+  } else {
+    setExpandedSession(sessionId);
+    // Cek apakah detail sudah ada
+    if (!sessionDetails[sessionId]) {
+      await fetchSessionDetail(sessionId, type);
     }
-  };
+  }
+};
 
   if (!mounted) {
     return (
@@ -856,11 +861,11 @@ export default function ScanningPreparationListPage() {
             {session.location_name}
           </span>
         </td>
-        <td className="sp-td hidden 2xl:table-cell">
-          <span className="text-xs text-gray-600 truncate max-w-[120px] block">
-            {projectName}
-          </span>
-        </td>
+       <td className="sp-td hidden 2xl:table-cell">
+  <span className="text-xs text-gray-600 truncate max-w-[120px] block">
+    {session.project_name || "-"}  
+  </span>
+</td>
         <td className="sp-td">
           <span
             className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border} whitespace-nowrap`}
@@ -1168,19 +1173,19 @@ export default function ScanningPreparationListPage() {
         </div>
 
         {/* Location and Project Info */}
-        <div className="mt-2 ml-8 space-y-1">
-          <div className="flex items-center gap-1 text-xs text-gray-500">
-            <MapPin className="w-3 h-3 flex-shrink-0" />
-            <span className="truncate">{session.location_name}</span>
-          </div>
-          {/* PERBAIKAN: Tampilkan project_name langsung tanpa perlu dropdown */}
-          {projectName && projectName !== "-" && (
-            <div className="flex items-center gap-1 text-xs text-gray-500">
-              <Building2 className="w-3 h-3 flex-shrink-0" />
-              <span className="truncate">{projectName}</span>
-            </div>
-          )}
-        </div>
+     <div className="mt-2 ml-8 space-y-1">
+  <div className="flex items-center gap-1 text-xs text-gray-500">
+    <MapPin className="w-3 h-3 flex-shrink-0" />
+    <span className="truncate">{session.location_name}</span>
+  </div>
+  {session.project_name && session.project_name !== "-" && (
+    <div className="flex items-center gap-1 text-xs text-gray-500">
+      <Building2 className="w-3 h-3 flex-shrink-0" />
+      <span className="truncate">{session.project_name}</span> 
+    </div>
+  )}
+</div>
+
 
         {/* Progress Bar */}
         <div className="mt-3 ml-8">
