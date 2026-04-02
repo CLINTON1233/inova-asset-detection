@@ -1096,235 +1096,257 @@ export default function ScanningPreparationListPage() {
 
               {/* Mobile Card View */}
               <div className="md:hidden divide-y divide-gray-100">
-                {filteredSessions.map((session, idx) => {
-                  const sc = getStatusConfig(session.status);
-                  const isExpanded = expandedSession === session.id_preparation;
-                  const detail = sessionDetails[session.id_preparation];
-                  const projectName = detail?.project_name || "-";
+         {filteredSessions.map((session, idx) => {
+  const sc = getStatusConfig(session.status);
+  const isExpanded = expandedSession === session.id_preparation;
+  const detail = sessionDetails[session.id_preparation];
+  // PERBAIKAN: Ambil project_name dari session jika tidak ada di detail
+  const projectName = detail?.project_name || session?.project_name || "-";
+  const uniqueKey = `${session.type}_${session.id_preparation}`; // Key unik
 
-                  return (
-                    <Fragment key={`${session.type}_${session.id_preparation}`}>
-                      <div className="p-3 hover:bg-gray-50 transition-colors">
-                        {/* Header with expand button */}
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <div className="w-6 h-6 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">
-                                {idx + 1}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="font-semibold text-gray-900 text-sm leading-tight break-words">
-                                  {session.checking_name}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="text-xs text-gray-400 mono ml-8 break-words">
-                              {session.checking_number}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2 mt-2 ml-8">
-                              <span
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                  session.type === "device"
-                                    ? "bg-blue-100 text-blue-700"
-                                    : session.type === "material"
-                                      ? "bg-green-100 text-green-700"
-                                      : "bg-gray-100 text-gray-700"
-                                }`}
-                              >
-                                {session.type === "device"
-                                  ? "Device"
-                                  : session.type === "material"
-                                    ? "Material"
-                                    : "Unknown"}
-                              </span>
-                              <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}
-                              >
-                                <span
-                                  className={`w-1 h-1 rounded-full ${sc.dot}`}
-                                />
-                                {sc.label}
-                              </span>
-                              <span className="text-xs text-gray-500">
-                                {formatDate(session.checking_date)}
-                              </span>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() =>
-                              toggleExpandSession(
-                                session.id_preparation,
-                                session.type,
-                              )
-                            }
-                            className="p-1 hover:bg-gray-100 rounded transition flex-shrink-0"
-                          >
-                            <ChevronDown
-                              className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                            />
-                          </button>
-                        </div>
+  return (
+    <Fragment key={uniqueKey}>
+      <div className="p-3 hover:bg-gray-50 transition-colors">
+        {/* Header with expand button */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-6 h-6 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">
+                {idx + 1}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-gray-900 text-sm leading-tight break-words">
+                  {session.checking_name}
+                </div>
+              </div>
+            </div>
+            <div className="text-xs text-gray-400 mono ml-8 break-words">
+              {session.checking_number}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-2 ml-8">
+              <span
+                className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                  session.type === "device"
+                    ? "bg-blue-100 text-blue-700"
+                    : session.type === "material"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-gray-100 text-gray-700"
+                }`}
+              >
+                {session.type === "device"
+                  ? "Device"
+                  : session.type === "material"
+                    ? "Material"
+                    : "Unknown"}
+              </span>
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}
+              >
+                <span
+                  className={`w-1 h-1 rounded-full ${sc.dot}`}
+                />
+                {sc.label}
+              </span>
+              <span className="text-xs text-gray-500">
+                {formatDate(session.checking_date)}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() =>
+              toggleExpandSession(
+                session.id_preparation,
+                session.type,
+              )
+            }
+            className="p-1 hover:bg-gray-100 rounded transition flex-shrink-0"
+          >
+            <ChevronDown
+              className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+            />
+          </button>
+        </div>
 
-                        {/* Location and Project Info */}
-                        <div className="mt-2 ml-8 space-y-1">
-                          <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <MapPin className="w-3 h-3 flex-shrink-0" />
-                            <span className="truncate">{session.location_name}</span>
-                          </div>
-                          {projectName !== "-" && (
-                            <div className="flex items-center gap-1 text-xs text-gray-500">
-                              <Building2 className="w-3 h-3 flex-shrink-0" />
-                              <span className="truncate">{projectName}</span>
-                            </div>
-                          )}
-                        </div>
+        {/* Location and Project Info */}
+        <div className="mt-2 ml-8 space-y-1">
+          <div className="flex items-center gap-1 text-xs text-gray-500">
+            <MapPin className="w-3 h-3 flex-shrink-0" />
+            <span className="truncate">{session.location_name}</span>
+          </div>
+          {/* PERBAIKAN: Tampilkan project_name langsung tanpa perlu dropdown */}
+          {projectName && projectName !== "-" && (
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <Building2 className="w-3 h-3 flex-shrink-0" />
+              <span className="truncate">{projectName}</span>
+            </div>
+          )}
+        </div>
 
-                        {/* Progress Bar */}
-                        <div className="mt-3 ml-8">
-                          <div className="flex items-center gap-2">
-                            <div className="prog-track flex-1">
-                              <div
-                                className="prog-fill"
-                                style={{ width: `${session.progress || 0}%` }}
-                              />
-                            </div>
-                            <span className="text-xs font-semibold text-gray-600">
-                              {session.progress || 0}%
-                            </span>
-                          </div>
-                        </div>
+        {/* Progress Bar */}
+        <div className="mt-3 ml-8">
+          <div className="flex items-center gap-2">
+            <div className="prog-track flex-1">
+              <div
+                className="prog-fill"
+                style={{ width: `${session.progress || 0}%` }}
+              />
+            </div>
+            <span className="text-xs font-semibold text-gray-600">
+              {session.progress || 0}%
+            </span>
+          </div>
+        </div>
 
-                        {/* Action Buttons */}
-                        <div className="mt-3 ml-8 flex flex-wrap gap-2">
-                          <button
-                            onClick={() =>
-                              router.push(
-                                `/scanning?prep_id=${session.id_preparation}&type=${session.type}`,
-                              )
-                            }
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
-                          >
-                            <ScanLine className="w-3.5 h-3.5" />
-                            Scan
-                          </button>
-                          <button
-                            onClick={() =>
-                              router.push(
-                                `/edit_scanning_preparation?id=${session.id_preparation}&type=${session.type}`,
-                              )
-                            }
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-lg hover:bg-gray-700 transition"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                            Edit
-                          </button>
-                          <button
-                            onClick={() =>
-                              handleDelete(
-                                session.id_preparation,
-                                session.checking_name,
-                                session.type,
-                              )
-                            }
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
-                          >
-                            <Trash2 className="w-4.0 h-3.5" />
-                            Delete
-                          </button>
-                        </div>
+        {/* Action Buttons */}
+        <div className="mt-3 ml-8 flex flex-wrap gap-2">
+          <button
+            onClick={() =>
+              router.push(
+                `/scanning?prep_id=${session.id_preparation}&type=${session.type}`,
+              )
+            }
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+          >
+            <ScanLine className="w-3.5 h-3.5" />
+            Scan
+          </button>
+          <button
+            onClick={() =>
+              router.push(
+                `/edit_scanning_preparation?id=${session.id_preparation}&type=${session.type}`,
+              )
+            }
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-lg hover:bg-gray-700 transition"
+          >
+            <Edit className="w-3.5 h-3.5" />
+            Edit
+          </button>
+          <button
+            onClick={() =>
+              handleDelete(
+                session.id_preparation,
+                session.checking_name,
+                session.type,
+              )
+            }
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete
+          </button>
+        </div>
 
-                        {/* Expanded Details for Mobile */}
-                        {isExpanded && detail && (
-                          <div className="mt-3 ml-8 space-y-3 border-t border-gray-100 pt-3">
-                            {/* Items List - Mobile */}
-                            {detail.items && detail.items.length > 0 && (
-                              <div>
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Box className="w-4 h-4 text-purple-600" />
-                                  <h4 className="text-xs font-semibold text-gray-800">
-                                    Items ({detail.items.length})
-                                  </h4>
-                                </div>
-                                <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                                  {detail.items.slice(0, 5).map((item, itemIdx) => (
-                                    <div key={itemIdx} className="bg-gray-50 rounded p-2">
-                                      <div className="font-medium text-gray-900 text-xs break-words">
-                                        {item.name}
-                                      </div>
-                                      <div className="text-xs text-gray-500">
-                                        Qty: {item.quantity} {item.uom || ""}
-                                        {item.brand && ` · Brand: ${item.brand}`}
-                                        {item.model && ` · Model: ${item.model}`}
-                                      </div>
-                                    </div>
-                                  ))}
-                                  {detail.items.length > 5 && (
-                                    <p className="text-xs text-gray-400 text-center">
-                                      +{detail.items.length - 5} more items
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Department Distribution - Mobile */}
-                            {detail.departments && detail.departments.length > 0 && (
-                              <div>
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Users className="w-4 h-4 text-blue-600" />
-                                  <h4 className="text-xs font-semibold text-gray-800">
-                                    Departments
-                                  </h4>
-                                </div>
-                                <div className="flex flex-wrap gap-1">
-                                  {detail.departments.map((dept, deptIdx) => (
-                                    <span
-                                      key={deptIdx}
-                                      className="bg-gray-100 px-2 py-0.5 rounded-full text-xs"
-                                    >
-                                      {dept.name}: {dept.quantity}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Summary Stats */}
-                            <div className="bg-blue-50 rounded p-2">
-                              <div className="grid grid-cols-2 gap-1 text-xs">
-                                <div>
-                                  Total Items:{" "}
-                                  <span className="font-semibold">
-                                    {detail.totalItems || 0}
-                                  </span>
-                                </div>
-                                <div>
-                                  Total Qty:{" "}
-                                  <span className="font-semibold">
-                                    {detail.totalQty || 0}
-                                  </span>
-                                </div>
-                                <div>
-                                  Scanned:{" "}
-                                  <span className="font-semibold text-green-600">
-                                    {session.scannedCount || 0}
-                                  </span>
-                                </div>
-                                <div>
-                                  Remaining:{" "}
-                                  <span className="font-semibold text-orange-600">
-                                    {(detail.totalQty || 0) -
-                                      (session.scannedCount || 0)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
+        {/* Expanded Details for Mobile */}
+        {isExpanded && detail && (
+          <div className="mt-3 ml-8 space-y-3 border-t border-gray-100 pt-3">
+            {/* Items List - Mobile */}
+            {detail.items && detail.items.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Box className="w-4 h-4 text-purple-600" />
+                  <h4 className="text-xs font-semibold text-gray-800">
+                    Items ({detail.items.length})
+                  </h4>
+                </div>
+                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  {detail.items.slice(0, 5).map((item, itemIdx) => (
+                    <div key={itemIdx} className="bg-gray-50 rounded p-2">
+                      <div className="font-medium text-gray-900 text-xs break-words">
+                        {item.name}
                       </div>
-                    </Fragment>
-                  );
-                })}
+                      <div className="text-xs text-gray-500">
+                        Qty: {item.quantity} {item.uom || ""}
+                        {item.brand && ` · Brand: ${item.brand}`}
+                        {item.model && ` · Model: ${item.model}`}
+                      </div>
+                    </div>
+                  ))}
+                  {detail.items.length > 5 && (
+                    <p className="text-xs text-gray-400 text-center">
+                      +{detail.items.length - 5} more items
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Department Distribution - Mobile */}
+            {detail.departments && detail.departments.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="w-4 h-4 text-blue-600" />
+                  <h4 className="text-xs font-semibold text-gray-800">
+                    Departments
+                  </h4>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {detail.departments.map((dept, deptIdx) => (
+                    <span
+                      key={deptIdx}
+                      className="bg-gray-100 px-2 py-0.5 rounded-full text-xs"
+                    >
+                      {dept.name}: {dept.quantity}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Receiver Assignments - Mobile */}
+            {detail.receivers && detail.receivers.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <User className="w-4 h-4 text-green-600" />
+                  <h4 className="text-xs font-semibold text-gray-800">
+                    Receivers
+                  </h4>
+                </div>
+                <div className="space-y-1">
+                  {detail.receivers.map((rec, recIdx) => (
+                    <div key={recIdx} className="text-xs text-gray-600">
+                      {rec.name} - {rec.department} ({rec.item_name})
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Summary Stats */}
+            <div className="bg-blue-50 rounded p-2">
+              <div className="grid grid-cols-2 gap-1 text-xs">
+                <div>
+                  Total Items:{" "}
+                  <span className="font-semibold">
+                    {detail.totalItems || 0}
+                  </span>
+                </div>
+                <div>
+                  Total Qty:{" "}
+                  <span className="font-semibold">
+                    {detail.totalQty || 0}
+                  </span>
+                </div>
+                <div>
+                  Scanned:{" "}
+                  <span className="font-semibold text-green-600">
+                    {session.scannedCount || 0}
+                  </span>
+                </div>
+                <div>
+                  Remaining:{" "}
+                  <span className="font-semibold text-orange-600">
+                    {(detail.totalQty || 0) -
+                      (session.scannedCount || 0)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </Fragment>
+  );
+})}
               </div>
             </div>
           )}
