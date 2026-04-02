@@ -572,7 +572,8 @@ def create_scan_results_devices_table(conn):
                 notes TEXT,
                 photo_data TEXT,
                 photo_url TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_devices_item_prep ON scan_results_devices(item_preparation_id)")
@@ -606,7 +607,8 @@ def create_scan_results_materials_table(conn):
                 notes TEXT,
                 photo_data TEXT,
                 photo_url TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_materials_item_prep ON scan_results_materials(item_preparation_id)")

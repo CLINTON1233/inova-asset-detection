@@ -30,6 +30,7 @@ import {
   Trash2,
   Cpu,
   Box,
+  ScanLine,
   FileSpreadsheet,
   LayoutGrid,
   List,
@@ -393,10 +394,10 @@ export default function ValidationVerificationPage() {
     }
   };
 
-const handleReject = async (validation) => {
-  const result = await Swal.fire({
-    title: "Reject Validation?",
-    html: `
+  const handleReject = async (validation) => {
+    const result = await Swal.fire({
+      title: "Reject Validation?",
+      html: `
       <div class="text-left">
         <p class="text-sm text-gray-600 mb-2">Item: <span class="font-semibold">${validation.item_name || "-"}</span></p>
         <p class="text-sm text-gray-600 mb-2">Brand: <span class="font-semibold">${validation.brand || "-"}</span></p>
@@ -405,139 +406,139 @@ const handleReject = async (validation) => {
         <textarea id="reason" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" rows="3" placeholder="Please provide reason for rejection..." required></textarea>
       </div>
     `,
-    icon: "warning",
-    showCancelButton: true,
-    confirmButtonText: "Yes, Reject",
-    cancelButtonText: "Cancel",
-    confirmButtonColor: "#ef4444",
-    preConfirm: () => {
-      const reason = document.getElementById("reason").value;
-      if (!reason || reason.trim() === "") {
-        Swal.showValidationMessage("Please provide a rejection reason");
-        return false;
-      }
-      return { reason };
-    },
-  });
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, Reject",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#ef4444",
+      preConfirm: () => {
+        const reason = document.getElementById("reason").value;
+        if (!reason || reason.trim() === "") {
+          Swal.showValidationMessage("Please provide a rejection reason");
+          return false;
+        }
+        return { reason };
+      },
+    });
 
-  if (result.isConfirmed) {
-    setIsProcessing(true);
-    try {
-      const response = await fetch(
-        API_ENDPOINTS.VALIDATIONS_UPDATE(validation.id_validation),
-        {
-          method: "PUT",
+    if (result.isConfirmed) {
+      setIsProcessing(true);
+      try {
+        const response = await fetch(
+          API_ENDPOINTS.VALIDATIONS_UPDATE(validation.id_validation),
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              validation_status: "rejected",
+              is_approved: false,
+              rejection_reason: result.value.reason,
+              validated_by: 1,
+            }),
+          },
+        );
+
+        const data = await response.json();
+
+        if (data.success) {
+          Swal.fire({
+            title: "Rejected!",
+            text: "Validation has been rejected. You can now rescan the item.",
+            icon: "warning",
+            timer: 2000,
+            showConfirmButton: false,
+          });
+
+          loadValidations();
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (error) {
+        Swal.fire({
+          title: "Error!",
+          text: error.message || "Failed to reject validation",
+          icon: "error",
+        });
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+  };
+
+  const handleBulkAction = async (action) => {
+    if (selectedItems.length === 0) {
+      Swal.fire({
+        title: "No Items Selected",
+        text: "Please select at least one item to process.",
+        icon: "info",
+      });
+      return;
+    }
+
+    const isApprove = action === "approve";
+
+    const result = await Swal.fire({
+      title: isApprove ? "Approve Selected Items?" : "Reject Selected Items?",
+      text: `Are you sure you want to ${action} ${selectedItems.length} item(s)?`,
+      icon: isApprove ? "question" : "warning",
+      showCancelButton: true,
+      confirmButtonText: isApprove ? "Yes, Approve" : "Yes, Reject",
+      confirmButtonColor: isApprove ? "#22c55e" : "#ef4444",
+      ...(isApprove
+        ? {}
+        : {
+            input: "textarea",
+            inputPlaceholder: "Rejection reason for all selected items...",
+            inputLabel: "Rejection Reason",
+            inputValidator: (value) => {
+              if (!value || value.trim() === "") {
+                return "Please provide a rejection reason";
+              }
+              return null;
+            },
+          }),
+    });
+
+    if (result.isConfirmed) {
+      setIsProcessing(true);
+      try {
+        const response = await fetch(API_ENDPOINTS.VALIDATIONS_BULK, {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            validation_status: "rejected",
-            is_approved: false,
-            rejection_reason: result.value.reason,
+            validation_ids: selectedItems,
+            action: action,
+            rejection_reason: isApprove ? null : result.value,
             validated_by: 1,
           }),
-        },
-      );
-
-      const data = await response.json();
-
-      if (data.success) {
-        Swal.fire({
-          title: "Rejected!",
-          text: "Validation has been rejected. You can now rescan the item.",
-          icon: "warning",
-          timer: 2000,
-          showConfirmButton: false,
         });
 
-        loadValidations();
-      } else {
-        throw new Error(data.error);
-      }
-    } catch (error) {
-      Swal.fire({
-        title: "Error!",
-        text: error.message || "Failed to reject validation",
-        icon: "error",
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  }
-};
+        const data = await response.json();
 
-const handleBulkAction = async (action) => {
-  if (selectedItems.length === 0) {
-    Swal.fire({
-      title: "No Items Selected",
-      text: "Please select at least one item to process.",
-      icon: "info",
-    });
-    return;
-  }
-
-  const isApprove = action === "approve";
-
-  const result = await Swal.fire({
-    title: isApprove ? "Approve Selected Items?" : "Reject Selected Items?",
-    text: `Are you sure you want to ${action} ${selectedItems.length} item(s)?`,
-    icon: isApprove ? "question" : "warning",
-    showCancelButton: true,
-    confirmButtonText: isApprove ? "Yes, Approve" : "Yes, Reject",
-    confirmButtonColor: isApprove ? "#22c55e" : "#ef4444",
-    ...(isApprove
-      ? {}
-      : {
-          input: "textarea",
-          inputPlaceholder: "Rejection reason for all selected items...",
-          inputLabel: "Rejection Reason",
-          inputValidator: (value) => {
-            if (!value || value.trim() === "") {
-              return "Please provide a rejection reason";
-            }
-            return null;
-          },
-        }),
-  });
-
-  if (result.isConfirmed) {
-    setIsProcessing(true);
-    try {
-      const response = await fetch(API_ENDPOINTS.VALIDATIONS_BULK, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          validation_ids: selectedItems,
-          action: action,
-          rejection_reason: isApprove ? null : result.value,
-          validated_by: 1,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
+        if (data.success) {
+          Swal.fire({
+            title: "Success!",
+            text: data.message,
+            icon: "success",
+            timer: 2000,
+            showConfirmButton: false,
+          });
+          setSelectedItems([]);
+          loadValidations();
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (error) {
         Swal.fire({
-          title: "Success!",
-          text: data.message,
-          icon: "success",
-          timer: 2000,
-          showConfirmButton: false,
+          title: "Error!",
+          text: error.message || `Failed to ${action} items`,
+          icon: "error",
         });
-        setSelectedItems([]);
-        loadValidations();
-      } else {
-        throw new Error(data.error);
+      } finally {
+        setIsProcessing(false);
       }
-    } catch (error) {
-      Swal.fire({
-        title: "Error!",
-        text: error.message || `Failed to ${action} items`,
-        icon: "error",
-      });
-    } finally {
-      setIsProcessing(false);
     }
-  }
-};
+  };
 
   const handleDeleteSingle = async (validation) => {
     const result = await Swal.fire({
@@ -675,11 +676,17 @@ const handleBulkAction = async (action) => {
 
   const getSortIcon = (columnId) => {
     if (sorting.id !== columnId)
-      return <span style={{ color: "#d1d5db", marginLeft: 4, fontSize: 11 }}>⇅</span>;
+      return (
+        <span style={{ color: "#d1d5db", marginLeft: 4, fontSize: 11 }}>⇅</span>
+      );
     return sorting.desc ? (
-      <ArrowDown style={{ width: 12, height: 12, marginLeft: 4, color: "#2563eb" }} />
+      <ArrowDown
+        style={{ width: 12, height: 12, marginLeft: 4, color: "#2563eb" }}
+      />
     ) : (
-      <ArrowUp style={{ width: 12, height: 12, marginLeft: 4, color: "#2563eb" }} />
+      <ArrowUp
+        style={{ width: 12, height: 12, marginLeft: 4, color: "#2563eb" }}
+      />
     );
   };
 
@@ -694,7 +701,8 @@ const handleBulkAction = async (action) => {
 
   const exportToExcel = (exportType = "current") => {
     try {
-      const source = exportType === "current" ? filteredValidations : validations;
+      const source =
+        exportType === "current" ? filteredValidations : validations;
 
       if (!source.length) {
         alert("No data to export");
@@ -706,7 +714,12 @@ const handleBulkAction = async (action) => {
         Brand: v.brand || "-",
         "Serial/Code": v.serial_or_code || "-",
         Type: v.validation_type === "device" ? "Device" : "Material",
-        Status: v.validation_status === "pending" ? "Pending" : v.validation_status === "approved" ? "Approved" : "Rejected",
+        Status:
+          v.validation_status === "pending"
+            ? "Pending"
+            : v.validation_status === "approved"
+              ? "Approved"
+              : "Rejected",
         "Session Name": v.checking_name || "-",
         "Session Number": v.checking_number || "-",
         "Submitted Date": formatDate(v.created_at),
@@ -714,7 +727,17 @@ const handleBulkAction = async (action) => {
       }));
 
       const ws = XLSX.utils.json_to_sheet(dataToExport);
-      ws["!cols"] = [{ wch: 30 }, { wch: 20 }, { wch: 25 }, { wch: 12 }, { wch: 12 }, { wch: 30 }, { wch: 20 }, { wch: 16 }, { wch: 20 }];
+      ws["!cols"] = [
+        { wch: 30 },
+        { wch: 20 },
+        { wch: 25 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 30 },
+        { wch: 20 },
+        { wch: 16 },
+        { wch: 20 },
+      ];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Validations");
       const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
@@ -996,25 +1019,25 @@ const handleBulkAction = async (action) => {
             </div>
           </div>
 
-     {/* KPI Cards */}
-<div className="vv-section">
-  <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-gray-100">
-    {kpis.map((d, i) => (
-      <div key={i} className="kpi-cell">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          {d.title}
-        </p>
-        <span
-          className="text-4xl font-bold"
-          style={{ color: d.accent }}
-        >
-          {d.value}
-        </span>
-        <p className="text-xs text-gray-400 mt-2">{d.sub}</p>
-      </div>
-    ))}
-  </div>
-</div>
+          {/* KPI Cards */}
+          <div className="vv-section">
+            <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-gray-100">
+              {kpis.map((d, i) => (
+                <div key={i} className="kpi-cell">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                    {d.title}
+                  </p>
+                  <span
+                    className="text-4xl font-bold"
+                    style={{ color: d.accent }}
+                  >
+                    {d.value}
+                  </span>
+                  <p className="text-xs text-gray-400 mt-2">{d.sub}</p>
+                </div>
+              ))}
+            </div>
+          </div>
 
           {/* Main Section Card */}
           <div className="vv-section">
@@ -1361,7 +1384,10 @@ const handleBulkAction = async (action) => {
                               className="w-full h-full object-cover"
                               onError={(e) => {
                                 e.target.style.display = "none";
-                                e.target.parentElement.innerHTML = validation.validation_type === "device" ? '<Laptop className="w-5 h-5 text-blue-600" />' : '<Package className="w-5 h-5 text-emerald-600" />';
+                                e.target.parentElement.innerHTML =
+                                  validation.validation_type === "device"
+                                    ? '<Laptop className="w-5 h-5 text-blue-600" />'
+                                    : '<Package className="w-5 h-5 text-emerald-600" />';
                               }}
                             />
                           ) : validation.validation_type === "device" ? (
@@ -1701,57 +1727,127 @@ const handleBulkAction = async (action) => {
                               by {validation.created_by_name || "System"}
                             </div>
                           </td>
-                          <td className="vv-td text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleViewDetail(validation);
-                                }}
-                                className="view-btn-sm"
-                                title="View Details"
-                              >
-                                <Eye className="w-3 h-3" />
-                              </button>
-                              {validation.validation_status === "pending" && (
-                                <>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleApprove(validation);
-                                    }}
-                                    disabled={isProcessing}
-                                    className="approve-btn-sm disabled:opacity-50"
-                                    title="Approve"
-                                  >
-                                    <ThumbsUp className="w-3 h-3" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleReject(validation);
-                                    }}
-                                    disabled={isProcessing}
-                                    className="reject-btn-sm disabled:opacity-50"
-                                    title="Reject"
-                                  >
-                                    <ThumbsDown className="w-3 h-3" />
-                                  </button>
-                                </>
-                              )}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteSingle(validation);
-                                }}
-                                disabled={isProcessing}
-                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-gray-500 rounded-lg hover:bg-gray-600 transition disabled:opacity-50"
-                                title="Delete"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                          </td>
+            
+                        <td className="vv-td text-center">
+  <div className="flex items-center justify-center gap-1 flex-wrap">
+ {/* Rejected → Scan Ulang */}
+    {validation.validation_status === "rejected" && (
+      <button
+        onClick={async (e) => {
+          e.stopPropagation();
+
+          const result = await Swal.fire({
+            title: "Rescan Item?",
+            text: "This item was rejected. Do you want to rescan it?",
+            icon: "question",
+            showCancelButton: true,
+            confirmButtonText: "Yes, Rescan",
+            cancelButtonText: "Cancel",
+            confirmButtonColor: "#2563eb",
+          });
+
+          if (result.isConfirmed) {
+            try {
+              const resetResponse = await fetch(
+                API_ENDPOINTS.SCAN_RESULTS_RESET(validation.scan_id),
+                { method: "PUT" }
+              );
+              const resetResult = await resetResponse.json();
+
+              if (resetResult.success) {
+                await fetch(
+                  `${API_BASE_URL}/api/validations/${validation.id_validation}`,
+                  { method: "DELETE" }
+                );
+
+                Swal.fire({
+                  title: "Success!",
+                  text: "Item has been reset and ready for rescan.",
+                  icon: "success",
+                  timer: 1500,
+                  showConfirmButton: false,
+                });
+
+                router.push(
+                  `/scanning?prep_id=${
+                    validation.device_preparation_id ||
+                    validation.material_preparation_id
+                  }&type=${validation.validation_type}`
+                );
+              } else {
+                throw new Error(resetResult.error);
+              }
+            } catch (error) {
+              Swal.fire({
+                title: "Error!",
+                text: "Failed to reset item for rescan",
+                icon: "error",
+              });
+            }
+          }
+        }}
+        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+        title="Scan Ulang"
+      >
+        <ScanLine className="w-3 h-3" />
+        Rescan
+      </button>
+    )}
+    {/* View */}
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        handleViewDetail(validation);
+      }}
+      className="view-btn-sm"
+      title="View Details"
+    >
+      <Eye className="w-3 h-3" />
+    </button>
+
+    {/* Pending */}
+    {validation.validation_status === "pending" && (
+      <>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleApprove(validation);
+          }}
+          disabled={isProcessing}
+          className="approve-btn-sm disabled:opacity-50"
+          title="Approve"
+        >
+          <ThumbsUp className="w-3 h-3" />
+        </button>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleReject(validation);
+          }}
+          disabled={isProcessing}
+          className="reject-btn-sm disabled:opacity-50"
+          title="Reject"
+        >
+          <ThumbsDown className="w-3 h-3" />
+        </button>
+      </>
+    )}
+
+    {/* Delete */}
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        handleDeleteSingle(validation);
+      }}
+      disabled={isProcessing}
+      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-gray-500 rounded-lg hover:bg-gray-600 transition disabled:opacity-50"
+      title="Delete"
+    >
+      <Trash2 className="w-3 h-3" />
+    </button>
+  </div>
+</td>
                         </tr>
                       );
                     })}

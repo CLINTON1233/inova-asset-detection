@@ -428,26 +428,18 @@ const loadPreparation = async (prepId) => {
     let prepType = null;
 
     if (urlType === "device") {
-      console.log("Loading device preparation with ID:", prepId);
       response = await fetch(
         API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId),
       );
       data = await response.json();
-      if (data.success) {
-        prepType = "device";
-      }
+      if (data.success) prepType = "device";
     } else if (urlType === "material") {
-      console.log("Loading material preparation with ID:", prepId);
       response = await fetch(
         API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId),
       );
       data = await response.json();
-      if (data.success) {
-        prepType = "material";
-      }
+      if (data.success) prepType = "material";
     } else {
-      // Auto-detect
-      console.log("Auto-detecting preparation type...");
       response = await fetch(
         API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId),
       );
@@ -459,19 +451,13 @@ const loadPreparation = async (prepId) => {
           API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId),
         );
         data = await response.json();
-        if (data.success) {
-          prepType = "material";
-        }
+        if (data.success) prepType = "material";
       }
     }
 
     if (data && data.success && prepType) {
-      console.log("Loaded preparation type:", prepType);
-      console.log("Loaded data:", data.data);
-
       setCurrentPreparation({ ...data.data, type: prepType });
 
-      // Load progress
       let progressResponse;
       if (prepType === "device") {
         progressResponse = await fetch(
@@ -484,7 +470,6 @@ const loadPreparation = async (prepId) => {
       }
 
       const progressData = await progressResponse.json();
-      console.log("Progress data:", progressData);
 
       const progress = {};
       if (progressData.success) {
@@ -495,11 +480,10 @@ const loadPreparation = async (prepId) => {
           const itemProgress = progressData.data.progress?.find(
             (p) => p.id_item === itemId,
           );
-          const scannedCount = itemProgress ? itemProgress.scanned : 0;
 
           progress[itemId] = {
             total: quantity,
-            scanned: scannedCount,
+            scanned: itemProgress ? itemProgress.scanned : 0,
             items: [],
             item_name:
               item.device_name || item.material_name || item.item_name,
@@ -510,114 +494,88 @@ const loadPreparation = async (prepId) => {
         });
 
         setScanningProgress(progress);
-        console.log("Set scanningProgress:", progress);
 
         const scannedItems = [];
 
-        if (
-          progressData.data.scan_results &&
-          progressData.data.scan_results.length > 0
-        ) {
+        if (progressData.data.scan_results?.length > 0) {
           progressData.data.scan_results.forEach((scan) => {
             const item = data.data.items.find(
               (i) => i.id_item === scan.scanning_item_id,
             );
 
-            if (item) {
-              // Ambil data department_name, receiver_name, dan project_name dari scan result
-              const departmentName = scan.department_name || null;
-              const receiverName = scan.receiver_name || null;
-              const projectName =
-                scan.project_name || item.project_name || null;
+            if (!item) return;
 
-              // ========== TAMBAHKAN LOGIKA UNTUK STATUS REJECTED ==========
-              if (scan.status === "rejected") {
-                // Item yang direject akan ditampilkan kembali dengan status device_detected agar bisa discan ulang
-                scannedItems.push({
-                  id: scan.id_scan,
-                  jenisAset:
-                    scan.scan_value ||
-                    item.device_name ||
-                    item.material_name ||
-                    "Unknown",
-                  kategori: prepType === "device" ? "Perangkat" : "Material",
-                  brand: item.brand || item.vendor || "Unknown",
-                  confidencePercent: 85,
-                  status: "device_detected", // Set sebagai detected agar bisa discan ulang
-                  submitted: false,
-                  rejected: true,
-                  nomorSeri: scan.serial_number || scan.scan_code || "",
-                  timestamp: scan.scanned_at,
-                  tanggal: scan.scanned_at
-                    ? new Date(scan.scanned_at).toLocaleDateString("id-ID")
-                    : new Date().toLocaleDateString("id-ID"),
-                  waktu: scan.scanned_at
-                    ? new Date(scan.scanned_at).toLocaleTimeString("id-ID")
-                    : new Date().toLocaleTimeString("id-ID"),
-                  item_id: scan.scanning_item_id,
-                  preparation_id: parseInt(prepId),
-                  preparation_name: data.data.checking_name,
-                  lokasi: data.data.location_name,
-                  lokasiLabel: data.data.location_name,
-                  scan_id: scan.id_scan,
-                  item_preparation_id: scan.item_preparation_id,
-                  photo_url: scan.photo_url || null,
-                  department_name: departmentName,
-                  receiver_name: receiverName,
-                  project_name: projectName,
-                });
-              } 
-              // ========== UNTUK STATUS LAINNYA ==========
-              else {
-                scannedItems.push({
-                  id: scan.id_scan,
-                  jenisAset:
-                    scan.scan_value ||
-                    item.device_name ||
-                    item.material_name ||
-                    "Unknown",
-                  kategori: prepType === "device" ? "Perangkat" : "Material",
-                  brand: item.brand || item.vendor || "Unknown",
-                  confidencePercent: 85,
-                  status:
-                    scan.serial_number || scan.scan_code
-                      ? "serial_scanned"
-                      : "device_detected",
-                  submitted: scan.status === "submitted",
-                  nomorSeri: scan.serial_number || scan.scan_code || "",
-                  timestamp: scan.scanned_at,
-                  tanggal: scan.scanned_at
-                    ? new Date(scan.scanned_at).toLocaleDateString("id-ID")
-                    : new Date().toLocaleDateString("id-ID"),
-                  waktu: scan.scanned_at
-                    ? new Date(scan.scanned_at).toLocaleTimeString("id-ID")
-                    : new Date().toLocaleTimeString("id-ID"),
-                  item_id: scan.scanning_item_id,
-                  preparation_id: parseInt(prepId),
-                  preparation_name: data.data.checking_name,
-                  lokasi: data.data.location_name,
-                  lokasiLabel: data.data.location_name,
-                  scan_id: scan.id_scan,
-                  item_preparation_id: scan.item_preparation_id,
-                  photo_url: scan.photo_url || null,
-                  department_name: departmentName,
-                  receiver_name: receiverName,
-                  project_name: projectName,
-                });
-              }
+            const departmentName = scan.department_name || null;
+            const receiverName = scan.receiver_name || null;
+            const projectName =
+              scan.project_name || item.project_name || null;
+
+            // 🔥 BASE DATA (biar gak duplikat)
+            const itemData = {
+              id: scan.id_scan,
+              jenisAset:
+                scan.scan_value ||
+                item.device_name ||
+                item.material_name ||
+                "Unknown",
+              kategori: prepType === "device" ? "Perangkat" : "Material",
+              brand: item.brand || item.vendor || "Unknown",
+              confidencePercent: 85,
+              nomorSeri: scan.serial_number || scan.scan_code || "",
+              timestamp: scan.scanned_at,
+              tanggal: scan.scanned_at
+                ? new Date(scan.scanned_at).toLocaleDateString("id-ID")
+                : new Date().toLocaleDateString("id-ID"),
+              waktu: scan.scanned_at
+                ? new Date(scan.scanned_at).toLocaleTimeString("id-ID")
+                : new Date().toLocaleTimeString("id-ID"),
+              item_id: scan.scanning_item_id,
+              preparation_id: parseInt(prepId),
+              preparation_name: data.data.checking_name,
+              lokasi: data.data.location_name,
+              lokasiLabel: data.data.location_name,
+              scan_id: scan.id_scan,
+              item_preparation_id: scan.item_preparation_id,
+              photo_url: scan.photo_url || null,
+              department_name: departmentName,
+              receiver_name: receiverName,
+              project_name: projectName,
+            };
+
+            // 🔥 LOGIC STATUS (HASIL GABUNGAN)
+            if (scan.status === "rejected") {
+              scannedItems.push({
+                ...itemData,
+                status: "rejected",
+                submitted: false,
+                rejected: true,
+              });
+            } else if (scan.status === "submitted") {
+              scannedItems.push({
+                ...itemData,
+                status: "Submitted",
+                submitted: true,
+                rejected: false,
+              });
+            } else {
+              scannedItems.push({
+                ...itemData,
+                status:
+                  scan.serial_number || scan.scan_code
+                    ? "serial_scanned"
+                    : "device_detected",
+                submitted: false,
+                rejected: false,
+              });
             }
           });
         }
 
-        if (scannedItems.length > 0) {
-          setCheckHistory(scannedItems);
-          localStorage.setItem(
-            "scanCheckHistory",
-            JSON.stringify(scannedItems),
-          );
-        } else {
-          setCheckHistory([]);
-        }
+        setCheckHistory(scannedItems);
+        localStorage.setItem(
+          "scanCheckHistory",
+          JSON.stringify(scannedItems),
+        );
       } else {
         const fallbackProgress = {};
         data.data.items.forEach((item) => {
@@ -629,6 +587,7 @@ const loadPreparation = async (prepId) => {
               item.device_name || item.material_name || item.item_name,
           };
         });
+
         setScanningProgress(fallbackProgress);
         setCheckHistory([]);
       }
@@ -2016,6 +1975,51 @@ const loadPreparation = async (prepId) => {
     }
   };
 
+  const handleRescanItem = async (item) => {
+  const result = await Swal.fire({
+    title: "Rescan Item?",
+    text: `Do you want to rescan "${item.jenisAset}"? This will reset the scan status.`,
+    icon: "question",
+    showCancelButton: true,
+    confirmButtonText: "Yes, Rescan",
+    cancelButtonText: "Cancel",
+    confirmButtonColor: "#2563eb",
+  });
+  
+  if (result.isConfirmed) {
+    try {
+      const response = await fetch(API_ENDPOINTS.SCAN_RESULTS_RESET(item.scan_id), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        Swal.fire({
+          title: "Success!",
+          text: "Item has been reset and ready for rescan.",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+
+        if (currentPreparation) {
+          loadPreparation(currentPreparation.id_preparation);
+        }
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error) {
+      Swal.fire({
+        title: "Error!",
+        text: error.message || "Failed to reset item",
+        icon: "error",
+      });
+    }
+  }
+};
+
   const handleDeleteData = async (item) => {
     showDeleteItemModal(item, async () => {
       try {
@@ -2138,7 +2142,7 @@ const loadPreparation = async (prepId) => {
     });
   };
 
-const getStatusConfig = (status, submitted = false) => {
+const getStatusConfig = (status, submitted = false, rejected = false) => {
   if (submitted || status === "Submitted") {
     return {
       bg: "bg-gray-50",
@@ -2147,6 +2151,17 @@ const getStatusConfig = (status, submitted = false) => {
       badge: "bg-gray-100 text-gray-500",
       dot: "bg-gray-400",
       label: "Submitted",
+    };
+  }
+  
+  if (rejected || status === "rejected") {
+    return {
+      bg: "bg-red-50",
+      text: "text-red-700",
+      border: "border-red-200",
+      badge: "bg-red-100 text-red-700",
+      dot: "bg-red-500",
+      label: "Rejected",
     };
   }
   
@@ -3435,7 +3450,7 @@ const getStatusLabel = (status, submitted) => {
                                       <ScanLine className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                                     </button>
                                   )}
-                              {item.status !== "Submitted" && !item.submitted && item.lokasi && (
+                 {item.status !== "Submitted" && !item.submitted && !item.rejected && item.lokasi && (
   <button
     onClick={() => handleSubmitSingle(item)}
     disabled={isSubmitting}
@@ -3445,6 +3460,16 @@ const getStatusLabel = (status, submitted) => {
     <Send className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
   </button>
 )}
+{item.rejected && (
+  <button
+    onClick={() => handleRescanItem(item)}
+    className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white transition"
+    title="Rescan"
+  >
+    <ScanLine className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+  </button>
+)}
+
                                 <button
                                   onClick={() => handleDeleteData(item)}
                                   className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center bg-red-500 hover:bg-red-600 text-white transition"
