@@ -261,11 +261,11 @@ export default function AssetsInventoryPage() {
           }
           .ai-row { cursor: pointer; transition: background 0.1s; }
           .ai-row:hover { background: #f8faff; }
-          .ai-row:hover .ai-view-btn { opacity: 1; transform: translateX(0); }
-          .ai-view-btn {
-            opacity: 0; transform: translateX(5px);
-            transition: opacity 0.15s, transform 0.15s;
-          }
+       
+        .ai-view-btn {
+  opacity: 1; transform: translateX(0);
+  transition: opacity 0.15s, transform 0.15s;
+}
 
           .ai-grid-card {
             background: #f9fafb;
@@ -280,9 +280,11 @@ export default function AssetsInventoryPage() {
             border-color: #bfdbfe;
             transform: translateY(-2px);
           }
-          .ai-grid-card:hover .ai-grid-btn { opacity: 1; }
-          .ai-grid-btn { opacity: 0; transition: opacity 0.15s; }
-
+  
+       .ai-grid-btn { 
+  opacity: 1; 
+  transition: opacity 0.15s; 
+}
           .badge-device { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
           .badge-material { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
 
@@ -822,19 +824,19 @@ export default function AssetsInventoryPage() {
                           items
                         </span>
                       </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleViewAssets(
-                            session.id_preparation,
-                            session.type,
-                          );
-                        }}
-                        className="ai-grid-btn inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg"
-                        style={{ background: "#2563eb" }}
-                      >
-                        <Eye className="w-3.5 h-3.5" /> View
-                      </button>
+                     <button
+  onClick={(e) => {
+    e.stopPropagation();
+    handleViewAssets(
+      session.id_preparation,
+      session.type,
+    );
+  }}
+  className="ai-grid-btn inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg"
+  style={{ background: "#2563eb" }}
+>
+  <Eye className="w-3.5 h-3.5" /> View
+</button>
                     </div>
                   </div>
                 ))}
@@ -1050,18 +1052,18 @@ export default function AssetsInventoryPage() {
                         </td>
                         <td className="ai-td text-center">
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleViewAssets(
-                                session.id_preparation,
-                                session.type,
-                              );
-                            }}
-                            className="ai-view-btn inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg"
-                            style={{ background: "#2563eb" }}
-                          >
-                            <Eye className="w-3.5 h-3.5" /> View Assets
-                          </button>
+  onClick={(e) => {
+    e.stopPropagation();
+    handleViewAssets(
+      session.id_preparation,
+      session.type,
+    );
+  }}
+  className="ai-view-btn inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg"
+  style={{ background: "#2563eb" }}
+>
+  <Eye className="w-3.5 h-3.5" /> View Assets
+</button>
                         </td>
                       </tr>
                     ))}
