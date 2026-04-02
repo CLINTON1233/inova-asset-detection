@@ -71,7 +71,7 @@ const MiniDonut = ({ pct, color, size = 80, stroke = 8 }) => {
 
 // ─── Stat Card ───────────────────────────────────────────────────────────────
 const StatCard = ({ label, value, sub, accent, icon: Icon, trend }) => (
-  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col gap-2 transition-all hover:shadow-md">
+  <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-4 flex flex-col gap-2 transition-all hover:shadow-xl hover:scale-[1.02] duration-200">
     <div className="flex items-center justify-between">
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
       <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: accent + "18" }}>
@@ -213,12 +213,12 @@ export default function HistoryLogsPage() {
       pct: s.totalQty > 0 ? Math.round(((s.totalScanned || 0) / s.totalQty) * 100) : 0,
     }));
 
-    // Build unified log entries
+    // Build unified log entries with unique IDs
     const logs = [];
 
-    sessions.forEach(s => {
+    sessions.forEach((s, index) => {
       logs.push({
-        id: `sess-${s.id_preparation}`,
+        id: `sess-${s.id_preparation || s.id}-${index}`, // Ensure unique ID
         type: "session",
         title: s.checking_name || "Scanning Session",
         sub: s.checking_number || "",
@@ -231,9 +231,9 @@ export default function HistoryLogsPage() {
       });
     });
 
-    validations.forEach(v => {
+    validations.forEach((v, index) => {
       logs.push({
-        id: `val-${v.id_validation}`,
+        id: `val-${v.id_validation || v.id}-${index}`, // Ensure unique ID
         type: "validation",
         title: v.item_name || "Unknown Item",
         sub: v.serial_or_code || "",
@@ -246,9 +246,9 @@ export default function HistoryLogsPage() {
       });
     });
 
-    assets.forEach(a => {
+    assets.forEach((a, index) => {
       logs.push({
-        id: `asset-${a.id_assets}`,
+        id: `asset-${a.id_assets || a.id}-${index}`, // Ensure unique ID
         type: "asset",
         title: a.asset_name || "Unknown Asset",
         sub: a.asset_code || "",
@@ -376,30 +376,40 @@ export default function HistoryLogsPage() {
           .hl-root .mono { font-family: 'DM Mono', monospace; }
           .hl-card { 
             background: #ffffff; 
-            border-radius: 16px; 
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            transition: box-shadow 0.2s ease;
+            border-radius: 20px; 
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+            transition: all 0.3s ease;
           }
           .hl-card:hover { 
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
           }
           .tab-btn {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            padding: 8px 14px;
-            border-radius: 10px;
-            font-size: 13px;
-            font-weight: 500;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
             color: #6b7280;
             cursor: pointer;
-            transition: all 0.15s;
+            transition: all 0.2s;
             border: none;
-            background: none;
+            background: #f9fafb;
             white-space: nowrap;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
           }
-          .tab-btn:hover { background: #f3f4f6; color: #374151; }
-          .tab-btn.active { background: #2563eb; color: #fff; }
+          .tab-btn:hover { 
+            background: #f3f4f6; 
+            color: #1f2937;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+          }
+          .tab-btn.active { 
+            background: #2563eb; 
+            color: #fff;
+            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);
+          }
           .log-row { transition: background 0.12s; }
           .log-row:hover { background: #f8faff; }
           .prog-bar { background: #e5e7eb; border-radius: 99px; height: 4px; }
@@ -426,8 +436,8 @@ export default function HistoryLogsPage() {
               gap: 10px;
             }
             .tab-btn {
-              padding: 6px 12px;
-              font-size: 12px;
+              padding: 8px 14px;
+              font-size: 13px;
             }
             .section-label {
               font-size: 10px;
@@ -450,24 +460,23 @@ export default function HistoryLogsPage() {
             <button
               onClick={() => fetchAll(true)}
               disabled={refreshing}
-              className="inline-flex items-center gap-2 px-3 md:px-4 py-2 border border-gray-200 rounded-xl text-xs md:text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50 bg-white shadow-sm"
+              className="inline-flex items-center gap-2 px-3 md:px-4 py-2 border border-gray-200 rounded-xl text-xs md:text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50 bg-white shadow-sm hover:shadow-md"
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
               {refreshing ? "Refreshing..." : "Refresh"}
             </button>
           </div>
 
-          {/* ── Tabs - Responsive Scroll ── */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-hide">
+          {/* ── Tabs - Enhanced Buttons ── */}
+          <div className="flex flex-wrap items-center gap-2 pb-1">
             {TABS.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`tab-btn ${activeTab === tab.id ? "active" : ""}`}
               >
-                <tab.icon className="w-3.5 h-3.5" />
-                <span className="hidden xs:inline">{tab.label}</span>
-                <span className="xs:hidden">{tab.id === "overview" ? "Overview" : tab.id === "scanning" ? "Scan" : tab.id === "validation" ? "Val" : tab.id === "assets" ? "Assets" : "Logs"}</span>
+                <tab.icon className="w-4 h-4" />
+                <span>{tab.label}</span>
               </button>
             ))}
           </div>
@@ -690,12 +699,12 @@ export default function HistoryLogsPage() {
                                 </div>
                                 <span className="text-[10px] md:text-xs font-semibold text-gray-600">{pct}%</span>
                               </div>
-                             </td>
+                            </td>
                             <td className="px-2 md:px-4 py-2 md:py-3">
                               <span className={`text-[10px] md:text-xs font-semibold px-1.5 md:px-2 py-0.5 md:py-1 rounded-full border capitalize ${sc}`}>{s.status}</span>
-                             </td>
+                            </td>
                             <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-500">{formatDate(s.created_at || s.checking_date)}</td>
-                           </tr>
+                          </tr>
                         );
                       })}
                     </tbody>
@@ -729,7 +738,7 @@ export default function HistoryLogsPage() {
                         {["Item", "Type", "Code", "Session", "Status", "Date"].map(h => (
                           <th key={h} className="px-2 md:px-4 py-2 md:py-3 text-left text-[10px] md:text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                         ))}
-                       </tr>
+                      </tr>
                     </thead>
                     <tbody>
                       {validations.length === 0 ? (
@@ -746,21 +755,21 @@ export default function HistoryLogsPage() {
                           <tr key={i} className="log-row border-t border-gray-50">
                             <td className="px-2 md:px-4 py-2 md:py-3">
                               <div className="font-semibold text-gray-900 text-xs md:text-sm truncate max-w-[100px] md:max-w-none">{v.item_name || "-"}</div>
-                             </td>
+                            </td>
                             <td className="px-2 md:px-4 py-2 md:py-3">
                               <span className={`text-[10px] md:text-xs font-medium px-1.5 md:px-2 py-0.5 rounded-full ${v.validation_type === "device" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}>
                                 {v.validation_type === "device" ? "Device" : "Material"}
                               </span>
-                             </td>
+                            </td>
                             <td className="px-2 md:px-4 py-2 md:py-3">
                               <code className="text-[10px] md:text-xs font-mono bg-gray-100 px-1 md:px-2 py-0.5 rounded text-gray-700 truncate max-w-[80px] md:max-w-none block">{v.serial_or_code || "-"}</code>
-                             </td>
+                            </td>
                             <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-500 truncate max-w-[80px] md:max-w-none">{v.checking_name || "-"}</td>
                             <td className="px-2 md:px-4 py-2 md:py-3">
                               <span className={`text-[10px] md:text-xs font-semibold px-1.5 md:px-2 py-0.5 md:py-1 rounded-full border ${sc}`}>{label}</span>
-                             </td>
+                            </td>
                             <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-500">{formatDate(v.created_at)}</td>
-                           </tr>
+                          </tr>
                         );
                       })}
                     </tbody>
@@ -818,7 +827,7 @@ export default function HistoryLogsPage() {
                         {["Asset Code", "Name", "Category", "Department", "Location", "Validated"].map(h => (
                           <th key={h} className="px-2 md:px-4 py-2 md:py-3 text-left text-[10px] md:text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                         ))}
-                       </tr>
+                      </tr>
                     </thead>
                     <tbody>
                       {assets.length === 0 ? (
@@ -827,20 +836,20 @@ export default function HistoryLogsPage() {
                         <tr key={i} className="log-row border-t border-gray-50">
                           <td className="px-2 md:px-4 py-2 md:py-3">
                             <code className="text-[10px] md:text-xs font-mono text-blue-700 font-semibold">{a.asset_code}</code>
-                           </td>
+                          </td>
                           <td className="px-2 md:px-4 py-2 md:py-3">
                             <div className="font-medium text-gray-900 text-xs md:text-sm truncate max-w-[100px] md:max-w-none">{a.asset_name}</div>
                             <div className="text-[10px] md:text-xs text-gray-400 truncate">{a.asset_type || "-"}</div>
-                           </td>
+                          </td>
                           <td className="px-2 md:px-4 py-2 md:py-3">
                             <span className={`text-[10px] md:text-xs font-medium px-1.5 md:px-2 py-0.5 rounded-full ${a.category === "Device" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}>
                               {a.category}
                             </span>
-                           </td>
+                          </td>
                           <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-500 truncate max-w-[80px] md:max-w-none">{a.department_name || "-"}</td>
                           <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-500 truncate max-w-[80px] md:max-w-none">{a.location_name || "-"}</td>
                           <td className="px-2 md:px-4 py-2 md:py-3 text-[10px] md:text-xs text-gray-500">{formatDate(a.validated_at)}</td>
-                         </tr>
+                        </tr>
                       ))}
                     </tbody>
                   </table>
