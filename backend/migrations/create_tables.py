@@ -344,7 +344,7 @@ def create_devices_scanning_items_table(conn):
     except Exception as e:
         conn.rollback()
         print(f"Error creating devices_scanning_items table: {e}")
-
+        
 def create_devices_items_preparation_table(conn):
     """Tabel untuk menyimpan setiap item individual Devices"""
     try:
@@ -364,6 +364,7 @@ def create_devices_items_preparation_table(conn):
                 notes TEXT,
                 project_name VARCHAR(255),
                 receiver_id INTEGER REFERENCES master_receivers(id_receiver) ON DELETE SET NULL,
+                is_stock BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -374,6 +375,7 @@ def create_devices_items_preparation_table(conn):
         cur.execute("CREATE INDEX IF NOT EXISTS idx_devices_items_prep_serial ON devices_items_preparation(serial_number)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_devices_items_prep_project ON devices_items_preparation(project_name)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_devices_items_prep_receiver ON devices_items_preparation(receiver_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_devices_items_prep_stock ON devices_items_preparation(is_stock)")
         conn.commit()
         print("✓ Tabel devices_items_preparation berhasil dibuat")
     except Exception as e:
@@ -513,6 +515,7 @@ def create_materials_items_preparation_table(conn):
                 scanned_at TIMESTAMP,
                 department_id INTEGER REFERENCES departments(id_department) ON DELETE SET NULL,
                 notes TEXT,
+                is_stock BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -522,6 +525,7 @@ def create_materials_items_preparation_table(conn):
         cur.execute("CREATE INDEX IF NOT EXISTS idx_materials_items_prep_user ON materials_items_preparation(user_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_materials_items_prep_scan_code ON materials_items_preparation(scan_code)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_materials_items_prep_receiver ON materials_items_preparation(receiver_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_materials_items_prep_stock ON materials_items_preparation(is_stock)")
         conn.commit()
         print("✓ Tabel materials_items_preparation berhasil dibuat")
     except Exception as e:

@@ -481,8 +481,9 @@ def create_devices_scanning_preparation():
                 
                 cur.execute("""
                     INSERT INTO devices_items_preparation
-                    (scanning_item_id, preparation_id, item_number, status, department_id, user_id, project_name, receiver_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    (scanning_item_id, preparation_id, item_number, status, department_id, user_id, project_name, receiver_id, is_stock)
+
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     scanning_item_id,
                     preparation_id,
@@ -491,7 +492,8 @@ def create_devices_scanning_preparation():
                     assigned_dept,
                     user_id,
                     project_name,
-                    receiver_id
+                    receiver_id,
+                    assigned_dept is not None  # Set is_stock True jika ada department yang ditugaskan
                 ))
                 
                 total_items_created += 1
@@ -801,8 +803,8 @@ def update_devices_scanning_preparation(prep_id):
                     
                     cur.execute("""
                         INSERT INTO devices_items_preparation
-                        (scanning_item_id, preparation_id, item_number, status, department_id, user_id, project_name, receiver_id)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        (scanning_item_id, preparation_id, item_number, status, department_id, user_id, project_name, receiver_id, is_stock)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """, (
                         scanning_item_id,
                         prep_id,
@@ -811,7 +813,8 @@ def update_devices_scanning_preparation(prep_id):
                         assigned_dept,
                         user_id,
                         project_name,
-                        receiver_id
+                        receiver_id,
+                        assigned_dept is not None
                     ))
         
         for existing_item in existing_items:
@@ -1099,12 +1102,12 @@ def get_devices_scanning_preparation(prep_id):
                     d.department_name,
                     dip.receiver_id,
                     mr.receiver_name,
+                    dip.is_stock,
                     ROW_NUMBER() OVER (PARTITION BY dip.department_id ORDER BY dip.id_item_preparation) - 1 as item_index
                 FROM devices_items_preparation dip
                 LEFT JOIN departments d ON dip.department_id = d.id_department
                 LEFT JOIN master_receivers mr ON dip.receiver_id = mr.id_receiver
                 WHERE dip.scanning_item_id = %s
-                AND dip.receiver_id IS NOT NULL
                 ORDER BY dip.department_id, dip.id_item_preparation
             """, (item_dict['id_item'],))
             
@@ -1369,8 +1372,8 @@ def create_materials_scanning_preparation():
                 
                 cur.execute("""
                     INSERT INTO materials_items_preparation
-                    (scanning_item_id, preparation_id, item_number, quantity, uom, vendor, project_name, status, department_id, user_id, receiver_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (scanning_item_id, preparation_id, item_number, quantity, uom, vendor, project_name, status, department_id, user_id, receiver_id, is_stock)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     scanning_item_id,
                     preparation_id,
@@ -1382,7 +1385,8 @@ def create_materials_scanning_preparation():
                     'pending',
                     assigned_dept,
                     user_id,
-                    receiver_id
+                    receiver_id,
+                    assigned_dept is not None
                 ))
                 
                 total_items_created += 1
@@ -1575,8 +1579,8 @@ def update_materials_scanning_preparation(prep_id):
                 
                 cur.execute("""
                     INSERT INTO materials_items_preparation
-                    (scanning_item_id, preparation_id, item_number, quantity, uom, vendor, project_name, status, department_id, user_id, receiver_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (scanning_item_id, preparation_id, item_number, quantity, uom, vendor, project_name, status, department_id, user_id, receiver_id, is_stock)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     scanning_item_id,
                     prep_id,
@@ -1588,7 +1592,8 @@ def update_materials_scanning_preparation(prep_id):
                     'pending',
                     assigned_dept,
                     user_id,
-                    receiver_id
+                    receiver_id,
+                    assigned_dept is not None
                 ))
                 
                 total_items_created += 1
