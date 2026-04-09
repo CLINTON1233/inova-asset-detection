@@ -95,7 +95,7 @@ def create_users_table(conn):
                 password VARCHAR(255) NOT NULL,
                 no_badge VARCHAR(50) UNIQUE,
                 department VARCHAR(100),
-                role VARCHAR(50) DEFAULT 'karyawan',
+                role VARCHAR(50) DEFAULT 'admin',
                 status VARCHAR(20) DEFAULT 'active',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

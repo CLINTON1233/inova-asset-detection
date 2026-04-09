@@ -123,7 +123,7 @@ export default function LoginPage() {
 
           // Tambahkan role ke user data jika belum ada (untuk backward compatibility)
           if (!result.user.role) {
-            result.user.role = "karyawan"; // Default role
+            result.user.role = "admin"; // Default role
           }
 
           login(result.user, result.token);
@@ -134,10 +134,10 @@ export default function LoginPage() {
 
         // Success Notification dengan role info
         const userRole =
-          result.user.role === "manager" ? "Manager" : "Karyawan";
+          result.user.role === "superadmin" ? "superadmin" : "admin";
         const greeting =
-          result.user.role === "manager"
-            ? `Welcome, Manager ${result.user.name || result.user.username}!`
+          result.user.role === "superadmin"
+            ? `Welcome, superadmin ${result.user.name || result.user.username}!`
             : `Welcome back, ${result.user.name || result.user.username}!`;
 
         await Swal.fire({
@@ -161,11 +161,11 @@ export default function LoginPage() {
         });
 
         // Redirect berdasarkan role
-        if (result.user.role === "manager") {
-          // Bisa redirect ke dashboard khusus manager
+        if (result.user.role === "superadmin") {
+          // Bisa redirect ke dashboard khusus superadmin
           router.push("/dashboard");
         } else {
-          // Redirect ke dashboard karyawan
+          // Redirect ke dashboard admin
           router.push("/dashboard");
         }
       } else {
