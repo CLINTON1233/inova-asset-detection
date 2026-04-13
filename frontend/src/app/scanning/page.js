@@ -415,198 +415,198 @@ export default function SerialScanningPage() {
     return receiver?.receiver_name || null;
   };
 
-const loadPreparation = async (prepId) => {
-  setLoading(true);
-  setLoadingMessage("Loading");
+  const loadPreparation = async (prepId) => {
+    setLoading(true);
+    setLoadingMessage("Loading");
 
-  try {
-    const urlType = searchParams.get("type");
-    console.log("URL type param:", urlType);
+    try {
+      const urlType = searchParams.get("type");
+      console.log("URL type param:", urlType);
 
-    let response;
-    let data;
-    let prepType = null;
+      let response;
+      let data;
+      let prepType = null;
 
-    if (urlType === "device") {
-      response = await fetch(
-        API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId),
-      );
-      data = await response.json();
-      if (data.success) prepType = "device";
-    } else if (urlType === "material") {
-      response = await fetch(
-        API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId),
-      );
-      data = await response.json();
-      if (data.success) prepType = "material";
-    } else {
-      response = await fetch(
-        API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId),
-      );
-      data = await response.json();
-      if (data.success) {
-        prepType = "device";
-      } else {
+      if (urlType === "device") {
+        response = await fetch(
+          API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId),
+        );
+        data = await response.json();
+        if (data.success) prepType = "device";
+      } else if (urlType === "material") {
         response = await fetch(
           API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId),
         );
         data = await response.json();
         if (data.success) prepType = "material";
-      }
-    }
-
-    if (data && data.success && prepType) {
-      setCurrentPreparation({ ...data.data, type: prepType });
-
-      let progressResponse;
-      if (prepType === "device") {
-        progressResponse = await fetch(
-          API_ENDPOINTS.DEVICES_SCANNING_PREP_PROGRESS(prepId),
-        );
       } else {
-        progressResponse = await fetch(
-          API_ENDPOINTS.MATERIALS_SCANNING_PREP_PROGRESS(prepId),
+        response = await fetch(
+          API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId),
         );
+        data = await response.json();
+        if (data.success) {
+          prepType = "device";
+        } else {
+          response = await fetch(
+            API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId),
+          );
+          data = await response.json();
+          if (data.success) prepType = "material";
+        }
       }
 
-      const progressData = await progressResponse.json();
+      if (data && data.success && prepType) {
+        setCurrentPreparation({ ...data.data, type: prepType });
 
-      const progress = {};
-      if (progressData.success) {
-        data.data.items.forEach((item) => {
-          const itemId = item.id_item;
-          const quantity = item.quantity || 0;
-
-          const itemProgress = progressData.data.progress?.find(
-            (p) => p.id_item === itemId,
+        let progressResponse;
+        if (prepType === "device") {
+          progressResponse = await fetch(
+            API_ENDPOINTS.DEVICES_SCANNING_PREP_PROGRESS(prepId),
           );
-
-          progress[itemId] = {
-            total: quantity,
-            scanned: itemProgress ? itemProgress.scanned : 0,
-            items: [],
-            item_name:
-              item.device_name || item.material_name || item.item_name,
-            brand: item.brand || item.vendor,
-            model: item.model,
-            uom: item.uom,
-          };
-        });
-
-        setScanningProgress(progress);
-
-        const scannedItems = [];
-
-        if (progressData.data.scan_results?.length > 0) {
-          progressData.data.scan_results.forEach((scan) => {
-            const item = data.data.items.find(
-              (i) => i.id_item === scan.scanning_item_id,
-            );
-
-            if (!item) return;
-
-            const departmentName = scan.department_name || null;
-            const receiverName = scan.receiver_name || null;
-            const projectName =
-              scan.project_name || item.project_name || null;
-
-            // 🔥 BASE DATA (biar gak duplikat)
-            const itemData = {
-              id: scan.id_scan,
-              jenisAset:
-                scan.scan_value ||
-                item.device_name ||
-                item.material_name ||
-                "Unknown",
-              kategori: prepType === "device" ? "Perangkat" : "Material",
-              brand: item.brand || item.vendor || "Unknown",
-              confidencePercent: 85,
-              nomorSeri: scan.serial_number || scan.scan_code || "",
-              timestamp: scan.scanned_at,
-              tanggal: scan.scanned_at
-                ? new Date(scan.scanned_at).toLocaleDateString("id-ID")
-                : new Date().toLocaleDateString("id-ID"),
-              waktu: scan.scanned_at
-                ? new Date(scan.scanned_at).toLocaleTimeString("id-ID")
-                : new Date().toLocaleTimeString("id-ID"),
-              item_id: scan.scanning_item_id,
-              preparation_id: parseInt(prepId),
-              preparation_name: data.data.checking_name,
-              lokasi: data.data.location_name,
-              lokasiLabel: data.data.location_name,
-              scan_id: scan.id_scan,
-              item_preparation_id: scan.item_preparation_id,
-              photo_url: scan.photo_url || null,
-              department_name: departmentName,
-              receiver_name: receiverName,
-              project_name: projectName,
-            };
-
-            // 🔥 LOGIC STATUS (HASIL GABUNGAN)
-            if (scan.status === "rejected") {
-              scannedItems.push({
-                ...itemData,
-                status: "rejected",
-                submitted: false,
-                rejected: true,
-              });
-            } else if (scan.status === "submitted") {
-              scannedItems.push({
-                ...itemData,
-                status: "Submitted",
-                submitted: true,
-                rejected: false,
-              });
-            } else {
-              scannedItems.push({
-                ...itemData,
-                status:
-                  scan.serial_number || scan.scan_code
-                    ? "serial_scanned"
-                    : "device_detected",
-                submitted: false,
-                rejected: false,
-              });
-            }
-          });
+        } else {
+          progressResponse = await fetch(
+            API_ENDPOINTS.MATERIALS_SCANNING_PREP_PROGRESS(prepId),
+          );
         }
 
-        setCheckHistory(scannedItems);
-        localStorage.setItem(
-          "scanCheckHistory",
-          JSON.stringify(scannedItems),
-        );
-      } else {
-        const fallbackProgress = {};
-        data.data.items.forEach((item) => {
-          fallbackProgress[item.id_item] = {
-            total: item.quantity || 0,
-            scanned: 0,
-            items: [],
-            item_name:
-              item.device_name || item.material_name || item.item_name,
-          };
-        });
+        const progressData = await progressResponse.json();
 
-        setScanningProgress(fallbackProgress);
-        setCheckHistory([]);
+        const progress = {};
+        if (progressData.success) {
+          data.data.items.forEach((item) => {
+            const itemId = item.id_item;
+            const quantity = item.quantity || 0;
+
+            const itemProgress = progressData.data.progress?.find(
+              (p) => p.id_item === itemId,
+            );
+
+            progress[itemId] = {
+              total: quantity,
+              scanned: itemProgress ? itemProgress.scanned : 0,
+              items: [],
+              item_name:
+                item.device_name || item.material_name || item.item_name,
+              brand: item.brand || item.vendor,
+              model: item.model,
+              uom: item.uom,
+            };
+          });
+
+          setScanningProgress(progress);
+
+          const scannedItems = [];
+
+          if (progressData.data.scan_results?.length > 0) {
+            progressData.data.scan_results.forEach((scan) => {
+              const item = data.data.items.find(
+                (i) => i.id_item === scan.scanning_item_id,
+              );
+
+              if (!item) return;
+
+              const departmentName = scan.department_name || null;
+              const receiverName = scan.receiver_name || null;
+              const projectName =
+                scan.project_name || item.project_name || null;
+
+              // 🔥 BASE DATA (biar gak duplikat)
+              const itemData = {
+                id: scan.id_scan,
+                jenisAset:
+                  scan.scan_value ||
+                  item.device_name ||
+                  item.material_name ||
+                  "Unknown",
+                kategori: prepType === "device" ? "Perangkat" : "Material",
+                brand: item.brand || item.vendor || "Unknown",
+                confidencePercent: 85,
+                nomorSeri: scan.serial_number || scan.scan_code || "",
+                timestamp: scan.scanned_at,
+                tanggal: scan.scanned_at
+                  ? new Date(scan.scanned_at).toLocaleDateString("id-ID")
+                  : new Date().toLocaleDateString("id-ID"),
+                waktu: scan.scanned_at
+                  ? new Date(scan.scanned_at).toLocaleTimeString("id-ID")
+                  : new Date().toLocaleTimeString("id-ID"),
+                item_id: scan.scanning_item_id,
+                preparation_id: parseInt(prepId),
+                preparation_name: data.data.checking_name,
+                lokasi: data.data.location_name,
+                lokasiLabel: data.data.location_name,
+                scan_id: scan.id_scan,
+                item_preparation_id: scan.item_preparation_id,
+                photo_url: scan.photo_url || null,
+                department_name: departmentName,
+                receiver_name: receiverName,
+                project_name: projectName,
+              };
+
+              // 🔥 LOGIC STATUS (HASIL GABUNGAN)
+              if (scan.status === "rejected") {
+                scannedItems.push({
+                  ...itemData,
+                  status: "rejected",
+                  submitted: false,
+                  rejected: true,
+                });
+              } else if (scan.status === "submitted") {
+                scannedItems.push({
+                  ...itemData,
+                  status: "Submitted",
+                  submitted: true,
+                  rejected: false,
+                });
+              } else {
+                scannedItems.push({
+                  ...itemData,
+                  status:
+                    scan.serial_number || scan.scan_code
+                      ? "serial_scanned"
+                      : "device_detected",
+                  submitted: false,
+                  rejected: false,
+                });
+              }
+            });
+          }
+
+          setCheckHistory(scannedItems);
+          localStorage.setItem(
+            "scanCheckHistory",
+            JSON.stringify(scannedItems),
+          );
+        } else {
+          const fallbackProgress = {};
+          data.data.items.forEach((item) => {
+            fallbackProgress[item.id_item] = {
+              total: item.quantity || 0,
+              scanned: 0,
+              items: [],
+              item_name:
+                item.device_name || item.material_name || item.item_name,
+            };
+          });
+
+          setScanningProgress(fallbackProgress);
+          setCheckHistory([]);
+        }
+      } else {
+        throw new Error("Preparation not found");
       }
-    } else {
-      throw new Error("Preparation not found");
+    } catch (error) {
+      console.error("Error loading preparation:", error);
+      Swal.fire({
+        title: "Error!",
+        text: "Failed to load scanning session",
+        icon: "error",
+      }).then(() => router.push("/scanning"));
+    } finally {
+      setLoading(false);
+      setLoadingMessage("");
+      setLoadingSubMessage("");
     }
-  } catch (error) {
-    console.error("Error loading preparation:", error);
-    Swal.fire({
-      title: "Error!",
-      text: "Failed to load scanning session",
-      icon: "error",
-    }).then(() => router.push("/scanning"));
-  } finally {
-    setLoading(false);
-    setLoadingMessage("");
-    setLoadingSubMessage("");
-  }
-};
+  };
 
   const validateScanCodeFormat = async (scanCode, materialType) => {
     try {
@@ -699,13 +699,13 @@ const loadPreparation = async (prepId) => {
           const isDevicePrep = currentPreparation.type === "device";
           const endpoint = isDevicePrep
             ? API_ENDPOINTS.DEVICES_ITEMS_PREPARATION_AVAILABLE(
-                currentPreparation.id_preparation,
-                targetItem.id_item,
-              )
+              currentPreparation.id_preparation,
+              targetItem.id_item,
+            )
             : API_ENDPOINTS.MATERIALS_ITEMS_PREPARATION_AVAILABLE(
-                currentPreparation.id_preparation,
-                targetItem.id_item,
-              );
+              currentPreparation.id_preparation,
+              targetItem.id_item,
+            );
 
           const response = await fetch(endpoint);
 
@@ -950,13 +950,13 @@ const loadPreparation = async (prepId) => {
               prev.map((item) =>
                 item.id === targetItem.id
                   ? {
-                      ...item,
-                      nomorSeri: serialData.detected_text,
-                      status: "serial_scanned",
-                      confidencePercent: Math.round(
-                        (serialData.confidence || 0.9) * 100,
-                      ),
-                    }
+                    ...item,
+                    nomorSeri: serialData.detected_text,
+                    status: "serial_scanned",
+                    confidencePercent: Math.round(
+                      (serialData.confidence || 0.9) * 100,
+                    ),
+                  }
                   : item,
               ),
             );
@@ -1033,13 +1033,13 @@ const loadPreparation = async (prepId) => {
               prev.map((item) =>
                 item.id === targetItem.id
                   ? {
-                      ...item,
-                      nomorSeri: scanCodeData.detected_text,
-                      status: "serial_scanned",
-                      confidencePercent: Math.round(
-                        (scanCodeData.confidence || 0.9) * 100,
-                      ),
-                    }
+                    ...item,
+                    nomorSeri: scanCodeData.detected_text,
+                    status: "serial_scanned",
+                    confidencePercent: Math.round(
+                      (scanCodeData.confidence || 0.9) * 100,
+                    ),
+                  }
                   : item,
               ),
             );
@@ -1217,11 +1217,11 @@ const loadPreparation = async (prepId) => {
               prev.map((i) =>
                 i.id === item.id
                   ? {
-                      ...i,
-                      nomorSeri: inputValue,
-                      status: "serial_scanned",
-                      confidencePercent: 100,
-                    }
+                    ...i,
+                    nomorSeri: inputValue,
+                    status: "serial_scanned",
+                    confidencePercent: 100,
+                  }
                   : i,
               ),
             );
@@ -1266,11 +1266,11 @@ const loadPreparation = async (prepId) => {
               prev.map((i) =>
                 i.id === item.id
                   ? {
-                      ...i,
-                      nomorSeri: inputValue,
-                      status: "serial_scanned",
-                      confidencePercent: 100,
-                    }
+                    ...i,
+                    nomorSeri: inputValue,
+                    status: "serial_scanned",
+                    confidencePercent: 100,
+                  }
                   : i,
               ),
             );
@@ -1824,11 +1824,11 @@ const loadPreparation = async (prepId) => {
           prev.map((p) =>
             p.id === item.id
               ? {
-                  ...p,
-                  submitted: true,
-                  status: "Submitted",
-                  validation_id: validationResult.validation_id,
-                }
+                ...p,
+                submitted: true,
+                status: "Submitted",
+                validation_id: validationResult.validation_id,
+              }
               : p,
           ),
         );
@@ -1935,11 +1935,11 @@ const loadPreparation = async (prepId) => {
             prev.map((p) =>
               p.id === item.id
                 ? {
-                    ...p,
-                    submitted: true,
-                    status: "Submitted",
-                    validation_id: validationResult.validation_id,
-                  }
+                  ...p,
+                  submitted: true,
+                  status: "Submitted",
+                  validation_id: validationResult.validation_id,
+                }
                 : p,
             ),
           );
@@ -1976,49 +1976,49 @@ const loadPreparation = async (prepId) => {
   };
 
   const handleRescanItem = async (item) => {
-  const result = await Swal.fire({
-    title: "Rescan Item?",
-    text: `Do you want to rescan "${item.jenisAset}"? This will reset the scan status.`,
-    icon: "question",
-    showCancelButton: true,
-    confirmButtonText: "Yes, Rescan",
-    cancelButtonText: "Cancel",
-    confirmButtonColor: "#2563eb",
-  });
-  
-  if (result.isConfirmed) {
-    try {
-      const response = await fetch(API_ENDPOINTS.SCAN_RESULTS_RESET(item.scan_id), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        Swal.fire({
-          title: "Success!",
-          text: "Item has been reset and ready for rescan.",
-          icon: "success",
-          timer: 1500,
-          showConfirmButton: false,
+    const result = await Swal.fire({
+      title: "Rescan Item?",
+      text: `Do you want to rescan "${item.jenisAset}"? This will reset the scan status.`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Yes, Rescan",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#2563eb",
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const response = await fetch(API_ENDPOINTS.SCAN_RESULTS_RESET(item.scan_id), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
         });
 
-        if (currentPreparation) {
-          loadPreparation(currentPreparation.id_preparation);
+        const data = await response.json();
+
+        if (data.success) {
+          Swal.fire({
+            title: "Success!",
+            text: "Item has been reset and ready for rescan.",
+            icon: "success",
+            timer: 1500,
+            showConfirmButton: false,
+          });
+
+          if (currentPreparation) {
+            loadPreparation(currentPreparation.id_preparation);
+          }
+        } else {
+          throw new Error(data.error);
         }
-      } else {
-        throw new Error(data.error);
+      } catch (error) {
+        Swal.fire({
+          title: "Error!",
+          text: error.message || "Failed to reset item",
+          icon: "error",
+        });
       }
-    } catch (error) {
-      Swal.fire({
-        title: "Error!",
-        text: error.message || "Failed to reset item",
-        icon: "error",
-      });
     }
-  }
-};
+  };
 
   const handleDeleteData = async (item) => {
     showDeleteItemModal(item, async () => {
@@ -2142,80 +2142,80 @@ const loadPreparation = async (prepId) => {
     });
   };
 
-const getStatusConfig = (status, submitted = false, rejected = false) => {
-  if (submitted || status === "Submitted") {
-    return {
-      bg: "bg-gray-50",
-      text: "text-gray-500",
-      border: "border-gray-200",
-      badge: "bg-gray-100 text-gray-500",
-      dot: "bg-gray-400",
-      label: "Submitted",
-    };
-  }
-  
-  if (rejected || status === "rejected") {
-    return {
-      bg: "bg-red-50",
-      text: "text-red-700",
-      border: "border-red-200",
-      badge: "bg-red-100 text-red-700",
-      dot: "bg-red-500",
-      label: "Rejected",
-    };
-  }
-  
-  const map = {
-    success: {
-      bg: "bg-green-50",
-      text: "text-green-700",
-      border: "border-green-200",
-      badge: "bg-green-100 text-green-700",
-      dot: "bg-green-500",
-      label: "Success",
-    },
-    serial_scanned: {
-      bg: "bg-green-50",
-      text: "text-green-700",
-      border: "border-green-200",
-      badge: "bg-green-100 text-green-700",
-      dot: "bg-green-500",
-      label: "Scanned",
-    },
-    error: {
-      bg: "bg-red-50",
-      text: "text-red-700",
-      border: "border-red-200",
-      badge: "bg-red-100 text-red-700",
-      dot: "bg-red-500",
-      label: "Error",
-    },
-    device_detected: {
-      bg: "bg-blue-50",
-      text: "text-blue-700",
-      border: "border-blue-200",
-      badge: "bg-blue-100 text-blue-700",
-      dot: "bg-blue-500",
-      label: "Detected",
-    },
-    Checked: {
-      bg: "bg-amber-50",
-      text: "text-amber-700",
-      border: "border-amber-200",
-      badge: "bg-amber-100 text-amber-700",
-      dot: "bg-amber-500",
-      label: "Checked",
-    },
-  };
-  return map[status] || map.serial_scanned;
-};
+  const getStatusConfig = (status, submitted = false, rejected = false) => {
+    if (submitted || status === "Submitted") {
+      return {
+        bg: "bg-gray-50",
+        text: "text-gray-500",
+        border: "border-gray-200",
+        badge: "bg-gray-100 text-gray-500",
+        dot: "bg-gray-400",
+        label: "Submitted",
+      };
+    }
 
-const getStatusLabel = (status, submitted) => {
-  if (submitted || status === "Submitted") return "Submitted";
-  if (status === "serial_scanned") return "Scanned";
-  if (status === "device_detected") return "Detected";
-  return status || "Pending";
-};
+    if (rejected || status === "rejected") {
+      return {
+        bg: "bg-red-50",
+        text: "text-red-700",
+        border: "border-red-200",
+        badge: "bg-red-100 text-red-700",
+        dot: "bg-red-500",
+        label: "Rejected",
+      };
+    }
+
+    const map = {
+      success: {
+        bg: "bg-green-50",
+        text: "text-green-700",
+        border: "border-green-200",
+        badge: "bg-green-100 text-green-700",
+        dot: "bg-green-500",
+        label: "Success",
+      },
+      serial_scanned: {
+        bg: "bg-green-50",
+        text: "text-green-700",
+        border: "border-green-200",
+        badge: "bg-green-100 text-green-700",
+        dot: "bg-green-500",
+        label: "Scanned",
+      },
+      error: {
+        bg: "bg-red-50",
+        text: "text-red-700",
+        border: "border-red-200",
+        badge: "bg-red-100 text-red-700",
+        dot: "bg-red-500",
+        label: "Error",
+      },
+      device_detected: {
+        bg: "bg-blue-50",
+        text: "text-blue-700",
+        border: "border-blue-200",
+        badge: "bg-blue-100 text-blue-700",
+        dot: "bg-blue-500",
+        label: "Detected",
+      },
+      Checked: {
+        bg: "bg-amber-50",
+        text: "text-amber-700",
+        border: "border-amber-200",
+        badge: "bg-amber-100 text-amber-700",
+        dot: "bg-amber-500",
+        label: "Checked",
+      },
+    };
+    return map[status] || map.serial_scanned;
+  };
+
+  const getStatusLabel = (status, submitted) => {
+    if (submitted || status === "Submitted") return "Submitted";
+    if (status === "serial_scanned") return "Scanned";
+    if (status === "device_detected") return "Detected";
+    return status || "Pending";
+  };
 
   const getCategoryIcon = (kategori) => {
     if (kategori === "Perangkat")
@@ -2324,11 +2324,10 @@ const getStatusLabel = (status, submitted) => {
                               {session.checking_name}
                             </h3>
                             <span
-                              className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-                                session.type === "device"
-                                  ? "bg-blue-100 text-blue-700"
-                                  : "bg-green-100 text-green-700"
-                              }`}
+                              className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${session.type === "device"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-green-100 text-green-700"
+                                }`}
                             >
                               {session.type === "device"
                                 ? "Device"
@@ -2341,11 +2340,10 @@ const getStatusLabel = (status, submitted) => {
                           </p>
                         </div>
                         <span
-                          className={`px-2 py-1 text-xs font-semibold rounded-full self-start ${
-                            session.status === "pending"
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-blue-100 text-blue-700"
-                          }`}
+                          className={`px-2 py-1 text-xs font-semibold rounded-full self-start ${session.status === "pending"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-blue-100 text-blue-700"
+                            }`}
                         >
                           {session.status === "pending"
                             ? "Pending"
@@ -3290,7 +3288,7 @@ const getStatusLabel = (status, submitted) => {
                                   src={
                                     item.photo_url.startsWith("http")
                                       ? item.photo_url
-                                      : `http://localhost:5001${item.photo_url}`
+                                      : `${API_BASE_URL}${item.photo_url}`
                                   }
                                   alt="Scan result"
                                   className="w-8 h-8 sm:w-10 sm:h-10 object-cover rounded-lg cursor-pointer hover:opacity-80 transition"
@@ -3309,7 +3307,7 @@ const getStatusLabel = (status, submitted) => {
                                         "http",
                                       )
                                         ? item.photo_url
-                                        : `http://localhost:5001${item.photo_url}`,
+                                        : `${API_BASE_URL}${item.photo_url}`,
                                       imageAlt: "Scan Result",
                                       title: "Scan Result Preview",
                                       imageWidth: 400,
@@ -3450,25 +3448,25 @@ const getStatusLabel = (status, submitted) => {
                                       <ScanLine className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                                     </button>
                                   )}
-                 {item.status !== "Submitted" && !item.submitted && !item.rejected && item.lokasi && (
-  <button
-    onClick={() => handleSubmitSingle(item)}
-    disabled={isSubmitting}
-    className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center bg-green-600 hover:bg-green-700 text-white transition disabled:opacity-50"
-    title="Submit"
-  >
-    <Send className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-  </button>
-)}
-{item.rejected && (
-  <button
-    onClick={() => handleRescanItem(item)}
-    className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white transition"
-    title="Rescan"
-  >
-    <ScanLine className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-  </button>
-)}
+                                {item.status !== "Submitted" && !item.submitted && !item.rejected && item.lokasi && (
+                                  <button
+                                    onClick={() => handleSubmitSingle(item)}
+                                    disabled={isSubmitting}
+                                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center bg-green-600 hover:bg-green-700 text-white transition disabled:opacity-50"
+                                    title="Submit"
+                                  >
+                                    <Send className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                  </button>
+                                )}
+                                {item.rejected && (
+                                  <button
+                                    onClick={() => handleRescanItem(item)}
+                                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white transition"
+                                    title="Rescan"
+                                  >
+                                    <ScanLine className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                  </button>
+                                )}
 
                                 <button
                                   onClick={() => handleDeleteData(item)}

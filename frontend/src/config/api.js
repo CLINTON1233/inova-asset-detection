@@ -118,7 +118,7 @@ export const API_ENDPOINTS = {
   SCAN_RESULTS_UPDATE_PHOTO: (id) =>
     `${API_BASE_URL}/api/scan-results/update-photo/${id}`,
   // Di dalam API_ENDPOINTS
-SCAN_RESULTS_RESET: (id) => `${API_BASE_URL}/api/scan-results/reset/${id}`,
+  SCAN_RESULTS_RESET: (id) => `${API_BASE_URL}/api/scan-results/reset/${id}`,
 
   // Validations
   VALIDATIONS_CREATE: `${API_BASE_URL}/api/validations/create`,
@@ -145,6 +145,13 @@ SCAN_RESULTS_RESET: (id) => `${API_BASE_URL}/api/scan-results/reset/${id}`,
 
   // Di dalam API_ENDPOINTS
   SYNC_SESSION_STATUS: `${API_BASE_URL}/api/scanning-preparation/sync-status`,
+
+  // Reports
+  REPORTS_LIST: `${API_BASE_URL}/api/reports`,
+  REPORTS_DETAIL: (id) => `${API_BASE_URL}/api/reports/${id}`,
+  REPORTS_GENERATE: `${API_BASE_URL}/api/reports/generate`,
+  REPORTS_DELETE: (id) => `${API_BASE_URL}/api/reports/${id}`,
+  REPORTS_BULK_DELETE: `${API_BASE_URL}/api/reports/bulk-delete`,
 };
 
 export default API_BASE_URL;

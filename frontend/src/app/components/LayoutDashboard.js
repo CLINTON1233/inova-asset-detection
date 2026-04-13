@@ -107,12 +107,12 @@ export default function LayoutDashboard({ children, activeMenu }) {
       hasDropdown: true,
       href: "/history",
     },
-    // {
-    //   icon: Settings,
-    //   label: "Reports & Analytics",
-    //   hasDropdown: true,
-    //   href: "/reports-analytics",
-    // },
+    {
+      icon: Settings,
+      label: "Reports & Analytics",
+      hasDropdown: true,
+      href: "/reports-analytics",
+    },
   ];
 
   // Handle click outside untuk menutup dropdown
@@ -441,7 +441,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
             onClick={() => setMobileMenuOpen(false)}
           ></div>
 
-          <div 
+          <div
             ref={mobileMenuRef}
             className="fixed top-0 left-0 h-full w-64 bg-blue-600 z-50 md:hidden overflow-y-auto shadow-xl"
           >
@@ -452,7 +452,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
                 </div>
                 <span className="text-white font-bold">Seatrium</span>
               </div>
-              <button 
+              <button
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-1 hover:bg-blue-800 rounded-lg transition"
               >
