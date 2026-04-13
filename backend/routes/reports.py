@@ -21,7 +21,32 @@ def generate_report_code():
 def create_report_from_validation(validation_id, conn, cur):
     """Membuat atau update report berdasarkan validasi yang di-approve"""
     try:
-        # Ambil data validasi yang di-approve
+        # FIRST, refresh the validation data to get the latest asset_id
+        cur.execute("""
+            SELECT id_validation, asset_id, validated_at, validated_by
+            FROM validations 
+            WHERE id_validation = %s
+        """, (validation_id,))
+        val_check = cur.fetchone()
+        
+        if not val_check:
+            print(f"Validation {validation_id} not found")
+            return False, None
+        
+        # If asset_id is still NULL, wait a moment and try again
+        if not val_check[1]:  # asset_id is NULL
+            print(f"Asset_id for validation {validation_id} is NULL, waiting for asset creation...")
+            import time
+            time.sleep(0.5)  # Wait 500ms for asset to be created
+            cur.execute("SELECT asset_id FROM validations WHERE id_validation = %s", (validation_id,))
+            val_check = cur.fetchone()
+            if val_check and not val_check[0]:
+                print(f"Asset_id still NULL after waiting, skipping report for {validation_id}")
+                return False, None
+        
+        asset_id = val_check[1] if val_check else None
+        
+        # Now get complete validation data with asset
         cur.execute("""
             SELECT 
                 v.id_validation,
@@ -31,6 +56,7 @@ def create_report_from_validation(validation_id, conn, cur):
                 v.validation_status,
                 v.user_id,
                 v.validated_by,
+                v.asset_id,
                 CASE 
                     WHEN v.scan_id IS NOT NULL THEN 'device'
                     WHEN v.scan_material_id IS NOT NULL THEN 'material'
@@ -72,7 +98,20 @@ def create_report_from_validation(validation_id, conn, cur):
         validation = cur.fetchone()
         
         if not validation:
+            print(f"No approved validation found for ID {validation_id}")
             return False, None
+        
+        # Log untuk debugging
+        print(f"Processing report for validation {validation_id}:")
+        print(f"  - asset_id from validation: {validation['asset_id']}")
+        print(f"  - id_assets from assets join: {validation['id_assets']}")
+        print(f"  - asset_code: {validation['asset_code']}")
+        
+        # Use the correct asset ID
+        final_asset_id = validation['asset_id'] or validation['id_assets']
+        
+        if not final_asset_id:
+            print(f"WARNING: No asset_id found for validation {validation_id}, report item may not be created")
         
         # Tentukan report_date dari tanggal validasi
         report_date = validation['validated_at'].date() if validation['validated_at'] else datetime.now().date()
@@ -87,7 +126,7 @@ def create_report_from_validation(validation_id, conn, cur):
         
         existing_report = cur.fetchone()
         
-        # Hitung statistik untuk tanggal ini
+        # Hitung statistik untuk tanggal ini (dari validations yang approved)
         cur.execute("""
             SELECT 
                 COUNT(*) as total_scans,
@@ -171,32 +210,47 @@ def create_report_from_validation(validation_id, conn, cur):
             print(f"✅ New report {report_code} created for {report_date}")
         
         # Update atau insert report items untuk asset ini
-        if validation['id_assets']:
+        if final_asset_id:
             # Cek apakah asset sudah ada di report_items untuk report ini
             cur.execute("""
                 SELECT id_report_item FROM report_items 
                 WHERE report_id = %s AND asset_id = %s
-            """, (report_id, validation['id_assets']))
+            """, (report_id, final_asset_id))
             
             if not cur.fetchone():
+                # Get asset data from assets table
                 cur.execute("""
-                    INSERT INTO report_items (
-                        report_id, asset_id, validation_id,
-                        asset_code, asset_name, asset_type, category,
+                    SELECT 
+                        asset_code, asset_name, category,
                         serial_number, scan_code, brand, vendor, model, specifications,
-                        project_name, department_name, receiver_name, location_name,
-                        validation_status, validated_by, validated_at, unique_code
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (
-                    report_id, validation['id_assets'], validation['id_validation'],
-                    validation['asset_code'], validation['asset_name'], validation['validation_type'], validation['category'],
-                    validation['serial_number'], validation['scan_code'], validation['brand'], validation['vendor'],
-                    validation['model'], validation['specifications'],
-                    validation['project_name'], validation['department_name'], validation['receiver_name'],
-                    validation['asset_location'] or validation['location_name'],
-                    validation['validation_status'], validation['validated_by'], validation['validated_at'],
-                    validation['unique_code']
-                ))
+                        project_name, department_name, receiver_name, location_name
+                    FROM assets 
+                    WHERE id_assets = %s
+                """, (final_asset_id,))
+                asset_data = cur.fetchone()
+                
+                if asset_data:
+                    cur.execute("""
+                        INSERT INTO report_items (
+                            report_id, asset_id, validation_id,
+                            asset_code, asset_name, asset_type, category,
+                            serial_number, scan_code, brand, vendor, model, specifications,
+                            project_name, department_name, receiver_name, location_name,
+                            validation_status, validated_by, validated_at, unique_code
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        report_id, final_asset_id, validation['id_validation'],
+                        asset_data['asset_code'], asset_data['asset_name'], validation['validation_type'], asset_data['category'],
+                        asset_data['serial_number'], asset_data['scan_code'], asset_data['brand'], asset_data['vendor'],
+                        asset_data['model'], asset_data['specifications'],
+                        asset_data['project_name'], asset_data['department_name'], asset_data['receiver_name'],
+                        asset_data['location_name'],
+                        validation['validation_status'], validation['validated_by'], validation['validated_at'],
+                        validation['unique_code']
+                    ))
+                    print(f"✅ Report item added for asset {asset_data['asset_code']}")
+        else:
+            print(f"⚠️ No asset_id for validation {validation_id}, skipping report item")
         
         return True, report_id
         

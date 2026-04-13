@@ -353,7 +353,6 @@ def create_validation():
         if conn:
             conn.close()
 
-# ==================== UPDATE VALIDATION ====================
 @validation_bp.route('/api/validations/<int:validation_id>', methods=['PUT'])
 def update_validation(validation_id):
     """Update status validation (approve/reject)"""
@@ -390,6 +389,7 @@ def update_validation(validation_id):
         material_item_preparation_id = val_info[1] if val_info else None
         validation_type = val_info[2] if val_info else None
         
+        # Update validation status
         cur.execute("""
             UPDATE validations 
             SET validation_status = %s,
@@ -419,10 +419,17 @@ def update_validation(validation_id):
                 'error': 'Validation not found'
             }), 404
         
+        # COMMIT perubahan validation status TERLEBIH DAHULU
         conn.commit()
-        
+        print(f"✅ Validation {validation_id} status updated to {validation_status}")
+
         # ==================== CREATE ASSET IF APPROVED ====================
         if validation_status == 'approved' and is_approved:
+            asset_result = None
+            asset_code = None
+            asset_id_created = None
+            
+            # CREATE ASSET
             try:
                 from routes.assets import create_asset_from_validation
                 from flask import current_app as app
@@ -444,26 +451,62 @@ def update_validation(validation_id):
                         asset_result = response
                     
                     if asset_result and asset_result.get('success'):
-                        print(f"✅ Asset created for validation {validation_id}: {asset_result.get('asset_code')}")
+                        asset_code = asset_result.get('asset_code')
+                        asset_id_created = asset_result.get('asset_id')
+                        print(f"✅ Asset created for validation {validation_id}: {asset_code}")
+                        # Commit asset creation
+                        conn.commit()
                     else:
                         print(f"⚠️ Asset creation failed for validation {validation_id}: {asset_result}")
                         
             except Exception as asset_error:
                 print(f"Error creating asset for validation {validation_id}: {asset_error}")
                 print(traceback.format_exc())
+            
+            # ==================== CREATE REPORT ====================
+            # Tunggu sebentar agar asset_id terupdate di database
+            import time
+            time.sleep(0.5)
+            
+            # Pastikan asset_id sudah terisi di validations
+            cur.execute("SELECT asset_id FROM validations WHERE id_validation = %s", (validation_id,))
+            check_row = cur.fetchone()
+            
+            if check_row and check_row[0]:
+                print(f"✅ Asset_id found: {check_row[0]}, creating report...")
                 
-            try:
-                report_created, report_id = create_report_from_validation(validation_id, conn, cur)
-                if report_created:
-                    print(f"✅ Report created/updated for validation {validation_id}")
-            except Exception as report_error:
-                print(f"Error creating report for validation {validation_id}: {report_error}")
-                print(traceback.format_exc())  
+                try:
+                    from routes.reports import create_report_from_validation
+                    report_created, report_id = create_report_from_validation(validation_id, conn, cur)
+                    if report_created:
+                        print(f"✅ Report created/updated for validation {validation_id}")
+                        conn.commit()
+                    else:
+                        print(f"⚠️ Report creation failed for validation {validation_id}")
+                except Exception as report_error:
+                    print(f"Error creating report for validation {validation_id}: {report_error}")
+                    print(traceback.format_exc())
+            else:
+                print(f"⚠️ Asset_id still NULL for validation {validation_id}, retrying...")
+                # Coba lagi setelah 1 detik
+                time.sleep(1)
+                cur.execute("SELECT asset_id FROM validations WHERE id_validation = %s", (validation_id,))
+                check_row = cur.fetchone()
+                if check_row and check_row[0]:
+                    try:
+                        from routes.reports import create_report_from_validation
+                        report_created, report_id = create_report_from_validation(validation_id, conn, cur)
+                        if report_created:
+                            print(f"✅ Report created after retry for validation {validation_id}")
+                            conn.commit()
+                    except Exception as report_error:
+                        print(f"Error creating report on retry: {report_error}")
+                else:
+                    print(f"❌ Asset_id still NULL after retry, report not created")
                       
             # ==================== UPDATE SESSION STATUS ====================
             try:
                 if validation_type == 'device' and item_preparation_id:
-                    # Ambil preparation_id dari devices_items_preparation
                     cur.execute("""
                         SELECT dip.preparation_id
                         FROM devices_items_preparation dip
@@ -471,10 +514,8 @@ def update_validation(validation_id):
                     """, (item_preparation_id,))
                     prep = cur.fetchone()
                     if prep:
-                        from routes.validations import check_and_update_session_status
                         check_and_update_session_status(prep[0], 'device')
                 elif validation_type == 'material' and material_item_preparation_id:
-                    # Ambil preparation_id dari materials_items_preparation
                     cur.execute("""
                         SELECT mip.preparation_id
                         FROM materials_items_preparation mip
@@ -482,11 +523,12 @@ def update_validation(validation_id):
                     """, (material_item_preparation_id,))
                     prep = cur.fetchone()
                     if prep:
-                        from routes.validations import check_and_update_session_status
                         check_and_update_session_status(prep[0], 'material')
             except Exception as session_error:
-                print(f"Error updating session status for validation {validation_id}: {session_error}")
-                print(traceback.format_exc())
+                print(f"Error updating session status: {session_error}")
+        
+        # Final commit untuk semua perubahan
+        conn.commit()
            
         return jsonify({
             'success': True,
@@ -505,8 +547,7 @@ def update_validation(validation_id):
     finally:
         if conn:
             conn.close()
-
-# ==================== BULK UPDATE ====================
+            
 # ==================== BULK UPDATE ====================
 @validation_bp.route('/api/validations/bulk', methods=['POST'])
 def bulk_update_validations():
