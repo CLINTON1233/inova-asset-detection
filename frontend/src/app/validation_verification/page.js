@@ -342,8 +342,8 @@ export default function ValidationVerificationPage() {
           },
         );
 
-         const data = await response.json();
-      console.log("Approve response:", data); 
+        const data = await response.json();
+        console.log("Approve response:", data);
 
         if (data.success) {
           const assetResponse = await fetch(
@@ -384,7 +384,7 @@ export default function ValidationVerificationPage() {
           throw new Error(data.error);
         }
       } catch (error) {
-        console.error("Error in approve:", error); 
+        console.error("Error in approve:", error);
         Swal.fire({
           title: "Error!",
           text: error.message || "Failed to approve validation",
@@ -489,16 +489,16 @@ export default function ValidationVerificationPage() {
       ...(isApprove
         ? {}
         : {
-            input: "textarea",
-            inputPlaceholder: "Rejection reason for all selected items...",
-            inputLabel: "Rejection Reason",
-            inputValidator: (value) => {
-              if (!value || value.trim() === "") {
-                return "Please provide a rejection reason";
-              }
-              return null;
-            },
-          }),
+          input: "textarea",
+          inputPlaceholder: "Rejection reason for all selected items...",
+          inputLabel: "Rejection Reason",
+          inputValidator: (value) => {
+            if (!value || value.trim() === "") {
+              return "Please provide a rejection reason";
+            }
+            return null;
+          },
+        }),
     });
 
     if (result.isConfirmed) {
@@ -1114,8 +1114,8 @@ export default function ValidationVerificationPage() {
                                 (e.currentTarget.style.background = "#f9fafb")
                               }
                               onMouseLeave={(e) =>
-                                (e.currentTarget.style.background =
-                                  "transparent")
+                              (e.currentTarget.style.background =
+                                "transparent")
                               }
                             >
                               <FileSpreadsheet
@@ -1168,11 +1168,10 @@ export default function ValidationVerificationPage() {
                   {/* Multi Select Toggle */}
                   <button
                     onClick={toggleCheckboxMode}
-                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                      showCheckboxes
-                        ? "bg-gray-500 text-white hover:bg-gray-600"
-                        : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
-                    }`}
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${showCheckboxes
+                      ? "bg-gray-500 text-white hover:bg-gray-600"
+                      : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                      }`}
                   >
                     {showCheckboxes ? "Cancel" : "Multi Select"}
                   </button>
@@ -1284,55 +1283,55 @@ export default function ValidationVerificationPage() {
               </div>
             </div>
 
-       {/* Content */}
-{loading ? (
-  <div className="vv-empty">
-    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-4" />
-    <p className="text-gray-500 text-sm font-medium">
-      Loading validations...
-    </p>
-  </div>
-) : validations.length === 0 ? (
-  <div className="vv-empty">
-    <div
-      style={{
-        padding: 12,
-        borderRadius: 60,
-        background: "transparent",
-        display: "inline-block",
-        marginBottom: 16,
-      }}
-    >
-      <Shield className="w-10 h-10 text-gray-300" strokeWidth={1.5} />
-    </div>
-    <h3 className="text-gray-500 font-medium text-sm mb-1">
-      No validations found
-    </h3>
-    <p className="text-gray-400 text-xs max-w-xs">
-      Scan results will appear here for review.
-    </p>
-  </div>
-) : filteredValidations.length === 0 ? (
-  <div className="vv-empty">
-    <Search className="w-10 h-10 text-gray-300 mb-3" strokeWidth={1.5} />
-    <h3 className="text-gray-500 font-medium text-sm mb-1">
-      No matching validations
-    </h3>
-    <p className="text-gray-400 text-xs mb-4">
-      Try adjusting your search or filter.
-    </p>
-    <button
-      onClick={() => {
-        setSearchTerm("");
-        setStatusFilter("all");
-        setTypeFilter("all");
-      }}
-      className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs hover:bg-gray-200 transition"
-    >
-      <RefreshCw className="w-3 h-3" /> Clear Filters
-    </button>
-  </div>
-) : viewMode === "grid" ? (
+            {/* Content */}
+            {loading ? (
+              <div className="vv-empty">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-4" />
+                <p className="text-gray-500 text-sm font-medium">
+                  Loading validations...
+                </p>
+              </div>
+            ) : validations.length === 0 ? (
+              <div className="vv-empty">
+                <div
+                  style={{
+                    padding: 12,
+                    borderRadius: 60,
+                    background: "transparent",
+                    display: "inline-block",
+                    marginBottom: 16,
+                  }}
+                >
+                  <Shield className="w-10 h-10 text-gray-300" strokeWidth={1.5} />
+                </div>
+                <h3 className="text-gray-500 font-medium text-sm mb-1">
+                  No validations found
+                </h3>
+                <p className="text-gray-400 text-xs max-w-xs">
+                  Scan results will appear here for review.
+                </p>
+              </div>
+            ) : filteredValidations.length === 0 ? (
+              <div className="vv-empty">
+                <Search className="w-10 h-10 text-gray-300 mb-3" strokeWidth={1.5} />
+                <h3 className="text-gray-500 font-medium text-sm mb-1">
+                  No matching validations
+                </h3>
+                <p className="text-gray-400 text-xs mb-4">
+                  Try adjusting your search or filter.
+                </p>
+                <button
+                  onClick={() => {
+                    setSearchTerm("");
+                    setStatusFilter("all");
+                    setTypeFilter("all");
+                  }}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs hover:bg-gray-200 transition"
+                >
+                  <RefreshCw className="w-3 h-3" /> Clear Filters
+                </button>
+              </div>
+            ) : viewMode === "grid" ? (
               /* Grid View */
               <div
                 style={{
@@ -1380,7 +1379,7 @@ export default function ValidationVerificationPage() {
                               src={
                                 photoUrl.startsWith("http")
                                   ? photoUrl
-                                  : `http://localhost:5001${photoUrl}`
+                                  : `${API_BASE_URL}${photoUrl}`
                               }
                               alt="Scan result"
                               className="w-full h-full object-cover"
@@ -1477,11 +1476,10 @@ export default function ValidationVerificationPage() {
                         }}
                       >
                         <span
-                          className={`px-2 py-1 text-[10px] font-medium rounded-full ${
-                            validation.validation_type === "device"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-emerald-100 text-emerald-700"
-                          }`}
+                          className={`px-2 py-1 text-[10px] font-medium rounded-full ${validation.validation_type === "device"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-emerald-100 text-emerald-700"
+                            }`}
                         >
                           {validation.validation_type === "device"
                             ? "Device"
@@ -1537,7 +1535,7 @@ export default function ValidationVerificationPage() {
                             type="checkbox"
                             checked={
                               selectedItems.length ===
-                                filteredValidations.length &&
+                              filteredValidations.length &&
                               filteredValidations.length > 0
                             }
                             onChange={handleSelectAll}
@@ -1641,7 +1639,7 @@ export default function ValidationVerificationPage() {
                                 src={
                                   photoUrl.startsWith("http")
                                     ? photoUrl
-                                    : `http://localhost:5001${photoUrl}`
+                                    : `${API_BASE_URL}${photoUrl}`
                                 }
                                 alt="Scan result"
                                 className="w-10 h-10 rounded-lg object-cover cursor-pointer hover:opacity-80 transition"
@@ -1650,7 +1648,7 @@ export default function ValidationVerificationPage() {
                                   Swal.fire({
                                     imageUrl: photoUrl.startsWith("http")
                                       ? photoUrl
-                                      : `http://localhost:5001${photoUrl}`,
+                                      : `${API_BASE_URL}${photoUrl}`,
                                     imageAlt: "Scan Result",
                                     title: "Scan Result Preview",
                                     imageWidth: 400,
@@ -1678,19 +1676,18 @@ export default function ValidationVerificationPage() {
                                 </div>
                                 <div className="mt-0.5">
                                   <span
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                      validation.validation_type === "device"
-                                        ? "bg-blue-100 text-blue-700"
-                                        : validation.validation_type ===
-                                            "material"
-                                          ? "bg-emerald-100 text-emerald-700"
-                                          : "bg-gray-100 text-gray-700"
-                                    }`}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${validation.validation_type === "device"
+                                      ? "bg-blue-100 text-blue-700"
+                                      : validation.validation_type ===
+                                        "material"
+                                        ? "bg-emerald-100 text-emerald-700"
+                                        : "bg-gray-100 text-gray-700"
+                                      }`}
                                   >
                                     {validation.validation_type === "device"
                                       ? "Device"
                                       : validation.validation_type ===
-                                          "material"
+                                        "material"
                                         ? "Material"
                                         : "Unknown"}
                                   </span>
@@ -1729,127 +1726,126 @@ export default function ValidationVerificationPage() {
                               by {validation.created_by_name || "System"}
                             </div>
                           </td>
-            
-                        <td className="vv-td text-center">
-  <div className="flex items-center justify-center gap-1 flex-wrap">
- {/* Rejected → Scan Ulang */}
-    {validation.validation_status === "rejected" && (
-      <button
-        onClick={async (e) => {
-          e.stopPropagation();
 
-          const result = await Swal.fire({
-            title: "Rescan Item?",
-            text: "This item was rejected. Do you want to rescan it?",
-            icon: "question",
-            showCancelButton: true,
-            confirmButtonText: "Yes, Rescan",
-            cancelButtonText: "Cancel",
-            confirmButtonColor: "#2563eb",
-          });
+                          <td className="vv-td text-center">
+                            <div className="flex items-center justify-center gap-1 flex-wrap">
+                              {/* Rejected → Scan Ulang */}
+                              {validation.validation_status === "rejected" && (
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
 
-          if (result.isConfirmed) {
-            try {
-              const resetResponse = await fetch(
-                API_ENDPOINTS.SCAN_RESULTS_RESET(validation.scan_id),
-                { method: "PUT" }
-              );
-              const resetResult = await resetResponse.json();
+                                    const result = await Swal.fire({
+                                      title: "Rescan Item?",
+                                      text: "This item was rejected. Do you want to rescan it?",
+                                      icon: "question",
+                                      showCancelButton: true,
+                                      confirmButtonText: "Yes, Rescan",
+                                      cancelButtonText: "Cancel",
+                                      confirmButtonColor: "#2563eb",
+                                    });
 
-              if (resetResult.success) {
-                await fetch(
-                  `${API_BASE_URL}/api/validations/${validation.id_validation}`,
-                  { method: "DELETE" }
-                );
+                                    if (result.isConfirmed) {
+                                      try {
+                                        const resetResponse = await fetch(
+                                          API_ENDPOINTS.SCAN_RESULTS_RESET(validation.scan_id),
+                                          { method: "PUT" }
+                                        );
+                                        const resetResult = await resetResponse.json();
 
-                Swal.fire({
-                  title: "Success!",
-                  text: "Item has been reset and ready for rescan.",
-                  icon: "success",
-                  timer: 1500,
-                  showConfirmButton: false,
-                });
+                                        if (resetResult.success) {
+                                          await fetch(
+                                            `${API_BASE_URL}/api/validations/${validation.id_validation}`,
+                                            { method: "DELETE" }
+                                          );
 
-                router.push(
-                  `/scanning?prep_id=${
-                    validation.device_preparation_id ||
-                    validation.material_preparation_id
-                  }&type=${validation.validation_type}`
-                );
-              } else {
-                throw new Error(resetResult.error);
-              }
-            } catch (error) {
-              Swal.fire({
-                title: "Error!",
-                text: "Failed to reset item for rescan",
-                icon: "error",
-              });
-            }
-          }
-        }}
-        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
-        title="Scan Ulang"
-      >
-        <ScanLine className="w-3 h-3" />
-        Rescan
-      </button>
-    )}
-    {/* View */}
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        handleViewDetail(validation);
-      }}
-      className="view-btn-sm"
-      title="View Details"
-    >
-      <Eye className="w-3 h-3" />
-    </button>
+                                          Swal.fire({
+                                            title: "Success!",
+                                            text: "Item has been reset and ready for rescan.",
+                                            icon: "success",
+                                            timer: 1500,
+                                            showConfirmButton: false,
+                                          });
 
-    {/* Pending */}
-    {validation.validation_status === "pending" && (
-      <>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleApprove(validation);
-          }}
-          disabled={isProcessing}
-          className="approve-btn-sm disabled:opacity-50"
-          title="Approve"
-        >
-          <ThumbsUp className="w-3 h-3" />
-        </button>
+                                          router.push(
+                                            `/scanning?prep_id=${validation.device_preparation_id ||
+                                            validation.material_preparation_id
+                                            }&type=${validation.validation_type}`
+                                          );
+                                        } else {
+                                          throw new Error(resetResult.error);
+                                        }
+                                      } catch (error) {
+                                        Swal.fire({
+                                          title: "Error!",
+                                          text: "Failed to reset item for rescan",
+                                          icon: "error",
+                                        });
+                                      }
+                                    }
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+                                  title="Scan Ulang"
+                                >
+                                  <ScanLine className="w-3 h-3" />
+                                  Rescan
+                                </button>
+                              )}
+                              {/* View */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewDetail(validation);
+                                }}
+                                className="view-btn-sm"
+                                title="View Details"
+                              >
+                                <Eye className="w-3 h-3" />
+                              </button>
 
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleReject(validation);
-          }}
-          disabled={isProcessing}
-          className="reject-btn-sm disabled:opacity-50"
-          title="Reject"
-        >
-          <ThumbsDown className="w-3 h-3" />
-        </button>
-      </>
-    )}
+                              {/* Pending */}
+                              {validation.validation_status === "pending" && (
+                                <>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleApprove(validation);
+                                    }}
+                                    disabled={isProcessing}
+                                    className="approve-btn-sm disabled:opacity-50"
+                                    title="Approve"
+                                  >
+                                    <ThumbsUp className="w-3 h-3" />
+                                  </button>
 
-    {/* Delete */}
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        handleDeleteSingle(validation);
-      }}
-      disabled={isProcessing}
-      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-gray-500 rounded-lg hover:bg-gray-600 transition disabled:opacity-50"
-      title="Delete"
-    >
-      <Trash2 className="w-3 h-3" />
-    </button>
-  </div>
-</td>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleReject(validation);
+                                    }}
+                                    disabled={isProcessing}
+                                    className="reject-btn-sm disabled:opacity-50"
+                                    title="Reject"
+                                  >
+                                    <ThumbsDown className="w-3 h-3" />
+                                  </button>
+                                </>
+                              )}
+
+                              {/* Delete */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSingle(validation);
+                                }}
+                                disabled={isProcessing}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-gray-500 rounded-lg hover:bg-gray-600 transition disabled:opacity-50"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       );
                     })}
@@ -1984,7 +1980,7 @@ export default function ValidationVerificationPage() {
                       src={
                         detailModal.photo_url.startsWith("http")
                           ? detailModal.photo_url
-                          : `http://localhost:5001${detailModal.photo_url}`
+                          : `${API_BASE_URL}${detailModal.photo_url}`
                       }
                       alt="Scan result"
                       className="w-full h-full object-contain"
@@ -2111,32 +2107,31 @@ export default function ValidationVerificationPage() {
 
                 {(detailModal.validation_notes ||
                   detailModal.rejection_reason) && (
-                  <div
-                    className={`rounded-lg p-3 ${
-                      detailModal.validation_status === "rejected"
+                    <div
+                      className={`rounded-lg p-3 ${detailModal.validation_status === "rejected"
                         ? "bg-red-50 border border-red-100"
                         : "bg-emerald-50 border border-emerald-100"
-                    }`}
-                  >
-                    <p className="text-xs font-semibold mb-1 text-gray-700">
-                      {detailModal.validation_status === "rejected"
-                        ? "Rejection Reason"
-                        : "Validation Notes"}
-                    </p>
-                    <p className="text-sm text-gray-800">
-                      {detailModal.validation_notes ||
-                        detailModal.rejection_reason}
-                    </p>
-                    {detailModal.validated_by_name && (
-                      <p className="text-xs text-gray-500 mt-2">
-                        Validated by {detailModal.validated_by_name} at{" "}
-                        {detailModal.validated_at
-                          ? new Date(detailModal.validated_at).toLocaleString()
-                          : "-"}
+                        }`}
+                    >
+                      <p className="text-xs font-semibold mb-1 text-gray-700">
+                        {detailModal.validation_status === "rejected"
+                          ? "Rejection Reason"
+                          : "Validation Notes"}
                       </p>
-                    )}
-                  </div>
-                )}
+                      <p className="text-sm text-gray-800">
+                        {detailModal.validation_notes ||
+                          detailModal.rejection_reason}
+                      </p>
+                      {detailModal.validated_by_name && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          Validated by {detailModal.validated_by_name} at{" "}
+                          {detailModal.validated_at
+                            ? new Date(detailModal.validated_at).toLocaleString()
+                            : "-"}
+                        </p>
+                      )}
+                    </div>
+                  )}
               </div>
 
               <div className="p-5 border-t border-gray-100 flex justify-end gap-3">
