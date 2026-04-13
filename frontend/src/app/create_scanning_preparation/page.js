@@ -65,11 +65,12 @@ export default function ScanningPreparationPage() {
           specifications: "",
           quantity: 1,
           departments: [],
-          receivers: [], // Store receiver assignments
+          receivers: [],
           uom: "PCS",
           material_name: "",
           material_detail: "",
           project_id: "",
+          saveToStock: false,
         },
       ],
     },
@@ -183,27 +184,20 @@ export default function ScanningPreparationPage() {
     }
   };
 
-  // Add new receiver entry (bisa untuk department yang sama atau beda)
-  const addReceiverEntry = (sessionId, itemId, departmentId) => {
-    setSessions((prev) =>
-      prev.map((session) => {
+  const toggleSaveToStock = (sessionId, itemId) => {
+    setSessions(prev =>
+      prev.map(session => {
         if (session.id === sessionId) {
           return {
             ...session,
-            items: session.items.map((item) => {
+            items: session.items.map(item => {
               if (item.id === itemId) {
-                const deptInfo = departments.find(d => d.id_department === departmentId);
+                const newSaveToStock = !item.saveToStock;
                 return {
                   ...item,
-                  receivers: [
-                    ...item.receivers,
-                    {
-                      department_id: departmentId,
-                      department_name: deptInfo?.department_name,
-                      receiver_id: "",
-                      quantity: 1,
-                    },
-                  ],
+                  saveToStock: newSaveToStock,
+                  departments: newSaveToStock ? [] : item.departments,
+                  receivers: newSaveToStock ? [] : item.receivers,
                 };
               }
               return item;
@@ -211,45 +205,8 @@ export default function ScanningPreparationPage() {
           };
         }
         return session;
-      }),
+      })
     );
-  };
-
-  // Update receiver quantity
-  const updateReceiverQuantity = (sessionId, itemId, receiverIndex, quantity) => {
-    setSessions((prev) =>
-      prev.map((session) => {
-        if (session.id === sessionId) {
-          return {
-            ...session,
-            items: session.items.map((item) => {
-              if (item.id === itemId) {
-                const newReceivers = [...item.receivers];
-                const newQuantity = parseInt(quantity) || 0;
-                newReceivers[receiverIndex] = {
-                  ...newReceivers[receiverIndex],
-                  quantity: newQuantity,
-                };
-                return { ...item, receivers: newReceivers };
-              }
-              return item;
-            }),
-          };
-        }
-        return session;
-      }),
-    );
-  };
-
-  // Get total receiver quantity
-  const getTotalReceiverQty = (item) => {
-    return item.receivers.reduce((sum, r) => sum + (r.quantity || 0), 0);
-  };
-
-  // Get available departments for adding receiver
-  const getAvailableDepartments = (item) => {
-    const assignedDeptIds = item.receivers.map(r => r.department_id);
-    return departments.filter(dept => !assignedDeptIds.includes(dept.id_department));
   };
 
   const fetchReceivers = async () => {
@@ -259,7 +216,6 @@ export default function ScanningPreparationPage() {
       if (data.success) {
         setReceivers(data.data || []);
 
-        // Group receivers by department
         const grouped = {};
         data.data.forEach((receiver) => {
           const deptId = receiver.department_id;
@@ -304,7 +260,6 @@ export default function ScanningPreparationPage() {
     }
   };
 
-  // UOM options
   const uomOptions = [
     { code: "PCS", name: "Pieces" },
     { code: "UNIT", name: "Unit" },
@@ -315,7 +270,6 @@ export default function ScanningPreparationPage() {
     { code: "KG", name: "Kilogram" },
   ];
 
-  // Filter devices based on search term
   const getFilteredDevices = (itemId) => {
     const searchTerm = searchDeviceTerm[itemId] || "";
     if (!searchTerm) return masterDevices;
@@ -324,7 +278,6 @@ export default function ScanningPreparationPage() {
     );
   };
 
-  // Filter materials based on search term
   const getFilteredMaterials = (itemId) => {
     const searchTerm = searchMaterialTerm[itemId] || "";
     if (!searchTerm) return masterMaterials;
@@ -333,7 +286,6 @@ export default function ScanningPreparationPage() {
     );
   };
 
-  // Get receivers for a specific department
   const getReceiversForDepartment = (departmentId) => {
     return receiversByDepartment[departmentId] || [];
   };
@@ -380,66 +332,6 @@ export default function ScanningPreparationPage() {
     );
   };
 
-  // Initialize receivers based on departments that have quantity
-  const initializeReceivers = (sessionId, itemId, departmentId) => {
-    setSessions((prev) =>
-      prev.map((session) => {
-        if (session.id === sessionId) {
-          return {
-            ...session,
-            items: session.items.map((item) => {
-              if (item.id === itemId) {
-                // Check if receiver for this department already exists
-                const exists = item.receivers.some(r => r.department_id === departmentId);
-                if (!exists) {
-                  const deptInfo = departments.find(d => d.id_department === departmentId);
-                  return {
-                    ...item,
-                    receivers: [
-                      ...item.receivers,
-                      {
-                        department_id: departmentId,
-                        department_name: deptInfo?.department_name,
-                        receiver_id: "",
-                        quantity: 0,
-                      },
-                    ],
-                  };
-                }
-              }
-              return item;
-            }),
-          };
-        }
-        return session;
-      }),
-    );
-  };
-
-  // Remove receiver entry
-  const removeReceiverEntry = (sessionId, itemId, departmentId) => {
-    setSessions((prev) =>
-      prev.map((session) => {
-        if (session.id === sessionId) {
-          return {
-            ...session,
-            items: session.items.map((item) => {
-              if (item.id === itemId) {
-                return {
-                  ...item,
-                  receivers: item.receivers.filter(r => r.department_id !== departmentId),
-                };
-              }
-              return item;
-            }),
-          };
-        }
-        return session;
-      }),
-    );
-  };
-
-  // Session management functions
   const addNewSession = () => {
     const newSession = {
       id: `session-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -467,6 +359,7 @@ export default function ScanningPreparationPage() {
           material_name: "",
           material_detail: "",
           project_id: "",
+          saveToStock: false,
         },
       ],
     };
@@ -550,6 +443,7 @@ export default function ScanningPreparationPage() {
                 material_name: "",
                 material_detail: "",
                 project_id: "",
+                saveToStock: false,
               },
             ],
           }
@@ -604,12 +498,7 @@ export default function ScanningPreparationPage() {
     }));
   };
 
-  const updateDepartmentQuantity = (
-    sessionId,
-    itemId,
-    departmentId,
-    quantity,
-  ) => {
+  const updateDepartmentQuantity = (sessionId, itemId, departmentId, quantity) => {
     const department = departments.find(
       (d) => d.id_department === departmentId,
     );
@@ -621,6 +510,17 @@ export default function ScanningPreparationPage() {
             ...session,
             items: session.items.map((item) => {
               if (item.id === itemId) {
+                if (item.saveToStock) {
+                  Swal.fire({
+                    title: "Info",
+                    text: "Item is saved to stock. Disable 'Save to Stock' to distribute.",
+                    icon: "info",
+                    timer: 2000,
+                    showConfirmButton: false,
+                  });
+                  return item;
+                }
+
                 const newQuantity = parseFloat(quantity) || 0;
                 const currentTotal = item.departments.reduce(
                   (sum, d) =>
@@ -644,14 +544,12 @@ export default function ScanningPreparationPage() {
                         ),
                       };
                     } else if (maxAllowed > 0) {
-                      // Create new department with receiver entries for each item
                       const newDept = {
                         department_id: departmentId,
                         department_name: department.department_name,
                         quantity: maxAllowed,
                       };
 
-                      // Create receiver entries for each quantity
                       const newReceivers = [...item.receivers];
                       for (let i = 0; i < maxAllowed; i++) {
                         const exists = newReceivers.some(
@@ -682,20 +580,16 @@ export default function ScanningPreparationPage() {
                     (d) => d.department_id === departmentId,
                   );
                   if (existingDept) {
-                    // Update existing department quantity
                     const updatedDepartments = item.departments.map((d) =>
                       d.department_id === departmentId
                         ? { ...d, quantity: newQuantity }
                         : d
                     );
 
-                    // Update receiver entries to match new quantity
                     let updatedReceivers = [...item.receivers];
-                    // Remove receivers for this department if quantity decreased
                     updatedReceivers = updatedReceivers.filter(
                       (r) => r.department_id !== departmentId || r.item_index < newQuantity
                     );
-                    // Add missing receivers if quantity increased
                     for (let i = 0; i < newQuantity; i++) {
                       const exists = updatedReceivers.some(
                         (r) => r.department_id === departmentId && r.item_index === i
@@ -716,14 +610,12 @@ export default function ScanningPreparationPage() {
                       receivers: updatedReceivers,
                     };
                   } else {
-                    // Create new department
                     const newDept = {
                       department_id: departmentId,
                       department_name: department.department_name,
                       quantity: newQuantity,
                     };
 
-                    // Create receiver entries for each quantity
                     const newReceivers = [...item.receivers];
                     for (let i = 0; i < newQuantity; i++) {
                       newReceivers.push({
@@ -741,7 +633,6 @@ export default function ScanningPreparationPage() {
                     };
                   }
                 } else {
-                  // Remove department and its receivers when quantity is set to 0
                   return {
                     ...item,
                     departments: item.departments.filter(
@@ -800,21 +691,21 @@ export default function ScanningPreparationPage() {
           `Session ${session.checking_number} - Item #${index + 1}: Quantity must be at least 1`,
         );
 
-      // Check each department has receiver selected for each item
-      item.departments.forEach((dept) => {
-        // Untuk setiap department, periksa apakah semua item (quantity) sudah memiliki receiver
-        for (let i = 0; i < dept.quantity; i++) {
-          const receiver = item.receivers.find(
-            (r) => r.department_id === dept.department_id && r.item_index === i
-          );
-          if (!receiver || !receiver.receiver_id) {
-            const deptName = departments.find(d => d.id_department === dept.department_id)?.department_name;
-            errors.push(
-              `Session ${session.checking_number} - Item #${index + 1}: Please select a receiver for department "${deptName}" item #${i + 1}`,
+      if (!item.saveToStock) {
+        item.departments.forEach((dept) => {
+          for (let i = 0; i < dept.quantity; i++) {
+            const receiver = item.receivers.find(
+              (r) => r.department_id === dept.department_id && r.item_index === i
             );
+            if (!receiver || !receiver.receiver_id) {
+              const deptName = departments.find(d => d.id_department === dept.department_id)?.department_name;
+              errors.push(
+                `Session ${session.checking_number} - Item #${index + 1}: Please select a receiver for department "${deptName}" item #${i + 1}`,
+              );
+            }
           }
-        }
-      });
+        });
+      }
     });
 
     return errors;
@@ -882,7 +773,6 @@ export default function ScanningPreparationPage() {
         let payload;
 
         if (isMaterial) {
-          // PAYLOAD UNTUK MATERIALS
           payload = {
             checking_name: session.formData.checking_name,
             category_id: parseInt(session.formData.category_id),
@@ -893,24 +783,23 @@ export default function ScanningPreparationPage() {
               item_name: item.material_name,
               specifications: item.material_detail,
               quantity: parseFloat(item.quantity),
-              departments: item.departments.map((d) => ({
+              departments: item.saveToStock ? [] : item.departments.map((d) => ({
                 department_id: d.department_id,
                 quantity: parseFloat(d.quantity),
               })),
-              // PERBAIKAN: Kirim receiver dengan item_index
-              receivers: item.receivers.map((r) => ({
+              receivers: item.saveToStock ? [] : item.receivers.map((r) => ({
                 department_id: r.department_id,
                 receiver_id: r.receiver_id,
-                item_index: r.item_index !== undefined ? r.item_index : 0, // ← TAMBAHKAN INI
+                item_index: r.item_index !== undefined ? r.item_index : 0,
               })),
               uom: item.uom || "PCS",
               vendor: item.vendor || "",
               project_id: item.project_id ? parseInt(item.project_id) : null,
+              is_stock: item.saveToStock || false,
             })),
             user_id: userId,
           };
         } else {
-          // PAYLOAD UNTUK DEVICES
           payload = {
             checking_name: session.formData.checking_name,
             category_id: parseInt(session.formData.category_id),
@@ -925,17 +814,17 @@ export default function ScanningPreparationPage() {
               model: item.model,
               specifications: item.specifications,
               quantity: parseInt(item.quantity),
-              departments: item.departments.map((d) => ({
+              departments: item.saveToStock ? [] : item.departments.map((d) => ({
                 department_id: d.department_id,
                 quantity: parseInt(d.quantity),
               })),
-              // PERBAIKAN: Kirim receiver dengan item_index
-              receivers: item.receivers.map((r) => ({
+              receivers: item.saveToStock ? [] : item.receivers.map((r) => ({
                 department_id: r.department_id,
                 receiver_id: r.receiver_id,
-                item_index: r.item_index !== undefined ? r.item_index : 0, // ← TAMBAHKAN INI
+                item_index: r.item_index !== undefined ? r.item_index : 0,
               })),
               project_id: item.project_id ? parseInt(item.project_id) : null,
+              is_stock: item.saveToStock || false,
             })),
             user_id: userId,
           };
@@ -1025,6 +914,7 @@ export default function ScanningPreparationPage() {
                 material_name: "",
                 material_detail: "",
                 project_id: "",
+                saveToStock: false,
               },
             ],
           },
@@ -1125,7 +1015,6 @@ export default function ScanningPreparationPage() {
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         
-        /* Mobile Responsive Improvements */
         @media (max-width: 768px) {
           .session-card {
             margin-left: -0.5rem;
@@ -1164,7 +1053,6 @@ export default function ScanningPreparationPage() {
       `}</style>
 
       <div className="bm-root">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -1185,7 +1073,6 @@ export default function ScanningPreparationPage() {
           </div>
         </div>
 
-        {/* Main Form Card */}
         <div className="form-card">
           <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 bg-gray-50 rounded-t-2xl">
             <div className="flex items-center gap-3">
@@ -1368,6 +1255,17 @@ export default function ScanningPreparationPage() {
                                     Qty: {item.quantity}
                                   </span>
                                 )}
+                                <button
+                                  onClick={() => toggleSaveToStock(session.id, item.id)}
+                                  className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full transition ${item.saveToStock
+                                      ? "bg-yellow-100 text-yellow-700 border border-yellow-200"
+                                      : "bg-gray-100 text-gray-500 border border-gray-200"
+                                    }`}
+                                  title={item.saveToStock ? "Item will be saved to stock" : "Item will be distributed"}
+                                >
+                                  <Package className="w-3 h-3" />
+                                  {item.saveToStock ? "Save to Stock" : "Will Distribute"}
+                                </button>
                               </div>
                               {session.items.length > 1 && (
                                 <button
@@ -1381,8 +1279,22 @@ export default function ScanningPreparationPage() {
                               )}
                             </div>
 
+                            {item.saveToStock && (
+                              <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                <div className="flex items-start gap-2">
+                                  <Info className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                                  <div>
+                                    <p className="text-xs text-yellow-700 font-medium">Save to Stock Mode Active</p>
+                                    <p className="text-xs text-yellow-600 mt-0.5">
+                                      This item will be saved to stock and not distributed to any department.
+                                      Disable this option if you want to distribute to departments.
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
                             {isMaterial ? (
-                              // FORM UNTUK MATERIALS
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="col-span-1 sm:col-span-2">
                                   <Label required>Material Name</Label>
@@ -1523,139 +1435,237 @@ export default function ScanningPreparationPage() {
                                   </select>
                                 </div>
 
-                                {/* Department Distribution */}
-                                <div className="col-span-1 sm:col-span-2">
-                                  <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
-                                    <Label>Department Distribution</Label>
-                                    <button
-                                      onClick={() =>
-                                        toggleDepartmentSection(item.id)
-                                      }
-                                      className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${isExpanded
-                                        ? "bg-gray-100 text-gray-700 border border-gray-300"
-                                        : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
-                                        }`}
-                                    >
-                                      {isExpanded
-                                        ? "Close Distribution"
-                                        : "Distribute Items"}
-                                      {isExpanded ? (
-                                        <ChevronUp className="w-3 h-3" />
-                                      ) : (
-                                        <ChevronDown className="w-3 h-3" />
-                                      )}
-                                    </button>
-                                  </div>
-
-                                  {isExpanded && (
-                                    <div className="mt-4 space-y-4">
-                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        {departments.map((dept) => {
-                                          const assignedDept =
-                                            item.departments.find(
-                                              (d) =>
-                                                d.department_id ===
-                                                dept.id_department,
-                                            );
-                                          const assignedQty =
-                                            assignedDept?.quantity || 0;
-                                          const isDisabled =
-                                            isDepartmentInputDisabled(
-                                              item,
-                                              dept.id_department,
-                                            );
-                                          return (
-                                            <div
-                                              key={dept.id_department}
-                                              className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-white"
-                                            >
-                                              <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-gray-700 truncate">
-                                                  {dept.department_name}
-                                                </p>
-                                                {assignedQty > 0 && (
-                                                  <p className="text-xs text-blue-600 mt-0.5">
-                                                    Assigned: {assignedQty}
-                                                  </p>
-                                                )}
-                                              </div>
-                                              <div className="w-24 ml-2">
-                                                <input
-                                                  type="number"
-                                                  min="0"
-                                                  max={item.quantity}
-                                                  value={assignedQty}
-                                                  onChange={(e) =>
-                                                    updateDepartmentQuantity(
-                                                      session.id,
-                                                      item.id,
-                                                      dept.id_department,
-                                                      e.target.value,
-                                                    )
-                                                  }
-                                                  disabled={isDisabled}
-                                                  className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDisabled
-                                                    ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
-                                                    : "bg-white border-gray-200 text-gray-800"
-                                                    }`}
-                                                  placeholder="Qty"
-                                                />
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
+                                {!item.saveToStock && (
+                                  <>
+                                    <div className="col-span-1 sm:col-span-2">
+                                      <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
+                                        <Label>Department Distribution</Label>
+                                        <button
+                                          onClick={() =>
+                                            toggleDepartmentSection(item.id)
+                                          }
+                                          className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${isExpanded
+                                            ? "bg-gray-100 text-gray-700 border border-gray-300"
+                                            : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
+                                            }`}
+                                        >
+                                          {isExpanded
+                                            ? "Close Distribution"
+                                            : "Distribute Items"}
+                                          {isExpanded ? (
+                                            <ChevronUp className="w-3 h-3" />
+                                          ) : (
+                                            <ChevronDown className="w-3 h-3" />
+                                          )}
+                                        </button>
                                       </div>
 
-                                      <div className="p-3 border-t border-gray-200">
-                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                          <span className="text-sm font-medium text-gray-700">
-                                            Distribution Summary:
-                                          </span>
-                                          <span
-                                            className={`text-sm font-semibold ${totalDeptQty === item.quantity
-                                              ? "text-green-600"
-                                              : totalDeptQty > 0
-                                                ? "text-blue-600"
-                                                : "text-gray-500"
-                                              }`}
-                                          >
-                                            {totalDeptQty} of {item.quantity}{" "}
-                                            assigned
+                                      {isExpanded && (
+                                        <div className="mt-4 space-y-4">
+                                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {departments.map((dept) => {
+                                              const assignedDept =
+                                                item.departments.find(
+                                                  (d) =>
+                                                    d.department_id ===
+                                                    dept.id_department,
+                                                );
+                                              const assignedQty =
+                                                assignedDept?.quantity || 0;
+                                              const isDisabled =
+                                                isDepartmentInputDisabled(
+                                                  item,
+                                                  dept.id_department,
+                                                );
+                                              return (
+                                                <div
+                                                  key={dept.id_department}
+                                                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-white"
+                                                >
+                                                  <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-gray-700 truncate">
+                                                      {dept.department_name}
+                                                    </p>
+                                                    {assignedQty > 0 && (
+                                                      <p className="text-xs text-blue-600 mt-0.5">
+                                                        Assigned: {assignedQty}
+                                                      </p>
+                                                    )}
+                                                  </div>
+                                                  <div className="w-24 ml-2">
+                                                    <input
+                                                      type="number"
+                                                      min="0"
+                                                      max={item.quantity}
+                                                      value={assignedQty}
+                                                      onChange={(e) =>
+                                                        updateDepartmentQuantity(
+                                                          session.id,
+                                                          item.id,
+                                                          dept.id_department,
+                                                          e.target.value,
+                                                        )
+                                                      }
+                                                      disabled={isDisabled}
+                                                      className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDisabled
+                                                        ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
+                                                        : "bg-white border-gray-200 text-gray-800"
+                                                        }`}
+                                                      placeholder="Qty"
+                                                    />
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+
+                                          <div className="p-3 border-t border-gray-200">
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                              <span className="text-sm font-medium text-gray-700">
+                                                Distribution Summary:
+                                              </span>
+                                              <span
+                                                className={`text-sm font-semibold ${totalDeptQty === item.quantity
+                                                  ? "text-green-600"
+                                                  : totalDeptQty > 0
+                                                    ? "text-blue-600"
+                                                    : "text-gray-500"
+                                                  }`}
+                                              >
+                                                {totalDeptQty} of {item.quantity}{" "}
+                                                assigned
+                                              </span>
+                                            </div>
+                                            {remainingQty > 0 && (
+                                              <p className="text-xs text-gray-500 mt-1">
+                                                {remainingQty} unassigned items will
+                                                stay at main location
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {!isExpanded &&
+                                        item.departments.length > 0 && (
+                                          <div className="mt-2 flex flex-wrap gap-2">
+                                            {item.departments.map((dept) => (
+                                              <div
+                                                key={dept.department_id}
+                                                className="inline-flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-full border border-gray-200"
+                                              >
+                                                <Users className="w-3 h-3 text-gray-500" />
+                                                <span className="text-xs text-gray-700">
+                                                  {dept.department_name}
+                                                </span>
+                                                <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded-full">
+                                                  {dept.quantity}
+                                                </span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                    </div>
+
+                                    {item.departments.length > 0 && (
+                                      <div className="mt-4 pt-4 border-t border-gray-200">
+                                        <div className="flex items-center gap-2 mb-4">
+                                          <User className="w-4 h-4 text-green-600" />
+                                          <h4 className="text-sm font-semibold text-gray-800">
+                                            Receiver Assignment
+                                          </h4>
+                                          <span className="text-xs text-gray-500">
+                                            (Select receiver for each item)
                                           </span>
                                         </div>
-                                        {remainingQty > 0 && (
-                                          <p className="text-xs text-gray-500 mt-1">
-                                            {remainingQty} unassigned items will
-                                            stay at main location
-                                          </p>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
 
-                                  {!isExpanded &&
-                                    item.departments.length > 0 && (
-                                      <div className="mt-2 flex flex-wrap gap-2">
-                                        {item.departments.map((dept) => (
-                                          <div
-                                            key={dept.department_id}
-                                            className="inline-flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-full border border-gray-200"
-                                          >
-                                            <Users className="w-3 h-3 text-gray-500" />
-                                            <span className="text-xs text-gray-700">
-                                              {dept.department_name}
-                                            </span>
-                                            <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded-full">
-                                              {dept.quantity}
-                                            </span>
+                                        <div className="space-y-4">
+                                          {item.departments.map((dept) => {
+                                            const deptInfo = departments.find(d => d.id_department === dept.department_id);
+                                            const availableReceivers = getReceiversForDepartment(dept.department_id);
+
+                                            const receiverEntries = [];
+                                            for (let i = 0; i < dept.quantity; i++) {
+                                              const receiver = item.receivers.find(
+                                                (r) => r.department_id === dept.department_id && r.item_index === i
+                                              );
+                                              receiverEntries.push({
+                                                index: i,
+                                                receiver: receiver
+                                              });
+                                            }
+
+                                            return (
+                                              <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                                <div className="bg-gray-100 px-3 sm:px-4 py-2 border-b border-gray-200">
+                                                  <div className="flex items-center gap-2">
+                                                    <Users className="w-4 h-4 text-gray-600" />
+                                                    <span className="text-sm font-semibold text-gray-800">
+                                                      {deptInfo?.department_name || `Department ${dept.department_id}`}
+                                                    </span>
+                                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                                      Total: {dept.quantity} item(s)
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                                <div className="p-3 sm:p-4 space-y-3">
+                                                  {receiverEntries.map((entry) => {
+                                                    const receiver = entry.receiver;
+                                                    return (
+                                                      <div key={`${dept.department_id}-${entry.index}`} className="receiver-item">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                          <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                                                            Item #{entry.index + 1}
+                                                          </span>
+                                                        </div>
+                                                        <div>
+                                                          <select
+                                                            value={receiver?.receiver_id || ""}
+                                                            onChange={(e) =>
+                                                              updateReceiverAssignment(
+                                                                session.id,
+                                                                item.id,
+                                                                dept.department_id,
+                                                                e.target.value,
+                                                                entry.index
+                                                              )
+                                                            }
+                                                            className={selectCls}
+                                                          >
+                                                            <option value="">Select Receiver</option>
+                                                            {availableReceivers.map((rec) => (
+                                                              <option key={rec.id_receiver} value={rec.id_receiver}>
+                                                                {rec.receiver_name} - {rec.receiver_title}
+                                                              </option>
+                                                            ))}
+                                                          </select>
+                                                          <Hint>Receiver for item #{entry.index + 1}</Hint>
+                                                        </div>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+
+                                          <div className="p-3 bg-blue-50 rounded-lg">
+                                            <p className="text-xs text-blue-700">
+                                              <strong>Total distributed:</strong> {item.departments.reduce((sum, d) => sum + d.quantity, 0)} of {item.quantity}
+                                            </p>
+                                            {item.departments.reduce((sum, d) => sum + d.quantity, 0) < item.quantity && (
+                                              <p className="text-xs text-orange-600 mt-1">
+                                                <strong>Remaining:</strong> {item.quantity - item.departments.reduce((sum, d) => sum + d.quantity, 0)} items unassigned
+                                              </p>
+                                            )}
                                           </div>
-                                        ))}
+                                        </div>
                                       </div>
                                     )}
-                                </div>
+                                  </>
+                                )}
                               </div>
                             ) : (
-                              // FORM UNTUK DEVICES
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="col-span-1 sm:col-span-2">
                                   <Label required>Device Name</Label>
@@ -1828,234 +1838,235 @@ export default function ScanningPreparationPage() {
                                   </select>
                                 </div>
 
-                                {/* Department Distribution */}
-                                <div className="col-span-1 sm:col-span-2">
-                                  <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
-                                    <Label>Department Distribution</Label>
-                                    <button
-                                      onClick={() =>
-                                        toggleDepartmentSection(item.id)
-                                      }
-                                      className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${isExpanded
-                                        ? "bg-gray-100 text-gray-700 border border-gray-300"
-                                        : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
-                                        }`}
-                                    >
-                                      {isExpanded
-                                        ? "Close Distribution"
-                                        : "Distribute Items"}
-                                      {isExpanded ? (
-                                        <ChevronUp className="w-3 h-3" />
-                                      ) : (
-                                        <ChevronDown className="w-3 h-3" />
-                                      )}
-                                    </button>
-                                  </div>
-
-                                  {isExpanded && (
-                                    <div className="mt-4 space-y-4">
-                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        {departments.map((dept) => {
-                                          const assignedDept =
-                                            item.departments.find(
-                                              (d) =>
-                                                d.department_id ===
-                                                dept.id_department,
-                                            );
-                                          const assignedQty =
-                                            assignedDept?.quantity || 0;
-                                          const isDisabled =
-                                            isDepartmentInputDisabled(
-                                              item,
-                                              dept.id_department,
-                                            );
-                                          return (
-                                            <div
-                                              key={dept.id_department}
-                                              className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-white"
-                                            >
-                                              <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-gray-700 truncate">
-                                                  {dept.department_name}
-                                                </p>
-                                                {assignedQty > 0 && (
-                                                  <p className="text-xs text-blue-600 mt-0.5">
-                                                    Assigned: {assignedQty}
-                                                  </p>
-                                                )}
-                                              </div>
-                                              <div className="w-24 ml-2">
-                                                <input
-                                                  type="number"
-                                                  min="0"
-                                                  max={item.quantity}
-                                                  value={assignedQty}
-                                                  onChange={(e) =>
-                                                    updateDepartmentQuantity(
-                                                      session.id,
-                                                      item.id,
-                                                      dept.id_department,
-                                                      e.target.value,
-                                                    )
-                                                  }
-                                                  disabled={isDisabled}
-                                                  className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDisabled
-                                                    ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
-                                                    : "bg-white border-gray-200 text-gray-800"
-                                                    }`}
-                                                  placeholder="Qty"
-                                                />
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
+                                {!item.saveToStock && (
+                                  <>
+                                    <div className="col-span-1 sm:col-span-2">
+                                      <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
+                                        <Label>Department Distribution</Label>
+                                        <button
+                                          onClick={() =>
+                                            toggleDepartmentSection(item.id)
+                                          }
+                                          className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${isExpanded
+                                            ? "bg-gray-100 text-gray-700 border border-gray-300"
+                                            : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
+                                            }`}
+                                        >
+                                          {isExpanded
+                                            ? "Close Distribution"
+                                            : "Distribute Items"}
+                                          {isExpanded ? (
+                                            <ChevronUp className="w-3 h-3" />
+                                          ) : (
+                                            <ChevronDown className="w-3 h-3" />
+                                          )}
+                                        </button>
                                       </div>
 
-                                      <div className="p-3 border-t border-gray-200">
-                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                          <span className="text-sm font-medium text-gray-700">
-                                            Distribution Summary:
-                                          </span>
-                                          <span
-                                            className={`text-sm font-semibold ${totalDeptQty === item.quantity
-                                              ? "text-green-600"
-                                              : totalDeptQty > 0
-                                                ? "text-blue-600"
-                                                : "text-gray-500"
-                                              }`}
-                                          >
-                                            {totalDeptQty} of {item.quantity}{" "}
-                                            assigned
-                                          </span>
-                                        </div>
-                                        {remainingQty > 0 && (
-                                          <p className="text-xs text-gray-500 mt-1">
-                                            {remainingQty} unassigned items will
-                                            stay at main location
-                                          </p>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {!isExpanded &&
-                                    item.departments.length > 0 && (
-                                      <div className="mt-2 flex flex-wrap gap-2">
-                                        {item.departments.map((dept) => (
-                                          <div
-                                            key={dept.department_id}
-                                            className="inline-flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-full border border-gray-200"
-                                          >
-                                            <Users className="w-3 h-3 text-gray-500" />
-                                            <span className="text-xs text-gray-700">
-                                              {dept.department_name}
-                                            </span>
-                                            <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded-full">
-                                              {dept.quantity}
-                                            </span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Receiver Assignment Section */}
-                            {item.departments.length > 0 && (
-                              <div className="mt-4 pt-4 border-t border-gray-200">
-                                <div className="flex items-center gap-2 mb-4">
-                                  <User className="w-4 h-4 text-green-600" />
-                                  <h4 className="text-sm font-semibold text-gray-800">
-                                    Receiver Assignment
-                                  </h4>
-                                  <span className="text-xs text-gray-500">
-                                    (Select receiver for each item)
-                                  </span>
-                                </div>
-
-                                <div className="space-y-4">
-                                  {item.departments.map((dept) => {
-                                    const deptInfo = departments.find(d => d.id_department === dept.department_id);
-                                    const availableReceivers = getReceiversForDepartment(dept.department_id);
-
-                                    // Generate receiver entries for each quantity
-                                    const receiverEntries = [];
-                                    for (let i = 0; i < dept.quantity; i++) {
-                                      const receiver = item.receivers.find(
-                                        (r) => r.department_id === dept.department_id && r.item_index === i
-                                      );
-                                      receiverEntries.push({
-                                        index: i,
-                                        receiver: receiver
-                                      });
-                                    }
-
-                                    return (
-                                      <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
-                                        <div className="bg-gray-100 px-3 sm:px-4 py-2 border-b border-gray-200">
-                                          <div className="flex items-center gap-2">
-                                            <Users className="w-4 h-4 text-gray-600" />
-                                            <span className="text-sm font-semibold text-gray-800">
-                                              {deptInfo?.department_name || `Department ${dept.department_id}`}
-                                            </span>
-                                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                                              Total: {dept.quantity} item(s)
-                                            </span>
-                                          </div>
-                                        </div>
-                                        <div className="p-3 sm:p-4 space-y-3">
-                                          {receiverEntries.map((entry) => {
-                                            const receiver = entry.receiver;
-                                            return (
-                                              <div key={`${dept.department_id}-${entry.index}`} className="receiver-item">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                  <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                                                    Item #{entry.index + 1}
-                                                  </span>
+                                      {isExpanded && (
+                                        <div className="mt-4 space-y-4">
+                                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {departments.map((dept) => {
+                                              const assignedDept =
+                                                item.departments.find(
+                                                  (d) =>
+                                                    d.department_id ===
+                                                    dept.id_department,
+                                                );
+                                              const assignedQty =
+                                                assignedDept?.quantity || 0;
+                                              const isDisabled =
+                                                isDepartmentInputDisabled(
+                                                  item,
+                                                  dept.id_department,
+                                                );
+                                              return (
+                                                <div
+                                                  key={dept.id_department}
+                                                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-white"
+                                                >
+                                                  <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-gray-700 truncate">
+                                                      {dept.department_name}
+                                                    </p>
+                                                    {assignedQty > 0 && (
+                                                      <p className="text-xs text-blue-600 mt-0.5">
+                                                        Assigned: {assignedQty}
+                                                      </p>
+                                                    )}
+                                                  </div>
+                                                  <div className="w-24 ml-2">
+                                                    <input
+                                                      type="number"
+                                                      min="0"
+                                                      max={item.quantity}
+                                                      value={assignedQty}
+                                                      onChange={(e) =>
+                                                        updateDepartmentQuantity(
+                                                          session.id,
+                                                          item.id,
+                                                          dept.id_department,
+                                                          e.target.value,
+                                                        )
+                                                      }
+                                                      disabled={isDisabled}
+                                                      className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDisabled
+                                                        ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
+                                                        : "bg-white border-gray-200 text-gray-800"
+                                                        }`}
+                                                      placeholder="Qty"
+                                                    />
+                                                  </div>
                                                 </div>
-                                                <div>
-                                                  <select
-                                                    value={receiver?.receiver_id || ""}
-                                                    onChange={(e) =>
-                                                      updateReceiverAssignment(
-                                                        session.id,
-                                                        item.id,
-                                                        dept.department_id,
-                                                        e.target.value,
-                                                        entry.index
-                                                      )
-                                                    }
-                                                    className={selectCls}
-                                                  >
-                                                    <option value="">Select Receiver</option>
-                                                    {availableReceivers.map((rec) => (
-                                                      <option key={rec.id_receiver} value={rec.id_receiver}>
-                                                        {rec.receiver_name} - {rec.receiver_title}
-                                                      </option>
-                                                    ))}
-                                                  </select>
-                                                  <Hint>Receiver for item #{entry.index + 1}</Hint>
+                                              );
+                                            })}
+                                          </div>
+
+                                          <div className="p-3 border-t border-gray-200">
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                              <span className="text-sm font-medium text-gray-700">
+                                                Distribution Summary:
+                                              </span>
+                                              <span
+                                                className={`text-sm font-semibold ${totalDeptQty === item.quantity
+                                                  ? "text-green-600"
+                                                  : totalDeptQty > 0
+                                                    ? "text-blue-600"
+                                                    : "text-gray-500"
+                                                  }`}
+                                              >
+                                                {totalDeptQty} of {item.quantity}{" "}
+                                                assigned
+                                              </span>
+                                            </div>
+                                            {remainingQty > 0 && (
+                                              <p className="text-xs text-gray-500 mt-1">
+                                                {remainingQty} unassigned items will
+                                                stay at main location
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {!isExpanded &&
+                                        item.departments.length > 0 && (
+                                          <div className="mt-2 flex flex-wrap gap-2">
+                                            {item.departments.map((dept) => (
+                                              <div
+                                                key={dept.department_id}
+                                                className="inline-flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-full border border-gray-200"
+                                              >
+                                                <Users className="w-3 h-3 text-gray-500" />
+                                                <span className="text-xs text-gray-700">
+                                                  {dept.department_name}
+                                                </span>
+                                                <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded-full">
+                                                  {dept.quantity}
+                                                </span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                    </div>
+
+                                    {item.departments.length > 0 && (
+                                      <div className="mt-4 pt-4 border-t border-gray-200">
+                                        <div className="flex items-center gap-2 mb-4">
+                                          <User className="w-4 h-4 text-green-600" />
+                                          <h4 className="text-sm font-semibold text-gray-800">
+                                            Receiver Assignment
+                                          </h4>
+                                          <span className="text-xs text-gray-500">
+                                            (Select receiver for each item)
+                                          </span>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                          {item.departments.map((dept) => {
+                                            const deptInfo = departments.find(d => d.id_department === dept.department_id);
+                                            const availableReceivers = getReceiversForDepartment(dept.department_id);
+
+                                            const receiverEntries = [];
+                                            for (let i = 0; i < dept.quantity; i++) {
+                                              const receiver = item.receivers.find(
+                                                (r) => r.department_id === dept.department_id && r.item_index === i
+                                              );
+                                              receiverEntries.push({
+                                                index: i,
+                                                receiver: receiver
+                                              });
+                                            }
+
+                                            return (
+                                              <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                                <div className="bg-gray-100 px-3 sm:px-4 py-2 border-b border-gray-200">
+                                                  <div className="flex items-center gap-2">
+                                                    <Users className="w-4 h-4 text-gray-600" />
+                                                    <span className="text-sm font-semibold text-gray-800">
+                                                      {deptInfo?.department_name || `Department ${dept.department_id}`}
+                                                    </span>
+                                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                                      Total: {dept.quantity} item(s)
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                                <div className="p-3 sm:p-4 space-y-3">
+                                                  {receiverEntries.map((entry) => {
+                                                    const receiver = entry.receiver;
+                                                    return (
+                                                      <div key={`${dept.department_id}-${entry.index}`} className="receiver-item">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                          <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                                                            Item #{entry.index + 1}
+                                                          </span>
+                                                        </div>
+                                                        <div>
+                                                          <select
+                                                            value={receiver?.receiver_id || ""}
+                                                            onChange={(e) =>
+                                                              updateReceiverAssignment(
+                                                                session.id,
+                                                                item.id,
+                                                                dept.department_id,
+                                                                e.target.value,
+                                                                entry.index
+                                                              )
+                                                            }
+                                                            className={selectCls}
+                                                          >
+                                                            <option value="">Select Receiver</option>
+                                                            {availableReceivers.map((rec) => (
+                                                              <option key={rec.id_receiver} value={rec.id_receiver}>
+                                                                {rec.receiver_name} - {rec.receiver_title}
+                                                              </option>
+                                                            ))}
+                                                          </select>
+                                                          <Hint>Receiver for item #{entry.index + 1}</Hint>
+                                                        </div>
+                                                      </div>
+                                                    );
+                                                  })}
                                                 </div>
                                               </div>
                                             );
                                           })}
+
+                                          <div className="p-3 bg-blue-50 rounded-lg">
+                                            <p className="text-xs text-blue-700">
+                                              <strong>Total distributed:</strong> {item.departments.reduce((sum, d) => sum + d.quantity, 0)} of {item.quantity}
+                                            </p>
+                                            {item.departments.reduce((sum, d) => sum + d.quantity, 0) < item.quantity && (
+                                              <p className="text-xs text-orange-600 mt-1">
+                                                <strong>Remaining:</strong> {item.quantity - item.departments.reduce((sum, d) => sum + d.quantity, 0)} items unassigned
+                                              </p>
+                                            )}
+                                          </div>
                                         </div>
                                       </div>
-                                    );
-                                  })}
-
-                                  <div className="p-3 bg-blue-50 rounded-lg">
-                                    <p className="text-xs text-blue-700">
-                                      <strong>Total distributed:</strong> {item.departments.reduce((sum, d) => sum + d.quantity, 0)} of {item.quantity}
-                                    </p>
-                                    {item.departments.reduce((sum, d) => sum + d.quantity, 0) < item.quantity && (
-                                      <p className="text-xs text-orange-600 mt-1">
-                                        <strong>Remaining:</strong> {item.quantity - item.departments.reduce((sum, d) => sum + d.quantity, 0)} items unassigned
-                                      </p>
                                     )}
-                                  </div>
-                                </div>
+                                  </>
+                                )}
                               </div>
                             )}
                           </div>
