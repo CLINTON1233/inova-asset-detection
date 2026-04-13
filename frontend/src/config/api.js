@@ -149,9 +149,9 @@ export const API_ENDPOINTS = {
   // Reports
   REPORTS_LIST: `${API_BASE_URL}/api/reports`,
   REPORTS_DETAIL: (id) => `${API_BASE_URL}/api/reports/${id}`,
-  REPORTS_GENERATE: `${API_BASE_URL}/api/reports/generate`,
+  REPORTS_SUMMARY: `${API_BASE_URL}/api/reports/summary`,
+  REPORTS_STATS: `${API_BASE_URL}/api/reports/stats`,
   REPORTS_DELETE: (id) => `${API_BASE_URL}/api/reports/${id}`,
-  REPORTS_BULK_DELETE: `${API_BASE_URL}/api/reports/bulk-delete`,
 };
 
 export default API_BASE_URL;

@@ -1,181 +1,14 @@
 from flask import Blueprint, request, jsonify
 from utils.database import get_db_connection
 import psycopg2.extras
-from datetime import datetime, timedelta
+from datetime import datetime
 import traceback
-import random
-import string
+from routes.reports import create_report_from_validation
 
 validation_bp = Blueprint('validation', __name__)
 
 def get_conn():
     return get_db_connection()
-
-def generate_report_code():
-    """Generate unique report code"""
-    date_str = datetime.now().strftime('%Y%m%d')
-    random_chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
-    return f"RPT-{date_str}-{random_chars}"
-
-# ==================== UPDATE OR CREATE REPORT ====================
-def update_or_create_report_for_date(scan_date, conn, cur):
-    """Update atau create report untuk tanggal tertentu"""
-    try:
-        # Cek apakah sudah ada report untuk tanggal ini
-        cur.execute("""
-            SELECT id_report, report_code, total_scans, valid_scans, error_scans, pending_scans,
-                   devices_count, materials_count, locations_count, users_count, success_rate
-            FROM asset_reports
-            WHERE report_type = 'daily' AND report_date = %s
-        """, (scan_date,))
-        
-        existing_report = cur.fetchone()
-        
-        # Ambil data validasi untuk tanggal tersebut
-        cur.execute("""
-            SELECT 
-                COUNT(*) as total_scans,
-                SUM(CASE WHEN v.validation_status = 'approved' THEN 1 ELSE 0 END) as valid_scans,
-                SUM(CASE WHEN v.validation_status = 'rejected' THEN 1 ELSE 0 END) as error_scans,
-                SUM(CASE WHEN v.validation_status = 'pending' THEN 1 ELSE 0 END) as pending_scans,
-                SUM(CASE WHEN v.scan_id IS NOT NULL THEN 1 ELSE 0 END) as devices_count,
-                SUM(CASE WHEN v.scan_material_id IS NOT NULL THEN 1 ELSE 0 END) as materials_count,
-                COUNT(DISTINCT l.location_name) as locations_count,
-                COUNT(DISTINCT u.username) as users_count
-            FROM validations v
-            LEFT JOIN devices_items_preparation dip ON v.item_preparation_id = dip.id_item_preparation
-            LEFT JOIN materials_items_preparation mip ON v.material_item_preparation_id = mip.id_item_preparation
-            LEFT JOIN devices_scanning_preparations dsp ON dip.preparation_id = dsp.id_preparation
-            LEFT JOIN materials_scanning_preparations msp ON mip.preparation_id = msp.id_preparation
-            LEFT JOIN locations l ON COALESCE(dsp.location_id, msp.location_id) = l.id_location
-            LEFT JOIN users u ON v.user_id = u.id_user
-            WHERE DATE(v.created_at) = %s
-        """, (scan_date,))
-        
-        stats = cur.fetchone()
-        
-        total_scans = stats[0] or 0
-        valid_scans = stats[1] or 0
-        error_scans = stats[2] or 0
-        pending_scans = stats[3] or 0
-        devices_count = stats[4] or 0
-        materials_count = stats[5] or 0
-        locations_count = stats[6] or 0
-        users_count = stats[7] or 0
-        success_rate = (valid_scans / total_scans * 100) if total_scans > 0 else 0
-        
-        if existing_report:
-            # Update existing report
-            cur.execute("""
-                UPDATE asset_reports 
-                SET total_scans = %s,
-                    valid_scans = %s,
-                    error_scans = %s,
-                    pending_scans = %s,
-                    devices_count = %s,
-                    materials_count = %s,
-                    locations_count = %s,
-                    users_count = %s,
-                    success_rate = %s,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id_report = %s
-            """, (total_scans, valid_scans, error_scans, pending_scans,
-                  devices_count, materials_count, locations_count, users_count,
-                  success_rate, existing_report[0]))
-            
-            report_id = existing_report[0]
-            print(f"✅ Report {existing_report[1]} updated for {scan_date}")
-        else:
-            # Create new report
-            report_code = generate_report_code()
-            cur.execute("""
-                INSERT INTO asset_reports (
-                    report_code, report_type, report_date, total_scans,
-                    valid_scans, error_scans, pending_scans, devices_count,
-                    materials_count, locations_count, users_count, success_rate,
-                    generated_by
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id_report
-            """, (report_code, 'daily', scan_date, total_scans, valid_scans,
-                  error_scans, pending_scans, devices_count, materials_count,
-                  locations_count, users_count, success_rate, 1))
-            
-            report_id = cur.fetchone()[0]
-            print(f"✅ New report {report_code} created for {scan_date}")
-        
-        # Update report_items untuk report ini (hapus yang lama dan insert ulang)
-        cur.execute("DELETE FROM report_items WHERE report_id = %s", (report_id,))
-        
-        # Ambil semua validasi untuk tanggal ini
-        cur.execute("""
-            SELECT 
-                v.id_validation,
-                v.unique_code,
-                v.validation_status,
-                v.created_at,
-                v.validated_at,
-                COALESCE(v.scan_id, v.scan_material_id) as scan_id,
-                CASE 
-                    WHEN v.scan_id IS NOT NULL THEN 'device'
-                    WHEN v.scan_material_id IS NOT NULL THEN 'material'
-                    ELSE 'unknown'
-                END as validation_type,
-                srd.serial_number,
-                srd.scan_value as device_name,
-                srm.scan_code,
-                srm.scan_value as material_name,
-                l.location_name,
-                u.username as created_by_name,
-                vu.username as validated_by_name,
-                a.asset_code
-            FROM validations v
-            LEFT JOIN scan_results_devices srd ON v.scan_id = srd.id_scan
-            LEFT JOIN scan_results_materials srm ON v.scan_material_id = srm.id_scan
-            LEFT JOIN devices_items_preparation dip ON v.item_preparation_id = dip.id_item_preparation
-            LEFT JOIN materials_items_preparation mip ON v.material_item_preparation_id = mip.id_item_preparation
-            LEFT JOIN devices_scanning_preparations dsp ON dip.preparation_id = dsp.id_preparation
-            LEFT JOIN materials_scanning_preparations msp ON mip.preparation_id = msp.id_preparation
-            LEFT JOIN locations l ON COALESCE(dsp.location_id, msp.location_id) = l.id_location
-            LEFT JOIN users u ON v.user_id = u.id_user
-            LEFT JOIN users vu ON v.validated_by = vu.id_user
-            LEFT JOIN assets a ON v.asset_id = a.id_assets
-            WHERE DATE(v.created_at) = %s
-            ORDER BY v.created_at DESC
-        """, (scan_date,))
-        
-        validations = cur.fetchall()
-        
-        for val in validations:
-            status_label = 'Valid' if val[2] == 'approved' else ('Error' if val[2] == 'rejected' else 'Pending')
-            
-            cur.execute("""
-                INSERT INTO report_items (
-                    report_id, scan_id, asset_code, asset_name, asset_type,
-                    category, location_name, serial_or_code, status,
-                    scan_date, scan_time, verified_by_name, unique_code
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                report_id,
-                val[5],  # scan_id
-                val[17],  # asset_code
-                val[9] or val[11] or '-',  # device_name or material_name
-                'Device' if val[6] == 'device' else 'Material',
-                'Perangkat' if val[6] == 'device' else 'Material',
-                val[13] or '-',  # location_name
-                val[8] or val[10] or '-',  # serial_number or scan_code
-                status_label,
-                val[3].date() if val[3] else None,
-                val[3].time() if val[3] else None,
-                val[15] or val[14] or 'System',  # validated_by_name or created_by_name
-                val[1] or '-'  # unique_code
-            ))
-        
-        return True, report_id
-        
-    except Exception as e:
-        print(f"Error updating/creating report: {e}")
-        traceback.print_exc()
-        return False, None
 
 # ==================== UPDATE SESSION STATUS ====================
 def check_and_update_session_status(preparation_id, validation_type):
@@ -213,6 +46,7 @@ def check_and_update_session_status(preparation_id, validation_type):
                 return True
                 
         else:  # material
+            # Hitung total item preparation dalam session
             cur.execute("""
                 SELECT COUNT(*) as total_items
                 FROM materials_items_preparation
@@ -220,6 +54,7 @@ def check_and_update_session_status(preparation_id, validation_type):
             """, (preparation_id,))
             total_items = cur.fetchone()['total_items']
             
+            # Hitung jumlah item yang sudah divalidasi (approved)
             cur.execute("""
                 SELECT COUNT(DISTINCT mip.id_item_preparation) as validated_items
                 FROM materials_items_preparation mip
@@ -229,6 +64,7 @@ def check_and_update_session_status(preparation_id, validation_type):
             """, (preparation_id,))
             validated_items = cur.fetchone()['validated_items']
             
+            # Jika semua item sudah divalidasi, update status session menjadi completed
             if total_items == validated_items and total_items > 0:
                 cur.execute("""
                     UPDATE materials_scanning_preparations 
@@ -257,6 +93,7 @@ def get_validations():
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
+        # Query utama untuk validations
         cur.execute("""
         SELECT 
             v.id_validation,
@@ -316,12 +153,14 @@ def get_validations():
         for val in validations:
             val_dict = dict(val)
             
+            # Tentukan tipe dan siapkan data dasar
             if val_dict['validation_type'] == 'device':
                 val_dict['item_name'] = val_dict.get('device_name')
                 val_dict['serial_or_code'] = val_dict.get('serial_number')
                 val_dict['checking_number'] = val_dict.get('device_checking_number')
                 val_dict['checking_name'] = val_dict.get('device_checking_name')
                 val_dict['photo_url'] = val_dict.get('device_photo')
+                preparation_id = val_dict.get('device_preparation_id')
                 item_prep_id = val_dict.get('device_item_prep_id')
             else:
                 val_dict['item_name'] = val_dict.get('material_name')
@@ -329,8 +168,10 @@ def get_validations():
                 val_dict['checking_number'] = val_dict.get('material_checking_number')
                 val_dict['checking_name'] = val_dict.get('material_checking_name')
                 val_dict['photo_url'] = val_dict.get('material_photo')
+                preparation_id = val_dict.get('material_preparation_id')
                 item_prep_id = val_dict.get('material_item_prep_id')
             
+            # ========== AMBIL DATA BRAND, VENDOR, DAN LAIN-LAIN ==========
             project_name = None
             department_name = None
             receiver_name = None
@@ -339,6 +180,7 @@ def get_validations():
             model = None
             specifications = None
             
+            # Ambil data dari item preparation yang terkait dengan validation ini
             if item_prep_id:
                 if val_dict['validation_type'] == 'device':
                     cur.execute("""
@@ -387,6 +229,7 @@ def get_validations():
                     department_name = item_data.get('department_name')
                     receiver_name = item_data.get('receiver_name')
                     
+                    # AMBIL BRAND ATAU VENDOR
                     if val_dict['validation_type'] == 'device':
                         brand = item_data.get('brand')
                         vendor = item_data.get('vendor')
@@ -395,7 +238,11 @@ def get_validations():
                     else:
                         vendor = item_data.get('vendor')
                         specifications = item_data.get('specifications')
+                    
+                    # Untuk debug
+                    print(f"Validation {val_dict['id_validation']}: type={val_dict['validation_type']}, item_prep_id={item_prep_id}, brand={brand}, vendor={vendor}, department={department_name}, receiver={receiver_name}, project={project_name}")
             
+            # Format departments dan receivers sebagai array
             departments = []
             if department_name:
                 departments.append({
@@ -412,6 +259,7 @@ def get_validations():
                     'department_name': department_name
                 })
             
+            # Tambahkan brand dan vendor ke response
             val_dict['project_name'] = project_name
             val_dict['departments'] = departments
             val_dict['receivers'] = receivers
@@ -457,6 +305,7 @@ def create_validation():
         material_item_preparation_id = data.get('material_item_preparation_id')
         user_id = data.get('user_id', 1)
         
+        # Generate unique code
         import random
         import string
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -522,11 +371,11 @@ def update_validation(validation_id):
         validation_notes = data.get('validation_notes')
         validated_by = data.get('validated_by', 1)
         
+        # Ambil informasi preparation_id dan validation_type sebelum update
         cur.execute("""
             SELECT 
                 v.item_preparation_id,
                 v.material_item_preparation_id,
-                v.created_at,
                 CASE 
                     WHEN v.scan_id IS NOT NULL THEN 'device'
                     WHEN v.scan_material_id IS NOT NULL THEN 'material'
@@ -537,13 +386,9 @@ def update_validation(validation_id):
         """, (validation_id,))
         val_info = cur.fetchone()
         
-        if not val_info:
-            return jsonify({'success': False, 'error': 'Validation not found'}), 404
-            
         item_preparation_id = val_info[0] if val_info else None
         material_item_preparation_id = val_info[1] if val_info else None
-        created_at = val_info[2] if val_info else datetime.now()
-        validation_type = val_info[3] if val_info else None
+        validation_type = val_info[2] if val_info else None
         
         cur.execute("""
             UPDATE validations 
@@ -569,7 +414,10 @@ def update_validation(validation_id):
         updated = cur.fetchone()
         
         if not updated:
-            return jsonify({'success': False, 'error': 'Validation not found'}), 404
+            return jsonify({
+                'success': False,
+                'error': 'Validation not found'
+            }), 404
         
         conn.commit()
         
@@ -603,10 +451,19 @@ def update_validation(validation_id):
             except Exception as asset_error:
                 print(f"Error creating asset for validation {validation_id}: {asset_error}")
                 print(traceback.format_exc())
-            
+                
+            try:
+                report_created, report_id = create_report_from_validation(validation_id, conn, cur)
+                if report_created:
+                    print(f"✅ Report created/updated for validation {validation_id}")
+            except Exception as report_error:
+                print(f"Error creating report for validation {validation_id}: {report_error}")
+                print(traceback.format_exc())  
+                      
             # ==================== UPDATE SESSION STATUS ====================
             try:
                 if validation_type == 'device' and item_preparation_id:
+                    # Ambil preparation_id dari devices_items_preparation
                     cur.execute("""
                         SELECT dip.preparation_id
                         FROM devices_items_preparation dip
@@ -614,8 +471,10 @@ def update_validation(validation_id):
                     """, (item_preparation_id,))
                     prep = cur.fetchone()
                     if prep:
+                        from routes.validations import check_and_update_session_status
                         check_and_update_session_status(prep[0], 'device')
                 elif validation_type == 'material' and material_item_preparation_id:
+                    # Ambil preparation_id dari materials_items_preparation
                     cur.execute("""
                         SELECT mip.preparation_id
                         FROM materials_items_preparation mip
@@ -623,21 +482,11 @@ def update_validation(validation_id):
                     """, (material_item_preparation_id,))
                     prep = cur.fetchone()
                     if prep:
+                        from routes.validations import check_and_update_session_status
                         check_and_update_session_status(prep[0], 'material')
             except Exception as session_error:
                 print(f"Error updating session status for validation {validation_id}: {session_error}")
-        
-        # ==================== UPDATE OR CREATE REPORT ====================
-        # Update report untuk tanggal created_at validation ini
-        scan_date = created_at.date() if hasattr(created_at, 'date') else created_at
-        report_updated, report_id = update_or_create_report_for_date(scan_date, conn, cur)
-        
-        if report_updated:
-            print(f"✅ Report updated for date {scan_date}")
-        else:
-            print(f"⚠️ Failed to update report for date {scan_date}")
-        
-        conn.commit()
+                print(traceback.format_exc())
            
         return jsonify({
             'success': True,
@@ -657,6 +506,7 @@ def update_validation(validation_id):
         if conn:
             conn.close()
 
+# ==================== BULK UPDATE ====================
 # ==================== BULK UPDATE ====================
 @validation_bp.route('/api/validations/bulk', methods=['POST'])
 def bulk_update_validations():
@@ -682,14 +532,13 @@ def bulk_update_validations():
         is_approved = action == 'approve'
         
         updated_count = 0
-        dates_to_update = set()
         
         for val_id in validation_ids:
+            # Ambil informasi validation sebelum update untuk mendapatkan preparation_id
             cur.execute("""
                 SELECT 
                     item_preparation_id,
                     material_item_preparation_id,
-                    created_at,
                     CASE 
                         WHEN scan_id IS NOT NULL THEN 'device'
                         WHEN scan_material_id IS NOT NULL THEN 'material'
@@ -705,9 +554,9 @@ def bulk_update_validations():
                 
             item_prep_id = val_info[0] if val_info else None
             material_item_prep_id = val_info[1] if val_info else None
-            created_at = val_info[2] if val_info else datetime.now()
-            validation_type = val_info[3] if val_info else None
+            validation_type = val_info[2] if val_info else None
             
+            # Update validation status
             cur.execute("""
                 UPDATE validations 
                 SET validation_status = %s,
@@ -729,8 +578,8 @@ def bulk_update_validations():
             
             if cur.fetchone():
                 updated_count += 1
-                dates_to_update.add(created_at.date() if hasattr(created_at, 'date') else created_at)
                 
+                # ==================== CREATE ASSET IF APPROVED ====================
                 if validation_status == 'approved' and is_approved:
                     try:
                         from routes.assets import create_asset_from_validation
@@ -754,10 +603,14 @@ def bulk_update_validations():
                             
                             if asset_result and asset_result.get('success'):
                                 print(f"✅ Asset created for validation {val_id}: {asset_result.get('asset_code')}")
+                            else:
+                                print(f"⚠️ Asset creation failed for validation {val_id}: {asset_result}")
                                 
                     except Exception as asset_error:
                         print(f"Error creating asset for validation {val_id}: {asset_error}")
+                        print(traceback.format_exc())
                 
+        
                 if validation_status == 'rejected':
                     try:
                         cur.execute("""
@@ -773,7 +626,7 @@ def bulk_update_validations():
                                 SET status = 'rejected', notes = %s, updated_at = CURRENT_TIMESTAMP
                                 WHERE id_scan = %s
                             """, (rejection_reason, scan_info[0]))
-                        elif scan_info and scan_info[1]:
+                        elif scan_info and scan_info[1]:  # material
                             cur.execute("""
                                 UPDATE scan_results_materials 
                                 SET status = 'rejected', notes = %s, updated_at = CURRENT_TIMESTAMP
@@ -782,6 +635,7 @@ def bulk_update_validations():
                     except Exception as scan_error:
                         print(f"Error updating scan result for validation {val_id}: {scan_error}")
                 
+                # ==================== UPDATE SESSION STATUS ====================
                 try:
                     if validation_type == 'device' and item_prep_id:
                         cur.execute("""
@@ -791,6 +645,7 @@ def bulk_update_validations():
                         """, (item_prep_id,))
                         prep = cur.fetchone()
                         if prep:
+                            from routes.validations import check_and_update_session_status
                             check_and_update_session_status(prep[0], 'device')
                     elif validation_type == 'material' and material_item_prep_id:
                         cur.execute("""
@@ -800,13 +655,10 @@ def bulk_update_validations():
                         """, (material_item_prep_id,))
                         prep = cur.fetchone()
                         if prep:
+                            from routes.validations import check_and_update_session_status
                             check_and_update_session_status(prep[0], 'material')
                 except Exception as session_error:
                     print(f"Error updating session status for validation {val_id}: {session_error}")
-        
-        # Update reports untuk semua tanggal yang terpengaruh
-        for scan_date in dates_to_update:
-            update_or_create_report_for_date(scan_date, conn, cur)
         
         conn.commit()
         
@@ -907,6 +759,7 @@ def get_validation_detail(validation_id):
             result['photo_url'] = result.get('material_photo')
             item_prep_id = result.get('material_item_preparation_id')
         
+        # ========== AMBIL DATA DEPARTMENT, RECEIVER, PROJECT, BRAND, VENDOR ==========
         department_name = None
         receiver_name = None
         project_name = None
@@ -968,6 +821,7 @@ def get_validation_detail(validation_id):
                     vendor = item_data.get('vendor')
                     specifications = item_data.get('specifications')
         
+        # Format departments dan receivers sebagai array
         departments = []
         if department_name:
             departments.append({
@@ -1015,24 +869,14 @@ def delete_validation(validation_id):
         conn = get_conn()
         cur = conn.cursor()
         
-        cur.execute("""
-            SELECT created_at FROM validations WHERE id_validation = %s
-        """, (validation_id,))
-        val = cur.fetchone()
-        
-        if not val:
+        cur.execute("SELECT id_validation FROM validations WHERE id_validation = %s", (validation_id,))
+        if not cur.fetchone():
             return jsonify({
                 'success': False,
                 'error': 'Validation not found'
             }), 404
         
-        created_at = val[0]
-        
         cur.execute("DELETE FROM validations WHERE id_validation = %s", (validation_id,))
-        
-        # Update report untuk tanggal yang terpengaruh
-        scan_date = created_at.date() if hasattr(created_at, 'date') else created_at
-        update_or_create_report_for_date(scan_date, conn, cur)
         
         conn.commit()
         
@@ -1072,22 +916,12 @@ def bulk_delete_validations():
         conn = get_conn()
         cur = conn.cursor()
         
-        dates_to_update = set()
         deleted_count = 0
         
         for val_id in validation_ids:
-            cur.execute("SELECT created_at FROM validations WHERE id_validation = %s", (val_id,))
-            val = cur.fetchone()
-            if val:
-                dates_to_update.add(val[0].date())
-            
             cur.execute("DELETE FROM validations WHERE id_validation = %s", (val_id,))
             if cur.rowcount > 0:
                 deleted_count += 1
-        
-        # Update reports untuk semua tanggal yang terpengaruh
-        for scan_date in dates_to_update:
-            update_or_create_report_for_date(scan_date, conn, cur)
         
         conn.commit()
         

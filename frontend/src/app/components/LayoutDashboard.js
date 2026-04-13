@@ -111,7 +111,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
       icon: Settings,
       label: "Reports & Analytics",
       hasDropdown: true,
-      href: "/reports-analytics",
+      href: "/reports",
     },
   ];
 

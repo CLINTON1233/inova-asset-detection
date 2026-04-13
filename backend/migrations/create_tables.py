@@ -765,72 +765,114 @@ def add_asset_reference_to_validations(conn):
         
 # ==================== TABEL REPORTS ====================
 def create_reports_table(conn):
-    """Tabel untuk menyimpan laporan pengecekan aset"""
+    """Membuat tabel reports untuk menyimpan laporan aset"""
     try:
         cur = conn.cursor()
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS asset_reports (
+            CREATE TABLE IF NOT EXISTS reports (
                 id_report SERIAL PRIMARY KEY,
                 report_code VARCHAR(50) UNIQUE NOT NULL,
-                report_type VARCHAR(20) NOT NULL, -- 'daily', 'weekly', 'monthly'
+                report_name VARCHAR(255) NOT NULL,
+                report_type VARCHAR(50) DEFAULT 'daily',
                 report_date DATE NOT NULL,
-                report_end_date DATE, -- untuk weekly/monthly
+                
+                -- Summary statistics
                 total_scans INTEGER DEFAULT 0,
                 valid_scans INTEGER DEFAULT 0,
                 error_scans INTEGER DEFAULT 0,
                 pending_scans INTEGER DEFAULT 0,
+                success_rate DECIMAL(5,2) DEFAULT 0,
+                
+                -- Asset counts
+                total_assets INTEGER DEFAULT 0,
                 devices_count INTEGER DEFAULT 0,
                 materials_count INTEGER DEFAULT 0,
+                
+                -- Location & department stats
                 locations_count INTEGER DEFAULT 0,
-                users_count INTEGER DEFAULT 0,
-                success_rate DECIMAL(5,2) DEFAULT 0,
-                avg_validation_time DECIMAL(10,2) DEFAULT 0,
-                report_data JSONB, -- menyimpan detail items
+                departments_count INTEGER DEFAULT 0,
+                projects_count INTEGER DEFAULT 0,
+                receivers_count INTEGER DEFAULT 0,
+                
+                -- Additional info
                 generated_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
                 generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_code ON asset_reports(report_code)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_date ON asset_reports(report_date)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_type ON asset_reports(report_type)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_generated_by ON asset_reports(generated_by)")
+        
+        # Create indexes
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_code ON reports(report_code)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_date ON reports(report_date)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_type ON reports(report_type)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_generated_by ON reports(generated_by)")
+        
         conn.commit()
-        print("✓ Tabel asset_reports berhasil dibuat")
+        print("✓ Tabel reports berhasil dibuat")
     except Exception as e:
         conn.rollback()
-        print(f"Error creating asset_reports table: {e}")
+        print(f"Error creating reports table: {e}")
 
-def create_report_details_table(conn):
-    """Tabel untuk detail items dalam laporan"""
+def create_report_items_table_last(conn):
+    """Tabel untuk menyimpan detail items dalam report - dibuat paling akhir"""
     try:
         cur = conn.cursor()
+        
+        # Cek apakah tabel report_items sudah ada
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS report_items (
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'report_items'
+            )
+        """)
+        exists = cur.fetchone()[0]
+        
+        if exists:
+            print("✓ Tabel report_items sudah ada, skip creation")
+            return
+        
+        cur.execute("""
+            CREATE TABLE report_items (
                 id_report_item SERIAL PRIMARY KEY,
-                report_id INTEGER REFERENCES asset_reports(id_report) ON DELETE CASCADE,
-                scan_id VARCHAR(100),
+                report_id INTEGER REFERENCES reports(id_report) ON DELETE CASCADE,
+                asset_id INTEGER REFERENCES assets(id_assets) ON DELETE SET NULL,
+                validation_id INTEGER REFERENCES validations(id_validation) ON DELETE SET NULL,
+                
+                -- Asset info at report time
                 asset_code VARCHAR(100),
                 asset_name VARCHAR(255),
-                asset_type VARCHAR(100),
+                asset_type VARCHAR(50),
                 category VARCHAR(50),
-                location_name VARCHAR(255),
-                serial_or_code VARCHAR(100),
-                status VARCHAR(50),
-                scan_date DATE,
-                scan_time TIME,
-                verified_by_name VARCHAR(255),
+                serial_number VARCHAR(100),
+                scan_code VARCHAR(100),
+                brand VARCHAR(100),
+                vendor VARCHAR(255),
+                model VARCHAR(100),
+                specifications TEXT,
+                
+                -- Assignment info
+                project_name VARCHAR(255),
                 department_name VARCHAR(255),
-                validation_time VARCHAR(20),
+                receiver_name VARCHAR(255),
+                location_name VARCHAR(255),
+                
+                -- Validation info
+                validation_status VARCHAR(50),
+                validated_by VARCHAR(100),
+                validated_at TIMESTAMP,
+                
+                -- Report metadata
                 unique_code VARCHAR(100),
-                scan_method VARCHAR(50),
-                notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        
         cur.execute("CREATE INDEX IF NOT EXISTS idx_report_items_report ON report_items(report_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_report_items_status ON report_items(status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_report_items_asset ON report_items(asset_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_report_items_validation ON report_items(validation_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_report_items_status ON report_items(validation_status)")
+        
         conn.commit()
         print("✓ Tabel report_items berhasil dibuat")
     except Exception as e:
@@ -908,14 +950,11 @@ def create_all_tables():
         add_validation_reference_to_assets(conn)
         add_asset_reference_to_validations(conn)
         
-        # Tabel Reports
+        # Tabel reports (sebelum report_items)
         create_reports_table(conn)
         
-        # Table detail reports
-        create_report_details_table(conn)
-        
-        # Tabel history_logs
-        # create_history_logs_table(conn)
+        # Tabel report_items dibuat SETELAH reports, assets, validations selesai
+        create_report_items_table_last(conn)
         
         print("-" * 50)
         print("✅ Migrasi database selesai!")
@@ -937,6 +976,8 @@ def create_all_tables():
         
     except Exception as e:
         print(f"Error during migration: {e}")
+        import traceback
+        traceback.print_exc()
         return False
     finally:
         conn.close()
@@ -952,6 +993,8 @@ def drop_all_tables():
         cur = conn.cursor()
         
         tables_to_drop = [
+            'report_items',        
+            'reports', 
             'history_logs',
             'validations',
             'assets',
