@@ -273,11 +273,21 @@ export default function LayoutDashboard({ children, activeMenu }) {
       {/* 🔹 Top Navbar - Mobile & Desktop */}
       <nav className="bg-white shadow-sm sticky top-0 z-40">
         <div className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
+          {/* <div className="flex items-center space-x-2">
             <Image
               src="/seatrium.png"
               alt="Seatrium Logo"
               width={200}
+              height={200}
+              className="object-contain"
+              priority
+            />
+          </div> */}
+          <div className="flex items-center space-x-2">
+            <Image
+              src="/logo_inovaa.png"
+              alt="Inova Logo"
+              width={220}
               height={200}
               className="object-contain"
               priority

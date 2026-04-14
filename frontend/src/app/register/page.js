@@ -21,7 +21,7 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  const images = ["/bg_seatrium 3.png", "/smoe_images2.png", "/offshore.jpg"];
+  const images = ["/bg_seatrium 3.png", "/offshoree.jpg", "/offshore.jpg"];
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -143,12 +143,23 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row relative overflow-hidden">
       {/* Logo pojok kiri atas */}
-      <div className="absolute top-4 left-4 z-20 flex items-center space-x-2">
+      {/* <div className="absolute top-4 left-4 z-20 flex items-center space-x-2">
         <Image
           src="/seatrium.png"
           alt="Seatrium Logo"
           width={130}
           height={130}
+          className="object-contain"
+          priority
+        />
+      </div> */}
+
+      <div className="absolute top-4 left-4 z-20 flex items-center space-x-2">
+        <Image
+          src="/Logo_Inovaa.png"
+          alt="Inova Logo"
+          width={150}
+          height={150}
           className="object-contain"
           priority
         />
@@ -384,15 +395,15 @@ export default function RegisterPage() {
             © 2026 IT Asset Management System
           </div>
           <div>
-            <a
+            {/* <a
               href="https://seatrium.com"
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-500 hover:text-gray-700"
             >
               Seatrium
-            </a>{" "}
-            <span className="text-gray-400">• All rights reserved.</span>
+            </a>{" "} */}
+            <span className="text-gray-400">All rights reserved.</span>
           </div>
         </footer>
       </div>

@@ -16,10 +16,21 @@ export default function LandingPage() {
       {/* NAVBAR */}
       <nav className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 md:px-10 py-5">
         {/* Logo */}
-        <Link href="/" className="flex items-center space-x-3">
+        {/* <Link href="/" className="flex items-center space-x-3">
           <Image
             src="/seatrium.png"
             alt="Seatrium Logo"
+            width={150}
+            height={150}
+            className="object-contain cursor-pointer"
+            priority
+          />
+        </Link> */}
+
+        <Link href="/" className="flex items-center space-x-3">
+          <Image
+            src="/Logo_Inovaa.png"
+            alt="Inova Logo"
             width={150}
             height={150}
             className="object-contain cursor-pointer"
@@ -76,7 +87,7 @@ export default function LandingPage() {
       {/* HERO SECTION */}
       <div className="relative flex flex-1 items-center justify-center overflow-hidden">
         {/* Background */}
-        <div className="absolute inset-0 -z-10">
+        {/* <div className="absolute inset-0 -z-10">
           <Image
             src="/bg_seatrium 3.png"
             alt="Background"
@@ -85,12 +96,22 @@ export default function LandingPage() {
             priority
           />
           <div className="absolute inset-0 bg-gradient-to-br from-blue-700/50 via-blue-500/30 to-gray-700/40" />
+        </div> */}
+        <div className="absolute inset-0 -z-10">
+          <Image
+            src="/offshoree.jpg"
+            alt="Background"
+            fill
+            className="object-cover"
+            priority
+          />
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-400/50 via-blue-400/30 to-gray-700/40" />
         </div>
 
         {/* Content */}
         <div className="absolute left-6 md:left-16 top-1/2 transform -translate-y-1/2 text-white text-left max-w-xl">
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-semibold mb-4 md:mb-6 leading-tight">
-            Smart IT Inventory System
+            IT Inventory Assets Management
           </h1>
           <p className="text-base sm:text-lg md:text-xl mb-6 md:mb-8 leading-relaxed opacity-90">
             Seamlessly manage and track IT equipment using advanced visual
@@ -108,23 +129,23 @@ export default function LandingPage() {
         </div>
 
         <footer className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-center text-white text-sm opacity-80">
-          Smart IT Inventory System{" "}
+          IT Asset Management System{" "}
           <a
             href="https://www.linkedin.com/in/clinton-alfaro/"
             target="_blank"
             rel="noopener noreferrer"
             className="font-semibold text-white hover:underline"
           >
-          
+
           </a>{" "}
           •{" "}
-          <Link
+          {/* <Link
             href="https://seatrium.com"
             target="_blank"
             className="underline hover:opacity-100"
           >
             seatrium.com
-          </Link>
+          </Link> */}
         </footer>
       </div>
     </div>
