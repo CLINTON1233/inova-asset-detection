@@ -448,7 +448,7 @@ export default function DashboardPage() {
                 </h1>
               </div>
               <p className="text-sm text-gray-500 mt-1">
-                Automatic Validation of IT Asset Serial Numbers or Barcodes
+                Automatic Validation of IT Asset Serial Numbers or Scan Code
                 (Devices & Materials)
               </p>
             </div>

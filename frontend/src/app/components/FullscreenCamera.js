@@ -25,6 +25,7 @@ export default function FullscreenCamera({
 
   const getAvailableCameras = async () => {
     try {
+      // Request permission dulu
       const tempStream = await navigator.mediaDevices.getUserMedia({
         video: true,
       });
@@ -35,38 +36,58 @@ export default function FullscreenCamera({
         (device) => device.kind === "videoinput",
       );
 
+      // Urutkan: webcam virtual/eksternal (DroidCam, Iriun, OBS) di atas, built-in di bawah
       videoDevices = videoDevices.sort((a, b) => {
         const aLabel = a.label.toLowerCase();
         const bLabel = b.label.toLowerCase();
 
-        const isAVirtual =
+        // Prioritas TERTINGGI: webcam eksternal/virtual
+        const isAExternal =
           aLabel.includes("droidcam") ||
           aLabel.includes("iriun") ||
           aLabel.includes("obs") ||
-          aLabel.includes("virtual");
+          aLabel.includes("virtual") ||
+          aLabel.includes("usb") ||
+          aLabel.includes("external") ||
+          aLabel.includes("logitech") ||
+          aLabel.includes("c922") ||
+          aLabel.includes("brio");
 
-        const isBVirtual =
+        const isBExternal =
           bLabel.includes("droidcam") ||
           bLabel.includes("iriun") ||
           bLabel.includes("obs") ||
-          bLabel.includes("virtual");
+          bLabel.includes("virtual") ||
+          bLabel.includes("usb") ||
+          bLabel.includes("external") ||
+          bLabel.includes("logitech") ||
+          bLabel.includes("c922") ||
+          bLabel.includes("brio");
 
-        if (isAVirtual && !isBVirtual) return 1;
-        if (!isAVirtual && isBVirtual) return -1;
+        if (isAExternal && !isBExternal) return -1; // A di atas B
+        if (!isAExternal && isBExternal) return 1;  // B di atas A
 
+        // Prioritas KEDUA: built-in camera
         const aIsBuiltIn =
           aLabel.includes("integrated") ||
           aLabel.includes("webcam") ||
           aLabel.includes("hd") ||
-          aLabel.includes("camera");
+          aLabel.includes("facetime") ||
+          aLabel.includes("face time") ||
+          aLabel.includes("built-in") ||
+          aLabel.includes("internal");
+
         const bIsBuiltIn =
           bLabel.includes("integrated") ||
           bLabel.includes("webcam") ||
           bLabel.includes("hd") ||
-          bLabel.includes("camera");
+          bLabel.includes("facetime") ||
+          bLabel.includes("face time") ||
+          bLabel.includes("built-in") ||
+          bLabel.includes("internal");
 
-        if (aIsBuiltIn && !bIsBuiltIn) return -1;
-        if (!aIsBuiltIn && bIsBuiltIn) return 1;
+        if (aIsBuiltIn && !bIsBuiltIn) return 1;  // built-in di bawah
+        if (!aIsBuiltIn && bIsBuiltIn) return -1;
 
         return 0;
       });
@@ -74,7 +95,8 @@ export default function FullscreenCamera({
       setAvailableCameras(videoDevices);
 
       if (videoDevices.length > 0) {
-        console.log("Selected default camera:", videoDevices[0].label);
+        // Pilih camera pertama (yang sudah di-prioritaskan = webcam eksternal)
+        console.log("Selected camera (priority external):", videoDevices[0].label);
         setSelectedCamera(videoDevices[0].deviceId);
       }
     } catch (err) {
@@ -168,242 +190,235 @@ export default function FullscreenCamera({
     setIsDetecting(false);
     hasDetectedRef.current = false;
 
-    // Auto clear error after 3 seconds
     setTimeout(() => {
       setErrorMessage(null);
     }, 3000);
   };
 
-const captureAndDetect = async () => {
-  if (
-    isDetecting ||
-    hasDetectedRef.current ||
-    !videoRef.current ||
-    !isCameraReady
-  )
-    return;
-
-  const video = videoRef.current;
-  if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
-
-  setIsDetecting(true);
-  hasDetectedRef.current = true;
-  setErrorMessage(null);
-
-  try {
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    // Simpan foto untuk dikirim
-    const imageData = canvas.toDataURL("image/jpeg", 0.8);
-    const photoData = imageData;
-
-    // JIKA MODE ADALAH PHOTO_ONLY, LANGSUNG KIRIM FOTO TANPA DETEKSI
-    if (mode === "photo_only") {
-      onDetect({
-        type: "photo_capture",
-        photo_data: photoData,
-      });
-      
-      setTimeout(() => {
-        onClose();
-      }, 500);
+  const captureAndDetect = async () => {
+    if (
+      isDetecting ||
+      hasDetectedRef.current ||
+      !videoRef.current ||
+      !isCameraReady
+    )
       return;
-    }
 
-    const endpoint =
-      mode === "device"
-        ? API_ENDPOINTS.DETECT_CAMERA
-        : mode === "material"
-          ? API_ENDPOINTS.MATERIAL_DETECT_CAMERA
-          : mode === "scan_code"
-            ? API_ENDPOINTS.SCAN_CODE_DETECT_CAMERA
-            : API_ENDPOINTS.SERIAL_DETECT_CAMERA;
+    const video = videoRef.current;
+    if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
 
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image_data: imageData }),
-    });
+    setIsDetecting(true);
+    hasDetectedRef.current = true;
+    setErrorMessage(null);
 
-    const result = await response.json();
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
 
-    if (result.success) {
-      // MODIFIKASI: Deteksi untuk mode device
-      if (mode === "device" && result.detected_items?.length > 0) {
-        const detectedItem = result.detected_items[0];
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        if (sessionData) {
-          const detectedAssetType =
-            detectedItem.asset_type?.toLowerCase() || "";
-          const detectedCategory = detectedItem.category || "";
+      const imageData = canvas.toDataURL("image/jpeg", 0.8);
+      const photoData = imageData;
 
-          const matchingItems = sessionData.items.filter((item) => {
-            const itemName = item.item_name?.toLowerCase() || "";
-            return (
-              itemName.includes(detectedAssetType) ||
-              detectedAssetType.includes(itemName) ||
-              (detectedCategory === "Perangkat" &&
-                itemName.includes("laptop")) ||
-              (detectedCategory === "Perangkat" && itemName.includes("pc")) ||
-              (detectedCategory === "Perangkat" &&
-                itemName.includes("komputer")) ||
-              (detectedCategory === "Perangkat" &&
-                itemName.includes("monitor")) ||
-              (detectedCategory === "Material" && itemName.includes("kabel"))
-            );
-          });
-
-          if (matchingItems.length === 0) {
-            showErrorInCamera(
-              "Item Not Found!",
-              `Detected: ${detectedItem.asset_type} is not in current session`
-            );
-            return;
-          }
-        }
-
+      if (mode === "photo_only") {
         onDetect({
-          type: "device",
-          data: detectedItem,
-          result: result,
+          type: "photo_capture",
           photo_data: photoData,
         });
 
         setTimeout(() => {
           onClose();
         }, 500);
+        return;
       }
 
-      else if (mode === "material" && result.detected_items?.length > 0) {
-        const detectedItem = result.detected_items[0];
+      const endpoint =
+        mode === "device"
+          ? API_ENDPOINTS.DETECT_CAMERA
+          : mode === "material"
+            ? API_ENDPOINTS.MATERIAL_DETECT_CAMERA
+            : mode === "scan_code"
+              ? API_ENDPOINTS.SCAN_CODE_DETECT_CAMERA
+              : API_ENDPOINTS.SERIAL_DETECT_CAMERA;
 
-        console.log("Material detected:", detectedItem);
-        console.log("Session data:", sessionData);
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_data: imageData }),
+      });
 
-        if (sessionData) {
-          const detectedAssetType = detectedItem.asset_type?.toLowerCase() || "";
+      const result = await response.json();
 
-          const matchingItems = sessionData.items.filter((item) => {
-            const itemName = (item.material_name || item.item_name || "")?.toLowerCase() || "";
-            return (
-              itemName === detectedAssetType ||
-              itemName.includes(detectedAssetType) ||
-              detectedAssetType.includes(itemName)
-            );
+      if (result.success) {
+        if (mode === "device" && result.detected_items?.length > 0) {
+          const detectedItem = result.detected_items[0];
+
+          if (sessionData) {
+            const detectedAssetType =
+              detectedItem.asset_type?.toLowerCase() || "";
+            const detectedCategory = detectedItem.category || "";
+
+            const matchingItems = sessionData.items.filter((item) => {
+              const itemName = item.item_name?.toLowerCase() || "";
+              return (
+                itemName.includes(detectedAssetType) ||
+                detectedAssetType.includes(itemName) ||
+                (detectedCategory === "Perangkat" &&
+                  itemName.includes("laptop")) ||
+                (detectedCategory === "Perangkat" && itemName.includes("pc")) ||
+                (detectedCategory === "Perangkat" &&
+                  itemName.includes("komputer")) ||
+                (detectedCategory === "Perangkat" &&
+                  itemName.includes("monitor")) ||
+                (detectedCategory === "Material" && itemName.includes("kabel"))
+              );
+            });
+
+            if (matchingItems.length === 0) {
+              showErrorInCamera(
+                "Item Not Found!",
+                `Detected: ${detectedItem.asset_type} is not in current session`
+              );
+              return;
+            }
+          }
+
+          onDetect({
+            type: "device",
+            data: detectedItem,
+            result: result,
+            photo_data: photoData,
           });
 
-          if (matchingItems.length === 0) {
+          setTimeout(() => {
+            onClose();
+          }, 500);
+        }
+
+        else if (mode === "material" && result.detected_items?.length > 0) {
+          const detectedItem = result.detected_items[0];
+
+          console.log("Material detected:", detectedItem);
+          console.log("Session data:", sessionData);
+
+          if (sessionData) {
+            const detectedAssetType = detectedItem.asset_type?.toLowerCase() || "";
+
+            const matchingItems = sessionData.items.filter((item) => {
+              const itemName = (item.material_name || item.item_name || "")?.toLowerCase() || "";
+              return (
+                itemName === detectedAssetType ||
+                itemName.includes(detectedAssetType) ||
+                detectedAssetType.includes(itemName)
+              );
+            });
+
+            if (matchingItems.length === 0) {
+              showErrorInCamera(
+                "Material Not Found!",
+                `Detected: ${detectedItem.asset_type} is not in current session`
+              );
+              return;
+            }
+          }
+
+          onDetect({
+            type: "device",
+            data: detectedItem,
+            result: result,
+            photo_data: photoData,
+          });
+
+          setTimeout(() => {
+            onClose();
+          }, 500);
+        }
+
+        else if (
+          mode === "scan_code" &&
+          result.scan_code_detections?.length > 0
+        ) {
+          const validDetections = result.scan_code_detections.filter(
+            (s) => s.is_valid,
+          );
+
+          if (validDetections.length > 0) {
+            const bestDetection = validDetections[0];
+
+            onDetect({
+              type: "scan_code",
+              data: bestDetection,
+              result: result,
+            });
+
+            setTimeout(() => {
+              onClose();
+            }, 500);
+          } else if (result.scan_code_detections.length > 0) {
+            const invalidDetection = result.scan_code_detections[0];
             showErrorInCamera(
-              "Material Not Found!",
-              `Detected: ${detectedItem.asset_type} is not in current session`
+              "Invalid Scan Code",
+              `${invalidDetection.detected_text || "Unknown"} - ${invalidDetection.validation_message || "Format not recognized"}`
             );
-            return;
+          } else {
+            showErrorInCamera(
+              "No Scan Code Detected",
+              "No scan code detected. Please try again with a clearer image."
+            );
           }
         }
-
-        onDetect({
-          type: "device",
-          data: detectedItem,
-          result: result,
-          photo_data: photoData,
-        });
-
-        setTimeout(() => {
-          onClose();
-        }, 500);
-      }
-
-      // Deteksi Scan Code
-      else if (
-        mode === "scan_code" &&
-        result.scan_code_detections?.length > 0
-      ) {
-        const validDetections = result.scan_code_detections.filter(
-          (s) => s.is_valid,
-        );
-
-        if (validDetections.length > 0) {
-          const bestDetection = validDetections[0];
-
-          onDetect({
-            type: "scan_code",
-            data: bestDetection,
-            result: result,
-          });
-
-          setTimeout(() => {
-            onClose();
-          }, 500);
-        } else if (result.scan_code_detections.length > 0) {
-          const invalidDetection = result.scan_code_detections[0];
-          showErrorInCamera(
-            "Invalid Scan Code",
-            `${invalidDetection.detected_text || "Unknown"} - ${invalidDetection.validation_message || "Format not recognized"}`
+        else if (mode === "serial" && result.serial_detections?.length > 0) {
+          const validSerials = result.serial_detections.filter(
+            (s) => s.is_valid,
           );
-        } else {
+
+          if (validSerials.length > 0) {
+            const bestSerial = validSerials[0];
+
+            onDetect({
+              type: "serial",
+              data: bestSerial,
+              result: result,
+            });
+
+            setTimeout(() => {
+              onClose();
+            }, 500);
+          } else {
+            showErrorInCamera(
+              "No Valid Serial",
+              "No valid serial number detected. Please try again."
+            );
+          }
+        }
+        else {
           showErrorInCamera(
-            "No Scan Code Detected",
-            "No scan code detected. Please try again with a clearer image."
+            "No Detection",
+            mode === "device"
+              ? "No device detected. Please try again."
+              : mode === "material"
+                ? "No material detected. Please try again."
+                : "No code detected. Please try again."
           );
         }
-      }
-      // Deteksi Serial Number
-      else if (mode === "serial" && result.serial_detections?.length > 0) {
-        const validSerials = result.serial_detections.filter(
-          (s) => s.is_valid,
-        );
-
-        if (validSerials.length > 0) {
-          const bestSerial = validSerials[0];
-
-          onDetect({
-            type: "serial",
-            data: bestSerial,
-            result: result,
-          });
-
-          setTimeout(() => {
-            onClose();
-          }, 500);
-        } else {
-          showErrorInCamera(
-            "No Valid Serial",
-            "No valid serial number detected. Please try again."
-          );
-        }
-      }
-      // Tidak ada deteksi
-      else {
+      } else {
         showErrorInCamera(
-          "No Detection",
-          mode === "device"
-            ? "No device detected. Please try again."
-            : mode === "material"
-              ? "No material detected. Please try again."
-              : "No code detected. Please try again."
+          "Detection Failed",
+          result.message || "Failed to detect"
         );
       }
-    } else {
+    } catch (error) {
+      console.error("Detection error:", error);
       showErrorInCamera(
-        "Detection Failed",
-        result.message || "Failed to detect"
+        "Connection Error",
+        "Failed to connect to server. Please check your connection."
       );
+    } finally {
+      setIsDetecting(false);
     }
-  } catch (error) {
-    console.error("Detection error:", error);
-    showErrorInCamera(
-      "Connection Error",
-      "Failed to connect to server. Please check your connection."
-    );
-  } finally {
-    setIsDetecting(false);
-  }
-};
+  };
 
   const toggleCamera = async () => {
     setFacingMode((prev) => (prev === "environment" ? "user" : "environment"));
