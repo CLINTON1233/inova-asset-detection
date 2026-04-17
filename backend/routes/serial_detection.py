@@ -17,6 +17,61 @@ serial_bp = Blueprint('serial', __name__, url_prefix='/api/serial')
 serial_model = None
 serial_reader = easyocr.Reader(["en"], gpu=False)
 
+@serial_bp.route('/detect/complete', methods=['POST'])
+def detect_serial_complete():
+    """Complete serial detection from camera/base64 image"""
+    try:
+        data = request.get_json()
+
+        if not data or 'image_data' not in data:
+            return jsonify({
+                "success": False,
+                "message": "No image data provided"
+            }), 400
+
+        temp_path = save_temp_image(data['image_data'], 'serial_complete')
+        result = detect_serial_numbers_from_image(temp_path)
+
+        try:
+            os.remove(temp_path)
+        except:
+            pass
+
+        if not result.get("success"):
+            return jsonify(result), 200
+
+        best_serial = result.get("best_serial")
+
+        if best_serial and best_serial.get("is_valid"):
+            return jsonify({
+                "success": True,
+                "detected_text": best_serial.get("detected_text", ""),
+                "confidence": best_serial.get("confidence", 0),
+                "bbox": best_serial.get("bbox", []),
+                "is_valid": True,
+                "total_detected": result.get("total_detected", 0),
+                "valid_serials": result.get("valid_serials", 0),
+                "message": "Serial number detected successfully"
+            }), 200
+
+        return jsonify({
+            "success": False,
+            "detected_text": "",
+            "confidence": 0,
+            "bbox": [],
+            "is_valid": False,
+            "total_detected": result.get("total_detected", 0),
+            "valid_serials": result.get("valid_serials", 0),
+            "message": "No valid serial number detected"
+        }), 200
+
+    except Exception as e:
+        print(f"Complete serial detection error: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Error processing complete serial detection: {str(e)}"
+        }), 500
+
 def init_serial_detector():
     """Initialize YOLO model for serial number detection"""
     global serial_model

@@ -172,6 +172,46 @@ def get_asset_location(asset_id):
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         if 'conn' in locals() and conn: conn.close()
+        
+# PENGUJIAN POSTMAN
+# @location_bp.route('/asset/<asset_code>', methods=['GET'])
+# def get_asset_location(asset_code):
+#     """Mendapatkan lokasi asset berdasarkan asset_code"""
+#     conn = None
+#     try:
+#         conn = get_conn()
+#         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+#         cur.execute("""
+#             SELECT
+#                 asset_code,
+#                 location_id,
+#                 location_name,
+#                 updated_at as assigned_at
+#             FROM assets
+#             WHERE asset_code = %s
+#         """, (asset_code,))
+
+#         asset = cur.fetchone()
+
+#         if not asset:
+#             return jsonify({
+#                 "success": True,
+#                 "message": "Asset not found or no location assigned",
+#                 "location": None
+#             })
+
+#         return jsonify({
+#             "success": True,
+#             "location": asset
+#         })
+
+#     except Exception as e:
+#         print(f"Error getting asset location: {e}")
+#         return jsonify({"success": False, "error": str(e)}), 500
+#     finally:
+#         if conn:
+#             conn.close()
 
 # ==================== POST ====================
 @location_bp.route('/assign-multiple', methods=['POST'])
@@ -260,3 +300,98 @@ def assign_multiple_locations():
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         if 'conn' in locals() and conn: conn.close()
+
+# PENGUJIAN POSTMAN               
+# @location_bp.route('/assign-multiple', methods=['POST'])
+# def assign_multiple_locations():
+#     """Menetapkan lokasi ke multiple assets berdasarkan asset_code"""
+#     data = request.get_json()
+
+#     if not data or 'asset_ids' not in data or 'location_code' not in data:
+#         return jsonify({"success": False, "message": "asset_ids and location_code are required"}), 400
+
+#     if not isinstance(data['asset_ids'], list):
+#         return jsonify({"success": False, "message": "asset_ids must be a list"}), 400
+
+#     if not data['asset_ids']:
+#         return jsonify({"success": False, "message": "asset_ids cannot be empty"}), 400
+
+#     conn = None
+#     try:
+#         try:
+#             location_id = int(data['location_code'].split('-')[1])
+#         except (IndexError, ValueError):
+#             return jsonify({"success": False, "message": "Invalid location code format"}), 400
+
+#         conn = get_conn()
+#         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+#         cur.execute("""
+#             SELECT id_location, location_name
+#             FROM locations
+#             WHERE id_location = %s
+#         """, (location_id,))
+#         location = cur.fetchone()
+
+#         if not location:
+#             return jsonify({"success": False, "message": "Location not found"}), 404
+
+#         scanned_by = data.get('scanned_by', 'Scanner User')
+#         notes = data.get('notes')
+#         current_time = datetime.now()
+
+#         success_count = 0
+#         failed_assets = []
+
+#         for asset_code in data['asset_ids']:
+#             try:
+#                 cur.execute("""
+#                     UPDATE assets
+#                     SET location_id = %s,
+#                         location_name = %s,
+#                         updated_at = %s
+#                     WHERE asset_code = %s
+#                     RETURNING id_assets, asset_code
+#                 """, (
+#                     location['id_location'],
+#                     location['location_name'],
+#                     current_time,
+#                     asset_code
+#                 ))
+
+#                 updated_asset = cur.fetchone()
+
+#                 if updated_asset:
+#                     success_count += 1
+#                 else:
+#                     failed_assets.append({
+#                         "asset_id": asset_code,
+#                         "error": "Asset not found"
+#                     })
+
+#             except Exception as e:
+#                 failed_assets.append({
+#                     "asset_id": asset_code,
+#                     "error": str(e)
+#                 })
+
+#         conn.commit()
+
+#         return jsonify({
+#             "success": success_count > 0,
+#             "message": f"Successfully assigned {success_count} assets",
+#             "success_count": success_count,
+#             "failed_count": len(failed_assets),
+#             "failed_assets": failed_assets,
+#             "location_code": data['location_code'],
+#             "location_name": location['location_name']
+#         })
+
+#     except Exception as e:
+#         if conn:
+#             conn.rollback()
+#         print(f"Error assigning multiple assets: {e}")
+#         return jsonify({"success": False, "error": str(e)}), 500
+#     finally:
+#         if conn:
+#             conn.close()

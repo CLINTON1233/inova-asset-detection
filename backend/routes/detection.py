@@ -31,6 +31,50 @@ BRANDS = [
     "ibm", "hitachi", "panasonic", "sharp", "nec", "compaq"
 ]
 
+@detection_bp.route('/detect/camera/simple', methods=['POST'])
+def detect_from_camera_simple():
+    """Simple detect devices from camera image"""
+    try:
+        data = request.get_json()
+        if not data or 'image_data' not in data:
+            return jsonify({
+                "success": False,
+                "message": "No image data provided"
+            }), 400
+
+        temp_path = save_temp_image(data['image_data'], 'camera_simple')
+        result = detect_devices_from_image(temp_path)
+
+        try:
+            os.remove(temp_path)
+        except:
+            pass
+
+        if result["success"]:
+            simple_items = []
+            for item in result.get("detected_items", []):
+                simple_items.append({
+                    "asset_type": item.get("asset_type"),
+                    "confidence": item.get("confidence"),
+                    "category": item.get("category")
+                })
+
+            return jsonify({
+                "success": True,
+                "message": result.get("message", "Detection successful"),
+                "total_detected": result.get("total_detected", 0),
+                "detected_items": simple_items
+            }), 200
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        print(f"Simple camera detection error: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Error processing simple camera image: {str(e)}"
+        }), 500
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 

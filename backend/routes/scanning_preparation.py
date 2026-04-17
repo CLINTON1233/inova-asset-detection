@@ -2102,7 +2102,6 @@ def update_devices_item_preparation(item_prep_id):
         cur.execute("""
             UPDATE devices_items_preparation 
             SET serial_number = %s, 
-                scan_code = %s, 
                 status = %s, 
                 scanned_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
