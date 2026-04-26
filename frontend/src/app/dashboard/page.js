@@ -772,7 +772,7 @@ export default function DashboardPage() {
                     <span className="font-semibold">Total: {totalAset} Assets</span>
                     <br />
                     <span className="text-gray-600">
-                      System automatically reads Serial Numbers for Devices and Barcodes for Materials.
+                      System automatically reads Serial Numbers for Devices and Scan Code for Materials.
                     </span>
                   </p>
                 </div>

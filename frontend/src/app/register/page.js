@@ -47,6 +47,12 @@ export default function RegisterPage() {
         text: "Please agree to the terms & policy",
         icon: "warning",
         confirmButtonColor: "#1e40af",
+        background: "#ffffff",
+        color: "#333333",
+        customClass: {
+          popup: "rounded-xl font-poppins",
+          confirmButton: "px-4 py-2 text-sm font-medium rounded-lg",
+        },
       });
       return;
     }
@@ -64,11 +70,34 @@ export default function RegisterPage() {
         text: "Please fill all required fields",
         icon: "warning",
         confirmButtonColor: "#1e40af",
+        background: "#ffffff",
+        color: "#333333",
+        customClass: {
+          popup: "rounded-xl font-poppins",
+          confirmButton: "px-4 py-2 text-sm font-medium rounded-lg",
+        },
       });
       return;
     }
 
     setIsLoading(true);
+
+    // Show loading
+    Swal.fire({
+      title: "Registering...",
+      text: "Please wait while we create your account.",
+      icon: "info",
+      showConfirmButton: false,
+      allowOutsideClick: false,
+      background: "#ffffff",
+      color: "#333333",
+      customClass: {
+        popup: "rounded-xl font-poppins",
+      },
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
 
     try {
       console.log("Sending registration data:", formData);
@@ -100,14 +129,27 @@ export default function RegisterPage() {
       const data = await response.json();
       console.log("Response data:", data);
 
-      // Tampilkan SweetAlert sukses
+      // Tutup loading SweetAlert
+      Swal.close();
+
+      // Success Notification (tanpa progress bar)
       await Swal.fire({
         title: "Registration Successful!",
-        text: "Your account has been created successfully. Redirecting to login...",
+        html: `
+          <div class="text-center">
+            <p class="mb-2">Your account has been created successfully.</p>
+            <p class="text-sm text-gray-500">You will be redirected to login page...</p>
+          </div>
+        `,
         icon: "success",
         confirmButtonColor: "#1e40af",
+        background: "#ffffff",
+        color: "#333333",
+        customClass: {
+          popup: "rounded-xl font-poppins",
+          confirmButton: "px-4 py-2 text-sm font-medium rounded-lg",
+        },
         timer: 2000,
-        timerProgressBar: true,
         showConfirmButton: false,
       });
 
@@ -115,6 +157,9 @@ export default function RegisterPage() {
       router.push("/login");
     } catch (error) {
       console.error("Registration error:", error);
+
+      // Tutup loading SweetAlert
+      Swal.close();
 
       // Periksa jika error karena backend tidak terhubung
       if (
@@ -126,6 +171,12 @@ export default function RegisterPage() {
           text: "Failed to connect to server. Please ensure the backend server is running.",
           icon: "error",
           confirmButtonColor: "#1e40af",
+          background: "#ffffff",
+          color: "#333333",
+          customClass: {
+            popup: "rounded-xl font-poppins",
+            confirmButton: "px-4 py-2 text-sm font-medium rounded-lg",
+          },
         });
       } else {
         Swal.fire({
@@ -133,6 +184,12 @@ export default function RegisterPage() {
           text: error.message || "Registration failed. Please try again.",
           icon: "error",
           confirmButtonColor: "#1e40af",
+          background: "#ffffff",
+          color: "#333333",
+          customClass: {
+            popup: "rounded-xl font-poppins",
+            confirmButton: "px-4 py-2 text-sm font-medium rounded-lg",
+          },
         });
       }
     } finally {
@@ -143,17 +200,6 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row relative overflow-hidden">
       {/* Logo pojok kiri atas */}
-      {/* <div className="absolute top-4 left-4 z-20 flex items-center space-x-2">
-        <Image
-          src="/seatrium.png"
-          alt="Seatrium Logo"
-          width={130}
-          height={130}
-          className="object-contain"
-          priority
-        />
-      </div> */}
-
       <div className="absolute top-4 left-4 z-20 flex items-center space-x-2">
         <Image
           src="/Logo_Inovaa.png"
@@ -209,10 +255,7 @@ export default function RegisterPage() {
             </div>
 
             {/* Form */}
-            <form
-              className="mt-2 space-y-3 sm:mt-3 sm:space-y-4"
-              onSubmit={handleSubmit}
-            >
+            <form className="mt-2 space-y-3 sm:mt-3 sm:space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-2 sm:space-y-3">
                 {/* Username */}
                 <div>
@@ -365,8 +408,8 @@ export default function RegisterPage() {
                   type="submit"
                   disabled={isLoading}
                   className={`w-full flex justify-center py-2.5 px-3 text-sm font-medium rounded-md text-white transition ${isLoading
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     }`}
                 >
                   {isLoading ? "Registering..." : "Signup"}
@@ -391,18 +434,8 @@ export default function RegisterPage() {
 
         {/* Footer */}
         <footer className="text-center py-3 sm:py-4 text-xs sm:text-sm text-gray-500 border-t">
+          <div>© 2026 IT Asset Management System</div>
           <div>
-            © 2026 IT Asset Management System
-          </div>
-          <div>
-            {/* <a
-              href="https://seatrium.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-500 hover:text-gray-700"
-            >
-              Seatrium
-            </a>{" "} */}
             <span className="text-gray-400">All rights reserved.</span>
           </div>
         </footer>

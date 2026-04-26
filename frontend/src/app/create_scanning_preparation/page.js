@@ -20,6 +20,9 @@ import {
   Copy,
   Layers,
   User,
+  Calendar,
+  Building,
+  ClipboardList,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import API_BASE_URL, { API_ENDPOINTS } from "../../config/api";
@@ -37,12 +40,12 @@ export default function ScanningPreparationPage() {
   const [masterMaterials, setMasterMaterials] = useState([]);
   const [mounted, setMounted] = useState(false);
   const [expandedItems, setExpandedItems] = useState({});
-  const [showDeviceDropdown, setShowDeviceDropdown] = useState({});
-  const [showMaterialDropdown, setShowMaterialDropdown] = useState({});
-  const [searchDeviceTerm, setSearchDeviceTerm] = useState({});
-  const [searchMaterialTerm, setSearchMaterialTerm] = useState({});
+  // Hapus state untuk dropdown show/hide dan search term karena tidak diperlukan lagi
+  // const [showDeviceDropdown, setShowDeviceDropdown] = useState({});
+  // const [showMaterialDropdown, setShowMaterialDropdown] = useState({});
+  // const [searchDeviceTerm, setSearchDeviceTerm] = useState({});
+  // const [searchMaterialTerm, setSearchMaterialTerm] = useState({});
 
-  // Multiple sessions state
   const [sessions, setSessions] = useState([
     {
       id: `session-${Date.now()}-1`,
@@ -269,22 +272,6 @@ export default function ScanningPreparationPage() {
     { code: "METER", name: "Meter" },
     { code: "KG", name: "Kilogram" },
   ];
-
-  const getFilteredDevices = (itemId) => {
-    const searchTerm = searchDeviceTerm[itemId] || "";
-    if (!searchTerm) return masterDevices;
-    return masterDevices.filter(device =>
-      device.device_name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  };
-
-  const getFilteredMaterials = (itemId) => {
-    const searchTerm = searchMaterialTerm[itemId] || "";
-    if (!searchTerm) return masterMaterials;
-    return masterMaterials.filter(material =>
-      material.material_name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  };
 
   const getReceiversForDepartment = (departmentId) => {
     return receiversByDepartment[departmentId] || [];
@@ -924,9 +911,9 @@ export default function ScanningPreparationPage() {
   };
 
   const inputCls =
-    "w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition";
+    "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition bg-white";
   const selectCls =
-    "w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none transition";
+    "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition bg-white appearance-none";
 
   const Label = ({ children, required }) => (
     <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -939,20 +926,14 @@ export default function ScanningPreparationPage() {
     <p className="text-xs text-gray-400 mt-1">{children}</p>
   );
 
-  const SectionDivider = ({ icon: Icon, label }) => (
-    <div className="flex items-center gap-2 pt-6 pb-4 border-t border-gray-100 mt-2">
-      <Icon className="w-4 h-4 text-blue-600 flex-shrink-0" />
-      <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-        {label}
-      </h3>
-    </div>
-  );
-
   if (!mounted) {
     return (
-      <LayoutDashboard activeMenu={2}>
-        <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <LayoutDashboard activeMenu={1}>
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading...</p>
+          </div>
         </div>
       </LayoutDashboard>
     );
@@ -960,18 +941,20 @@ export default function ScanningPreparationPage() {
 
   return (
     <LayoutDashboard activeMenu={1}>
-      <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
-        .bm-root { font-family: 'DM Sans', sans-serif; }
-
-        .form-card {
+      <style jsx>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+        .sp-root { font-family: 'DM Sans', sans-serif; }
+        
+        .card {
           background: #ffffff;
           border-radius: 16px;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
           transition: box-shadow 0.2s ease;
-          overflow: hidden;
         }
-
+        .card:hover {
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
         .session-card {
           background: #ffffff;
           border-radius: 16px;
@@ -979,16 +962,23 @@ export default function ScanningPreparationPage() {
           transition: all 0.2s ease;
           margin-bottom: 1rem;
         }
-
         .session-card:last-child {
           margin-bottom: 0;
         }
-
         .session-card:hover {
           border-color: #93c5fd;
           box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.1);
         }
-
+        
+        .section-title {
+          font-size: 13px;
+          font-weight: 600;
+          color: #6b7280;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          margin-bottom: 16px;
+        }
+        
         .dropdown-menu {
           position: absolute;
           top: 100%;
@@ -1002,30 +992,14 @@ export default function ScanningPreparationPage() {
           overflow-y: auto;
           z-index: 50;
         }
-
-        .receiver-card {
-          transition: all 0.2s ease;
-        }
-
-        .receiver-card:hover {
-          border-color: #93c5fd;
-          background: #fafcff;
-        }
-
+        
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         
         @media (max-width: 768px) {
           .session-card {
-            margin-left: -0.5rem;
-            margin-right: -0.5rem;
             border-radius: 12px;
           }
-          
-          .form-card {
-            border-radius: 12px;
-          }
-          
           .dropdown-menu {
             position: fixed;
             left: 1rem;
@@ -1034,26 +1008,11 @@ export default function ScanningPreparationPage() {
             z-index: 60;
           }
         }
-        
-        @media (max-width: 480px) {
-          .session-card .p-6 {
-            padding: 1rem;
-          }
-          
-          .session-card .px-6 {
-            padding-left: 1rem;
-            padding-right: 1rem;
-          }
-          
-          .flex.items-center.justify-between {
-            flex-wrap: wrap;
-            gap: 0.5rem;
-          }
-        }
       `}</style>
 
-      <div className="bm-root">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
+      <div className="sp-root space-y-5">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Package className="w-5 h-5 text-blue-600 flex-shrink-0" />
@@ -1066,15 +1025,16 @@ export default function ScanningPreparationPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
+            <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
               <Layers className="w-3 h-3 inline mr-1" />
               {sessions.length} Session{sessions.length !== 1 ? 's' : ''}
             </span>
           </div>
         </div>
 
-        <div className="form-card">
-          <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 bg-gray-50 rounded-t-2xl">
+        {/* Main Form Card */}
+        <div className="card overflow-hidden">
+          <div className="p-5 border-b border-gray-100">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">
                 <Package className="w-4 h-4 text-blue-600" />
@@ -1090,21 +1050,24 @@ export default function ScanningPreparationPage() {
             </div>
           </div>
 
-          <div className="p-4 sm:p-6">
-            <div className="space-y-6">
+          <div className="p-5">
+            <div className="space-y-5">
               {sessions.map((session, sessionIndex) => (
                 <div key={session.id} className="session-card">
-                  <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 bg-gray-50 rounded-t-2xl">
+                  {/* Session Header */}
+                  <div className="px-5 py-4 border-b border-gray-100 bg-gray-50 rounded-t-2xl">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                          <Package className="w-4 h-4 text-blue-600" />
+                        <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                          <span className="text-sm font-bold text-blue-600">
+                            {sessionIndex + 1}
+                          </span>
                         </div>
                         <div>
-                          <h2 className="text-sm font-bold text-gray-800">
+                          <h3 className="font-semibold text-sm text-gray-900">
                             Session #{sessionIndex + 1}
-                          </h2>
-                          <p className="text-xs font-mono text-blue-600 mt-0.5 break-all">
+                          </h3>
+                          <p className="text-xs font-mono text-blue-600 mt-0.5">
                             {session.checking_number}
                           </p>
                         </div>
@@ -1128,30 +1091,32 @@ export default function ScanningPreparationPage() {
                     </div>
                   </div>
 
-                  <div className="p-4 sm:p-6">
-                    <SectionDivider icon={FileText} label="Basic Information" />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-6">
-                      <div>
-                        <Label required>Checking Name</Label>
-                        <input
-                          type="text"
-                          value={session.formData.checking_name}
-                          onChange={(e) =>
-                            handleSessionInputChange(
-                              session.id,
-                              "checking_name",
-                              e.target.value,
-                            )
-                          }
-                          className={inputCls}
-                          placeholder="e.g. IT Asset Inventory"
-                          required
-                        />
-                        <Hint>Name for this scanning session</Hint>
-                      </div>
-                      <div>
-                        <Label required>Category</Label>
-                        <div className="relative">
+                  {/* Session Body */}
+                  <div className="p-5">
+                    {/* Basic Information */}
+                    <div className="mb-5">
+                      <p className="section-title flex items-center gap-2">
+                        <FileText className="w-4 h-4" /> Basic Information
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label required>Checking Name</Label>
+                          <input
+                            type="text"
+                            value={session.formData.checking_name}
+                            onChange={(e) =>
+                              handleSessionInputChange(
+                                session.id,
+                                "checking_name",
+                                e.target.value,
+                              )
+                            }
+                            className={inputCls}
+                            placeholder="e.g. IT Asset Inventory"
+                          />
+                        </div>
+                        <div>
+                          <Label required>Category</Label>
                           <select
                             value={session.formData.category_id}
                             onChange={(e) =>
@@ -1162,14 +1127,10 @@ export default function ScanningPreparationPage() {
                               )
                             }
                             className={selectCls}
-                            required
                           >
                             <option value="">Select Category</option>
                             {categories.map((cat) => (
-                              <option
-                                key={cat.id_category}
-                                value={cat.id_category}
-                              >
+                              <option key={cat.id_category} value={cat.id_category}>
                                 {cat.category_name}
                               </option>
                             ))}
@@ -1178,11 +1139,14 @@ export default function ScanningPreparationPage() {
                       </div>
                     </div>
 
-                    <SectionDivider icon={MapPin} label="Location & Date" />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-6">
-                      <div>
-                        <Label required>Location Check</Label>
-                        <div className="relative">
+                    {/* Location & Date */}
+                    <div className="mb-5">
+                      <p className="section-title flex items-center gap-2">
+                        <MapPin className="w-4 h-4" /> Location & Date
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label required>Location</Label>
                           <select
                             value={session.formData.location_id}
                             onChange={(e) =>
@@ -1193,845 +1157,306 @@ export default function ScanningPreparationPage() {
                               )
                             }
                             className={selectCls}
-                            required
                           >
                             <option value="">Select Location</option>
                             {locations.map((loc) => (
-                              <option
-                                key={loc.id_location}
-                                value={loc.id_location}
-                              >
+                              <option key={loc.id_location} value={loc.id_location}>
                                 {loc.location_name}
                               </option>
                             ))}
                           </select>
                         </div>
-                      </div>
-                      <div>
-                        <Label required>Checking Date</Label>
-                        <input
-                          type="date"
-                          value={session.formData.checking_date}
-                          onChange={(e) =>
-                            handleSessionInputChange(
-                              session.id,
-                              "checking_date",
-                              e.target.value,
-                            )
-                          }
-                          className={inputCls}
-                          required
-                        />
+                        <div>
+                          <Label required>Checking Date</Label>
+                          <input
+                            type="date"
+                            value={session.formData.checking_date}
+                            onChange={(e) =>
+                              handleSessionInputChange(
+                                session.id,
+                                "checking_date",
+                                e.target.value,
+                              )
+                            }
+                            className={inputCls}
+                          />
+                        </div>
                       </div>
                     </div>
 
-                    <SectionDivider icon={Box} label="Items to Scan" />
-                    <div className="space-y-4">
-                      {session.items.map((item, itemIndex) => {
-                        const totalDeptQty = item.departments.reduce(
-                          (sum, d) => sum + d.quantity,
-                          0,
-                        );
-                        const remainingQty = item.quantity - totalDeptQty;
-                        const isExpanded = expandedItems[item.id];
-                        const isMaterial = session.formData.category_id === "2";
-                        const filteredDevices = getFilteredDevices(item.id);
-                        const filteredMaterials = getFilteredMaterials(item.id);
-                        const showDeviceDropdownFlag = showDeviceDropdown[item.id];
-                        const showMaterialDropdownFlag = showMaterialDropdown[item.id];
+                    {/* Items */}
+                    <div className="mb-5">
+                      <p className="section-title flex items-center gap-2">
+                        <Box className="w-4 h-4" /> Items to Scan
+                      </p>
+                      <div className="space-y-4">
+                        {session.items.map((item, itemIndex) => {
+                          const totalDeptQty = item.departments.reduce(
+                            (sum, d) => sum + d.quantity,
+                            0,
+                          );
+                          const remainingQty = item.quantity - totalDeptQty;
+                          const isExpanded = expandedItems[item.id];
+                          const isMaterial = session.formData.category_id === "2";
 
-                        return (
-                          <div
-                            key={item.id}
-                            className="border border-gray-200 rounded-lg p-3 sm:p-4 bg-white"
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                                  Item #{itemIndex + 1}
-                                </span>
-                                {item.quantity > 1 && (
-                                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-                                    Qty: {item.quantity}
+                          return (
+                            <div
+                              key={item.id}
+                              className="border border-gray-200 rounded-lg p-4 bg-white"
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                                    Item #{itemIndex + 1}
                                   </span>
-                                )}
-                                <button
-                                  onClick={() => toggleSaveToStock(session.id, item.id)}
-                                  className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full transition ${item.saveToStock
+                                  {item.quantity > 1 && (
+                                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                                      Qty: {item.quantity}
+                                    </span>
+                                  )}
+                                  <button
+                                    onClick={() => toggleSaveToStock(session.id, item.id)}
+                                    className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full transition ${item.saveToStock
                                       ? "bg-yellow-100 text-yellow-700 border border-yellow-200"
-                                      : "bg-gray-100 text-gray-500 border border-gray-200"
-                                    }`}
-                                  title={item.saveToStock ? "Item will be saved to stock" : "Item will be distributed"}
-                                >
-                                  <Package className="w-3 h-3" />
-                                  {item.saveToStock ? "Save to Stock" : "Will Distribute"}
-                                </button>
+                                      : "bg-gray-100 text-gray-600 border border-gray-200"
+                                      }`}
+                                  >
+                                    <Package className="w-3 h-3" />
+                                    {item.saveToStock ? "Save to Stock" : "Will Distribute"}
+                                  </button>
+                                </div>
+                                {session.items.length > 1 && (
+                                  <button
+                                    onClick={() => removeItem(session.id, item.id)}
+                                    className="text-red-500 hover:text-red-700 p-1"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
-                              {session.items.length > 1 && (
-                                <button
-                                  onClick={() =>
-                                    removeItem(session.id, item.id)
-                                  }
-                                  className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded-lg transition"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
 
-                            {item.saveToStock && (
-                              <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                <div className="flex items-start gap-2">
-                                  <Info className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
-                                  <div>
-                                    <p className="text-xs text-yellow-700 font-medium">Save to Stock Mode Active</p>
-                                    <p className="text-xs text-yellow-600 mt-0.5">
-                                      This item will be saved to stock and not distributed to any department.
-                                      Disable this option if you want to distribute to departments.
+                              {item.saveToStock && (
+                                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                  <div className="flex items-start gap-2">
+                                    <Info className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                                    <p className="text-xs text-yellow-700">
+                                      Save to Stock Mode Active - This item will be saved to stock and not distributed.
                                     </p>
                                   </div>
                                 </div>
-                              </div>
-                            )}
+                              )}
 
-                            {isMaterial ? (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="col-span-1 sm:col-span-2">
-                                  <Label required>Material Name</Label>
-                                  <div className="relative">
-                                    <input
-                                      type="text"
+                              {isMaterial ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="md:col-span-2">
+                                    <Label required>Material Name</Label>
+                                    {/* SELECT untuk Material Name seperti Category/Location */}
+                                    <select
                                       value={item.material_name}
                                       onChange={(e) => {
+                                        const selectedMaterial = masterMaterials.find(m => m.material_name === e.target.value);
                                         updateItem(session.id, item.id, "material_name", e.target.value);
-                                        setSearchMaterialTerm({ ...searchMaterialTerm, [item.id]: e.target.value });
-                                        setShowMaterialDropdown({ ...showMaterialDropdown, [item.id]: true });
+                                        // Optional: Auto-fill material details jika ada
+                                        if (selectedMaterial && selectedMaterial.material_detail) {
+                                          updateItem(session.id, item.id, "material_detail", selectedMaterial.material_detail);
+                                        }
                                       }}
-                                      onFocus={() => setShowMaterialDropdown({ ...showMaterialDropdown, [item.id]: true })}
-                                      onBlur={() => setTimeout(() => setShowMaterialDropdown({ ...showMaterialDropdown, [item.id]: false }), 200)}
-                                      className={inputCls}
-                                      placeholder="Type to search material..."
-                                      required
-                                    />
-                                    {showMaterialDropdownFlag && filteredMaterials.length > 0 && (
-                                      <div className="dropdown-menu">
-                                        {filteredMaterials.map((material) => (
-                                          <div
-                                            key={material.id_material}
-                                            className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm"
-                                            onClick={() => {
-                                              updateItem(session.id, item.id, "material_name", material.material_name);
-                                              setSearchMaterialTerm({ ...searchMaterialTerm, [item.id]: material.material_name });
-                                              setShowMaterialDropdown({ ...showMaterialDropdown, [item.id]: false });
-                                            }}
-                                          >
-                                            {material.material_name}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
+                                      className={selectCls}
+                                    >
+                                      <option value="">Select Material</option>
+                                      {masterMaterials.map((material) => (
+                                        <option key={material.id_material} value={material.material_name}>
+                                          {material.material_name}
+                                        </option>
+                                      ))}
+                                    </select>
                                   </div>
-                                  <Hint>Select from list or type new name</Hint>
-                                </div>
 
-                                <div className="col-span-1 sm:col-span-2">
-                                  <Label>Material Details</Label>
-                                  <textarea
-                                    value={item.material_detail}
-                                    onChange={(e) =>
-                                      updateItem(
-                                        session.id,
-                                        item.id,
-                                        "material_detail",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className={inputCls}
-                                    rows="2"
-                                    placeholder="Specifications, color, length, gauge, etc."
-                                  />
-                                </div>
+                                  <div className="md:col-span-2">
+                                    <Label>Material Details</Label>
+                                    <textarea
+                                      value={item.material_detail}
+                                      onChange={(e) =>
+                                        updateItem(session.id, item.id, "material_detail", e.target.value)
+                                      }
+                                      className={inputCls}
+                                      rows="2"
+                                      placeholder="Specifications, color, length, gauge, etc."
+                                    />
+                                  </div>
 
-                                <div>
-                                  <Label required>Quantity</Label>
-                                  <input
-                                    type="number"
-                                    value={item.quantity}
-                                    onChange={(e) =>
-                                      updateItem(
-                                        session.id,
-                                        item.id,
-                                        "quantity",
-                                        parseFloat(e.target.value) || 1,
-                                      )
-                                    }
-                                    className={inputCls}
-                                    min="0.01"
-                                    step="0.01"
-                                    required
-                                  />
-                                </div>
+                                  <div>
+                                    <Label required>Quantity</Label>
+                                    <input
+                                      type="number"
+                                      value={item.quantity}
+                                      onChange={(e) =>
+                                        updateItem(session.id, item.id, "quantity", parseFloat(e.target.value) || 1)
+                                      }
+                                      className={inputCls}
+                                      min="0.01"
+                                      step="0.01"
+                                    />
+                                  </div>
 
-                                <div>
-                                  <Label required>Unit of Measure (UOM)</Label>
-                                  <select
-                                    value={item.uom || "PCS"}
-                                    onChange={(e) =>
-                                      updateItem(
-                                        session.id,
-                                        item.id,
-                                        "uom",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className={selectCls}
-                                  >
-                                    {uomOptions.map((uom) => (
-                                      <option key={uom.code} value={uom.code}>
-                                        {uom.name} ({uom.code})
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
+                                  <div>
+                                    <Label required>UOM</Label>
+                                    <select
+                                      value={item.uom || "PCS"}
+                                      onChange={(e) =>
+                                        updateItem(session.id, item.id, "uom", e.target.value)
+                                      }
+                                      className={selectCls}
+                                    >
+                                      {uomOptions.map((uom) => (
+                                        <option key={uom.code} value={uom.code}>
+                                          {uom.name} ({uom.code})
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
 
-                                <div>
-                                  <Label>Vendor</Label>
-                                  <input
-                                    type="text"
-                                    value={item.vendor}
-                                    onChange={(e) =>
-                                      updateItem(
-                                        session.id,
-                                        item.id,
-                                        "vendor",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className={inputCls}
-                                    placeholder="e.g. Belden, 3M, Anixter"
-                                  />
-                                </div>
-
-                                <div>
-                                  <Label>Project</Label>
-                                  <select
-                                    value={item.project_id}
-                                    onChange={(e) =>
-                                      updateItem(
-                                        session.id,
-                                        item.id,
-                                        "project_id",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className={selectCls}
-                                  >
-                                    <option value="">Select Project</option>
-                                    {projects.map((project) => (
-                                      <option key={project.id_project} value={project.id_project}>
-                                        {project.project_name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-
-                                {!item.saveToStock && (
-                                  <>
-                                    <div className="col-span-1 sm:col-span-2">
-                                      <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
-                                        <Label>Department Distribution</Label>
-                                        <button
-                                          onClick={() =>
-                                            toggleDepartmentSection(item.id)
-                                          }
-                                          className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${isExpanded
-                                            ? "bg-gray-100 text-gray-700 border border-gray-300"
-                                            : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
-                                            }`}
-                                        >
-                                          {isExpanded
-                                            ? "Close Distribution"
-                                            : "Distribute Items"}
-                                          {isExpanded ? (
-                                            <ChevronUp className="w-3 h-3" />
-                                          ) : (
-                                            <ChevronDown className="w-3 h-3" />
-                                          )}
-                                        </button>
-                                      </div>
-
-                                      {isExpanded && (
-                                        <div className="mt-4 space-y-4">
-                                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            {departments.map((dept) => {
-                                              const assignedDept =
-                                                item.departments.find(
-                                                  (d) =>
-                                                    d.department_id ===
-                                                    dept.id_department,
-                                                );
-                                              const assignedQty =
-                                                assignedDept?.quantity || 0;
-                                              const isDisabled =
-                                                isDepartmentInputDisabled(
-                                                  item,
-                                                  dept.id_department,
-                                                );
-                                              return (
-                                                <div
-                                                  key={dept.id_department}
-                                                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-white"
-                                                >
-                                                  <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-gray-700 truncate">
-                                                      {dept.department_name}
-                                                    </p>
-                                                    {assignedQty > 0 && (
-                                                      <p className="text-xs text-blue-600 mt-0.5">
-                                                        Assigned: {assignedQty}
-                                                      </p>
-                                                    )}
-                                                  </div>
-                                                  <div className="w-24 ml-2">
-                                                    <input
-                                                      type="number"
-                                                      min="0"
-                                                      max={item.quantity}
-                                                      value={assignedQty}
-                                                      onChange={(e) =>
-                                                        updateDepartmentQuantity(
-                                                          session.id,
-                                                          item.id,
-                                                          dept.id_department,
-                                                          e.target.value,
-                                                        )
-                                                      }
-                                                      disabled={isDisabled}
-                                                      className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDisabled
-                                                        ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
-                                                        : "bg-white border-gray-200 text-gray-800"
-                                                        }`}
-                                                      placeholder="Qty"
-                                                    />
-                                                  </div>
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-
-                                          <div className="p-3 border-t border-gray-200">
-                                            <div className="flex flex-wrap items-center justify-between gap-2">
-                                              <span className="text-sm font-medium text-gray-700">
-                                                Distribution Summary:
-                                              </span>
-                                              <span
-                                                className={`text-sm font-semibold ${totalDeptQty === item.quantity
-                                                  ? "text-green-600"
-                                                  : totalDeptQty > 0
-                                                    ? "text-blue-600"
-                                                    : "text-gray-500"
-                                                  }`}
-                                              >
-                                                {totalDeptQty} of {item.quantity}{" "}
-                                                assigned
-                                              </span>
-                                            </div>
-                                            {remainingQty > 0 && (
-                                              <p className="text-xs text-gray-500 mt-1">
-                                                {remainingQty} unassigned items will
-                                                stay at main location
-                                              </p>
-                                            )}
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      {!isExpanded &&
-                                        item.departments.length > 0 && (
-                                          <div className="mt-2 flex flex-wrap gap-2">
-                                            {item.departments.map((dept) => (
-                                              <div
-                                                key={dept.department_id}
-                                                className="inline-flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-full border border-gray-200"
-                                              >
-                                                <Users className="w-3 h-3 text-gray-500" />
-                                                <span className="text-xs text-gray-700">
-                                                  {dept.department_name}
-                                                </span>
-                                                <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded-full">
-                                                  {dept.quantity}
-                                                </span>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        )}
-                                    </div>
-
-                                    {item.departments.length > 0 && (
-                                      <div className="mt-4 pt-4 border-t border-gray-200">
-                                        <div className="flex items-center gap-2 mb-4">
-                                          <User className="w-4 h-4 text-green-600" />
-                                          <h4 className="text-sm font-semibold text-gray-800">
-                                            Receiver Assignment
-                                          </h4>
-                                          <span className="text-xs text-gray-500">
-                                            (Select receiver for each item)
-                                          </span>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                          {item.departments.map((dept) => {
-                                            const deptInfo = departments.find(d => d.id_department === dept.department_id);
-                                            const availableReceivers = getReceiversForDepartment(dept.department_id);
-
-                                            const receiverEntries = [];
-                                            for (let i = 0; i < dept.quantity; i++) {
-                                              const receiver = item.receivers.find(
-                                                (r) => r.department_id === dept.department_id && r.item_index === i
-                                              );
-                                              receiverEntries.push({
-                                                index: i,
-                                                receiver: receiver
-                                              });
-                                            }
-
-                                            return (
-                                              <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
-                                                <div className="bg-gray-100 px-3 sm:px-4 py-2 border-b border-gray-200">
-                                                  <div className="flex items-center gap-2">
-                                                    <Users className="w-4 h-4 text-gray-600" />
-                                                    <span className="text-sm font-semibold text-gray-800">
-                                                      {deptInfo?.department_name || `Department ${dept.department_id}`}
-                                                    </span>
-                                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                                                      Total: {dept.quantity} item(s)
-                                                    </span>
-                                                  </div>
-                                                </div>
-                                                <div className="p-3 sm:p-4 space-y-3">
-                                                  {receiverEntries.map((entry) => {
-                                                    const receiver = entry.receiver;
-                                                    return (
-                                                      <div key={`${dept.department_id}-${entry.index}`} className="receiver-item">
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                          <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                                                            Item #{entry.index + 1}
-                                                          </span>
-                                                        </div>
-                                                        <div>
-                                                          <select
-                                                            value={receiver?.receiver_id || ""}
-                                                            onChange={(e) =>
-                                                              updateReceiverAssignment(
-                                                                session.id,
-                                                                item.id,
-                                                                dept.department_id,
-                                                                e.target.value,
-                                                                entry.index
-                                                              )
-                                                            }
-                                                            className={selectCls}
-                                                          >
-                                                            <option value="">Select Receiver</option>
-                                                            {availableReceivers.map((rec) => (
-                                                              <option key={rec.id_receiver} value={rec.id_receiver}>
-                                                                {rec.receiver_name} - {rec.receiver_title}
-                                                              </option>
-                                                            ))}
-                                                          </select>
-                                                          <Hint>Receiver for item #{entry.index + 1}</Hint>
-                                                        </div>
-                                                      </div>
-                                                    );
-                                                  })}
-                                                </div>
-                                              </div>
-                                            );
-                                          })}
-
-                                          <div className="p-3 bg-blue-50 rounded-lg">
-                                            <p className="text-xs text-blue-700">
-                                              <strong>Total distributed:</strong> {item.departments.reduce((sum, d) => sum + d.quantity, 0)} of {item.quantity}
-                                            </p>
-                                            {item.departments.reduce((sum, d) => sum + d.quantity, 0) < item.quantity && (
-                                              <p className="text-xs text-orange-600 mt-1">
-                                                <strong>Remaining:</strong> {item.quantity - item.departments.reduce((sum, d) => sum + d.quantity, 0)} items unassigned
-                                              </p>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="col-span-1 sm:col-span-2">
-                                  <Label required>Device Name</Label>
-                                  <div className="relative">
+                                  <div>
+                                    <Label>Vendor</Label>
                                     <input
                                       type="text"
-                                      value={item.device_name}
-                                      onChange={(e) => {
-                                        updateItem(session.id, item.id, "device_name", e.target.value);
-                                        setSearchDeviceTerm({ ...searchDeviceTerm, [item.id]: e.target.value });
-                                        setShowDeviceDropdown({ ...showDeviceDropdown, [item.id]: true });
-                                      }}
-                                      onFocus={() => setShowDeviceDropdown({ ...showDeviceDropdown, [item.id]: true })}
-                                      onBlur={() => setTimeout(() => setShowDeviceDropdown({ ...showDeviceDropdown, [item.id]: false }), 200)}
+                                      value={item.vendor}
+                                      onChange={(e) =>
+                                        updateItem(session.id, item.id, "vendor", e.target.value)
+                                      }
                                       className={inputCls}
-                                      placeholder="Type to search device..."
-                                      required
+                                      placeholder="e.g. Belden, 3M"
                                     />
-                                    {showDeviceDropdownFlag && filteredDevices.length > 0 && (
-                                      <div className="dropdown-menu">
-                                        {filteredDevices.map((device) => (
-                                          <div
-                                            key={device.id_device}
-                                            className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm"
-                                            onClick={() => {
-                                              updateItem(session.id, item.id, "device_name", device.device_name);
-                                              setSearchDeviceTerm({ ...searchDeviceTerm, [item.id]: device.device_name });
-                                              setShowDeviceDropdown({ ...showDeviceDropdown, [item.id]: false });
-                                            }}
-                                          >
-                                            {device.device_name}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
                                   </div>
-                                  <Hint>Select from list or type new name</Hint>
-                                </div>
 
-                                <div className="col-span-1 sm:col-span-2">
-                                  <Label>Device Details</Label>
-                                  <textarea
-                                    value={item.device_detail}
-                                    onChange={(e) =>
-                                      updateItem(
-                                        session.id,
-                                        item.id,
-                                        "device_detail",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className={inputCls}
-                                    rows="2"
-                                    placeholder="Specifications, color, size, features, etc."
-                                  />
-                                </div>
+                                  <div>
+                                    <Label>Project</Label>
+                                    <select
+                                      value={item.project_id}
+                                      onChange={(e) =>
+                                        updateItem(session.id, item.id, "project_id", e.target.value)
+                                      }
+                                      className={selectCls}
+                                    >
+                                      <option value="">Select Project</option>
+                                      {projects.map((project) => (
+                                        <option key={project.id_project} value={project.id_project}>
+                                          {project.project_name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
 
-                                <div>
-                                  <Label>Brand</Label>
-                                  <input
-                                    type="text"
-                                    value={item.brand}
-                                    onChange={(e) =>
-                                      updateItem(
-                                        session.id,
-                                        item.id,
-                                        "brand",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className={inputCls}
-                                    placeholder="e.g. Dell, LG, Samsung"
-                                  />
-                                </div>
+                                  {!item.saveToStock && (
+                                    <>
+                                      <div className="md:col-span-2">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                          <Label>Department Distribution</Label>
+                                          <button
+                                            onClick={() => toggleDepartmentSection(item.id)}
+                                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition"
+                                          >
+                                            {isExpanded ? "Close Distribution" : "Distribute Items"}
+                                            {isExpanded ? (
+                                              <ChevronUp className="w-3 h-3" />
+                                            ) : (
+                                              <ChevronDown className="w-3 h-3" />
+                                            )}
+                                          </button>
+                                        </div>
 
-                                <div>
-                                  <Label>Vendor</Label>
-                                  <input
-                                    type="text"
-                                    value={item.vendor}
-                                    onChange={(e) =>
-                                      updateItem(
-                                        session.id,
-                                        item.id,
-                                        "vendor",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className={inputCls}
-                                    placeholder="e.g. PT DUTA, PT SUMBER MAKMUR"
-                                  />
-                                </div>
-
-                                <div>
-                                  <Label>Model</Label>
-                                  <input
-                                    type="text"
-                                    value={item.model}
-                                    onChange={(e) =>
-                                      updateItem(
-                                        session.id,
-                                        item.id,
-                                        "model",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className={inputCls}
-                                    placeholder="e.g. Latitude 3420, 27MN60T"
-                                  />
-                                </div>
-
-                                <div>
-                                  <Label>Specifications</Label>
-                                  <input
-                                    type="text"
-                                    value={item.specifications}
-                                    onChange={(e) =>
-                                      updateItem(
-                                        session.id,
-                                        item.id,
-                                        "specifications",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className={inputCls}
-                                    placeholder="e.g. Intel i5, 8GB RAM, 256GB SSD"
-                                  />
-                                </div>
-
-                                <div>
-                                  <Label required>Quantity</Label>
-                                  <input
-                                    type="number"
-                                    value={item.quantity}
-                                    onChange={(e) =>
-                                      updateItem(
-                                        session.id,
-                                        item.id,
-                                        "quantity",
-                                        parseInt(e.target.value) || 1,
-                                      )
-                                    }
-                                    className={inputCls}
-                                    min="1"
-                                    required
-                                  />
-                                  <Hint>Number of items to scan</Hint>
-                                </div>
-
-                                <div>
-                                  <Label>Project</Label>
-                                  <select
-                                    value={item.project_id}
-                                    onChange={(e) =>
-                                      updateItem(
-                                        session.id,
-                                        item.id,
-                                        "project_id",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className={selectCls}
-                                  >
-                                    <option value="">Select Project</option>
-                                    {projects.map((project) => (
-                                      <option key={project.id_project} value={project.id_project}>
-                                        {project.project_name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-
-                                {!item.saveToStock && (
-                                  <>
-                                    <div className="col-span-1 sm:col-span-2">
-                                      <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
-                                        <Label>Department Distribution</Label>
-                                        <button
-                                          onClick={() =>
-                                            toggleDepartmentSection(item.id)
-                                          }
-                                          className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${isExpanded
-                                            ? "bg-gray-100 text-gray-700 border border-gray-300"
-                                            : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
-                                            }`}
-                                        >
-                                          {isExpanded
-                                            ? "Close Distribution"
-                                            : "Distribute Items"}
-                                          {isExpanded ? (
-                                            <ChevronUp className="w-3 h-3" />
-                                          ) : (
-                                            <ChevronDown className="w-3 h-3" />
-                                          )}
-                                        </button>
-                                      </div>
-
-                                      {isExpanded && (
-                                        <div className="mt-4 space-y-4">
-                                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            {departments.map((dept) => {
-                                              const assignedDept =
-                                                item.departments.find(
-                                                  (d) =>
-                                                    d.department_id ===
-                                                    dept.id_department,
+                                        {isExpanded && (
+                                          <div className="mt-3 space-y-3">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                              {departments.map((dept) => {
+                                                const assignedDept = item.departments.find(
+                                                  (d) => d.department_id === dept.id_department,
                                                 );
-                                              const assignedQty =
-                                                assignedDept?.quantity || 0;
-                                              const isDisabled =
-                                                isDepartmentInputDisabled(
-                                                  item,
-                                                  dept.id_department,
-                                                );
-                                              return (
-                                                <div
-                                                  key={dept.id_department}
-                                                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-white"
-                                                >
-                                                  <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-gray-700 truncate">
+                                                const assignedQty = assignedDept?.quantity || 0;
+                                                const isDisabled = isDepartmentInputDisabled(item, dept.id_department);
+                                                return (
+                                                  <div key={dept.id_department} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                                                    <span className="text-sm font-medium text-gray-700 truncate">
                                                       {dept.department_name}
-                                                    </p>
-                                                    {assignedQty > 0 && (
-                                                      <p className="text-xs text-blue-600 mt-0.5">
-                                                        Assigned: {assignedQty}
-                                                      </p>
-                                                    )}
-                                                  </div>
-                                                  <div className="w-24 ml-2">
+                                                    </span>
                                                     <input
                                                       type="number"
                                                       min="0"
                                                       max={item.quantity}
                                                       value={assignedQty}
                                                       onChange={(e) =>
-                                                        updateDepartmentQuantity(
-                                                          session.id,
-                                                          item.id,
-                                                          dept.id_department,
-                                                          e.target.value,
-                                                        )
+                                                        updateDepartmentQuantity(session.id, item.id, dept.id_department, e.target.value)
                                                       }
                                                       disabled={isDisabled}
-                                                      className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isDisabled
-                                                        ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
-                                                        : "bg-white border-gray-200 text-gray-800"
+                                                      className={`w-20 px-2 py-1.5 text-sm border rounded-md focus:ring-2 focus:ring-blue-500 ${isDisabled ? "bg-gray-50 text-gray-400" : "bg-white"
                                                         }`}
                                                       placeholder="Qty"
                                                     />
                                                   </div>
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-
-                                          <div className="p-3 border-t border-gray-200">
-                                            <div className="flex flex-wrap items-center justify-between gap-2">
-                                              <span className="text-sm font-medium text-gray-700">
-                                                Distribution Summary:
-                                              </span>
-                                              <span
-                                                className={`text-sm font-semibold ${totalDeptQty === item.quantity
-                                                  ? "text-green-600"
-                                                  : totalDeptQty > 0
-                                                    ? "text-blue-600"
-                                                    : "text-gray-500"
-                                                  }`}
-                                              >
-                                                {totalDeptQty} of {item.quantity}{" "}
-                                                assigned
-                                              </span>
+                                                );
+                                              })}
                                             </div>
-                                            {remainingQty > 0 && (
-                                              <p className="text-xs text-gray-500 mt-1">
-                                                {remainingQty} unassigned items will
-                                                stay at main location
-                                              </p>
-                                            )}
+                                            <div className="p-3 bg-gray-50 rounded-lg">
+                                              <div className="flex justify-between items-center">
+                                                <span className="text-sm font-medium text-gray-700">Distribution Summary:</span>
+                                                <span className={`text-sm font-semibold ${totalDeptQty === item.quantity ? "text-green-600" : "text-blue-600"
+                                                  }`}>
+                                                  {totalDeptQty} of {item.quantity} assigned
+                                                </span>
+                                              </div>
+                                              {remainingQty > 0 && (
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                  {remainingQty} unassigned items will stay at main location
+                                                </p>
+                                              )}
+                                            </div>
                                           </div>
-                                        </div>
-                                      )}
+                                        )}
 
-                                      {!isExpanded &&
-                                        item.departments.length > 0 && (
+                                        {!isExpanded && item.departments.length > 0 && (
                                           <div className="mt-2 flex flex-wrap gap-2">
                                             {item.departments.map((dept) => (
-                                              <div
-                                                key={dept.department_id}
-                                                className="inline-flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-full border border-gray-200"
-                                              >
+                                              <div key={dept.department_id} className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full">
                                                 <Users className="w-3 h-3 text-gray-500" />
-                                                <span className="text-xs text-gray-700">
-                                                  {dept.department_name}
-                                                </span>
-                                                <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded-full">
-                                                  {dept.quantity}
-                                                </span>
+                                                <span className="text-xs text-gray-700">{dept.department_name}: {dept.quantity}</span>
                                               </div>
                                             ))}
                                           </div>
                                         )}
-                                    </div>
+                                      </div>
 
-                                    {item.departments.length > 0 && (
-                                      <div className="mt-4 pt-4 border-t border-gray-200">
-                                        <div className="flex items-center gap-2 mb-4">
-                                          <User className="w-4 h-4 text-green-600" />
-                                          <h4 className="text-sm font-semibold text-gray-800">
-                                            Receiver Assignment
-                                          </h4>
-                                          <span className="text-xs text-gray-500">
-                                            (Select receiver for each item)
-                                          </span>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                          {item.departments.map((dept) => {
-                                            const deptInfo = departments.find(d => d.id_department === dept.department_id);
-                                            const availableReceivers = getReceiversForDepartment(dept.department_id);
-
-                                            const receiverEntries = [];
-                                            for (let i = 0; i < dept.quantity; i++) {
-                                              const receiver = item.receivers.find(
-                                                (r) => r.department_id === dept.department_id && r.item_index === i
-                                              );
-                                              receiverEntries.push({
-                                                index: i,
-                                                receiver: receiver
-                                              });
-                                            }
-
-                                            return (
-                                              <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
-                                                <div className="bg-gray-100 px-3 sm:px-4 py-2 border-b border-gray-200">
-                                                  <div className="flex items-center gap-2">
-                                                    <Users className="w-4 h-4 text-gray-600" />
+                                      {item.departments.length > 0 && (
+                                        <div className="md:col-span-2 pt-2 border-t border-gray-100">
+                                          <div className="flex items-center gap-2 mb-3">
+                                            <User className="w-4 h-4 text-green-600" />
+                                            <h4 className="text-sm font-semibold text-gray-800">Receiver Assignment</h4>
+                                          </div>
+                                          <div className="space-y-3">
+                                            {item.departments.map((dept) => {
+                                              const deptInfo = departments.find(d => d.id_department === dept.department_id);
+                                              const availableReceivers = getReceiversForDepartment(dept.department_id);
+                                              return (
+                                                <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                                  <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
                                                     <span className="text-sm font-semibold text-gray-800">
                                                       {deptInfo?.department_name || `Department ${dept.department_id}`}
                                                     </span>
-                                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                                                      Total: {dept.quantity} item(s)
+                                                    <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                                      {dept.quantity} item(s)
                                                     </span>
                                                   </div>
-                                                </div>
-                                                <div className="p-3 sm:p-4 space-y-3">
-                                                  {receiverEntries.map((entry) => {
-                                                    const receiver = entry.receiver;
-                                                    return (
-                                                      <div key={`${dept.department_id}-${entry.index}`} className="receiver-item">
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                          <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                                                            Item #{entry.index + 1}
-                                                          </span>
-                                                        </div>
-                                                        <div>
+                                                  <div className="p-3 space-y-3">
+                                                    {[...Array(dept.quantity)].map((_, i) => {
+                                                      const receiver = item.receivers.find(
+                                                        (r) => r.department_id === dept.department_id && r.item_index === i
+                                                      );
+                                                      return (
+                                                        <div key={i}>
+                                                          <Label>Item #{i + 1} Receiver</Label>
                                                           <select
                                                             value={receiver?.receiver_id || ""}
                                                             onChange={(e) =>
-                                                              updateReceiverAssignment(
-                                                                session.id,
-                                                                item.id,
-                                                                dept.department_id,
-                                                                e.target.value,
-                                                                entry.index
-                                                              )
+                                                              updateReceiverAssignment(session.id, item.id, dept.department_id, e.target.value, i)
                                                             }
                                                             className={selectCls}
                                                           >
@@ -2042,65 +1467,305 @@ export default function ScanningPreparationPage() {
                                                               </option>
                                                             ))}
                                                           </select>
-                                                          <Hint>Receiver for item #{entry.index + 1}</Hint>
                                                         </div>
-                                                      </div>
-                                                    );
-                                                  })}
+                                                      );
+                                                    })}
+                                                  </div>
                                                 </div>
-                                              </div>
-                                            );
-                                          })}
-
-                                          <div className="p-3 bg-blue-50 rounded-lg">
-                                            <p className="text-xs text-blue-700">
-                                              <strong>Total distributed:</strong> {item.departments.reduce((sum, d) => sum + d.quantity, 0)} of {item.quantity}
-                                            </p>
-                                            {item.departments.reduce((sum, d) => sum + d.quantity, 0) < item.quantity && (
-                                              <p className="text-xs text-orange-600 mt-1">
-                                                <strong>Remaining:</strong> {item.quantity - item.departments.reduce((sum, d) => sum + d.quantity, 0)} items unassigned
-                                              </p>
-                                            )}
+                                              );
+                                            })}
                                           </div>
                                         </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="md:col-span-2">
+                                    <Label required>Device Name</Label>
+                                    {/* SELECT untuk Device Name seperti Category/Location */}
+                                    <select
+                                      value={item.device_name}
+                                      onChange={(e) => {
+                                        const selectedDevice = masterDevices.find(d => d.device_name === e.target.value);
+                                        updateItem(session.id, item.id, "device_name", e.target.value);
+                                        // Optional: Auto-fill device details jika ada
+                                        if (selectedDevice) {
+                                          if (selectedDevice.brand) updateItem(session.id, item.id, "brand", selectedDevice.brand);
+                                          if (selectedDevice.model) updateItem(session.id, item.id, "model", selectedDevice.model);
+                                          if (selectedDevice.specifications) updateItem(session.id, item.id, "specifications", selectedDevice.specifications);
+                                          if (selectedDevice.device_detail) updateItem(session.id, item.id, "device_detail", selectedDevice.device_detail);
+                                        }
+                                      }}
+                                      className={selectCls}
+                                    >
+                                      <option value="">Select Device</option>
+                                      {masterDevices.map((device) => (
+                                        <option key={device.id_device} value={device.device_name}>
+                                          {device.device_name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  <div className="md:col-span-2">
+                                    <Label>Device Details</Label>
+                                    <textarea
+                                      value={item.device_detail}
+                                      onChange={(e) =>
+                                        updateItem(session.id, item.id, "device_detail", e.target.value)
+                                      }
+                                      className={inputCls}
+                                      rows="2"
+                                      placeholder="Specifications, color, size, features, etc."
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <Label>Brand</Label>
+                                    <input
+                                      type="text"
+                                      value={item.brand}
+                                      onChange={(e) =>
+                                        updateItem(session.id, item.id, "brand", e.target.value)
+                                      }
+                                      className={inputCls}
+                                      placeholder="e.g. Dell, Samsung"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <Label>Vendor</Label>
+                                    <input
+                                      type="text"
+                                      value={item.vendor}
+                                      onChange={(e) =>
+                                        updateItem(session.id, item.id, "vendor", e.target.value)
+                                      }
+                                      className={inputCls}
+                                      placeholder="e.g. PT DUTA"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <Label>Model</Label>
+                                    <input
+                                      type="text"
+                                      value={item.model}
+                                      onChange={(e) =>
+                                        updateItem(session.id, item.id, "model", e.target.value)
+                                      }
+                                      className={inputCls}
+                                      placeholder="e.g. Latitude 3420"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <Label>Specifications</Label>
+                                    <input
+                                      type="text"
+                                      value={item.specifications}
+                                      onChange={(e) =>
+                                        updateItem(session.id, item.id, "specifications", e.target.value)
+                                      }
+                                      className={inputCls}
+                                      placeholder="e.g. Intel i5, 8GB RAM"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <Label required>Quantity</Label>
+                                    <input
+                                      type="number"
+                                      value={item.quantity}
+                                      onChange={(e) =>
+                                        updateItem(session.id, item.id, "quantity", parseInt(e.target.value) || 1)
+                                      }
+                                      className={inputCls}
+                                      min="1"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <Label>Project</Label>
+                                    <select
+                                      value={item.project_id}
+                                      onChange={(e) =>
+                                        updateItem(session.id, item.id, "project_id", e.target.value)
+                                      }
+                                      className={selectCls}
+                                    >
+                                      <option value="">Select Project</option>
+                                      {projects.map((project) => (
+                                        <option key={project.id_project} value={project.id_project}>
+                                          {project.project_name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  {!item.saveToStock && (
+                                    <>
+                                      <div className="md:col-span-2">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                          <Label>Department Distribution</Label>
+                                          <button
+                                            onClick={() => toggleDepartmentSection(item.id)}
+                                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition"
+                                          >
+                                            {isExpanded ? "Close Distribution" : "Distribute Items"}
+                                            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                          </button>
+                                        </div>
+
+                                        {isExpanded && (
+                                          <div className="mt-3 space-y-3">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                              {departments.map((dept) => {
+                                                const assignedDept = item.departments.find(
+                                                  (d) => d.department_id === dept.id_department,
+                                                );
+                                                const assignedQty = assignedDept?.quantity || 0;
+                                                const isDisabled = isDepartmentInputDisabled(item, dept.id_department);
+                                                return (
+                                                  <div key={dept.id_department} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                                                    <span className="text-sm font-medium text-gray-700 truncate">
+                                                      {dept.department_name}
+                                                    </span>
+                                                    <input
+                                                      type="number"
+                                                      min="0"
+                                                      max={item.quantity}
+                                                      value={assignedQty}
+                                                      onChange={(e) =>
+                                                        updateDepartmentQuantity(session.id, item.id, dept.id_department, e.target.value)
+                                                      }
+                                                      disabled={isDisabled}
+                                                      className={`w-20 px-2 py-1.5 text-sm border rounded-md focus:ring-2 focus:ring-blue-500 ${isDisabled ? "bg-gray-50 text-gray-400" : "bg-white"
+                                                        }`}
+                                                      placeholder="Qty"
+                                                    />
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                            <div className="p-3 bg-gray-50 rounded-lg">
+                                              <div className="flex justify-between items-center">
+                                                <span className="text-sm font-medium text-gray-700">Distribution Summary:</span>
+                                                <span className={`text-sm font-semibold ${totalDeptQty === item.quantity ? "text-green-600" : "text-blue-600"
+                                                  }`}>
+                                                  {totalDeptQty} of {item.quantity} assigned
+                                                </span>
+                                              </div>
+                                              {remainingQty > 0 && (
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                  {remainingQty} unassigned items will stay at main location
+                                                </p>
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {!isExpanded && item.departments.length > 0 && (
+                                          <div className="mt-2 flex flex-wrap gap-2">
+                                            {item.departments.map((dept) => (
+                                              <div key={dept.department_id} className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full">
+                                                <Users className="w-3 h-3 text-gray-500" />
+                                                <span className="text-xs text-gray-700">{dept.department_name}: {dept.quantity}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
                                       </div>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+
+                                      {item.departments.length > 0 && (
+                                        <div className="md:col-span-2 pt-2 border-t border-gray-100">
+                                          <div className="flex items-center gap-2 mb-3">
+                                            <User className="w-4 h-4 text-green-600" />
+                                            <h4 className="text-sm font-semibold text-gray-800">Receiver Assignment</h4>
+                                          </div>
+                                          <div className="space-y-3">
+                                            {item.departments.map((dept) => {
+                                              const deptInfo = departments.find(d => d.id_department === dept.department_id);
+                                              const availableReceivers = getReceiversForDepartment(dept.department_id);
+                                              return (
+                                                <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                                  <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                                                    <span className="text-sm font-semibold text-gray-800">
+                                                      {deptInfo?.department_name || `Department ${dept.department_id}`}
+                                                    </span>
+                                                    <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                                      {dept.quantity} item(s)
+                                                    </span>
+                                                  </div>
+                                                  <div className="p-3 space-y-3">
+                                                    {[...Array(dept.quantity)].map((_, i) => {
+                                                      const receiver = item.receivers.find(
+                                                        (r) => r.department_id === dept.department_id && r.item_index === i
+                                                      );
+                                                      return (
+                                                        <div key={i}>
+                                                          <Label>Item #{i + 1} Receiver</Label>
+                                                          <select
+                                                            value={receiver?.receiver_id || ""}
+                                                            onChange={(e) =>
+                                                              updateReceiverAssignment(session.id, item.id, dept.department_id, e.target.value, i)
+                                                            }
+                                                            className={selectCls}
+                                                          >
+                                                            <option value="">Select Receiver</option>
+                                                            {availableReceivers.map((rec) => (
+                                                              <option key={rec.id_receiver} value={rec.id_receiver}>
+                                                                {rec.receiver_name} - {rec.receiver_title}
+                                                              </option>
+                                                            ))}
+                                                          </select>
+                                                        </div>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <button
+                        onClick={() => addNewItem(session.id)}
+                        className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Item #{sessionIndex + 1}
+                      </button>
                     </div>
 
-                    <button
-                      onClick={() => addNewItem(session.id)}
-                      className="mt-4 flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all w-full justify-center"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Another Item #{sessionIndex + 1}
-                    </button>
-
-                    <SectionDivider
-                      icon={Info}
-                      label="Additional Information"
-                    />
-                    <div className="mb-6">
-                      <Label>Remarks</Label>
-                      <textarea
-                        value={session.formData.remarks}
-                        onChange={(e) =>
-                          handleSessionInputChange(
-                            session.id,
-                            "remarks",
-                            e.target.value,
-                          )
-                        }
-                        rows="3"
-                        className={inputCls}
-                        placeholder="Additional notes or instructions for this scanning session..."
-                      />
+                    {/* Remarks */}
+                    <div>
+                      <p className="section-title flex items-center gap-2">
+                        <Info className="w-4 h-4" /> Additional Information
+                      </p>
+                      <div>
+                        <Label>Remarks</Label>
+                        <textarea
+                          value={session.formData.remarks}
+                          onChange={(e) =>
+                            handleSessionInputChange(session.id, "remarks", e.target.value)
+                          }
+                          rows="3"
+                          className={inputCls}
+                          placeholder="Additional notes or instructions for this scanning session..."
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2108,24 +1773,25 @@ export default function ScanningPreparationPage() {
 
               <button
                 onClick={addNewSession}
-                className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all w-full justify-center"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition"
               >
                 <Plus className="w-4 h-4" />
-                Add Another Form Scanning Preparation
+                Add Another Scanning Session
               </button>
             </div>
           </div>
 
-          <div className="border-t border-gray-100 px-4 sm:px-6 py-4 sm:py-5 bg-gray-50 rounded-b-2xl">
+          {/* Footer Buttons */}
+          <div className="border-t border-gray-100 px-5 py-4 bg-gray-50 rounded-b-2xl">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              <p className="text-xs text-gray-400 order-2 sm:order-1">
+              <p className="text-xs text-gray-400">
                 <span className="text-red-500">*</span> Required fields
               </p>
-              <div className="flex gap-3 w-full sm:w-auto order-1 sm:order-2">
+              <div className="flex gap-3 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-5 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition shadow-sm"
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
                 >
                   <RotateCcw className="w-4 h-4" />
                   Reset All
@@ -2133,7 +1799,7 @@ export default function ScanningPreparationPage() {
                 <button
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
                 >
                   {loading ? (
                     <>
