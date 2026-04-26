@@ -509,127 +509,87 @@ export default function ScanningPreparationPage() {
                 }
 
                 const newQuantity = parseFloat(quantity) || 0;
-                const currentTotal = item.departments.reduce(
-                  (sum, d) =>
-                    d.department_id === departmentId ? sum : sum + d.quantity,
-                  0,
+
+                // Hitung total quantity yang sudah dialokasikan ke department lain (selain department ini)
+                const totalOtherDepts = item.departments.reduce(
+                  (sum, d) => d.department_id === departmentId ? sum : sum + d.quantity,
+                  0
                 );
 
-                if (currentTotal + newQuantity > item.quantity) {
-                  const maxAllowed = item.quantity - currentTotal;
-                  if (newQuantity > maxAllowed) {
-                    const existingDept = item.departments.find(
-                      (d) => d.department_id === departmentId,
-                    );
-                    if (existingDept) {
-                      return {
-                        ...item,
-                        departments: item.departments.map((d) =>
-                          d.department_id === departmentId
-                            ? { ...d, quantity: maxAllowed }
-                            : d,
-                        ),
-                      };
-                    } else if (maxAllowed > 0) {
-                      const newDept = {
-                        department_id: departmentId,
-                        department_name: department.department_name,
-                        quantity: maxAllowed,
-                      };
+                // Hitung sisa quantity yang tersedia untuk department ini
+                const availableQty = item.quantity - totalOtherDepts;
 
-                      const newReceivers = [...item.receivers];
-                      for (let i = 0; i < maxAllowed; i++) {
-                        const exists = newReceivers.some(
-                          (r) => r.department_id === departmentId && r.item_index === i
-                        );
-                        if (!exists) {
-                          newReceivers.push({
-                            department_id: departmentId,
-                            department_name: department.department_name,
-                            receiver_id: "",
-                            item_index: i,
-                          });
-                        }
-                      }
-
-                      return {
-                        ...item,
-                        departments: [...item.departments, newDept],
-                        receivers: newReceivers,
-                      };
-                    }
-                    return item;
+                // Batasi quantity yang bisa dimasukkan
+                let finalQuantity = newQuantity;
+                if (newQuantity > availableQty) {
+                  finalQuantity = availableQty;
+                  if (newQuantity > 0) {
+                    Swal.fire({
+                      title: "Warning!",
+                      text: `Maximum available quantity for this department is ${availableQty}`,
+                      icon: "warning",
+                      timer: 2000,
+                      showConfirmButton: false,
+                    });
                   }
                 }
 
-                if (newQuantity > 0) {
-                  const existingDept = item.departments.find(
-                    (d) => d.department_id === departmentId,
-                  );
-                  if (existingDept) {
-                    const updatedDepartments = item.departments.map((d) =>
-                      d.department_id === departmentId
-                        ? { ...d, quantity: newQuantity }
-                        : d
-                    );
+                // Cek apakah department sudah ada
+                const existingDeptIndex = item.departments.findIndex(
+                  (d) => d.department_id === departmentId
+                );
 
-                    let updatedReceivers = [...item.receivers];
-                    updatedReceivers = updatedReceivers.filter(
-                      (r) => r.department_id !== departmentId || r.item_index < newQuantity
-                    );
-                    for (let i = 0; i < newQuantity; i++) {
-                      const exists = updatedReceivers.some(
-                        (r) => r.department_id === departmentId && r.item_index === i
-                      );
-                      if (!exists) {
-                        updatedReceivers.push({
-                          department_id: departmentId,
-                          department_name: department.department_name,
-                          receiver_id: "",
-                          item_index: i,
-                        });
-                      }
-                    }
+                let newDepartments;
+                let newReceivers;
 
-                    return {
-                      ...item,
-                      departments: updatedDepartments,
-                      receivers: updatedReceivers,
+                if (finalQuantity > 0) {
+                  // Update atau tambah department
+                  if (existingDeptIndex >= 0) {
+                    newDepartments = [...item.departments];
+                    newDepartments[existingDeptIndex] = {
+                      ...newDepartments[existingDeptIndex],
+                      quantity: finalQuantity
                     };
                   } else {
-                    const newDept = {
-                      department_id: departmentId,
-                      department_name: department.department_name,
-                      quantity: newQuantity,
-                    };
-
-                    const newReceivers = [...item.receivers];
-                    for (let i = 0; i < newQuantity; i++) {
-                      newReceivers.push({
+                    newDepartments = [
+                      ...item.departments,
+                      {
                         department_id: departmentId,
-                        department_name: department.department_name,
-                        receiver_id: "",
-                        item_index: i,
-                      });
-                    }
+                        department_name: department?.department_name || `Department ${departmentId}`,
+                        quantity: finalQuantity
+                      }
+                    ];
+                  }
 
-                    return {
-                      ...item,
-                      departments: [...item.departments, newDept],
-                      receivers: newReceivers,
-                    };
+                  // Update receiver entries
+                  newReceivers = [...item.receivers];
+                  // Hapus receiver lama untuk department ini
+                  newReceivers = newReceivers.filter(r => r.department_id !== departmentId);
+                  // Tambah receiver baru sesuai quantity
+                  for (let i = 0; i < finalQuantity; i++) {
+                    newReceivers.push({
+                      department_id: departmentId,
+                      department_name: department?.department_name || `Department ${departmentId}`,
+                      receiver_id: "",
+                      item_index: i
+                    });
                   }
                 } else {
-                  return {
-                    ...item,
-                    departments: item.departments.filter(
-                      (d) => d.department_id !== departmentId,
-                    ),
-                    receivers: item.receivers.filter(
-                      (r) => r.department_id !== departmentId,
-                    ),
-                  };
+                  // Hapus department
+                  newDepartments = item.departments.filter(
+                    (d) => d.department_id !== departmentId
+                  );
+                  // Hapus semua receiver untuk department ini
+                  newReceivers = item.receivers.filter(
+                    (r) => r.department_id !== departmentId
+                  );
                 }
+
+                return {
+                  ...item,
+                  departments: newDepartments,
+                  receivers: newReceivers
+                };
               }
               return item;
             }),
@@ -641,16 +601,13 @@ export default function ScanningPreparationPage() {
   };
 
   const isDepartmentInputDisabled = (item, departmentId) => {
+    if (item.saveToStock) return true;
     const totalAssigned = item.departments.reduce(
-      (sum, d) => sum + d.quantity,
-      0,
+      (sum, d) => sum + (d.department_id === departmentId ? 0 : d.quantity),
+      0
     );
-    const currentDept = item.departments.find(
-      (d) => d.department_id === departmentId,
-    );
-    return totalAssigned >= item.quantity && !currentDept;
+    return totalAssigned >= item.quantity;
   };
-
   const validateSession = (session) => {
     const errors = [];
     if (!session.formData.checking_name)

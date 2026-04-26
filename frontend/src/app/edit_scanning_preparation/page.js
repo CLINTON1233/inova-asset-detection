@@ -20,6 +20,7 @@ import {
   ArrowLeft,
   User,
   Copy,
+  Layers,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import API_BASE_URL, { API_ENDPOINTS } from "../../config/api";
@@ -38,9 +39,16 @@ export default function EditScanningPreparationPage() {
   const [projects, setProjects] = useState([]);
   const [receivers, setReceivers] = useState([]);
   const [receiversByDepartment, setReceiversByDepartment] = useState({});
+  const [masterDevices, setMasterDevices] = useState([]);
+  const [masterMaterials, setMasterMaterials] = useState([]);
   const [mounted, setMounted] = useState(false);
   const [expandedItems, setExpandedItems] = useState({});
   const [sessionType, setSessionType] = useState(null);
+
+  const [sessionInfo, setSessionInfo] = useState({
+    checking_name: "",
+    checking_number: ""
+  });
 
   const uomOptions = [
     { code: "PCS", name: "Pieces" },
@@ -69,6 +77,8 @@ export default function EditScanningPreparationPage() {
     fetchDepartments();
     fetchProjects();
     fetchReceivers();
+    fetchMasterDevices();
+    fetchMasterMaterials();
 
     if (!prepId) {
       Swal.fire("Error", "No preparation ID provided", "error").then(() => {
@@ -90,25 +100,49 @@ export default function EditScanningPreparationPage() {
     }
   }, [prepId, sessionType]);
 
+  const fetchMasterDevices = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.MASTER_DEVICES_LIST);
+      const data = await response.json();
+      if (data.success) {
+        setMasterDevices(data.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching master devices:", error);
+    }
+  };
+
+  const fetchMasterMaterials = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.MASTER_MATERIALS_LIST);
+      const data = await response.json();
+      if (data.success) {
+        setMasterMaterials(data.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching master materials:", error);
+    }
+  };
+
   const detectSessionType = async () => {
     setFetching(true);
     try {
       let response = await fetch(API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId));
       let result = await response.json();
-      
+
       if (result.success) {
         setSessionType("device");
         return;
       }
-      
+
       response = await fetch(API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId));
       result = await response.json();
-      
+
       if (result.success) {
         setSessionType("material");
         return;
       }
-      
+
       throw new Error("Session not found");
     } catch (error) {
       console.error("Error detecting session type:", error);
@@ -179,29 +213,10 @@ export default function EditScanningPreparationPage() {
         setDepartments([
           { id_department: 1, department_name: "IT" },
           { id_department: 2, department_name: "HR" },
-          { id_department: 3, department_name: "Finance" },
-          { id_department: 4, department_name: "Contract" },
-          { id_department: 5, department_name: "Procurement" },
-          { id_department: 6, department_name: "Marketing" },
-          { id_department: 7, department_name: "Engineering" },
-          { id_department: 8, department_name: "HSE" },
-          { id_department: 9, department_name: "Security & IYM" },
-          { id_department: 10, department_name: "Planning" },
-          { id_department: 11, department_name: "Warehouse" },
-          { id_department: 12, department_name: "Work & Shipwright" },
-          { id_department: 13, department_name: "Structure" },
-          { id_department: 14, department_name: "Piping" },
-          { id_department: 15, department_name: "E & I" },
-          { id_department: 16, department_name: "Machinery" },
-          { id_department: 17, department_name: "QA/QC" },
-          { id_department: 18, department_name: "PMT GAMMA" },
-          { id_department: 19, department_name: "PMT NEDERWIEK2" },
-          { id_department: 20, department_name: "PMT FPSO PETROBRAS" },
         ]);
       }
     } catch (error) {
       console.error("Error fetching departments:", error);
-      setDepartments([]);
     }
   };
 
@@ -222,13 +237,6 @@ export default function EditScanningPreparationPage() {
       }
     } catch (error) {
       console.error("Error fetching projects:", error);
-      setProjects([
-        { id_project: 1, project_name: "Gamma" },
-        { id_project: 2, project_name: "Nederwiek 2" },
-        { id_project: 3, project_name: "Overhead" },
-        { id_project: 4, project_name: "FPSO PETROBRAS P-84" },
-        { id_project: 5, project_name: "FPSO PETROBRAS P-85" },
-      ]);
     }
   };
 
@@ -238,7 +246,7 @@ export default function EditScanningPreparationPage() {
       const data = await response.json();
       if (data.success) {
         setReceivers(data.data || []);
-        
+
         const grouped = {};
         data.data.forEach((receiver) => {
           const deptId = receiver.department_id;
@@ -263,24 +271,23 @@ export default function EditScanningPreparationPage() {
     setFetching(true);
     try {
       let result = null;
-      
-      console.log("Fetching with type:", sessionType);
-      console.log("Prep ID:", prepId);
-      
+
       if (sessionType === "device") {
         const response = await fetch(API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId));
         result = await response.json();
-        console.log("Device response:", result);
       } else if (sessionType === "material") {
         const response = await fetch(API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId));
         result = await response.json();
-        console.log("Material response:", result);
       }
 
       if (result && result.success) {
         const data = result.data;
-        
-        console.log("Data items:", data.items);
+
+        // Simpan info session
+        setSessionInfo({
+          checking_name: data.checking_name || "",
+          checking_number: data.checking_number || ""
+        });
 
         setFormData({
           checking_name: data.checking_name || "",
@@ -290,81 +297,65 @@ export default function EditScanningPreparationPage() {
           remarks: data.remarks || "",
         });
 
-        let formattedItems = [];
-        
-   if (sessionType === "device") {
-  formattedItems = data.items.map((item, idx) => {
-    // Pastikan receivers memiliki struktur yang benar
-    const receiversList = (item.receivers || []).map((r, rIdx) => ({
-      department_id: r.department_id,
-      department_name: r.department_name,
-      receiver_id: r.receiver_id,
-      item_index: r.item_index !== undefined ? r.item_index : rIdx
-    }));
-    
-    return {
-      id: `item-${Date.now()}-${idx}-${Math.random()}`,
-      device_name: item.device_name || "",
-      device_detail: item.device_detail || "",
-      brand: item.brand || "",
-      vendor: item.vendor || "",
-      model: item.model || "",
-      specifications: item.specifications || "",
-      quantity: item.quantity || 1,
-      departments: (item.departments || []).map(d => ({
-        department_id: d.department_id,
-        department_name: d.department_name,
-        quantity: d.quantity
-      })),
-      receivers: receiversList,
-      project_id: item.project_id || "",
-      project_name: item.project_name || "",
-      uom: "PCS",
-      material_name: "",
-      material_detail: "",
-    };
-  });
 
-        } else {
-          formattedItems = data.items.map((item, idx) => {
-            console.log("Processing material item:", item);
-            
-            // Build departments array
-            const departmentsList = (item.departments || []).map(d => ({
+        let formattedItems = [];
+
+        if (sessionType === "device") {
+          formattedItems = data.items.map((item, idx) => ({
+            id: `item-${Date.now()}-${idx}-${Math.random()}`,
+            device_name: item.device_name || "",
+            device_detail: item.device_detail || "",
+            brand: item.brand || "",
+            vendor: item.vendor || "",
+            model: item.model || "",
+            specifications: item.specifications || "",
+            quantity: item.quantity || 1,
+            departments: (item.departments || []).map(d => ({
               department_id: d.department_id,
               department_name: d.department_name,
               quantity: d.quantity
-            }));
-            
-            // Build receivers array
-            const receiversList = (item.receivers || []).map((r, rIdx) => ({
+            })),
+            receivers: (item.receivers || []).map((r, rIdx) => ({
               department_id: r.department_id,
               department_name: r.department_name,
               receiver_id: r.receiver_id,
-              item_index: r.item_index || rIdx
-            }));
-            
-            return {
-              id: `item-${Date.now()}-${idx}-${Math.random()}`,
-              material_name: item.item_name || item.material_name || "",
-              material_detail: item.specifications || item.material_detail || "",
-              quantity: parseFloat(item.quantity) || 1,
-              uom: item.uom || "PCS",
-              vendor: item.vendor || "",
-              project_id: item.project_id || "",
-              project_name: item.project_name || "",
-              departments: departmentsList,
-              receivers: receiversList,
-              device_name: "",
-              device_detail: "",
-              brand: "",
-              model: "",
-              specifications: "",
-            };
-          });
+              item_index: r.item_index !== undefined ? r.item_index : rIdx
+            })),
+            project_id: item.project_id ? String(item.project_id) : "",
+            uom: "PCS",
+            material_name: "",
+            material_detail: "",
+            saveToStock: item.is_stock || false,
+          }));
+        } else {
+          formattedItems = data.items.map((item, idx) => ({
+            id: `item-${Date.now()}-${idx}-${Math.random()}`,
+            material_name: item.item_name || item.material_name || "",
+            material_detail: item.specifications || item.material_detail || "",
+            quantity: parseFloat(item.quantity) || 1,
+            uom: item.uom || "PCS",
+            vendor: item.vendor || "",
+            project_id: item.project_id ? String(item.project_id) : "",
+            departments: (item.departments || []).map(d => ({
+              department_id: d.department_id,
+              department_name: d.department_name,
+              quantity: d.quantity
+            })),
+            receivers: (item.receivers || []).map((r, rIdx) => ({
+              department_id: r.department_id,
+              department_name: r.department_name,
+              receiver_id: r.receiver_id,
+              item_index: r.item_index !== undefined ? r.item_index : rIdx
+            })),
+            device_name: "",
+            device_detail: "",
+            brand: "",
+            model: "",
+            specifications: "",
+            saveToStock: item.is_stock || false,
+          }));
         }
-        
-        console.log("Formatted items with receivers:", formattedItems);
+
         setItems(formattedItems);
       } else {
         throw new Error(result?.error || "Failed to load preparation data");
@@ -398,7 +389,6 @@ export default function EditScanningPreparationPage() {
           uom: "PCS",
           vendor: "",
           project_id: "",
-          project_name: "",
           departments: [],
           receivers: [],
           device_name: "",
@@ -406,6 +396,7 @@ export default function EditScanningPreparationPage() {
           brand: "",
           model: "",
           specifications: "",
+          saveToStock: false,
         },
       ]);
     } else {
@@ -423,10 +414,10 @@ export default function EditScanningPreparationPage() {
           departments: [],
           receivers: [],
           project_id: "",
-          project_name: "",
           uom: "PCS",
           material_name: "",
           material_detail: "",
+          saveToStock: false,
         },
       ]);
     }
@@ -471,7 +462,7 @@ export default function EditScanningPreparationPage() {
           const existingIndex = item.receivers.findIndex(
             (r) => r.department_id === departmentId && r.item_index === itemIndex
           );
-          
+
           let newReceivers;
           if (existingIndex >= 0) {
             newReceivers = [...item.receivers];
@@ -498,106 +489,127 @@ export default function EditScanningPreparationPage() {
     );
   };
 
-const updateDepartmentQuantity = (itemId, departmentId, quantity) => {
-  const department = departments.find(
-    (d) => d.id_department === parseInt(departmentId),
-  );
-  
-  setItems(prevItems => 
-    prevItems.map(item => {
-      if (item.id !== itemId) return item;
-
-      const newQuantity = parseFloat(quantity) || 0;
-      
-      // Hitung total quantity yang sudah dialokasikan ke department lain
-      const totalOtherDepts = item.departments.reduce(
-        (sum, d) => d.department_id === parseInt(departmentId) ? sum : sum + d.quantity,
-        0
-      );
-      
-      // Hitung sisa quantity yang tersedia
-      const availableQty = item.quantity - totalOtherDepts;
-      
-      // Batasi quantity yang bisa dimasukkan
-      let finalQuantity = newQuantity;
-      if (newQuantity > availableQty) {
-        finalQuantity = availableQty;
-        Swal.fire({
-          title: "Warning!",
-          text: `Maximum available quantity for this department is ${availableQty}`,
-          icon: "warning",
-          timer: 2000,
-          showConfirmButton: false,
-        });
-      }
-
-      // Cek apakah department sudah ada
-      const existingDeptIndex = item.departments.findIndex(
-        (d) => d.department_id === parseInt(departmentId)
-      );
-
-      let newDepartments;
-      let newReceivers;
-
-      if (finalQuantity > 0) {
-        // Update atau tambah department
-        if (existingDeptIndex >= 0) {
-          newDepartments = [...item.departments];
-          newDepartments[existingDeptIndex] = {
-            ...newDepartments[existingDeptIndex],
-            quantity: finalQuantity
+  const toggleSaveToStock = (itemId) => {
+    setItems(prevItems =>
+      prevItems.map(item => {
+        if (item.id === itemId) {
+          const newSaveToStock = !item.saveToStock;
+          return {
+            ...item,
+            saveToStock: newSaveToStock,
+            departments: newSaveToStock ? [] : item.departments,
+            receivers: newSaveToStock ? [] : item.receivers,
           };
-        } else {
-          newDepartments = [
-            ...item.departments,
-            {
+        }
+        return item;
+      })
+    );
+  };
+
+  const updateDepartmentQuantity = (itemId, departmentId, quantity) => {
+    const department = departments.find(
+      (d) => d.id_department === parseInt(departmentId),
+    );
+
+    setItems(prevItems =>
+      prevItems.map(item => {
+        if (item.id !== itemId) return item;
+
+        if (item.saveToStock) {
+          Swal.fire({
+            title: "Info",
+            text: "Item is saved to stock. Disable 'Save to Stock' to distribute.",
+            icon: "info",
+            timer: 2000,
+            showConfirmButton: false,
+          });
+          return item;
+        }
+
+        const newQuantity = parseFloat(quantity) || 0;
+
+        const totalOtherDepts = item.departments.reduce(
+          (sum, d) => d.department_id === parseInt(departmentId) ? sum : sum + d.quantity,
+          0
+        );
+
+        const availableQty = item.quantity - totalOtherDepts;
+
+        let finalQuantity = newQuantity;
+        if (newQuantity > availableQty) {
+          finalQuantity = availableQty;
+          if (newQuantity > 0) {
+            Swal.fire({
+              title: "Warning!",
+              text: `Maximum available quantity for this department is ${availableQty}`,
+              icon: "warning",
+              timer: 2000,
+              showConfirmButton: false,
+            });
+          }
+        }
+
+        const existingDeptIndex = item.departments.findIndex(
+          (d) => d.department_id === parseInt(departmentId)
+        );
+
+        let newDepartments;
+        let newReceivers;
+
+        if (finalQuantity > 0) {
+          if (existingDeptIndex >= 0) {
+            newDepartments = [...item.departments];
+            newDepartments[existingDeptIndex] = {
+              ...newDepartments[existingDeptIndex],
+              quantity: finalQuantity
+            };
+          } else {
+            newDepartments = [
+              ...item.departments,
+              {
+                department_id: parseInt(departmentId),
+                department_name: department?.department_name || `Department ${departmentId}`,
+                quantity: finalQuantity
+              }
+            ];
+          }
+
+          newReceivers = [...item.receivers];
+          newReceivers = newReceivers.filter(r => r.department_id !== parseInt(departmentId));
+          for (let i = 0; i < finalQuantity; i++) {
+            newReceivers.push({
               department_id: parseInt(departmentId),
               department_name: department?.department_name || `Department ${departmentId}`,
-              quantity: finalQuantity
-            }
-          ];
+              receiver_id: null,
+              item_index: i
+            });
+          }
+        } else {
+          newDepartments = item.departments.filter(
+            (d) => d.department_id !== parseInt(departmentId)
+          );
+          newReceivers = item.receivers.filter(
+            (r) => r.department_id !== parseInt(departmentId)
+          );
         }
 
-        // Update receiver entries
-        newReceivers = [...item.receivers];
-        // Hapus receiver lama untuk department ini
-        newReceivers = newReceivers.filter(r => r.department_id !== parseInt(departmentId));
-        // Tambah receiver baru sesuai quantity
-        for (let i = 0; i < finalQuantity; i++) {
-          newReceivers.push({
-            department_id: parseInt(departmentId),
-            department_name: department?.department_name || `Department ${departmentId}`,
-            receiver_id: null,
-            item_index: i
-          });
-        }
-      } else {
-        // Hapus department
-        newDepartments = item.departments.filter(
-          (d) => d.department_id !== parseInt(departmentId)
-        );
-        // Hapus semua receiver untuk department ini
-        newReceivers = item.receivers.filter(
-          (r) => r.department_id !== parseInt(departmentId)
-        );
-      }
+        return {
+          ...item,
+          departments: newDepartments,
+          receivers: newReceivers
+        };
+      })
+    );
+  };
 
-      return {
-        ...item,
-        departments: newDepartments,
-        receivers: newReceivers
-      };
-    })
-  );
-};
-
-const isDepartmentInputDisabled = (item, departmentId) => {
-  const totalAssigned = item.departments.reduce(
-    (sum, d) => sum + (d.department_id === parseInt(departmentId) ? 0 : d.quantity),
-    0
-  );
-  return totalAssigned >= item.quantity;
-};
+  const isDepartmentInputDisabled = (item, departmentId) => {
+    if (item.saveToStock) return true;
+    const totalAssigned = item.departments.reduce(
+      (sum, d) => sum + (d.department_id === parseInt(departmentId) ? 0 : d.quantity),
+      0
+    );
+    return totalAssigned >= item.quantity;
+  };
 
   const validateForm = () => {
     const errors = [];
@@ -617,21 +629,22 @@ const isDepartmentInputDisabled = (item, departmentId) => {
       }
       if (!item.quantity || item.quantity < 1)
         errors.push(`Item #${index + 1}: Quantity must be at least 1`);
-      
-      // Check each department has receiver selected for each item
-      item.departments.forEach((dept) => {
-        for (let i = 0; i < dept.quantity; i++) {
-          const receiver = item.receivers.find(
-            (r) => r.department_id === dept.department_id && r.item_index === i
-          );
-          if (!receiver || !receiver.receiver_id) {
-            const deptName = departments.find(d => d.id_department === dept.department_id)?.department_name;
-            errors.push(
-              `Item #${index + 1}: Please select a receiver for department "${deptName}" item #${i + 1}`,
+
+      if (!item.saveToStock) {
+        item.departments.forEach((dept) => {
+          for (let i = 0; i < dept.quantity; i++) {
+            const receiver = item.receivers.find(
+              (r) => r.department_id === dept.department_id && r.item_index === i
             );
+            if (!receiver || !receiver.receiver_id) {
+              const deptName = departments.find(d => d.id_department === dept.department_id)?.department_name;
+              errors.push(
+                `Item #${index + 1}: Please select a receiver for department "${deptName}" item #${i + 1}`,
+              );
+            }
           }
-        }
-      });
+        });
+      }
     });
 
     return errors;
@@ -681,30 +694,25 @@ const isDepartmentInputDisabled = (item, departmentId) => {
       let payload;
 
       if (isMaterial) {
-        // Build items with receivers for materials
-        const formattedItems = items.map((item) => {
-          // Build receivers list with item_index
-          const receiversList = item.receivers.map((r) => ({
+        const formattedItems = items.map((item) => ({
+          item_name: item.material_name,
+          specifications: item.material_detail,
+          quantity: parseFloat(item.quantity),
+          uom: item.uom || "PCS",
+          vendor: item.vendor || "",
+          project_id: item.project_id ? parseInt(item.project_id) : null,
+          departments: item.saveToStock ? [] : item.departments.map((d) => ({
+            department_id: d.department_id,
+            quantity: parseFloat(d.quantity),
+          })),
+          receivers: item.saveToStock ? [] : item.receivers.map((r) => ({
             department_id: r.department_id,
             receiver_id: r.receiver_id,
-            item_index: r.item_index
-          }));
-          
-          return {
-            item_name: item.material_name,
-            specifications: item.material_detail,
-            quantity: parseFloat(item.quantity),
-            uom: item.uom || "PCS",
-            vendor: item.vendor || "",
-            project_id: item.project_id ? parseInt(item.project_id) : null,
-            departments: item.departments.map((d) => ({
-              department_id: d.department_id,
-              quantity: parseFloat(d.quantity),
-            })),
-            receivers: receiversList,
-          };
-        });
-        
+            item_index: r.item_index,
+          })),
+          is_stock: item.saveToStock || false,
+        }));
+
         payload = {
           checking_name: formData.checking_name,
           category_id: 2,
@@ -715,31 +723,27 @@ const isDepartmentInputDisabled = (item, departmentId) => {
           user_id: userId,
         };
       } else {
-        // Build items with receivers for devices
-        const formattedItems = items.map((item) => {
-          const receiversList = item.receivers.map((r) => ({
+        const formattedItems = items.map((item) => ({
+          device_name: item.device_name,
+          device_detail: item.device_detail,
+          brand: item.brand,
+          vendor: item.vendor,
+          model: item.model,
+          specifications: item.specifications,
+          quantity: parseInt(item.quantity),
+          project_id: item.project_id ? parseInt(item.project_id) : null,
+          departments: item.saveToStock ? [] : item.departments.map((d) => ({
+            department_id: d.department_id,
+            quantity: parseInt(d.quantity),
+          })),
+          receivers: item.saveToStock ? [] : item.receivers.map((r) => ({
             department_id: r.department_id,
             receiver_id: r.receiver_id,
-            item_index: r.item_index
-          }));
-          
-          return {
-            device_name: item.device_name,
-            device_detail: item.device_detail,
-            brand: item.brand,
-            vendor: item.vendor,
-            model: item.model,
-            specifications: item.specifications,
-            quantity: parseInt(item.quantity),
-            project_id: item.project_id ? parseInt(item.project_id) : null,
-            departments: item.departments.map((d) => ({
-              department_id: d.department_id,
-              quantity: parseInt(d.quantity),
-            })),
-            receivers: receiversList,
-          };
-        });
-        
+            item_index: r.item_index,
+          })),
+          is_stock: item.saveToStock || false,
+        }));
+
         payload = {
           checking_name: formData.checking_name,
           category_id: 1,
@@ -750,8 +754,6 @@ const isDepartmentInputDisabled = (item, departmentId) => {
           user_id: userId,
         };
       }
-
-      console.log("Updating with payload:", JSON.stringify(payload, null, 2));
 
       const endpoint = isMaterial
         ? API_ENDPOINTS.MATERIALS_SCANNING_PREP_UPDATE(prepId)
@@ -791,9 +793,9 @@ const isDepartmentInputDisabled = (item, departmentId) => {
   };
 
   const inputCls =
-    "w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition";
+    "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition bg-white";
   const selectCls =
-    "w-full px-3 py-2 text-sm border border-gray-200 rounded-md bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none transition";
+    "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition bg-white appearance-none";
 
   const Label = ({ children, required }) => (
     <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -806,20 +808,14 @@ const isDepartmentInputDisabled = (item, departmentId) => {
     <p className="text-xs text-gray-400 mt-1">{children}</p>
   );
 
-  const SectionDivider = ({ icon: Icon, label }) => (
-    <div className="flex items-center gap-2 pt-6 pb-4 border-t border-gray-100 mt-2">
-      <Icon className="w-4 h-4 text-blue-600 flex-shrink-0" />
-      <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-        {label}
-      </h3>
-    </div>
-  );
-
   if (!mounted || fetching) {
     return (
-      <LayoutDashboard activeMenu={2}>
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
+      <LayoutDashboard activeMenu={1}>
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto" />
+            <p className="mt-4 text-gray-600">Loading...</p>
+          </div>
         </div>
       </LayoutDashboard>
     );
@@ -829,9 +825,41 @@ const isDepartmentInputDisabled = (item, departmentId) => {
 
   return (
     <LayoutDashboard activeMenu={1}>
-      <div className="max-w-6xl mx-auto">
+      <style jsx>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+        .sp-root { font-family: 'DM Sans', sans-serif; }
+        
+        .card {
+          background: #ffffff;
+          border-radius: 16px;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          transition: box-shadow 0.2s ease;
+        }
+        
+        .session-card {
+          background: #ffffff;
+          border-radius: 16px;
+          border: 1px solid #e5e7eb;
+          transition: all 0.2s ease;
+          margin-bottom: 1rem;
+        }
+        
+        .section-title {
+          font-size: 13px;
+          font-weight: 600;
+          color: #6b7280;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          margin-bottom: 16px;
+        }
+        
+        .animate-spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
+
+      <div className="sp-root space-y-5">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push("/scanning_preparation_list")}
@@ -841,854 +869,711 @@ const isDepartmentInputDisabled = (item, departmentId) => {
             </button>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <Package className="w-5 h-5 text-blue-600" />
+                <Package className="w-5 h-5 text-blue-600 flex-shrink-0" />
                 <h1 className="text-xl font-bold text-gray-900">
                   Edit Scanning Preparation
                 </h1>
               </div>
-              <p className="text-sm text-gray-500">
-                Update preparation ID: {prepId}
-              </p>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                <p className="text-sm font-medium text-gray-700">
+                  {sessionInfo.checking_name || "Loading..."}
+                </p>
+                <span className="hidden sm:inline text-gray-400">•</span>
+                <p className="text-xs font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md inline-block w-fit">
+                  {sessionInfo.checking_number || "Loading..."}
+                </p>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${
-              isMaterial 
-                ? "bg-green-50 text-green-700 border-green-200" 
-                : "bg-blue-50 text-blue-700 border-blue-200"
-            }`}>
-              {isMaterial ? "Material Session" : "Device Session"}
+            <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+              <Layers className="w-3 h-3 inline mr-1" />
+              {items.length} Item{items.length !== 1 ? 's' : ''}
             </span>
           </div>
         </div>
 
-        {/* Form Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-6">
-            {/* Basic Information */}
-            <SectionDivider icon={FileText} label="Basic Information" />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div>
-                <Label required>Checking Name</Label>
-                <input
-                  type="text"
-                  value={formData.checking_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, checking_name: e.target.value })
-                  }
-                  className={inputCls}
-                  placeholder="e.g. IT Asset Inventory"
-                />
+        {/* Main Form Card */}
+        <div className="card overflow-hidden">
+          <div className="p-5 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Package className="w-4 h-4 text-blue-600" />
               </div>
               <div>
-                <Label required>Category</Label>
-                <select
-                  value={formData.category_id}
-                  className={selectCls}
-                  disabled
-                >
-                  <option value="1">Devices</option>
-                  <option value="2">Materials</option>
-                </select>
-                <Hint>Category cannot be changed after creation</Hint>
+                <h2 className="text-sm font-bold text-gray-800 leading-tight">
+                  Edit Scanning Preparation Form
+                </h2>
+                <p className="text-xs text-gray-400 leading-tight mt-0.5">
+                  Update the information below to modify this scanning session
+                </p>
               </div>
-            </div>
-
-            {/* Location & Date */}
-            <SectionDivider icon={MapPin} label="Location & Date" />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div>
-                <Label required>Location</Label>
-                <select
-                  value={formData.location_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, location_id: e.target.value })
-                  }
-                  className={selectCls}
-                >
-                  <option value="">Select Location</option>
-                  {locations.map((loc) => (
-                    <option key={loc.id_location} value={loc.id_location}>
-                      {loc.location_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label required>Checking Date</Label>
-                <input
-                  type="date"
-                  value={formData.checking_date}
-                  onChange={(e) =>
-                    setFormData({ ...formData, checking_date: e.target.value })
-                  }
-                  className={inputCls}
-                />
-              </div>
-            </div>
-
-            {/* Items */}
-            <SectionDivider icon={Box} label="Items to Scan" />
-            <div className="space-y-4">
-              {items.map((item, itemIndex) => {
-                const totalDeptQty = item.departments.reduce(
-                  (sum, d) => sum + (d.quantity || 0),
-                  0,
-                );
-                const remainingQty = item.quantity - totalDeptQty;
-                const isExpanded = expandedItems[item.id];
-
-                return (
-                  <div
-                    key={item.id}
-                    className="border border-gray-200 rounded-lg p-4 bg-white"
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                          Item #{itemIndex + 1}
-                        </span>
-                        {item.quantity > 1 && (
-                          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-                            Qty: {item.quantity}
-                          </span>
-                        )}
-                      </div>
-                      {items.length > 1 && (
-                        <button
-                          onClick={() => removeItem(item.id)}
-                          className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded-lg"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-
-                    {isMaterial ? (
-                      // FORM UNTUK MATERIALS
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="col-span-1 md:col-span-2">
-                          <Label required>Material Name</Label>
-                          <input
-                            type="text"
-                            value={item.material_name || ""}
-                            onChange={(e) =>
-                              updateItem(
-                                item.id,
-                                "material_name",
-                                e.target.value,
-                              )
-                            }
-                            className={inputCls}
-                            placeholder="e.g. Ethernet Cable, HDMI Cable, Copper Wire"
-                          />
-                        </div>
-
-                        <div className="col-span-1 md:col-span-2">
-                          <Label>Material Details</Label>
-                          <textarea
-                            value={item.material_detail || ""}
-                            onChange={(e) =>
-                              updateItem(
-                                item.id,
-                                "material_detail",
-                                e.target.value,
-                              )
-                            }
-                            className={inputCls}
-                            rows="2"
-                            placeholder="Specifications, color, length, gauge, etc."
-                          />
-                        </div>
-
-                        <div>
-                          <Label required>Quantity</Label>
-                          <input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              updateItem(
-                                item.id,
-                                "quantity",
-                                parseFloat(e.target.value) || 1,
-                              )
-                            }
-                            className={inputCls}
-                            min="0.01"
-                            step="0.01"
-                          />
-                        </div>
-
-                        <div>
-                          <Label required>Unit of Measure (UOM)</Label>
-                          <select
-                            value={item.uom || "PCS"}
-                            onChange={(e) =>
-                              updateItem(item.id, "uom", e.target.value)
-                            }
-                            className={selectCls}
-                          >
-                            {uomOptions.map((uom) => (
-                              <option key={uom.code} value={uom.code}>
-                                {uom.name} ({uom.code})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <Label>Vendor</Label>
-                          <input
-                            type="text"
-                            value={item.vendor || ""}
-                            onChange={(e) =>
-                              updateItem(item.id, "vendor", e.target.value)
-                            }
-                            className={inputCls}
-                            placeholder="e.g. Belden, 3M, Anixter"
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Project</Label>
-                          <select
-                            value={item.project_id || ""}
-                            onChange={(e) =>
-                              updateItem(item.id, "project_id", e.target.value)
-                            }
-                            className={selectCls}
-                          >
-                            <option value="">Select Project</option>
-                            {projects.map((project) => (
-                              <option key={project.id_project} value={project.id_project}>
-                                {project.project_name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Department Distribution */}
-                        <div className="col-span-1 md:col-span-2 lg:col-span-4">
-                          <div className="flex items-center justify-between mt-2">
-                            <Label>Department Distribution</Label>
-                            <button
-                              onClick={() => toggleDepartmentSection(item.id)}
-                              className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${
-                                isExpanded
-                                  ? "bg-gray-100 text-gray-700 border border-gray-300"
-                                  : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
-                              }`}
-                            >
-                              {isExpanded
-                                ? "Close Distribution"
-                                : "Distribute Items"}
-                              {isExpanded ? (
-                                <ChevronUp className="w-3 h-3" />
-                              ) : (
-                                <ChevronDown className="w-3 h-3" />
-                              )}
-                            </button>
-                          </div>
-
-                          {isExpanded && (
-                            <div className="mt-4 space-y-4">
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {departments.map((dept) => {
-                                  const assignedDept = item.departments.find(
-                                    (d) =>
-                                      d.department_id === dept.id_department,
-                                  );
-                                  const assignedQty =
-                                    assignedDept?.quantity || 0;
-                                  const isDisabled = isDepartmentInputDisabled(
-                                    item,
-                                    dept.id_department,
-                                  );
-                                  return (
-                                    <div
-                                      key={dept.id_department}
-                                      className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-white"
-                                    >
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-700 truncate">
-                                          {dept.department_name}
-                                        </p>
-                                        {assignedQty > 0 && (
-                                          <p className="text-xs text-blue-600 mt-0.5">
-                                            Assigned: {assignedQty}
-                                          </p>
-                                        )}
-                                      </div>
-                                      <div className="w-24 ml-2">
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          max={item.quantity}
-                                          value={assignedQty}
-                                          onChange={(e) =>
-                                            updateDepartmentQuantity(
-                                              item.id,
-                                              dept.id_department,
-                                              e.target.value,
-                                            )
-                                          }
-                                          disabled={isDisabled}
-                                          className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                            isDisabled
-                                              ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
-                                              : "bg-white border-gray-200 text-gray-800"
-                                          }`}
-                                          placeholder="Qty"
-                                        />
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              <div className="p-3 border-t border-gray-200">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm font-medium text-gray-700">
-                                    Distribution Summary:
-                                  </span>
-                                  <span
-                                    className={`text-sm font-semibold ${
-                                      totalDeptQty === item.quantity
-                                        ? "text-green-600"
-                                        : totalDeptQty > 0
-                                          ? "text-blue-600"
-                                          : "text-gray-500"
-                                    }`}
-                                  >
-                                    {totalDeptQty} of {item.quantity} assigned
-                                  </span>
-                                </div>
-                                {remainingQty > 0 && (
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    {remainingQty} unassigned items will stay at
-                                    main location
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          {!isExpanded && item.departments.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {item.departments.map((dept) => (
-                                <div
-                                  key={dept.department_id}
-                                  className="inline-flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-full border border-gray-200"
-                                >
-                                  <Users className="w-3 h-3 text-gray-500" />
-                                  <span className="text-xs text-gray-700">
-                                    {dept.department_name}
-                                  </span>
-                                  <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded-full">
-                                    {dept.quantity}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Receiver Assignment Section for Materials */}
-                        {item.departments.length > 0 && (
-                          <div className="col-span-1 md:col-span-2 lg:col-span-4 mt-4 pt-4 border-t border-gray-200">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center gap-2">
-                                <User className="w-4 h-4 text-green-600" />
-                                <h4 className="text-sm font-semibold text-gray-800">
-                                  Receiver Assignment
-                                </h4>
-                                <span className="text-xs text-gray-500">
-                                  (Select receiver for each item)
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="space-y-4">
-                              {item.departments.map((dept) => {
-                                const deptInfo = departments.find(d => d.id_department === dept.department_id);
-                                const availableReceivers = getReceiversForDepartment(dept.department_id);
-                                
-                                const receiverEntries = [];
-                                for (let i = 0; i < dept.quantity; i++) {
-                                  const receiver = item.receivers.find(
-                                    (r) => r.department_id === dept.department_id && r.item_index === i
-                                  );
-                                  receiverEntries.push({
-                                    index: i,
-                                    receiver: receiver
-                                  });
-                                }
-                                
-                                return (
-                                  <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
-                                    <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
-                                      <div className="flex items-center gap-2">
-                                        <Users className="w-4 h-4 text-gray-600" />
-                                        <span className="text-sm font-semibold text-gray-800">
-                                          {deptInfo?.department_name || `Department ${dept.department_id}`}
-                                        </span>
-                                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                                          Total: {dept.quantity} item(s)
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <div className="p-4 space-y-3">
-                                      {receiverEntries.map((entry) => {
-                                        const receiver = entry.receiver;
-                                        return (
-                                          <div key={`${dept.department_id}-${entry.index}`} className="receiver-item">
-                                            <div className="flex items-center gap-2 mb-2">
-                                              <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                                                Item #{entry.index + 1}
-                                              </span>
-                                            </div>
-                                            <div>
-                                              <select
-                                                value={receiver?.receiver_id || ""}
-                                                onChange={(e) =>
-                                                  updateReceiverAssignment(
-                                                    item.id,
-                                                    dept.department_id,
-                                                    e.target.value,
-                                                    entry.index
-                                                  )
-                                                }
-                                                className={selectCls}
-                                              >
-                                                <option value="">Select Receiver</option>
-                                                {availableReceivers.map((rec) => (
-                                                  <option key={rec.id_receiver} value={rec.id_receiver}>
-                                                    {rec.receiver_name} - {rec.receiver_title}
-                                                  </option>
-                                                ))}
-                                              </select>
-                                              <Hint>Receiver for item #{entry.index + 1}</Hint>
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                              
-                              <div className="p-3 bg-blue-50 rounded-lg">
-                                <p className="text-xs text-blue-700">
-                                  <strong>Total distributed:</strong> {item.departments.reduce((sum, d) => sum + d.quantity, 0)} of {item.quantity}
-                                </p>
-                                {item.departments.reduce((sum, d) => sum + d.quantity, 0) < item.quantity && (
-                                  <p className="text-xs text-orange-600 mt-1">
-                                    <strong>Remaining:</strong> {item.quantity - item.departments.reduce((sum, d) => sum + d.quantity, 0)} items unassigned
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      // FORM UNTUK DEVICES
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="col-span-1 md:col-span-2">
-                          <Label required>Device Name</Label>
-                          <input
-                            type="text"
-                            value={item.device_name || ""}
-                            onChange={(e) =>
-                              updateItem(item.id, "device_name", e.target.value)
-                            }
-                            className={inputCls}
-                            placeholder="e.g. Laptop Dell, Monitor LG"
-                          />
-                        </div>
-
-                        <div className="col-span-1 md:col-span-2">
-                          <Label>Device Details</Label>
-                          <textarea
-                            value={item.device_detail || ""}
-                            onChange={(e) =>
-                              updateItem(
-                                item.id,
-                                "device_detail",
-                                e.target.value,
-                              )
-                            }
-                            className={inputCls}
-                            rows="2"
-                            placeholder="Specifications, color, size, features, etc."
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Brand</Label>
-                          <input
-                            type="text"
-                            value={item.brand || ""}
-                            onChange={(e) =>
-                              updateItem(item.id, "brand", e.target.value)
-                            }
-                            className={inputCls}
-                            placeholder="e.g. Dell, LG, Samsung"
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Vendor</Label>
-                          <input
-                            type="text"
-                            value={item.vendor || ""}
-                            onChange={(e) =>
-                              updateItem(item.id, "vendor", e.target.value)
-                            }
-                            className={inputCls}
-                            placeholder="e.g. PT DUTA, PT SUMBER MAKMUR"
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Model</Label>
-                          <input
-                            type="text"
-                            value={item.model || ""}
-                            onChange={(e) =>
-                              updateItem(item.id, "model", e.target.value)
-                            }
-                            className={inputCls}
-                            placeholder="e.g. Latitude 3420, 27MN60T"
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Specifications</Label>
-                          <input
-                            type="text"
-                            value={item.specifications || ""}
-                            onChange={(e) =>
-                              updateItem(
-                                item.id,
-                                "specifications",
-                                e.target.value,
-                              )
-                            }
-                            className={inputCls}
-                            placeholder="e.g. Intel i5, 8GB RAM, 256GB SSD"
-                          />
-                        </div>
-
-                        <div>
-                          <Label required>Quantity</Label>
-                          <input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              updateItem(
-                                item.id,
-                                "quantity",
-                                parseInt(e.target.value) || 1,
-                              )
-                            }
-                            className={inputCls}
-                            min="1"
-                          />
-                          <Hint>Number of items to scan</Hint>
-                        </div>
-
-                        <div>
-                          <Label>Project</Label>
-                          <select
-                            value={item.project_id || ""}
-                            onChange={(e) =>
-                              updateItem(item.id, "project_id", e.target.value)
-                            }
-                            className={selectCls}
-                          >
-                            <option value="">Select Project</option>
-                            {projects.map((project) => (
-                              <option key={project.id_project} value={project.id_project}>
-                                {project.project_name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Department Distribution for Devices */}
-                        <div className="col-span-1 md:col-span-2 lg:col-span-4">
-                          <div className="flex items-center justify-between mt-2">
-                            <Label>Department Distribution</Label>
-                            <button
-                              onClick={() => toggleDepartmentSection(item.id)}
-                              className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition ${
-                                isExpanded
-                                  ? "bg-gray-100 text-gray-700 border border-gray-300"
-                                  : "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
-                              }`}
-                            >
-                              {isExpanded
-                                ? "Close Distribution"
-                                : "Distribute Items"}
-                              {isExpanded ? (
-                                <ChevronUp className="w-3 h-3" />
-                              ) : (
-                                <ChevronDown className="w-3 h-3" />
-                              )}
-                            </button>
-                          </div>
-
-                          {isExpanded && (
-                            <div className="mt-4 space-y-4">
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {departments.map((dept) => {
-                                  const assignedDept = item.departments.find(
-                                    (d) =>
-                                      d.department_id === dept.id_department,
-                                  );
-                                  const assignedQty =
-                                    assignedDept?.quantity || 0;
-                                  const isDisabled = isDepartmentInputDisabled(
-                                    item,
-                                    dept.id_department,
-                                  );
-                                  return (
-                                    <div
-                                      key={dept.id_department}
-                                      className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-white"
-                                    >
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-700 truncate">
-                                          {dept.department_name}
-                                        </p>
-                                        {assignedQty > 0 && (
-                                          <p className="text-xs text-blue-600 mt-0.5">
-                                            Assigned: {assignedQty}
-                                          </p>
-                                        )}
-                                      </div>
-                                      <div className="w-24 ml-2">
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          max={item.quantity}
-                                          value={assignedQty}
-                                          onChange={(e) =>
-                                            updateDepartmentQuantity(
-                                              item.id,
-                                              dept.id_department,
-                                              e.target.value,
-                                            )
-                                          }
-                                          disabled={isDisabled}
-                                          className={`w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                            isDisabled
-                                              ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
-                                              : "bg-white border-gray-200 text-gray-800"
-                                          }`}
-                                          placeholder="Qty"
-                                        />
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              <div className="p-3 border-t border-gray-200">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm font-medium text-gray-700">
-                                    Distribution Summary:
-                                  </span>
-                                  <span
-                                    className={`text-sm font-semibold ${
-                                      totalDeptQty === item.quantity
-                                        ? "text-green-600"
-                                        : totalDeptQty > 0
-                                          ? "text-blue-600"
-                                          : "text-gray-500"
-                                    }`}
-                                  >
-                                    {totalDeptQty} of {item.quantity} assigned
-                                  </span>
-                                </div>
-                                {remainingQty > 0 && (
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    {remainingQty} unassigned items will stay at
-                                    main location
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          {!isExpanded && item.departments.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {item.departments.map((dept) => (
-                                <div
-                                  key={dept.department_id}
-                                  className="inline-flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-full border border-gray-200"
-                                >
-                                  <Users className="w-3 h-3 text-gray-500" />
-                                  <span className="text-xs text-gray-700">
-                                    {dept.department_name}
-                                  </span>
-                                  <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded-full">
-                                    {dept.quantity}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Receiver Assignment Section for Devices */}
-                        {item.departments.length > 0 && (
-                          <div className="col-span-1 md:col-span-2 lg:col-span-4 mt-4 pt-4 border-t border-gray-200">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center gap-2">
-                                <User className="w-4 h-4 text-green-600" />
-                                <h4 className="text-sm font-semibold text-gray-800">
-                                  Receiver Assignment
-                                </h4>
-                                <span className="text-xs text-gray-500">
-                                  (Select receiver for each item)
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="space-y-4">
-                              {item.departments.map((dept) => {
-                                const deptInfo = departments.find(d => d.id_department === dept.department_id);
-                                const availableReceivers = getReceiversForDepartment(dept.department_id);
-                                
-                                const receiverEntries = [];
-                                for (let i = 0; i < dept.quantity; i++) {
-                                  const receiver = item.receivers.find(
-                                    (r) => r.department_id === dept.department_id && r.item_index === i
-                                  );
-                                  receiverEntries.push({
-                                    index: i,
-                                    receiver: receiver
-                                  });
-                                }
-                                
-                                return (
-                                  <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
-                                    <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
-                                      <div className="flex items-center gap-2">
-                                        <Users className="w-4 h-4 text-gray-600" />
-                                        <span className="text-sm font-semibold text-gray-800">
-                                          {deptInfo?.department_name || `Department ${dept.department_id}`}
-                                        </span>
-                                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                                          Total: {dept.quantity} item(s)
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <div className="p-4 space-y-3">
-                                      {receiverEntries.map((entry) => {
-                                        const receiver = entry.receiver;
-                                        return (
-                                          <div key={`${dept.department_id}-${entry.index}`} className="receiver-item">
-                                            <div className="flex items-center gap-2 mb-2">
-                                              <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                                                Item #{entry.index + 1}
-                                              </span>
-                                            </div>
-                                            <div>
-                                              <select
-                                                value={receiver?.receiver_id || ""}
-                                                onChange={(e) =>
-                                                  updateReceiverAssignment(
-                                                    item.id,
-                                                    dept.department_id,
-                                                    e.target.value,
-                                                    entry.index
-                                                  )
-                                                }
-                                                className={selectCls}
-                                              >
-                                                <option value="">Select Receiver</option>
-                                                {availableReceivers.map((rec) => (
-                                                  <option key={rec.id_receiver} value={rec.id_receiver}>
-                                                    {rec.receiver_name} - {rec.receiver_title}
-                                                  </option>
-                                                ))}
-                                              </select>
-                                              <Hint>Receiver for item #{entry.index + 1}</Hint>
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                              
-                              <div className="p-3 bg-blue-50 rounded-lg">
-                                <p className="text-xs text-blue-700">
-                                  <strong>Total distributed:</strong> {item.departments.reduce((sum, d) => sum + d.quantity, 0)} of {item.quantity}
-                                </p>
-                                {item.departments.reduce((sum, d) => sum + d.quantity, 0) < item.quantity && (
-                                  <p className="text-xs text-orange-600 mt-1">
-                                    <strong>Remaining:</strong> {item.quantity - item.departments.reduce((sum, d) => sum + d.quantity, 0)} items unassigned
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Add Item Button */}
-            <button
-              onClick={addNewItem}
-              className="mt-4 flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all w-full justify-center"
-            >
-              <Plus className="w-4 h-4" />
-              Add Another Item
-            </button>
-
-            {/* Remarks */}
-            <SectionDivider icon={Info} label="Additional Information" />
-            <div className="mb-6">
-              <Label>Remarks</Label>
-              <textarea
-                value={formData.remarks}
-                onChange={(e) =>
-                  setFormData({ ...formData, remarks: e.target.value })
-                }
-                rows="3"
-                className={inputCls}
-                placeholder="Additional notes or instructions for this scanning session..."
-              />
             </div>
           </div>
 
-          {/* Form Actions */}
-          <div className="border-t border-gray-100 px-6 py-5 bg-gray-50">
-            <div className="flex items-center justify-between">
+          <div className="p-5">
+            <div className="space-y-5">
+              {/* Basic Information */}
+              <div className="mb-5">
+                <p className="section-title flex items-center gap-2">
+                  <FileText className="w-4 h-4" /> Basic Information
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label required>Checking Name</Label>
+                    <input
+                      type="text"
+                      value={formData.checking_name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, checking_name: e.target.value })
+                      }
+                      className={inputCls}
+                      placeholder="e.g. IT Asset Inventory"
+                    />
+                  </div>
+                  <div>
+                    <Label required>Category</Label>
+                    <select
+                      value={formData.category_id}
+                      className={selectCls}
+                      disabled
+                    >
+                      <option value="1">Devices</option>
+                      <option value="2">Materials</option>
+                    </select>
+                    <Hint>Category cannot be changed after creation</Hint>
+                  </div>
+                </div>
+              </div>
+
+              {/* Location & Date */}
+              <div className="mb-5">
+                <p className="section-title flex items-center gap-2">
+                  <MapPin className="w-4 h-4" /> Location & Date
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label required>Location</Label>
+                    <select
+                      value={formData.location_id}
+                      onChange={(e) =>
+                        setFormData({ ...formData, location_id: e.target.value })
+                      }
+                      className={selectCls}
+                    >
+                      <option value="">Select Location</option>
+                      {locations.map((loc) => (
+                        <option key={loc.id_location} value={loc.id_location}>
+                          {loc.location_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label required>Checking Date</Label>
+                    <input
+                      type="date"
+                      value={formData.checking_date}
+                      onChange={(e) =>
+                        setFormData({ ...formData, checking_date: e.target.value })
+                      }
+                      className={inputCls}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Items */}
+              <div className="mb-5">
+                <p className="section-title flex items-center gap-2">
+                  <Box className="w-4 h-4" /> Items to Scan
+                </p>
+                <div className="space-y-4">
+                  {items.map((item, itemIndex) => {
+                    const totalDeptQty = item.departments.reduce(
+                      (sum, d) => sum + (d.quantity || 0),
+                      0,
+                    );
+                    const remainingQty = item.quantity - totalDeptQty;
+                    const isExpanded = expandedItems[item.id];
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="border border-gray-200 rounded-lg p-4 bg-white"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                              Item #{itemIndex + 1}
+                            </span>
+                            {item.quantity > 1 && (
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                                Qty: {item.quantity}
+                              </span>
+                            )}
+                            <button
+                              onClick={() => toggleSaveToStock(item.id)}
+                              className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full transition ${item.saveToStock
+                                ? "bg-yellow-100 text-yellow-700 border border-yellow-200"
+                                : "bg-gray-100 text-gray-600 border border-gray-200"
+                                }`}
+                            >
+                              <Package className="w-3 h-3" />
+                              {item.saveToStock ? "Save to Stock" : "Will Distribute"}
+                            </button>
+                          </div>
+                          {items.length > 1 && (
+                            <button
+                              onClick={() => removeItem(item.id)}
+                              className="text-red-500 hover:text-red-700 p-1"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+
+                        {item.saveToStock && (
+                          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <div className="flex items-start gap-2">
+                              <Info className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                              <p className="text-xs text-yellow-700">
+                                Save to Stock Mode Active - This item will be saved to stock and not distributed.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {isMaterial ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="md:col-span-2">
+                              <Label required>Material Name</Label>
+                              <select
+                                value={item.material_name}
+                                onChange={(e) => {
+                                  const selectedMaterial = masterMaterials.find(m => m.material_name === e.target.value);
+                                  updateItem(item.id, "material_name", e.target.value);
+                                  if (selectedMaterial && selectedMaterial.material_detail) {
+                                    updateItem(item.id, "material_detail", selectedMaterial.material_detail);
+                                  }
+                                }}
+                                className={selectCls}
+                              >
+                                <option value="">Select Material</option>
+                                {masterMaterials.map((material) => (
+                                  <option key={material.id_material} value={material.material_name}>
+                                    {material.material_name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <Label>Material Details</Label>
+                              <textarea
+                                value={item.material_detail}
+                                onChange={(e) =>
+                                  updateItem(item.id, "material_detail", e.target.value)
+                                }
+                                className={inputCls}
+                                rows="2"
+                                placeholder="Specifications, color, length, gauge, etc."
+                              />
+                            </div>
+
+                            <div>
+                              <Label required>Quantity</Label>
+                              <input
+                                type="number"
+                                value={item.quantity}
+                                onChange={(e) =>
+                                  updateItem(item.id, "quantity", parseFloat(e.target.value) || 1)
+                                }
+                                className={inputCls}
+                                min="0.01"
+                                step="0.01"
+                              />
+                            </div>
+
+                            <div>
+                              <Label required>UOM</Label>
+                              <select
+                                value={item.uom || "PCS"}
+                                onChange={(e) =>
+                                  updateItem(item.id, "uom", e.target.value)
+                                }
+                                className={selectCls}
+                              >
+                                {uomOptions.map((uom) => (
+                                  <option key={uom.code} value={uom.code}>
+                                    {uom.name} ({uom.code})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <Label>Vendor</Label>
+                              <input
+                                type="text"
+                                value={item.vendor || ""}
+                                onChange={(e) =>
+                                  updateItem(item.id, "vendor", e.target.value)
+                                }
+                                className={inputCls}
+                                placeholder="e.g. Belden, 3M"
+                              />
+                            </div>
+
+                            <div>
+                              <Label>Project</Label>
+                              <select
+                                value={item.project_id || ""}
+                                onChange={(e) =>
+                                  updateItem(item.id, "project_id", e.target.value)
+                                }
+                                className={selectCls}
+                              >
+                                <option value="">Select Project</option>
+                                {projects.map((project) => (
+                                  <option key={project.id_project} value={project.id_project}>
+                                    {project.project_name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {!item.saveToStock && (
+                              <>
+                                <div className="md:col-span-2">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <Label>Department Distribution</Label>
+                                    <button
+                                      onClick={() => toggleDepartmentSection(item.id)}
+                                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition"
+                                    >
+                                      {isExpanded ? "Close Distribution" : "Distribute Items"}
+                                      {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                    </button>
+                                  </div>
+
+                                  {isExpanded && (
+                                    <div className="mt-3 space-y-3">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {departments.map((dept) => {
+                                          const assignedDept = item.departments.find(
+                                            (d) => d.department_id === dept.id_department,
+                                          );
+                                          const assignedQty = assignedDept?.quantity || 0;
+                                          const isDisabled = isDepartmentInputDisabled(item, dept.id_department);
+                                          return (
+                                            <div key={dept.id_department} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                                              <span className="text-sm font-medium text-gray-700 truncate">
+                                                {dept.department_name}
+                                              </span>
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                max={item.quantity}
+                                                value={assignedQty}
+                                                onChange={(e) =>
+                                                  updateDepartmentQuantity(item.id, dept.id_department, e.target.value)
+                                                }
+                                                disabled={isDisabled}
+                                                className={`w-20 px-2 py-1.5 text-sm border rounded-md focus:ring-2 focus:ring-blue-500 ${isDisabled ? "bg-gray-50 text-gray-400" : "bg-white"}`}
+                                                placeholder="Qty"
+                                              />
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                      <div className="p-3 bg-gray-50 rounded-lg">
+                                        <div className="flex justify-between items-center">
+                                          <span className="text-sm font-medium text-gray-700">Distribution Summary:</span>
+                                          <span className={`text-sm font-semibold ${totalDeptQty === item.quantity ? "text-green-600" : "text-blue-600"}`}>
+                                            {totalDeptQty} of {item.quantity} assigned
+                                          </span>
+                                        </div>
+                                        {remainingQty > 0 && (
+                                          <p className="text-xs text-gray-500 mt-1">
+                                            {remainingQty} unassigned items will stay at main location
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {!isExpanded && item.departments.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {item.departments.map((dept) => (
+                                        <div key={dept.department_id} className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full">
+                                          <Users className="w-3 h-3 text-gray-500" />
+                                          <span className="text-xs text-gray-700">{dept.department_name}: {dept.quantity}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {item.departments.length > 0 && (
+                                  <div className="md:col-span-2 pt-2 border-t border-gray-100">
+                                    <div className="flex items-center gap-2 mb-3">
+                                      <User className="w-4 h-4 text-green-600" />
+                                      <h4 className="text-sm font-semibold text-gray-800">Receiver Assignment</h4>
+                                    </div>
+                                    <div className="space-y-3">
+                                      {item.departments.map((dept) => {
+                                        const deptInfo = departments.find(d => d.id_department === dept.department_id);
+                                        const availableReceivers = getReceiversForDepartment(dept.department_id);
+                                        return (
+                                          <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                            <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                                              <span className="text-sm font-semibold text-gray-800">
+                                                {deptInfo?.department_name || `Department ${dept.department_id}`}
+                                              </span>
+                                              <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                                {dept.quantity} item(s)
+                                              </span>
+                                            </div>
+                                            <div className="p-3 space-y-3">
+                                              {[...Array(dept.quantity)].map((_, i) => {
+                                                const receiver = item.receivers.find(
+                                                  (r) => r.department_id === dept.department_id && r.item_index === i
+                                                );
+                                                return (
+                                                  <div key={i}>
+                                                    <Label>Item #{i + 1} Receiver</Label>
+                                                    <select
+                                                      value={receiver?.receiver_id || ""}
+                                                      onChange={(e) =>
+                                                        updateReceiverAssignment(item.id, dept.department_id, e.target.value, i)
+                                                      }
+                                                      className={selectCls}
+                                                    >
+                                                      <option value="">Select Receiver</option>
+                                                      {availableReceivers.map((rec) => (
+                                                        <option key={rec.id_receiver} value={rec.id_receiver}>
+                                                          {rec.receiver_name} - {rec.receiver_title}
+                                                        </option>
+                                                      ))}
+                                                    </select>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="md:col-span-2">
+                              <Label required>Device Name</Label>
+                              <select
+                                value={item.device_name}
+                                onChange={(e) => {
+                                  const selectedDevice = masterDevices.find(d => d.device_name === e.target.value);
+                                  updateItem(item.id, "device_name", e.target.value);
+                                  if (selectedDevice) {
+                                    if (selectedDevice.brand) updateItem(item.id, "brand", selectedDevice.brand);
+                                    if (selectedDevice.model) updateItem(item.id, "model", selectedDevice.model);
+                                    if (selectedDevice.specifications) updateItem(item.id, "specifications", selectedDevice.specifications);
+                                    if (selectedDevice.device_detail) updateItem(item.id, "device_detail", selectedDevice.device_detail);
+                                  }
+                                }}
+                                className={selectCls}
+                              >
+                                <option value="">Select Device</option>
+                                {masterDevices.map((device) => (
+                                  <option key={device.id_device} value={device.device_name}>
+                                    {device.device_name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <Label>Device Details</Label>
+                              <textarea
+                                value={item.device_detail}
+                                onChange={(e) =>
+                                  updateItem(item.id, "device_detail", e.target.value)
+                                }
+                                className={inputCls}
+                                rows="2"
+                                placeholder="Specifications, color, size, features, etc."
+                              />
+                            </div>
+
+                            <div>
+                              <Label>Brand</Label>
+                              <input
+                                type="text"
+                                value={item.brand}
+                                onChange={(e) =>
+                                  updateItem(item.id, "brand", e.target.value)
+                                }
+                                className={inputCls}
+                                placeholder="e.g. Dell, Samsung"
+                              />
+                            </div>
+
+                            <div>
+                              <Label>Vendor</Label>
+                              <input
+                                type="text"
+                                value={item.vendor}
+                                onChange={(e) =>
+                                  updateItem(item.id, "vendor", e.target.value)
+                                }
+                                className={inputCls}
+                                placeholder="e.g. PT DUTA"
+                              />
+                            </div>
+
+                            <div>
+                              <Label>Model</Label>
+                              <input
+                                type="text"
+                                value={item.model}
+                                onChange={(e) =>
+                                  updateItem(item.id, "model", e.target.value)
+                                }
+                                className={inputCls}
+                                placeholder="e.g. Latitude 3420"
+                              />
+                            </div>
+
+                            <div>
+                              <Label>Specifications</Label>
+                              <input
+                                type="text"
+                                value={item.specifications}
+                                onChange={(e) =>
+                                  updateItem(item.id, "specifications", e.target.value)
+                                }
+                                className={inputCls}
+                                placeholder="e.g. Intel i5, 8GB RAM"
+                              />
+                            </div>
+
+                            <div>
+                              <Label required>Quantity</Label>
+                              <input
+                                type="number"
+                                value={item.quantity}
+                                onChange={(e) =>
+                                  updateItem(item.id, "quantity", parseInt(e.target.value) || 1)
+                                }
+                                className={inputCls}
+                                min="1"
+                              />
+                            </div>
+
+                            <div>
+                              <Label>Project</Label>
+                              <select
+                                value={item.project_id || ""}
+                                onChange={(e) =>
+                                  updateItem(item.id, "project_id", e.target.value)
+                                }
+                                className={selectCls}
+                              >
+                                <option value="">Select Project</option>
+                                {projects.map((project) => (
+                                  <option key={project.id_project} value={project.id_project}>
+                                    {project.project_name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {!item.saveToStock && (
+                              <>
+                                <div className="md:col-span-2">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <Label>Department Distribution</Label>
+                                    <button
+                                      onClick={() => toggleDepartmentSection(item.id)}
+                                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition"
+                                    >
+                                      {isExpanded ? "Close Distribution" : "Distribute Items"}
+                                      {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                    </button>
+                                  </div>
+
+                                  {isExpanded && (
+                                    <div className="mt-3 space-y-3">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {departments.map((dept) => {
+                                          const assignedDept = item.departments.find(
+                                            (d) => d.department_id === dept.id_department,
+                                          );
+                                          const assignedQty = assignedDept?.quantity || 0;
+                                          const isDisabled = isDepartmentInputDisabled(item, dept.id_department);
+                                          return (
+                                            <div key={dept.id_department} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                                              <span className="text-sm font-medium text-gray-700 truncate">
+                                                {dept.department_name}
+                                              </span>
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                max={item.quantity}
+                                                value={assignedQty}
+                                                onChange={(e) =>
+                                                  updateDepartmentQuantity(item.id, dept.id_department, e.target.value)
+                                                }
+                                                disabled={isDisabled}
+                                                className={`w-20 px-2 py-1.5 text-sm border rounded-md focus:ring-2 focus:ring-blue-500 ${isDisabled ? "bg-gray-50 text-gray-400" : "bg-white"}`}
+                                                placeholder="Qty"
+                                              />
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                      <div className="p-3 bg-gray-50 rounded-lg">
+                                        <div className="flex justify-between items-center">
+                                          <span className="text-sm font-medium text-gray-700">Distribution Summary:</span>
+                                          <span className={`text-sm font-semibold ${totalDeptQty === item.quantity ? "text-green-600" : "text-blue-600"}`}>
+                                            {totalDeptQty} of {item.quantity} assigned
+                                          </span>
+                                        </div>
+                                        {remainingQty > 0 && (
+                                          <p className="text-xs text-gray-500 mt-1">
+                                            {remainingQty} unassigned items will stay at main location
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {!isExpanded && item.departments.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {item.departments.map((dept) => (
+                                        <div key={dept.department_id} className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full">
+                                          <Users className="w-3 h-3 text-gray-500" />
+                                          <span className="text-xs text-gray-700">{dept.department_name}: {dept.quantity}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {item.departments.length > 0 && (
+                                  <div className="md:col-span-2 pt-2 border-t border-gray-100">
+                                    <div className="flex items-center gap-2 mb-3">
+                                      <User className="w-4 h-4 text-green-600" />
+                                      <h4 className="text-sm font-semibold text-gray-800">Receiver Assignment</h4>
+                                    </div>
+                                    <div className="space-y-3">
+                                      {item.departments.map((dept) => {
+                                        const deptInfo = departments.find(d => d.id_department === dept.department_id);
+                                        const availableReceivers = getReceiversForDepartment(dept.department_id);
+                                        return (
+                                          <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                            <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                                              <span className="text-sm font-semibold text-gray-800">
+                                                {deptInfo?.department_name || `Department ${dept.department_id}`}
+                                              </span>
+                                              <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                                {dept.quantity} item(s)
+                                              </span>
+                                            </div>
+                                            <div className="p-3 space-y-3">
+                                              {[...Array(dept.quantity)].map((_, i) => {
+                                                const receiver = item.receivers.find(
+                                                  (r) => r.department_id === dept.department_id && r.item_index === i
+                                                );
+                                                return (
+                                                  <div key={i}>
+                                                    <Label>Item #{i + 1} Receiver</Label>
+                                                    <select
+                                                      value={receiver?.receiver_id || ""}
+                                                      onChange={(e) =>
+                                                        updateReceiverAssignment(item.id, dept.department_id, e.target.value, i)
+                                                      }
+                                                      className={selectCls}
+                                                    >
+                                                      <option value="">Select Receiver</option>
+                                                      {availableReceivers.map((rec) => (
+                                                        <option key={rec.id_receiver} value={rec.id_receiver}>
+                                                          {rec.receiver_name} - {rec.receiver_title}
+                                                        </option>
+                                                      ))}
+                                                    </select>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={addNewItem}
+                  className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Another Item
+                </button>
+              </div>
+
+              {/* Remarks */}
+              <div>
+                <p className="section-title flex items-center gap-2">
+                  <Info className="w-4 h-4" /> Additional Information
+                </p>
+                <div>
+                  <Label>Remarks</Label>
+                  <textarea
+                    value={formData.remarks}
+                    onChange={(e) =>
+                      setFormData({ ...formData, remarks: e.target.value })
+                    }
+                    rows="3"
+                    className={inputCls}
+                    placeholder="Additional notes or instructions for this scanning session..."
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer Buttons */}
+          <div className="border-t border-gray-100 px-5 py-4 bg-gray-50 rounded-b-2xl">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
               <p className="text-xs text-gray-400">
                 <span className="text-red-500">*</span> Required fields
               </p>
-              <div className="flex gap-3">
+              <div className="flex gap-3 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => router.push("/scanning_preparation_list")}
-                  className="px-5 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition shadow-sm"
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="flex items-center gap-2 px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
                 >
                   {loading ? (
                     <>
