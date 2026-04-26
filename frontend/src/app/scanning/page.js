@@ -1789,9 +1789,7 @@ export default function SerialScanningPage() {
       if (item.kategori === "Perangkat") {
         updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(item.scan_id);
       } else {
-        updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(
-          item.scan_id,
-        );
+        updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(item.scan_id);
       }
 
       await fetch(updateEndpoint, {
@@ -1800,15 +1798,27 @@ export default function SerialScanningPage() {
         body: JSON.stringify({ status: "submitted" }),
       });
 
-      // 2. Create validation record
-      const validationData = {
-        scan_id: item.kategori === "Perangkat" ? item.scan_id : null,
-        scan_material_id: item.kategori === "Material" ? item.scan_id : null,
-        item_preparation_id: item.item_preparation_id,
-        material_item_preparation_id:
-          item.kategori === "Material" ? item.item_preparation_id : null,
-        user_id: 1,
-      };
+      // 2. Create validation record - PERBAIKAN UNTUK MATERIAL
+      let validationData;
+
+      if (item.kategori === "Perangkat") {
+        validationData = {
+          scan_id: item.scan_id,
+          scan_material_id: null,
+          item_preparation_id: item.item_preparation_id,
+          material_item_preparation_id: null,
+          user_id: 1,
+        };
+      } else {
+        // MATERIAL
+        validationData = {
+          scan_id: null,
+          scan_material_id: item.scan_id,
+          item_preparation_id: null,
+          material_item_preparation_id: item.item_preparation_id,
+          user_id: 1,
+        };
+      }
 
       const validationResponse = await fetch(API_ENDPOINTS.VALIDATIONS_CREATE, {
         method: "POST",
@@ -1839,13 +1849,10 @@ export default function SerialScanningPage() {
           icon: "success",
           confirmButtonColor: "#2563eb",
         }).then(() => {
-          // Redirect ke halaman validation
           router.push("/validation_verification");
         });
       } else {
-        throw new Error(
-          validationResult.error || "Failed to create validation",
-        );
+        throw new Error(validationResult.error || "Failed to create validation");
       }
     } catch (error) {
       console.error("Submit error:", error);
@@ -1888,13 +1895,9 @@ export default function SerialScanningPage() {
         // 1. Update status scan result
         let updateEndpoint;
         if (item.kategori === "Perangkat") {
-          updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(
-            item.scan_id,
-          );
+          updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(item.scan_id);
         } else {
-          updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(
-            item.scan_id,
-          );
+          updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(item.scan_id);
         }
 
         await fetch(updateEndpoint, {
@@ -1903,24 +1906,39 @@ export default function SerialScanningPage() {
           body: JSON.stringify({ status: "submitted" }),
         });
 
-        // 2. Create validation record
-        const validationData = {
-          scan_id: item.kategori === "Perangkat" ? item.scan_id : null,
-          scan_material_id: item.kategori === "Material" ? item.scan_id : null,
-          item_preparation_id: item.item_preparation_id,
-          material_item_preparation_id:
-            item.kategori === "Material" ? item.item_preparation_id : null,
-          user_id: 1,
-        };
+        // 2. Create validation record - PERBAIKAN UNTUK MATERIAL
+        let validationData;
 
-        const validationResponse = await fetch(
-          API_ENDPOINTS.VALIDATIONS_CREATE,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(validationData),
-          },
-        );
+        if (item.kategori === "Perangkat") {
+          validationData = {
+            scan_id: item.scan_id,
+            scan_material_id: null,
+            item_preparation_id: item.item_preparation_id,
+            material_item_preparation_id: null,
+            user_id: 1,
+          };
+        } else {
+          // MATERIAL - Perbaikan: scan_material_id diisi, scan_id null
+          validationData = {
+            scan_id: null,
+            scan_material_id: item.scan_id,
+            item_preparation_id: null,
+            material_item_preparation_id: item.item_preparation_id,
+            user_id: 1,
+          };
+        }
+
+        console.log("Submitting material:", {
+          scan_id: item.scan_id,
+          item_kategori: item.kategori,
+          validationData: validationData
+        });
+
+        const validationResponse = await fetch(API_ENDPOINTS.VALIDATIONS_CREATE, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(validationData),
+        });
 
         const validationResult = await validationResponse.json();
 
@@ -1943,6 +1961,8 @@ export default function SerialScanningPage() {
                 : p,
             ),
           );
+        } else {
+          console.error("Failed to create validation:", validationResult);
         }
       }
 

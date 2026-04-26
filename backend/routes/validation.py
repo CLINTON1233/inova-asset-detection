@@ -294,7 +294,8 @@ def create_validation():
     conn = None
     try:
         data = request.json
-        print("Creating validation:", data)
+        print("="*50)
+        print("Creating validation with data:", data)
         
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -304,6 +305,11 @@ def create_validation():
         item_preparation_id = data.get('item_preparation_id')
         material_item_preparation_id = data.get('material_item_preparation_id')
         user_id = data.get('user_id', 1)
+        
+        print(f"scan_id: {scan_id}")
+        print(f"scan_material_id: {scan_material_id}")
+        print(f"item_preparation_id: {item_preparation_id}")
+        print(f"material_item_preparation_id: {material_item_preparation_id}")
         
         # Generate unique code
         import random
@@ -332,6 +338,8 @@ def create_validation():
         
         validation_id = cur.fetchone()[0]
         conn.commit()
+        
+        print(f"✅ Validation created with ID: {validation_id}, unique_code: {unique_code}")
         
         return jsonify({
             'success': True,
@@ -502,7 +510,7 @@ def update_validation(validation_id):
                     except Exception as report_error:
                         print(f"Error creating report on retry: {report_error}")
                 else:
-                    print(f"❌ Asset_id still NULL after retry, report not created")
+                    print(f"Asset_id still NULL after retry, report not created")
                       
             # ==================== UPDATE SESSION STATUS ====================
             try:
