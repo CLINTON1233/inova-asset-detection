@@ -29,7 +29,7 @@ import ProtectedPage from "../components/ProtectedPage";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user } = useAuth(); 
+  const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -341,11 +341,10 @@ export default function ProfilePage() {
             <button
               onClick={handleSaveProfile}
               disabled={isLoading}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
-                isEditing
-                  ? "bg-blue-600 hover:bg-blue-700 text-white"
-                  : "bg-white hover:bg-gray-50 text-gray-700 border border-gray-300"
-              } ${isLoading ? "opacity-70 cursor-not-allowed" : ""}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${isEditing
+                ? "bg-blue-600 hover:bg-blue-700 text-white"
+                : "bg-white hover:bg-gray-50 text-gray-700 border border-gray-300"
+                } ${isLoading ? "opacity-70 cursor-not-allowed" : ""}`}
             >
               {isLoading ? (
                 <>
@@ -382,7 +381,9 @@ export default function ProfilePage() {
                       <User className="w-14 h-14 text-gray-500" />
                     </div>
                     <h3 className="text-xl font-bold text-gray-900">{formData.username}</h3>
-                    <p className="text-gray-500 text-sm mt-1">Staff</p>
+                    <p className="text-gray-500 text-sm mt-1 capitalize">
+                      {user?.role === 'superadmin' ? 'Super Admin' : user?.role === 'admin' ? 'Admin' : 'Staff'}
+                    </p>
                     <span className="mt-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold flex items-center gap-1">
                       <CheckCircle className="w-3 h-3" />
                       Active Account
@@ -397,7 +398,7 @@ export default function ProfilePage() {
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                       Contact Information
                     </p>
-                    
+
                     <div className="space-y-3">
                       <div className="flex items-start gap-3 py-2">
                         <Mail className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
@@ -439,7 +440,7 @@ export default function ProfilePage() {
                       Account Information
                     </p>
                     <div className="space-y-2">
-                      
+
                       <div className="flex justify-between items-center py-1">
                         <span className="text-xs text-gray-500">Account Type</span>
                         <span className="text-xs font-semibold text-gray-700">Staff</span>
@@ -475,11 +476,10 @@ export default function ProfilePage() {
                         value={formData.username}
                         onChange={handleInputChange}
                         disabled={!isEditing}
-                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${
-                          isEditing
-                            ? "bg-white border-gray-300"
-                            : "bg-gray-50 border-gray-200 text-gray-500"
-                        }`}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${isEditing
+                          ? "bg-white border-gray-300"
+                          : "bg-gray-50 border-gray-200 text-gray-500"
+                          }`}
                       />
                     </div>
 
@@ -493,11 +493,10 @@ export default function ProfilePage() {
                         value={formData.email}
                         onChange={handleInputChange}
                         disabled={!isEditing}
-                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${
-                          isEditing
-                            ? "bg-white border-gray-300"
-                            : "bg-gray-50 border-gray-200 text-gray-500"
-                        }`}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${isEditing
+                          ? "bg-white border-gray-300"
+                          : "bg-gray-50 border-gray-200 text-gray-500"
+                          }`}
                       />
                     </div>
 
@@ -511,11 +510,10 @@ export default function ProfilePage() {
                         value={formData.no_badge}
                         onChange={handleInputChange}
                         disabled={!isEditing}
-                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${
-                          isEditing
-                            ? "bg-white border-gray-300"
-                            : "bg-gray-50 border-gray-200 text-gray-500"
-                        }`}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${isEditing
+                          ? "bg-white border-gray-300"
+                          : "bg-gray-50 border-gray-200 text-gray-500"
+                          }`}
                       />
                     </div>
 
@@ -529,11 +527,10 @@ export default function ProfilePage() {
                         value={formData.department}
                         onChange={handleInputChange}
                         disabled={!isEditing}
-                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${
-                          isEditing
-                            ? "bg-white border-gray-300"
-                            : "bg-gray-50 border-gray-200 text-gray-500"
-                        }`}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${isEditing
+                          ? "bg-white border-gray-300"
+                          : "bg-gray-50 border-gray-200 text-gray-500"
+                          }`}
                       />
                     </div>
 

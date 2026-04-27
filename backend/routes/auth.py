@@ -25,6 +25,9 @@ def register():
                     'message': f'Field {field} is required'
                 }), 400
         
+        # Ambil role dari request, default 'karyawan'
+        role = data.get('role', 'karyawan')
+        
         if '@' not in data['email']:
             return jsonify({
                 'success': False,
@@ -71,9 +74,9 @@ def register():
         hashed_password = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
         insert_query = """
-            INSERT INTO users (username, email, password, no_badge, department, status, created_at)
-            VALUES (%s, %s, %s, %s, %s, 'active', %s)
-            RETURNING id_user, username, email, no_badge, department, status, created_at
+            INSERT INTO users (username, email, password, no_badge, department, role, status, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, 'active', %s)
+            RETURNING id_user, username, email, no_badge, department, role, status, created_at
         """
         
         cursor.execute(insert_query, (
@@ -82,6 +85,7 @@ def register():
             hashed_password,
             data['no_badge'],
             data['department'],
+            role,
             datetime.now()
         ))
         
@@ -97,7 +101,8 @@ def register():
                 'email': new_user[2],
                 'no_badge': new_user[3],
                 'department': new_user[4],
-                'status': new_user[5]
+                'role': new_user[5] if len(new_user) > 5 else 'karyawan',
+                'status': new_user[6] if len(new_user) > 6 else 'active'
             }
         }), 201
         
@@ -193,7 +198,7 @@ def update_profile():
                 department = %s, 
                 updated_at = %s
             WHERE id_user = %s
-            RETURNING id_user, username, email, no_badge, department, status, created_at
+            RETURNING id_user, username, email, no_badge, department, status, created_at, role
         """
         
         cursor.execute(update_query, (
@@ -224,7 +229,8 @@ def update_profile():
                 'no_badge': updated_user[3],
                 'department': updated_user[4],
                 'status': updated_user[5],
-                'created_at': updated_user[6].isoformat() if updated_user[6] else None
+                'created_at': updated_user[6].isoformat() if updated_user[6] else None,
+                'role': updated_user[7] if len(updated_user) > 7 else 'karyawan'
             }
         }), 200
         
@@ -356,8 +362,9 @@ def login():
         
         cursor = conn.cursor()
         
+        # PERBAIKAN: Ambil juga column role dari tabel users
         login_query = """
-            SELECT id_user, username, email, password, no_badge, department, status 
+            SELECT id_user, username, email, password, no_badge, department, status, role 
             FROM users 
             WHERE (email = %s OR username = %s) AND status = 'active'
         """
@@ -376,12 +383,12 @@ def login():
                 'message': 'Invalid email/username or password'
             }), 401
         
-        # PERBAIKAN: Gunakan current_app, bukan app
         secret_key = current_app.config.get('SECRET_KEY', '27cdc60e29397b35b746d68e8c55b703267367cf2d084aa9')
         
         token = jwt.encode({
             'user_id': user[0],
             'username': user[1],
+            'role': user[7] if len(user) > 7 else 'karyawan',  # Tambahkan role ke token
             'exp': datetime.utcnow() + timedelta(hours=24)
         }, secret_key, algorithm='HS256')
         
@@ -390,7 +397,7 @@ def login():
             'created_at': datetime.now()
         }
         
-        print(f" User logged in successfully: {user[1]}")
+        print(f" User logged in successfully: {user[1]}, role: {user[7] if len(user) > 7 else 'karyawan'}")
         
         return jsonify({
             'success': True,
@@ -404,7 +411,7 @@ def login():
                 'no_badge': user[4],
                 'department': user[5],
                 'status': user[6],
-                'role': 'karyawan'  
+                'role': user[7] if len(user) > 7 else 'karyawan'  # Kirim role dari database
             }
         }), 200
         

@@ -597,7 +597,7 @@ export default function FullscreenCamera({
             ? "Point camera at the device to scan"
             : mode === "material"
               ? "Point camera at the material to scan"
-              : "Point camera at the barcode or serial number"}
+              : "Point camera at the serial number or scan code"}
         </p>
       </div>
 
