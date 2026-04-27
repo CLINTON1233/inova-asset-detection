@@ -18,6 +18,7 @@ import {
   Building2,
   CheckCircle,
   Package,
+  Trash2,
   Laptop,
   LayoutGrid,
   List,
@@ -40,6 +41,7 @@ export default function AssetsInventoryPage() {
   const [mounted, setMounted] = useState(false);
   const [viewMode, setViewMode] = useState("list");
   const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -99,6 +101,79 @@ export default function AssetsInventoryPage() {
 
   const handleViewAssets = (sessionId, type) => {
     router.push(`/assets/${sessionId}?type=${type}`);
+  };
+
+  const handleDeleteSession = async (session) => {
+    const result = await Swal.fire({
+      title: "Delete Assets?",
+      html: `
+      <div class="text-left">
+        <p class="text-sm text-gray-600 mb-2">Session: <span class="font-semibold">${session.checking_name || "-"}</span></p>
+        <p class="text-sm text-gray-600 mb-2">Number: <span class="font-mono">${session.checking_number || "-"}</span></p>
+        <p class="text-sm text-gray-600 mb-4">Type: <span class="font-medium">${session.type === "device" ? "Device" : "Material"}</span></p>
+        <p class="text-sm text-red-600 font-medium">⚠️ Warning: This will delete ALL data in this session!</p>
+        <div class="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
+          <p class="text-xs text-red-700 font-medium mb-1">The following data will be deleted:</p>
+          <ul class="text-xs text-red-600 list-disc list-inside space-y-0.5">
+            <li>All Assets in this session</li>
+            <li>All Validations</li>
+            <li>All Scan Results</li>
+            <li>All Items </li>
+            <li>The Session itself</li>
+          </ul>
+        </div>
+        <p class="text-xs text-gray-500 mt-3">This action cannot be undone!</p>
+      </div>
+    `,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Yes, Delete Session!",
+      cancelButtonText: "Cancel",
+      reverseButtons: true,
+    });
+
+    if (result.isConfirmed) {
+      setIsProcessing(true);
+      try {
+        // Delete session based on type
+        const endpoint = session.type === "device"
+          ? `${API_BASE_URL}/api/devices/scanning-preparation/${session.id_preparation}`
+          : `${API_BASE_URL}/api/materials/scanning-preparation/${session.id_preparation}`;
+
+        const response = await fetch(endpoint, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          Swal.fire({
+            title: "Deleted!",
+            html: `Session "<strong>${session.checking_name}</strong>" and all its data has been deleted successfully.`,
+            icon: "success",
+            timer: 2000,
+            showConfirmButton: false,
+          });
+          // Refresh the sessions list
+          fetchCompletedSessions();
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (error) {
+        console.error("Error deleting session:", error);
+        Swal.fire({
+          title: "Error!",
+          text: error.message || "Failed to delete session",
+          icon: "error",
+          confirmButtonText: "OK",
+        });
+      } finally {
+        setIsProcessing(false);
+      }
+    }
   };
 
   const handleSort = (columnId) => {
@@ -419,7 +494,7 @@ export default function AssetsInventoryPage() {
 
             <div className="p-5">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                {/* KIRI: Total Assets Distribution (Donut Chart) - SATU SAJA */}
+                {/* Total Assets Distribution (Donut Chart) */}
                 <div className="bg-white border border-gray-200 rounded-xl p-4">
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="font-medium text-gray-900 text-sm">
@@ -430,8 +505,9 @@ export default function AssetsInventoryPage() {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <div className="relative flex-shrink-0" style={{ width: 140, height: 140 }}>
+                  <div className="flex flex-col items-center gap-4">
+                    {/* Donut Chart - Ukuran 150px */}
+                    <div className="relative flex-shrink-0" style={{ width: 170, height: 170 }}>
                       <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
                         <circle
                           cx="50"
@@ -439,7 +515,7 @@ export default function AssetsInventoryPage() {
                           r="40"
                           fill="none"
                           stroke="#e5e7eb"
-                          strokeWidth="12"
+                          strokeWidth="10"
                         />
                         {stats.totalItems > 0 && (
                           <circle
@@ -448,9 +524,24 @@ export default function AssetsInventoryPage() {
                             r="40"
                             fill="none"
                             stroke="#3b82f6"
-                            strokeWidth="12"
+                            strokeWidth="10"
                             strokeDasharray={`${(stats.devices / stats.totalItems) * 251.2} 251.2`}
                             strokeLinecap="round"
+                            className="transition-all duration-700"
+                          />
+                        )}
+                        {stats.materials > 0 && stats.totalItems > 0 && (
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r="40"
+                            fill="none"
+                            stroke="#8b5cf6"
+                            strokeWidth="10"
+                            strokeDasharray={`${(stats.materials / stats.totalItems) * 251.2} 251.2`}
+                            strokeDashoffset={`-${(stats.devices / stats.totalItems) * 251.2}`}
+                            strokeLinecap="round"
+                            className="transition-all duration-700"
                           />
                         )}
                       </svg>
@@ -460,48 +551,51 @@ export default function AssetsInventoryPage() {
                       </div>
                     </div>
 
-                    <div className="flex-1 space-y-2">
+                    {/* Legend dengan progress bar */}
+                    <div className="w-full space-y-2 mt-1">
+                      {/* Device Items */}
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                            <span className="text-xs font-medium text-gray-600">Device Items</span>
+                            <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
+                            <span className="text-xs font-medium text-gray-600">Device Assets</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-gray-800">
                               {stats.devices}
                             </span>
-                            <span className="text-xs text-gray-400 w-10 text-right">
+                            <span className="text-xs text-gray-400">
                               ({stats.totalItems ? Math.round((stats.devices / stats.totalItems) * 100) : 0}%)
                             </span>
                           </div>
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-1.5">
                           <div
-                            className="h-1.5 rounded-full bg-blue-500 transition-all duration-500"
+                            className="h-1.5 rounded-full bg-blue-500 transition-all duration-700"
                             style={{ width: `${stats.totalItems ? (stats.devices / stats.totalItems) * 100 : 0}%` }}
                           />
                         </div>
                       </div>
 
+                      {/* Material Items */}
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
-                            <span className="text-xs font-medium text-gray-600">Material Items</span>
+                            <div className="w-2.5 h-2.5 rounded-full bg-indigo-500"></div>
+                            <span className="text-xs font-medium text-gray-600">Material Assets</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-gray-800">
                               {stats.materials}
                             </span>
-                            <span className="text-xs text-gray-400 w-10 text-right">
+                            <span className="text-xs text-gray-400">
                               ({stats.totalItems ? Math.round((stats.materials / stats.totalItems) * 100) : 0}%)
                             </span>
                           </div>
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-1.5">
                           <div
-                            className="h-1.5 rounded-full bg-indigo-500 transition-all duration-500"
+                            className="h-1.5 rounded-full bg-indigo-500 transition-all duration-700"
                             style={{ width: `${stats.totalItems ? (stats.materials / stats.totalItems) * 100 : 0}%` }}
                           />
                         </div>
@@ -519,7 +613,7 @@ export default function AssetsInventoryPage() {
                   </div>
                 </div>
 
-                {/* KANAN: Items by Session (Daftar Session & Item-nya) */}
+                {/* Items by Session */}
                 <div className="bg-white border border-gray-200 rounded-xl p-4">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
@@ -533,77 +627,128 @@ export default function AssetsInventoryPage() {
                     </span>
                   </div>
 
-                  <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
-                    {sessions.slice(0, 5).map((session) => (
-                      <div
-                        key={`item-session-${session.id_preparation}`}
-                        className="group cursor-pointer rounded-lg p-2 hover:bg-gray-50 transition-all duration-200 border border-transparent hover:border-gray-200"
-                        onClick={() => handleViewAssets(session.id_preparation, session.type)}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              {session.type === "device" ? (
-                                <Laptop className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
-                              ) : (
-                                <Package className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                              )}
-                              <p className="font-medium text-gray-800 text-sm truncate">
-                                {session.checking_name}
-                              </p>
+                  <div className="space-y-4 max-h-[400px] overflow-y-auto pr-1">
+                    {/* DEVICES SECTION */}
+                    {sessions.filter(s => s.type === 'device').length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2 pb-1 border-b border-gray-200">
+                          <Laptop className="w-3.5 h-3.5 text-blue-500" />
+                          <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                            DEVICES ({sessions.filter(s => s.type === 'device').length})
+                          </span>
+                        </div>
+                        {sessions.filter(s => s.type === 'device').slice(0, 5).map((session) => (
+                          <div
+                            key={`device-session-${session.id_preparation}`}
+                            className="group cursor-pointer rounded-lg p-2 hover:bg-blue-50 transition-all duration-200 border border-transparent hover:border-blue-200 mb-2"
+                            onClick={() => handleViewAssets(session.id_preparation, session.type)}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <Laptop className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                                  <p className="font-medium text-gray-800 text-sm truncate">
+                                    {session.checking_name}
+                                  </p>
+                                </div>
+                                <p className="text-[10px] text-gray-400 font-mono mt-0.5 ml-5">
+                                  {session.checking_number}
+                                </p>
+                                {session.project_name && session.project_name !== "-" && (
+                                  <p className="text-[10px] text-gray-500 mt-0.5 ml-5 truncate">
+                                    <span className="font-medium">Project:</span> {session.project_name}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 ml-2">
+                                <div className="text-right">
+                                  <span className="text-sm font-bold text-gray-800">
+                                    {session.total_items || 0}
+                                  </span>
+                                  <span className="text-[10px] text-gray-400 ml-0.5">
+                                    items
+                                  </span>
+                                </div>
+                                <div className="opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                  <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+                                    <Eye className="w-3 h-3 text-blue-600" />
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                            <p className="text-[10px] text-gray-400 font-mono mt-0.5 ml-5">
-                              {session.checking_number}
-                            </p>
-
-                            {/* Tampilkan nama item pertama sebagai preview */}
-                            {session.items && session.items.length > 0 && (
-                              <p className="text-[10px] text-gray-500 mt-1 ml-5 truncate">
-                                <span className="font-medium">Items:</span>{' '}
-                                {session.items.slice(0, 2).map(item => item.device_name || item.material_name).filter(Boolean).join(', ')}
-                                {session.items.length > 2 && ` +${session.items.length - 2} more`}
-                              </p>
-                            )}
-
-                            {session.project_name && session.project_name !== "-" && (
-                              <p className="text-[10px] text-gray-500 mt-0.5 ml-5 truncate">
-                                <span className="font-medium">Project:</span> {session.project_name}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 ml-2">
-                            <div className="text-right">
-                              <span className="text-sm font-bold text-gray-800">
-                                {session.total_items || 0}
-                              </span>
-                              <span className="text-[10px] text-gray-400 ml-0.5">
-                                items
-                              </span>
-                            </div>
-                            <div className="opacity-0 group-hover:opacity-100 transition-all duration-200">
-                              <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
-                                <Eye className="w-3 h-3 text-blue-600" />
+                            <div className="mt-2 ml-5">
+                              <div className="w-full bg-gray-100 rounded-full h-1">
+                                <div
+                                  className="h-1 rounded-full transition-all duration-500 bg-gradient-to-r from-blue-500 to-blue-600"
+                                  style={{ width: `100%` }}
+                                />
                               </div>
                             </div>
                           </div>
-                        </div>
-
-                        {/* Progress bar ringkas */}
-                        <div className="mt-2 ml-5">
-                          <div className="w-full bg-gray-100 rounded-full h-1">
-                            <div
-                              className="h-1 rounded-full transition-all duration-500"
-                              style={{
-                                width: `100%`,
-                                background: session.type === "device"
-                                  ? "linear-gradient(90deg, #3b82f6, #60a5fa)"
-                                  : "linear-gradient(90deg, #10b981, #34d399)"
-                              }}
-                            />
-                          </div>
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
+
+                    {/* MATERIALS SECTION */}
+                    {sessions.filter(s => s.type === 'material').length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2 pb-1 border-b border-gray-200">
+                          <Package className="w-3.5 h-3.5 text-emerald-500" />
+                          <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                            MATERIALS ({sessions.filter(s => s.type === 'material').length})
+                          </span>
+                        </div>
+                        {sessions.filter(s => s.type === 'material').slice(0, 5).map((session) => (
+                          <div
+                            key={`material-session-${session.id_preparation}`}
+                            className="group cursor-pointer rounded-lg p-2 hover:bg-emerald-50 transition-all duration-200 border border-transparent hover:border-emerald-200 mb-2"
+                            onClick={() => handleViewAssets(session.id_preparation, session.type)}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <Package className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                                  <p className="font-medium text-gray-800 text-sm truncate">
+                                    {session.checking_name}
+                                  </p>
+                                </div>
+                                <p className="text-[10px] text-gray-400 font-mono mt-0.5 ml-5">
+                                  {session.checking_number}
+                                </p>
+                                {session.project_name && session.project_name !== "-" && (
+                                  <p className="text-[10px] text-gray-500 mt-0.5 ml-5 truncate">
+                                    <span className="font-medium">Project:</span> {session.project_name}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 ml-2">
+                                <div className="text-right">
+                                  <span className="text-sm font-bold text-gray-800">
+                                    {session.total_items || 0}
+                                  </span>
+                                  <span className="text-[10px] text-gray-400 ml-0.5">
+                                    items
+                                  </span>
+                                </div>
+                                <div className="opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                  <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center">
+                                    <Eye className="w-3 h-3 text-emerald-600" />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="mt-2 ml-5">
+                              <div className="w-full bg-gray-100 rounded-full h-1">
+                                <div
+                                  className="h-1 rounded-full transition-all duration-500 bg-gradient-to-r from-emerald-500 to-emerald-600"
+                                  style={{ width: `100%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Tombol View All Sessions */}
@@ -1078,231 +1223,190 @@ export default function AssetsInventoryPage() {
                 ))}
               </div>
             ) : (
+
               /* ── LIST VIEW ── */
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead>
+              /* ── LIST VIEW ── */
+              <div className="overflow-x-auto rounded-lg border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
                     <tr>
-                      <th
-                        className="ai-th text-left"
-                        onClick={() => handleSort("checking_name")}
-                        style={{ cursor: "pointer" }}
-                      >
-                        <span style={{ display: "flex", alignItems: "center" }}>
-                          Session {getSortIcon("checking_name")}
-                        </span>
-                      </th>
-                      <th
-                        className="ai-th text-left"
-                        onClick={() => handleSort("checking_date")}
-                        style={{ cursor: "pointer" }}
-                      >
-                        <span style={{ display: "flex", alignItems: "center" }}>
-                          Date {getSortIcon("checking_date")}
-                        </span>
-                      </th>
-                      <th className="ai-th text-left hidden md:table-cell">
-                        Type
-                      </th>
-                      <th className="ai-th text-left hidden lg:table-cell">
-                        Location
-                      </th>
-                      <th className="ai-th text-left hidden xl:table-cell">
-                        Project
-                      </th>
-                      <th className="ai-th text-left">Items</th>
-                      <th className="ai-th text-center">Actions</th>
+                      <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Session</th>
+                      <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Date</th>
+                      <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">Type</th>
+                      <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Location</th>
+                      <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden xl:table-cell">Project</th>
+                      <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Items</th>
+                      <th className="py-3 px-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {filteredSessions.map((session) => (
-                      <tr
-                        key={`${session.type}_${session.id_preparation}`}
-                        className="ai-row"
-                        onClick={() =>
-                          handleViewAssets(session.id_preparation, session.type)
-                        }
-                      >
-                        <td className="ai-td">
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 12,
-                            }}
-                          >
-                            <div
-                              style={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: 10,
-                                flexShrink: 0,
-                                background:
-                                  session.type === "device"
-                                    ? "#eff6ff"
-                                    : "#ecfdf5",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                              }}
-                            >
-                              {session.type === "device" ? (
-                                <Laptop className="w-4 h-4 text-blue-600" />
-                              ) : (
-                                <Package className="w-4 h-4 text-emerald-600" />
-                              )}
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {/* DEVICES SECTION */}
+                    {filteredSessions.filter(s => s.type === 'device').length > 0 && (
+                      <>
+                        <tr className="bg-white">
+                          <td colSpan={7} className="py-2 px-4 border-b border-gray-200">
+                            <div className="flex items-center gap-2">
+                              <Laptop className="w-4 h-4 text-blue-600" />
+                              <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                                DEVICES ({filteredSessions.filter(s => s.type === 'device').length})
+                              </span>
                             </div>
-                            <div style={{ minWidth: 0 }}>
-                              <div
-                                style={{
-                                  fontWeight: 600,
-                                  fontSize: 13,
-                                  color: "#111827",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                  maxWidth: 180,
-                                }}
-                              >
-                                {session.checking_name}
+                          </td>
+                        </tr>
+                        {filteredSessions.filter(s => s.type === 'device').map((session) => (
+                          <tr
+                            key={`device-${session.id_preparation}`}
+                            className="hover:bg-gray-50 transition-colors cursor-pointer group"
+                            onClick={() => handleViewAssets(session.id_preparation, session.type)}
+                          >
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-100">
+                                  <Laptop className="w-4 h-4 text-blue-600" />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-medium text-gray-900 text-sm group-hover:text-blue-600 transition-colors truncate max-w-[200px]">
+                                    {session.checking_name}
+                                  </div>
+                                  <div className="text-xs text-gray-500 font-mono mt-0.5">
+                                    {session.checking_number}
+                                  </div>
+                                </div>
                               </div>
-                              <div
-                                style={{
-                                  fontFamily: "DM Mono,monospace",
-                                  fontSize: 11,
-                                  color: "#9ca3af",
-                                  marginTop: 2,
-                                }}
-                              >
-                                {session.checking_number}
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                                <span className="text-sm text-gray-600">{formatDate(session.checking_date)}</span>
                               </div>
+                            </td>
+                            <td className="py-3 px-4 hidden md:table-cell">
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+                                <Laptop className="w-3 h-3 mr-1 text-blue-500" /> Device
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 hidden lg:table-cell">
+                              <div className="flex items-center gap-1.5">
+                                <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                                <span className="text-sm text-gray-600 truncate max-w-[150px]">{session.location_name || "—"}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 hidden xl:table-cell">
+                              <div className="flex items-center gap-1.5">
+                                <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                                <span className="text-sm text-gray-600 truncate max-w-[120px]">{session.project_name || "—"}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-sm font-bold text-gray-900">{session.total_items || 0}</span>
+                                <span className="text-xs text-gray-400">items</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleViewAssets(session.id_preparation, session.type); }}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-gray-600 hover:bg-gray-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow"
+                                >
+                                  <Eye className="w-3.5 h-3.5" /> View
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteSession(session); }}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </>
+                    )}
+
+                    {/* MATERIALS SECTION */}
+                    {filteredSessions.filter(s => s.type === 'material').length > 0 && (
+                      <>
+                        <tr className="bg-white">
+                          <td colSpan={7} className="py-2 px-4 border-b border-gray-200">
+                            <div className="flex items-center gap-2">
+                              <Package className="w-4 h-4 text-emerald-600" />
+                              <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                                MATERIALS ({filteredSessions.filter(s => s.type === 'material').length})
+                              </span>
                             </div>
-                          </div>
-                        </td>
-                        <td className="ai-td">
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                            }}
+                          </td>
+                        </tr>
+                        {filteredSessions.filter(s => s.type === 'material').map((session) => (
+                          <tr
+                            key={`material-${session.id_preparation}`}
+                            className="hover:bg-gray-50 transition-colors cursor-pointer group"
+                            onClick={() => handleViewAssets(session.id_preparation, session.type)}
                           >
-                            <Calendar
-                              style={{
-                                width: 13,
-                                height: 13,
-                                color: "#9ca3af",
-                              }}
-                            />
-                            <span style={{ fontSize: 12, color: "#4b5563" }}>
-                              {formatDate(session.checking_date)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="ai-td hidden md:table-cell">
-                          <span
-                            className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${session.type === "device" ? "badge-device" : "badge-material"}`}
-                          >
-                            {session.type === "device" ? "Device" : "Material"}
-                          </span>
-                        </td>
-                        <td className="ai-td hidden lg:table-cell">
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                            }}
-                          >
-                            <MapPin
-                              style={{
-                                width: 13,
-                                height: 13,
-                                color: "#9ca3af",
-                                flexShrink: 0,
-                              }}
-                            />
-                            <span
-                              style={{
-                                fontSize: 12,
-                                color: "#4b5563",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                                maxWidth: 130,
-                              }}
-                            >
-                              {session.location_name || "—"}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="ai-td hidden xl:table-cell">
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                            }}
-                          >
-                            <Building2
-                              style={{
-                                width: 13,
-                                height: 13,
-                                color: "#9ca3af",
-                                flexShrink: 0,
-                              }}
-                            />
-                            <span
-                              style={{
-                                fontSize: 12,
-                                color: "#4b5563",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                                maxWidth: 120,
-                              }}
-                            >
-                              {session.project_name || "—"}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="ai-td">
-                          <span
-                            style={{
-                              fontSize: 14,
-                              fontWeight: 700,
-                              color: "#111827",
-                            }}
-                          >
-                            {session.total_items || 0}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 11,
-                              color: "#9ca3af",
-                              marginLeft: 4,
-                            }}
-                          >
-                            items
-                          </span>
-                        </td>
-                        <td className="ai-td text-center">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleViewAssets(
-                                session.id_preparation,
-                                session.type,
-                              );
-                            }}
-                            className="ai-view-btn inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg"
-                            style={{ background: "#2563eb" }}
-                          >
-                            <Eye className="w-3.5 h-3.5" /> View Assets
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-emerald-100">
+                                  <Package className="w-4 h-4 text-emerald-600" />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-medium text-gray-900 text-sm group-hover:text-emerald-600 transition-colors truncate max-w-[200px]">
+                                    {session.checking_name}
+                                  </div>
+                                  <div className="text-xs text-gray-500 font-mono mt-0.5">
+                                    {session.checking_number}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                                <span className="text-sm text-gray-600">{formatDate(session.checking_date)}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 hidden md:table-cell">
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+                                <Package className="w-3 h-3 mr-1 text-emerald-500" /> Material
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 hidden lg:table-cell">
+                              <div className="flex items-center gap-1.5">
+                                <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                                <span className="text-sm text-gray-600 truncate max-w-[150px]">{session.location_name || "—"}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 hidden xl:table-cell">
+                              <div className="flex items-center gap-1.5">
+                                <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                                <span className="text-sm text-gray-600 truncate max-w-[120px]">{session.project_name || "—"}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-sm font-bold text-gray-900">{session.total_items || 0}</span>
+                                <span className="text-xs text-gray-400">items</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleViewAssets(session.id_preparation, session.type); }}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-gray-600 hover:bg-gray-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow"
+                                >
+                                  <Eye className="w-3.5 h-3.5" /> View
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteSession(session); }}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1350,6 +1454,6 @@ export default function AssetsInventoryPage() {
           </div>
         </div>
       </LayoutDashboard>
-    </ProtectedPage>
+    </ProtectedPage >
   );
 }
