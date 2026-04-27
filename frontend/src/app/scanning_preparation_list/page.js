@@ -20,6 +20,7 @@ import {
   Filter,
   ChevronDown,
   X,
+  FileText,
   Trash2,
   Cpu,
   Cable,
@@ -725,7 +726,27 @@ export default function ScanningPreparationListPage() {
                                 {detail.receivers?.length > 0 && (
                                   <div className="border border-gray-200 rounded-lg p-3"><div className="flex items-center gap-2 mb-2"><User className="w-4 h-4 text-green-600" /><h4 className="text-sm font-semibold text-gray-800">Receiver Assignments</h4></div><div className="space-y-1 max-h-40 overflow-y-auto">{detail.receivers.map((rec, recIdx) => (<div key={recIdx} className="text-xs text-gray-600 break-words">{rec.name} - {rec.department} ({rec.item_name})</div>))}</div></div>
                                 )}
-                                <div className="border border-gray-200 rounded-lg p-3 bg-blue-50"><div className="flex items-center gap-2 mb-2"><Box className="w-4 h-4 text-blue-600" /><h4 className="text-sm font-semibold text-gray-800">Items Summary</h4></div><div className="grid grid-cols-2 gap-2 text-xs"><div>Total Items: <span className="font-semibold">{detail.totalItems || 0}</span></div><div>Total Quantity: <span className="font-semibold">{detail.totalQty || 0}</span></div><div>Scanned: <span className="font-semibold text-green-600">{session.scannedCount || 0}</span></div><div>Remaining: <span className="font-semibold text-orange-600">{(detail.totalQty || 0) - (session.scannedCount || 0)}</span></div></div></div>
+                                <div className="border border-gray-200 rounded-lg p-3 bg-white">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Box className="w-4 h-4 text-blue-600" />
+                                    <h4 className="text-sm font-semibold text-gray-800">Items Summary</h4>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div>Total Items: <span className="font-semibold">{detail.totalItems || 0}</span></div>
+                                    <div>Total Quantity: <span className="font-semibold">{detail.totalQty || 0}</span></div>
+                                    <div>Scanned: <span className="font-semibold text-green-600">{session.scannedCount || 0}</span></div>
+                                    <div>Remaining: <span className="font-semibold text-orange-600">{(detail.totalQty || 0) - (session.scannedCount || 0)}</span></div>
+                                  </div>
+                                </div>
+                                {session.remarks && (
+                                  <div className="bg-blue-50 rounded p-2">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <FileText className="w-3.5 h-3.5 text-blue-600" />
+                                      <h4 className="text-sm font-semibold text-gray-800">Remarks</h4>
+                                    </div>
+                                    <p className="text-xs text-gray-700 whitespace-pre-wrap">{session.remarks}</p>
+                                  </div>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -780,7 +801,23 @@ export default function ScanningPreparationListPage() {
                             {detail.items?.length > 0 && (<div><div className="flex items-center gap-2 mb-2"><Box className="w-4 h-4 text-purple-600" /><h4 className="text-xs font-semibold text-gray-800">Items ({detail.items.length})</h4></div><div className="space-y-2 max-h-[200px] overflow-y-auto">{detail.items.slice(0, 5).map((item, itemIdx) => (<div key={itemIdx} className="bg-gray-50 rounded p-2"><div className="font-medium text-gray-900 text-xs break-words">{item.name}</div><div className="text-xs text-gray-500">Qty: {item.quantity} {item.uom || ""}{item.brand && ` · Brand: ${item.brand}`}{item.model && ` · Model: ${item.model}`}</div></div>))}{detail.items.length > 5 && <p className="text-xs text-gray-400 text-center">+{detail.items.length - 5} more items</p>}</div></div>)}
                             {detail.departments?.length > 0 && (<div><div className="flex items-center gap-2 mb-2"><Users className="w-4 h-4 text-blue-600" /><h4 className="text-xs font-semibold text-gray-800">Departments</h4></div><div className="flex flex-wrap gap-1">{detail.departments.map((dept, deptIdx) => (<span key={deptIdx} className="bg-gray-100 px-2 py-0.5 rounded-full text-xs">{dept.name}: {dept.quantity}</span>))}</div></div>)}
                             {detail.receivers?.length > 0 && (<div><div className="flex items-center gap-2 mb-2"><User className="w-4 h-4 text-green-600" /><h4 className="text-xs font-semibold text-gray-800">Receivers</h4></div><div className="space-y-1">{detail.receivers.map((rec, recIdx) => (<div key={recIdx} className="text-xs text-gray-600">{rec.name} - {rec.department} ({rec.item_name})</div>))}</div></div>)}
-                            <div className="bg-blue-50 rounded p-2"><div className="grid grid-cols-2 gap-1 text-xs"><div>Total Items: <span className="font-semibold">{detail.totalItems || 0}</span></div><div>Total Qty: <span className="font-semibold">{detail.totalQty || 0}</span></div><div>Scanned: <span className="font-semibold text-green-600">{session.scannedCount || 0}</span></div><div>Remaining: <span className="font-semibold text-orange-600">{(detail.totalQty || 0) - (session.scannedCount || 0)}</span></div></div></div>
+                            <div className="bg-white border border-gray-200 rounded p-2">
+                              <div className="grid grid-cols-2 gap-1 text-xs">
+                                <div>Total Items: <span className="font-semibold">{detail.totalItems || 0}</span></div>
+                                <div>Total Qty: <span className="font-semibold">{detail.totalQty || 0}</span></div>
+                                <div>Scanned: <span className="font-semibold text-green-600">{session.scannedCount || 0}</span></div>
+                                <div>Remaining: <span className="font-semibold text-orange-600">{(detail.totalQty || 0) - (session.scannedCount || 0)}</span></div>
+                              </div>
+                            </div>
+                            {session.remarks && (
+                              <div className="bg-blue-50 rounded p-2">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <FileText className="w-3.5 h-3.5 text-blue-600" />
+                                  <h4 className="text-xs font-semibold text-gray-800">Remarks</h4>
+                                </div>
+                                <p className="text-xs text-gray-700 whitespace-pre-wrap">{session.remarks}</p>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
