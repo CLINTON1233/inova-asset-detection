@@ -25,7 +25,6 @@ export default function FullscreenCamera({
 
   const getAvailableCameras = async () => {
     try {
-      // Request permission dulu
       const tempStream = await navigator.mediaDevices.getUserMedia({
         video: true,
       });
@@ -36,67 +35,77 @@ export default function FullscreenCamera({
         (device) => device.kind === "videoinput",
       );
 
-      // Urutkan: webcam virtual/eksternal (DroidCam, Iriun, OBS) di atas, built-in di bawah
+      videoDevices = videoDevices.filter((device) => {
+        const label = device.label.toLowerCase();
+        const isIriun = label.includes("iriun");
+        const isOBS = label.includes("obs") || label.includes("virtual camera");
+        return !isIriun && !isOBS;
+      });
+
+      // Urutkan prioritas:
+      // 1. Webcam USB/External (TERTINGGI)
+      // 2. Built-in laptop
+      // 3. DroidCam (TERENDAH)
       videoDevices = videoDevices.sort((a, b) => {
         const aLabel = a.label.toLowerCase();
         const bLabel = b.label.toLowerCase();
 
-        // Prioritas TERTINGGI: webcam eksternal/virtual
+        // Cek apakah webcam USB/External
         const isAExternal =
-          aLabel.includes("droidcam") ||
-          aLabel.includes("iriun") ||
-          aLabel.includes("obs") ||
-          aLabel.includes("virtual") ||
           aLabel.includes("usb") ||
           aLabel.includes("external") ||
           aLabel.includes("logitech") ||
           aLabel.includes("c922") ||
-          aLabel.includes("brio");
+          aLabel.includes("brio") ||
+          aLabel.includes("webcam") && !aLabel.includes("integrated") && !aLabel.includes("built-in");
 
         const isBExternal =
-          bLabel.includes("droidcam") ||
-          bLabel.includes("iriun") ||
-          bLabel.includes("obs") ||
-          bLabel.includes("virtual") ||
           bLabel.includes("usb") ||
           bLabel.includes("external") ||
           bLabel.includes("logitech") ||
           bLabel.includes("c922") ||
-          bLabel.includes("brio");
+          bLabel.includes("brio") ||
+          bLabel.includes("webcam") && !bLabel.includes("integrated") && !bLabel.includes("built-in");
 
-        if (isAExternal && !isBExternal) return -1; // A di atas B
-        if (!isAExternal && isBExternal) return 1;  // B di atas A
+        // Cek apakah DroidCam
+        const isADroidCam = aLabel.includes("droidcam");
+        const isBDroidCam = bLabel.includes("droidcam");
 
-        // Prioritas KEDUA: built-in camera
-        const aIsBuiltIn =
+        // Cek apakah built-in
+        const isABuiltIn =
           aLabel.includes("integrated") ||
-          aLabel.includes("webcam") ||
-          aLabel.includes("hd") ||
-          aLabel.includes("facetime") ||
-          aLabel.includes("face time") ||
           aLabel.includes("built-in") ||
-          aLabel.includes("internal");
+          aLabel.includes("internal") ||
+          (aLabel.includes("webcam") && (aLabel.includes("integrated") || aLabel.includes("built-in")));
 
-        const bIsBuiltIn =
+        const isBBuiltIn =
           bLabel.includes("integrated") ||
-          bLabel.includes("webcam") ||
-          bLabel.includes("hd") ||
-          bLabel.includes("facetime") ||
-          bLabel.includes("face time") ||
           bLabel.includes("built-in") ||
-          bLabel.includes("internal");
+          bLabel.includes("internal") ||
+          (bLabel.includes("webcam") && (bLabel.includes("integrated") || bLabel.includes("built-in")));
 
-        if (aIsBuiltIn && !bIsBuiltIn) return 1;  // built-in di bawah
-        if (!aIsBuiltIn && bIsBuiltIn) return -1;
+        // Prioritas: External (USB) > Built-in > DroidCam
+        if (isAExternal && !isBExternal) return -1; // A di atas B
+        if (!isAExternal && isBExternal) return 1;
+
+        if (!isAExternal && !isBExternal) {
+          // Jika bukan external, cek built-in vs droidcam
+          if (isABuiltIn && isBDroidCam) return -1; // Built-in di atas DroidCam
+          if (isADroidCam && isBBuiltIn) return 1;  // DroidCam di bawah Built-in
+        }
 
         return 0;
       });
 
+      console.log("Available cameras after filtering:", videoDevices.map(cam => ({
+        label: cam.label,
+        deviceId: cam.deviceId
+      })));
+
       setAvailableCameras(videoDevices);
 
       if (videoDevices.length > 0) {
-        // Pilih camera pertama (yang sudah di-prioritaskan = webcam eksternal)
-        console.log("Selected camera (priority external):", videoDevices[0].label);
+        console.log("Selected camera (priority):", videoDevices[0].label);
         setSelectedCamera(videoDevices[0].deviceId);
       }
     } catch (err) {

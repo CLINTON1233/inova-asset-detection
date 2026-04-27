@@ -353,7 +353,7 @@ export default function AssetsInventoryPage() {
                 {
                   title: "Device Sessions",
                   value: stats.devices,
-                  sub: "IT device checking",
+                  sub: "Device checking",
                   accent: "#3b82f6",
                 },
                 {
@@ -481,8 +481,8 @@ export default function AssetsInventoryPage() {
                                 (e.currentTarget.style.background = "#f9fafb")
                               }
                               onMouseLeave={(e) =>
-                                (e.currentTarget.style.background =
-                                  "transparent")
+                              (e.currentTarget.style.background =
+                                "transparent")
                               }
                             >
                               <FileSpreadsheet
@@ -608,65 +608,65 @@ export default function AssetsInventoryPage() {
               </div>
             </div>
 
-          {/* ── Content ── */}
-{loading ? (
-  <div className="ai-empty">
-    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-4" />
-    <p className="text-gray-500 text-sm font-medium">
-      Loading sessions...
-    </p>
-  </div>
-) : sessions.length === 0 ? (
-  <div className="ai-empty">
-    <div
-      style={{
-        padding: 12,
-        borderRadius: 60,
-        background: "transparent",
-        display: "inline-block",
-        marginBottom: 16,
-      }}
-    >
-      <Box className="w-10 h-10 text-gray-300" strokeWidth={1.5} />
-    </div>
-    <h3 className="text-gray-500 font-medium text-sm mb-1">
-      No assets yet
-    </h3>
-    <p className="text-gray-400 text-xs max-w-xs">
-      Start by approving validations to build your asset inventory.
-    </p>
-    <button
-      onClick={() => router.push("/validation_verification")}
-      className="inline-flex items-center gap-2 px-4 py-2 mt-2 text-white text-xs font-medium rounded-lg transition-all"
-      style={{
-        background: "#2563eb",
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = "#1d4ed8")}
-      onMouseLeave={(e) => (e.currentTarget.style.background = "#2563eb")}
-    >
-      <CheckCircle className="w-3.5 h-3.5" /> Go to Validations
-    </button>
-  </div>
-) : filteredSessions.length === 0 ? (
-  <div className="ai-empty">
-    <Search className="w-10 h-10 text-gray-300 mb-3" strokeWidth={1.5} />
-    <h3 className="text-gray-500 font-medium text-sm mb-1">
-      No matching sessions
-    </h3>
-    <p className="text-gray-400 text-xs mb-4">
-      Try adjusting your search or filter.
-    </p>
-    <button
-      onClick={() => {
-        setSearchTerm("");
-        setTypeFilter("all");
-      }}
-      className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs hover:bg-gray-200 transition"
-    >
-      <RefreshCw className="w-3 h-3" /> Clear Filters
-    </button>
-  </div>
-) : viewMode === "grid" ? (
+            {/* ── Content ── */}
+            {loading ? (
+              <div className="ai-empty">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-4" />
+                <p className="text-gray-500 text-sm font-medium">
+                  Loading sessions...
+                </p>
+              </div>
+            ) : sessions.length === 0 ? (
+              <div className="ai-empty">
+                <div
+                  style={{
+                    padding: 12,
+                    borderRadius: 60,
+                    background: "transparent",
+                    display: "inline-block",
+                    marginBottom: 16,
+                  }}
+                >
+                  <Box className="w-10 h-10 text-gray-300" strokeWidth={1.5} />
+                </div>
+                <h3 className="text-gray-500 font-medium text-sm mb-1">
+                  No assets yet
+                </h3>
+                <p className="text-gray-400 text-xs max-w-xs">
+                  Start by approving validations to build your asset inventory.
+                </p>
+                <button
+                  onClick={() => router.push("/validation_verification")}
+                  className="inline-flex items-center gap-2 px-4 py-2 mt-2 text-white text-xs font-medium rounded-lg transition-all"
+                  style={{
+                    background: "#2563eb",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#1d4ed8")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "#2563eb")}
+                >
+                  <CheckCircle className="w-3.5 h-3.5" /> Go to Validations
+                </button>
+              </div>
+            ) : filteredSessions.length === 0 ? (
+              <div className="ai-empty">
+                <Search className="w-10 h-10 text-gray-300 mb-3" strokeWidth={1.5} />
+                <h3 className="text-gray-500 font-medium text-sm mb-1">
+                  No matching sessions
+                </h3>
+                <p className="text-gray-400 text-xs mb-4">
+                  Try adjusting your search or filter.
+                </p>
+                <button
+                  onClick={() => {
+                    setSearchTerm("");
+                    setTypeFilter("all");
+                  }}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs hover:bg-gray-200 transition"
+                >
+                  <RefreshCw className="w-3 h-3" /> Clear Filters
+                </button>
+              </div>
+            ) : viewMode === "grid" ? (
               /* ── GRID VIEW ── */
               <div
                 style={{
@@ -824,19 +824,19 @@ export default function AssetsInventoryPage() {
                           items
                         </span>
                       </div>
-                     <button
-  onClick={(e) => {
-    e.stopPropagation();
-    handleViewAssets(
-      session.id_preparation,
-      session.type,
-    );
-  }}
-  className="ai-grid-btn inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg"
-  style={{ background: "#2563eb" }}
->
-  <Eye className="w-3.5 h-3.5" /> View
-</button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewAssets(
+                            session.id_preparation,
+                            session.type,
+                          );
+                        }}
+                        className="ai-grid-btn inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg"
+                        style={{ background: "#2563eb" }}
+                      >
+                        <Eye className="w-3.5 h-3.5" /> View
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -1052,18 +1052,18 @@ export default function AssetsInventoryPage() {
                         </td>
                         <td className="ai-td text-center">
                           <button
-  onClick={(e) => {
-    e.stopPropagation();
-    handleViewAssets(
-      session.id_preparation,
-      session.type,
-    );
-  }}
-  className="ai-view-btn inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg"
-  style={{ background: "#2563eb" }}
->
-  <Eye className="w-3.5 h-3.5" /> View Assets
-</button>
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewAssets(
+                                session.id_preparation,
+                                session.type,
+                              );
+                            }}
+                            className="ai-view-btn inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg"
+                            style={{ background: "#2563eb" }}
+                          >
+                            <Eye className="w-3.5 h-3.5" /> View Assets
+                          </button>
                         </td>
                       </tr>
                     ))}

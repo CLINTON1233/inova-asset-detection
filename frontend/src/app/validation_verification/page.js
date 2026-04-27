@@ -1947,7 +1947,8 @@ export default function ValidationVerificationPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                {/* Grid 2 kolom untuk field-field pendek */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                   <div className="bg-gray-50 p-3" style={{ borderRadius: '5px' }}>
                     <p className="text-xs text-gray-500 mb-1">Item Name</p>
                     <p className="font-semibold text-gray-900 text-sm">{detailModal.item_name || "-"}</p>
@@ -1964,12 +1965,15 @@ export default function ValidationVerificationPage() {
                     <p className="text-xs text-gray-500 mb-1">{detailModal.validation_type === "device" ? "Serial Number" : "Scan Code"}</p>
                     <code className="text-sm font-mono text-gray-800 break-all">{detailModal.serial_or_code || "-"}</code>
                   </div>
-                  <div className="bg-gray-50 p-3 col-span-2 sm:col-span-1" style={{ borderRadius: '5px' }}>
-                    <p className="text-xs text-gray-500 mb-1">Unique Code</p>
-                    <code className="text-sm font-mono text-gray-800 break-all">{detailModal.unique_code || "-"}</code>
-                  </div>
                 </div>
 
+                {/* UNIQUE CODE - Full width (col-span-2) */}
+                <div className="bg-gray-50 p-3" style={{ borderRadius: '5px' }}>
+                  <p className="text-xs text-gray-500 mb-1">Unique Code</p>
+                  <code className="text-sm font-mono text-gray-800 break-all">{detailModal.unique_code || "-"}</code>
+                </div>
+
+                {/* SESSION - Full width */}
                 <div className="bg-gray-50 p-3" style={{ borderRadius: '5px' }}>
                   <p className="text-xs text-gray-500 mb-1">Session</p>
                   <p className="font-semibold text-gray-900 text-sm">{detailModal.checking_name || "-"}</p>
@@ -1982,11 +1986,13 @@ export default function ValidationVerificationPage() {
                   )}
                 </div>
 
+                {/* PROJECT - Full width */}
                 <div className="bg-gray-50 p-3" style={{ borderRadius: '5px' }}>
                   <p className="text-xs text-gray-500 mb-1">Project</p>
                   <p className="font-semibold text-gray-900 text-sm">{detailModal.project_name || "-"}</p>
                 </div>
 
+                {/* DEPARTMENT DISTRIBUTION - Full width */}
                 {detailModal.departments && detailModal.departments.length > 0 && (
                   <div className="bg-gray-50 p-3" style={{ borderRadius: '5px' }}>
                     <p className="text-xs text-gray-500 mb-2">Department Distribution</p>
@@ -2000,6 +2006,7 @@ export default function ValidationVerificationPage() {
                   </div>
                 )}
 
+                {/* RECEIVER ASSIGNMENTS - Full width */}
                 {detailModal.receivers && detailModal.receivers.length > 0 && (
                   <div className="bg-gray-50 p-3" style={{ borderRadius: '5px' }}>
                     <p className="text-xs text-gray-500 mb-2">Receiver Assignments</p>
@@ -2013,6 +2020,7 @@ export default function ValidationVerificationPage() {
                   </div>
                 )}
 
+                {/* LOCATION - Full width */}
                 {detailModal.location_name && (
                   <div className="bg-gray-50 p-3" style={{ borderRadius: '5px' }}>
                     <p className="text-xs text-gray-500 mb-1">Location</p>
@@ -2023,6 +2031,7 @@ export default function ValidationVerificationPage() {
                   </div>
                 )}
 
+                {/* NOTES / REJECTION REASON - Full width */}
                 {(detailModal.validation_notes || detailModal.rejection_reason) && (
                   <div className={`p-3 ${detailModal.validation_status === "rejected" ? "bg-red-50 border border-red-100" : "bg-emerald-50 border border-emerald-100"}`} style={{ borderRadius: '5px' }}>
                     <p className="text-xs font-semibold mb-1 text-gray-700">
