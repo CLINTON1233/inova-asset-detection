@@ -19,6 +19,8 @@ import {
   ScanLine,
   Filter,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   X,
   FileText,
   Trash2,
@@ -41,10 +43,14 @@ export default function ScanningPreparationListPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [sorting, setSorting] = useState({ id: "created_at", desc: true });
   const [mounted, setMounted] = useState(false);
-  // PERBAIKAN 1: Gunakan Set untuk expanded sessions
   const [expandedSessions, setExpandedSessions] = useState(new Set());
   const [sessionDetails, setSessionDetails] = useState({});
   const [isMobile, setIsMobile] = useState(false);
+
+  // ========== PAGINATION STATE ==========
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
+  const [rowsPerPageOptions] = useState([25, 30, 100, 250, 500]);
 
   useEffect(() => {
     setMounted(true);
@@ -57,6 +63,11 @@ export default function ScanningPreparationListPage() {
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  // Reset ke halaman 1 ketika filter berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, typeFilter, sorting, sessions]);
 
   useEffect(() => {
     let filtered = [...sessions];
@@ -100,6 +111,82 @@ export default function ScanningPreparationListPage() {
     setFilteredSessions(filtered);
   }, [searchTerm, statusFilter, typeFilter, sessions, sorting]);
 
+  // ========== PAGINATION COMPUTED VALUES ==========
+  const totalItems = filteredSessions.length;
+  const totalPages =
+    rowsPerPage === -1 ? 1 : Math.ceil(totalItems / rowsPerPage);
+
+  // Get current page data
+  const getCurrentPageData = () => {
+    if (rowsPerPage === -1) {
+      return filteredSessions;
+    }
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    const endIndex = startIndex + rowsPerPage;
+    return filteredSessions.slice(startIndex, endIndex);
+  };
+
+  const currentData = getCurrentPageData();
+
+  // Pagination handlers
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const goToPrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleRowsPerPageChange = (e) => {
+    const value = e.target.value;
+    if (value === "all") {
+      setRowsPerPage(-1); // -1 means show all
+    } else {
+      setRowsPerPage(Number(value));
+    }
+    setCurrentPage(1);
+  };
+
+  // Generate page numbers for pagination
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= maxVisible; i++) {
+          pages.push(i);
+        }
+        pages.push("...");
+        pages.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1);
+        pages.push("...");
+        for (let i = totalPages - (maxVisible - 1); i <= totalPages; i++) {
+          pages.push(i);
+        }
+      } else {
+        pages.push(1);
+        pages.push("...");
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+          pages.push(i);
+        }
+        pages.push("...");
+        pages.push(totalPages);
+      }
+    }
+
+    return pages;
+  };
+
   const fetchSessionDetail = async (sessionId, type) => {
     if (sessionDetails[sessionId]) return sessionDetails[sessionId];
 
@@ -128,8 +215,12 @@ export default function ScanningPreparationListPage() {
           }
 
           itemsList.push({
-            name: type === "device" ? item.device_name : item.item_name || item.material_name,
-            detail: type === "device" ? item.device_detail : item.specifications,
+            name:
+              type === "device"
+                ? item.device_name
+                : item.item_name || item.material_name,
+            detail:
+              type === "device" ? item.device_detail : item.specifications,
             quantity: item.quantity,
             brand: item.brand,
             model: item.model,
@@ -141,7 +232,9 @@ export default function ScanningPreparationListPage() {
 
           if (item.departments && item.departments.length > 0) {
             item.departments.forEach((d) => {
-              const existing = departmentsList.find(dept => dept.id === d.department_id);
+              const existing = departmentsList.find(
+                (dept) => dept.id === d.department_id,
+              );
               if (existing) {
                 existing.quantity += d.quantity;
               } else {
@@ -159,7 +252,10 @@ export default function ScanningPreparationListPage() {
               receiversList.push({
                 name: r.receiver_name || `Receiver ${r.receiver_id}`,
                 department: r.department_name,
-                item_name: type === "device" ? item.device_name : item.item_name || item.material_name,
+                item_name:
+                  type === "device"
+                    ? item.device_name
+                    : item.item_name || item.material_name,
                 receiver_id: r.receiver_id,
               });
             });
@@ -215,7 +311,8 @@ export default function ScanningPreparationListPage() {
           }
 
           const totalItems = items.length;
-          const totalQty = session.totalQty ||
+          const totalQty =
+            session.totalQty ||
             items.reduce((sum, i) => sum + (i.quantity || 0), 0);
 
           const receiversList = [];
@@ -228,9 +325,10 @@ export default function ScanningPreparationListPage() {
                   receiversList.push({
                     name: r.receiver_name,
                     department: r.department_name,
-                    item_name: session.type === "device"
-                      ? item.device_name
-                      : item.material_name,
+                    item_name:
+                      session.type === "device"
+                        ? item.device_name
+                        : item.material_name,
                   });
                 }
               });
@@ -238,14 +336,18 @@ export default function ScanningPreparationListPage() {
 
             if (item.departments && item.departments.length > 0) {
               item.departments.forEach((d) => {
-                if (!departmentsList.find(dept => dept.id === d.department_id)) {
+                if (
+                  !departmentsList.find((dept) => dept.id === d.department_id)
+                ) {
                   departmentsList.push({
                     id: d.department_id,
                     name: d.department_name,
                     quantity: d.quantity,
                   });
                 } else {
-                  const existing = departmentsList.find(dept => dept.id === d.department_id);
+                  const existing = departmentsList.find(
+                    (dept) => dept.id === d.department_id,
+                  );
                   if (existing) existing.quantity += d.quantity;
                 }
               });
@@ -258,15 +360,16 @@ export default function ScanningPreparationListPage() {
           if (session.items && session.items.length > 0 && !session.progress) {
             const totalScanned = session.items.reduce(
               (sum, i) => sum + (i.scanned_count || 0),
-              0
+              0,
             );
-            progress = totalQty > 0 ? Math.round((totalScanned / totalQty) * 100) : 0;
+            progress =
+              totalQty > 0 ? Math.round((totalScanned / totalQty) * 100) : 0;
             if (progress === 100) status = "completed";
             else if (progress > 0) status = "in-progress";
           }
 
-          const sessionType = session.type ||
-            (session.category_id === 1 ? "device" : "material");
+          const sessionType =
+            session.type || (session.category_id === 1 ? "device" : "material");
 
           return {
             ...session,
@@ -280,20 +383,25 @@ export default function ScanningPreparationListPage() {
             departments: departmentsList,
             category_name: session.category_name || "General",
             location_name: session.location_name || "No location",
-            uniqueCode: session.checking_number || `SESS-${session.id_preparation}`,
+            uniqueCode:
+              session.checking_number || `SESS-${session.id_preparation}`,
           };
         });
 
         setSessions(sessionsWithDetails);
         setFilteredSessions(sessionsWithDetails);
       } else {
-        throw new Error(result.message || result.error || "Failed to load sessions");
+        throw new Error(
+          result.message || result.error || "Failed to load sessions",
+        );
       }
     } catch (error) {
       console.error("Error fetching sessions:", error);
       Swal.fire({
         title: "Error!",
-        text: error.message || "Failed to load sessions. Please check if backend server is running.",
+        text:
+          error.message ||
+          "Failed to load sessions. Please check if backend server is running.",
         icon: "error",
         confirmButtonColor: "#1e40af",
       });
@@ -375,7 +483,6 @@ export default function ScanningPreparationListPage() {
     });
   };
 
-  // PERBAIKAN 2: Handle delete dengan benar
   const handleDelete = async (prepId, checkingName, type) => {
     try {
       const result = await Swal.fire({
@@ -391,7 +498,6 @@ export default function ScanningPreparationListPage() {
       });
 
       if (result.isConfirmed) {
-        // Tampilkan loading state
         Swal.fire({
           title: "Deleting...",
           text: "Please wait",
@@ -418,25 +524,23 @@ export default function ScanningPreparationListPage() {
         const data = await response.json();
 
         if (data.success) {
-          // PERBAIKAN: Update state dengan benar
-          setSessions(prevSessions => {
-            const newSessions = prevSessions.filter((s) => s.id_preparation !== prepId);
-            return newSessions;
-          });
+          const newSessions = sessions.filter(
+            (s) => s.id_preparation !== prepId,
+          );
+          setSessions(newSessions);
 
-          setFilteredSessions(prevFiltered => {
-            const newFiltered = prevFiltered.filter((s) => s.id_preparation !== prepId);
-            return newFiltered;
-          });
+          const newFilteredSessions = filteredSessions.filter(
+            (s) => s.id_preparation !== prepId,
+          );
+          setFilteredSessions(newFilteredSessions);
 
-          // Hapus dari sessionDetails dan expandedSessions
-          setSessionDetails(prev => {
+          setSessionDetails((prev) => {
             const newDetails = { ...prev };
             delete newDetails[prepId];
             return newDetails;
           });
 
-          setExpandedSessions(prev => {
+          setExpandedSessions((prev) => {
             const newSet = new Set(prev);
             newSet.delete(prepId);
             return newSet;
@@ -464,9 +568,8 @@ export default function ScanningPreparationListPage() {
     }
   };
 
-  // PERBAIKAN 3: Fungsi toggleExpandSession yang benar
   const toggleExpandSession = async (sessionId, type) => {
-    setExpandedSessions(prev => {
+    setExpandedSessions((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(sessionId)) {
         newSet.delete(sessionId);
@@ -492,11 +595,36 @@ export default function ScanningPreparationListPage() {
   }
 
   const kpis = [
-    { title: "Total Sessions", value: stats.total, sub: "All sessions", accent: "#2563eb" },
-    { title: "Devices", value: stats.devices, sub: "Device sessions", accent: "#3b82f6" },
-    { title: "Materials", value: stats.materials, sub: "Material sessions", accent: "#10b981" },
-    { title: "In Progress", value: stats.inProgress, sub: "Sessions active", accent: "#6366f1" },
-    { title: "Completed", value: stats.completed, sub: "Sessions done", accent: "#10b981" },
+    {
+      title: "Total Sessions",
+      value: stats.total,
+      sub: "All sessions",
+      accent: "#2563eb",
+    },
+    {
+      title: "Devices",
+      value: stats.devices,
+      sub: "Device sessions",
+      accent: "#3b82f6",
+    },
+    {
+      title: "Materials",
+      value: stats.materials,
+      sub: "Material sessions",
+      accent: "#10b981",
+    },
+    {
+      title: "In Progress",
+      value: stats.inProgress,
+      sub: "Sessions active",
+      accent: "#6366f1",
+    },
+    {
+      title: "Completed",
+      value: stats.completed,
+      sub: "Sessions done",
+      accent: "#10b981",
+    },
   ];
 
   const mobileKpis = kpis.slice(0, 4);
@@ -504,21 +632,73 @@ export default function ScanningPreparationListPage() {
   return (
     <LayoutDashboard activeMenu={1}>
       <style jsx>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-        .sp-root { font-family: 'DM Sans', sans-serif; }
-        .sp-root .mono { font-family: 'DM Mono', monospace; }
+        @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap");
+        .sp-root {
+          font-family: "DM Sans", sans-serif;
+        }
+        .sp-root .mono {
+          font-family: "DM Mono", monospace;
+        }
         .sp-card {
           background: #ffffff;
           border-radius: 16px;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+          box-shadow:
+            0 4px 6px -1px rgba(0, 0, 0, 0.1),
+            0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
-        .kpi-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px 12px; text-align: center; }
-        .sp-th { font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; padding: 10px 12px; background: #f9fafb; cursor: pointer; }
-        .sp-td { padding: 12px 12px; font-size: 13px; color: #374151; border-top: 1px solid #f3f4f6; }
-        .sp-row:hover { background: #f8faff; }
-        .prog-track { background: #e5e7eb; border-radius: 99px; height: 5px; }
-        .prog-fill { background: #3b82f6; border-radius: 99px; height: 5px; transition: width 0.3s; }
-        .expandable-content { background: #fafcff; border-top: 1px solid #f0f2f5; }
+        .kpi-cell {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 16px 12px;
+          text-align: center;
+        }
+        .sp-th {
+          font-size: 11px;
+          font-weight: 600;
+          color: #6b7280;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          padding: 10px 12px;
+          background: #f9fafb;
+          cursor: pointer;
+        }
+        .sp-td {
+          padding: 12px 12px;
+          font-size: 13px;
+          color: #374151;
+          border-top: 1px solid #f3f4f6;
+        }
+        .sp-row:hover {
+          background: #f8faff;
+        }
+        .prog-track {
+          background: #e5e7eb;
+          border-radius: 99px;
+          height: 5px;
+        }
+        .prog-fill {
+          background: #3b82f6;
+          border-radius: 99px;
+          height: 5px;
+          transition: width 0.3s;
+        }
+        .expandable-content {
+          background: #fafcff;
+          border-top: 1px solid #f0f2f5;
+        }
+        .pagination-btn {
+          transition: all 0.2s ease;
+        }
+        .pagination-btn:hover:not(:disabled) {
+          background-color: #f3f4f6;
+        }
+        .pagination-btn.active {
+          background-color: #2563eb;
+          color: white;
+          border-color: #2563eb;
+        }
       `}</style>
 
       <div className="sp-root space-y-4 md:space-y-5">
@@ -527,9 +707,13 @@ export default function ScanningPreparationListPage() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <ScanLine className="w-5 h-5 text-blue-600 flex-shrink-0" />
-              <h1 className="text-lg md:text-xl font-bold text-gray-900">Scanning Preparation List</h1>
+              <h1 className="text-lg md:text-xl font-bold text-gray-900">
+                Scanning Preparation List
+              </h1>
             </div>
-            <p className="text-xs md:text-sm text-gray-500">List of sessions prepared for asset scanning</p>
+            <p className="text-xs md:text-sm text-gray-500">
+              List of sessions prepared for asset scanning
+            </p>
           </div>
           <button
             onClick={() => router.push("/create_scanning_preparation")}
@@ -546,9 +730,18 @@ export default function ScanningPreparationListPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x divide-y lg:divide-y-0 divide-gray-100">
             {(isMobile ? mobileKpis : kpis).map((d, i) => (
               <div key={i} className="kpi-cell">
-                <p className="text-[10px] md:text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{d.title}</p>
-                <span className="text-2xl md:text-3xl lg:text-4xl font-bold" style={{ color: d.accent }}>{d.value}</span>
-                <p className="text-[10px] md:text-xs text-gray-400 mt-1">{d.sub}</p>
+                <p className="text-[10px] md:text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  {d.title}
+                </p>
+                <span
+                  className="text-2xl md:text-3xl lg:text-4xl font-bold"
+                  style={{ color: d.accent }}
+                >
+                  {d.value}
+                </span>
+                <p className="text-[10px] md:text-xs text-gray-400 mt-1">
+                  {d.sub}
+                </p>
               </div>
             ))}
           </div>
@@ -568,7 +761,10 @@ export default function ScanningPreparationListPage() {
                 className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
               />
               {searchTerm && (
-                <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
@@ -601,8 +797,14 @@ export default function ScanningPreparationListPage() {
                 </select>
                 <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
               </div>
-              <button onClick={fetchSessions} disabled={loading} className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50">
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+              <button
+                onClick={fetchSessions}
+                disabled={loading}
+                className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
+                />
                 <span className="hidden xs:inline">Refresh</span>
               </button>
             </div>
@@ -617,223 +819,743 @@ export default function ScanningPreparationListPage() {
           ) : sessions.length === 0 ? (
             <div className="py-20 text-center">
               <ScanLine className="w-14 h-14 text-gray-200 mx-auto mb-3" />
-              <h3 className="text-gray-800 font-semibold text-sm mb-1">No Sessions Found</h3>
-              <p className="text-gray-400 text-sm mb-5">Create your first scanning session to get started</p>
+              <h3 className="text-gray-800 font-semibold text-sm mb-1">
+                No Sessions Found
+              </h3>
+              <p className="text-gray-400 text-sm mb-5">
+                Create your first scanning session to get started
+              </p>
             </div>
           ) : filteredSessions.length === 0 ? (
             <div className="py-16 text-center">
               <Search className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-              <h3 className="text-gray-800 font-semibold mb-1">No matching sessions</h3>
-              <p className="text-gray-400 text-sm mb-4">Try adjusting your filters</p>
-              <button onClick={() => { setSearchTerm(""); setStatusFilter("all"); setTypeFilter("all"); }} className="text-sm text-blue-600 hover:underline">Clear all filters</button>
+              <h3 className="text-gray-800 font-semibold mb-1">
+                No matching sessions
+              </h3>
+              <p className="text-gray-400 text-sm mb-4">
+                Try adjusting your filters
+              </p>
+              <button
+                onClick={() => {
+                  setSearchTerm("");
+                  setStatusFilter("all");
+                  setTypeFilter("all");
+                }}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                Clear all filters
+              </button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              {/* Desktop Table View */}
-              <table className="min-w-full hidden md:table">
-                <thead>
-                  <tr>
-                    <th className="sp-th text-left" onClick={() => handleSort("checking_name")}><span className="flex items-center">Session {getSortIcon("checking_name")}</span></th>
-                    <th className="sp-th text-left hidden lg:table-cell" onClick={() => handleSort("checking_date")}><span className="flex items-center">Date {getSortIcon("checking_date")}</span></th>
-                    <th className="sp-th text-left hidden xl:table-cell" onClick={() => handleSort("location_name")}><span className="flex items-center">Location {getSortIcon("location_name")}</span></th>
-                    <th className="sp-th text-left hidden 2xl:table-cell"><span className="flex items-center">Project</span></th>
-                    <th className="sp-th text-left" onClick={() => handleSort("status")}><span className="flex items-center">Status {getSortIcon("status")}</span></th>
-                    <th className="sp-th text-left">Progress</th>
-                    <th className="sp-th text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredSessions.map((session, idx) => {
+            <>
+              <div className="overflow-x-auto">
+                {/* Desktop Table View */}
+                <table className="min-w-full hidden md:table">
+                  <thead>
+                    <tr>
+                      <th
+                        className="sp-th text-left"
+                        onClick={() => handleSort("checking_name")}
+                      >
+                        <span className="flex items-center">
+                          Session {getSortIcon("checking_name")}
+                        </span>
+                      </th>
+                      <th
+                        className="sp-th text-left hidden lg:table-cell"
+                        onClick={() => handleSort("checking_date")}
+                      >
+                        <span className="flex items-center">
+                          Date {getSortIcon("checking_date")}
+                        </span>
+                      </th>
+                      <th
+                        className="sp-th text-left hidden xl:table-cell"
+                        onClick={() => handleSort("location_name")}
+                      >
+                        <span className="flex items-center">
+                          Location {getSortIcon("location_name")}
+                        </span>
+                      </th>
+                      <th className="sp-th text-left hidden 2xl:table-cell">
+                        <span className="flex items-center">Project</span>
+                      </th>
+                      <th
+                        className="sp-th text-left"
+                        onClick={() => handleSort("status")}
+                      >
+                        <span className="flex items-center">
+                          Status {getSortIcon("status")}
+                        </span>
+                      </th>
+                      <th className="sp-th text-left">Progress</th>
+                      <th className="sp-th text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentData.map((session, idx) => {
+                      const globalIndex = filteredSessions.findIndex(
+                        (s) => s.id_preparation === session.id_preparation,
+                      );
+                      const sc = getStatusConfig(session.status);
+                      const isExpanded = expandedSessions.has(
+                        session.id_preparation,
+                      );
+                      const detail = sessionDetails[session.id_preparation];
+                      const projectName =
+                        detail?.project_name || session?.project_name || "-";
+                      const uniqueKey = `${session.type}_${session.id_preparation}`;
+
+                      return (
+                        <Fragment key={uniqueKey}>
+                          <tr className="sp-row transition-colors">
+                            <td className="sp-td">
+                              <div className="flex items-center gap-3">
+                                <button
+                                  onClick={() =>
+                                    toggleExpandSession(
+                                      session.id_preparation,
+                                      session.type,
+                                    )
+                                  }
+                                  className="p-1 hover:bg-gray-100 rounded transition flex-shrink-0"
+                                >
+                                  <ChevronDown
+                                    className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                                  />
+                                </button>
+                                <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">
+                                  {globalIndex + 1}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-gray-900 text-sm leading-tight truncate max-w-[200px]">
+                                    {session.checking_name}
+                                  </div>
+                                  <div className="text-xs text-gray-400 mono mt-0.5 truncate">
+                                    {session.checking_number}
+                                  </div>
+                                  <div className="text-xs text-gray-400 mt-0.5">
+                                    <span
+                                      className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${session.type === "device" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}
+                                    >
+                                      {session.type === "device"
+                                        ? "Device"
+                                        : "Material"}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="sp-td hidden lg:table-cell">
+                              <span className="text-xs text-gray-600">
+                                {formatDate(session.checking_date)}
+                              </span>
+                            </td>
+                            <td className="sp-td hidden xl:table-cell">
+                              <span className="text-xs text-gray-600 truncate max-w-[140px] block">
+                                {session.location_name}
+                              </span>
+                            </td>
+                            <td className="sp-td hidden 2xl:table-cell">
+                              <span className="text-xs text-gray-600 truncate max-w-[120px] block">
+                                {session.project_name || "-"}
+                              </span>
+                            </td>
+                            <td className="sp-td">
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border} whitespace-nowrap`}
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`}
+                                />
+                                {sc.label}
+                              </span>
+                            </td>
+                            <td className="sp-td">
+                              <div className="flex items-center gap-2">
+                                <div className="prog-track w-16 md:w-20">
+                                  <div
+                                    className="prog-fill"
+                                    style={{
+                                      width: `${session.progress || 0}%`,
+                                    }}
+                                  />
+                                </div>
+                                <span className="text-xs font-semibold text-gray-600">
+                                  {session.progress || 0}%
+                                </span>
+                              </div>
+                            </td>
+                            <td className="sp-td text-center">
+                              <div className="flex items-center justify-center gap-1 md:gap-2">
+                                <button
+                                  onClick={() =>
+                                    router.push(
+                                      `/scanning?prep_id=${session.id_preparation}&type=${session.type}`,
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-1 px-2 md:px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+                                  title="Start Scanning"
+                                >
+                                  <ScanLine className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">Scan</span>
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    router.push(
+                                      `/edit_scanning_preparation?id=${session.id_preparation}&type=${session.type}`,
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-1 px-2 md:px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-lg hover:bg-gray-700 transition"
+                                  title="Edit Session"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">Edit</span>
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handleDelete(
+                                      session.id_preparation,
+                                      session.checking_name,
+                                      session.type,
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-1 px-2 md:px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
+                                  title="Delete Session"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">Del</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          {isExpanded && detail && (
+                            <tr className="expandable-content">
+                              <td colSpan={7} className="p-4">
+                                <div className="space-y-4">
+                                  {projectName !== "-" && (
+                                    <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <Building2 className="w-4 h-4 text-blue-600" />
+                                        <h4 className="text-sm font-semibold text-gray-800">
+                                          Project Information
+                                        </h4>
+                                      </div>
+                                      <p className="text-sm text-gray-700">
+                                        Project:{" "}
+                                        <span className="font-medium">
+                                          {projectName}
+                                        </span>
+                                      </p>
+                                    </div>
+                                  )}
+                                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                                    <div className="bg-gray-100 px-3 md:px-4 py-2 border-b border-gray-200">
+                                      <div className="flex items-center gap-2">
+                                        <Box className="w-4 h-4 text-purple-600" />
+                                        <h4 className="text-sm font-semibold text-gray-800">
+                                          Items Preparation (
+                                          {detail.items?.length || 0} items)
+                                        </h4>
+                                      </div>
+                                    </div>
+                                    <div className="divide-y divide-gray-100 max-h-[300px] overflow-y-auto">
+                                      {detail.items?.map((item, itemIdx) => (
+                                        <div
+                                          key={itemIdx}
+                                          className="p-3 hover:bg-gray-50"
+                                        >
+                                          <div className="flex justify-between items-start">
+                                            <div className="flex-1 min-w-0">
+                                              <div className="font-medium text-gray-900 text-sm break-words">
+                                                {item.name}
+                                              </div>
+                                              {item.detail && (
+                                                <div className="text-xs text-gray-500 mt-0.5 break-words">
+                                                  {item.detail}
+                                                </div>
+                                              )}
+                                              <div className="flex flex-wrap gap-1 md:gap-2 mt-1">
+                                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                                  Qty: {item.quantity}{" "}
+                                                  {item.uom || ""}
+                                                </span>
+                                                {item.brand && (
+                                                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                                                    Brand: {item.brand}
+                                                  </span>
+                                                )}
+                                                {item.model && (
+                                                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                                                    Model: {item.model}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  {detail.departments?.length > 0 && (
+                                    <div className="border border-gray-200 rounded-lg p-3">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <Users className="w-4 h-4 text-blue-600" />
+                                        <h4 className="text-sm font-semibold text-gray-800">
+                                          Department Distribution
+                                        </h4>
+                                      </div>
+                                      <div className="flex flex-wrap gap-2">
+                                        {detail.departments.map(
+                                          (dept, deptIdx) => (
+                                            <span
+                                              key={deptIdx}
+                                              className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full text-xs"
+                                            >
+                                              {dept.name}: {dept.quantity}
+                                            </span>
+                                          ),
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {detail.receivers?.length > 0 && (
+                                    <div className="border border-gray-200 rounded-lg p-3">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <User className="w-4 h-4 text-green-600" />
+                                        <h4 className="text-sm font-semibold text-gray-800">
+                                          Receiver Assignments
+                                        </h4>
+                                      </div>
+                                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                                        {detail.receivers.map((rec, recIdx) => (
+                                          <div
+                                            key={recIdx}
+                                            className="text-xs text-gray-600 break-words"
+                                          >
+                                            {rec.name} - {rec.department} (
+                                            {rec.item_name})
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="border border-gray-200 rounded-lg p-3 bg-white">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Box className="w-4 h-4 text-blue-600" />
+                                      <h4 className="text-sm font-semibold text-gray-800">
+                                        Items Summary
+                                      </h4>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                      <div>
+                                        Total Items:{" "}
+                                        <span className="font-semibold">
+                                          {detail.totalItems || 0}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        Total Quantity:{" "}
+                                        <span className="font-semibold">
+                                          {detail.totalQty || 0}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        Scanned:{" "}
+                                        <span className="font-semibold text-green-600">
+                                          {session.scannedCount || 0}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        Remaining:{" "}
+                                        <span className="font-semibold text-orange-600">
+                                          {(detail.totalQty || 0) -
+                                            (session.scannedCount || 0)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {session.remarks && (
+                                    <div className="bg-blue-50 rounded p-2">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <FileText className="w-3.5 h-3.5 text-blue-600" />
+                                        <h4 className="text-sm font-semibold text-gray-800">
+                                          Remarks
+                                        </h4>
+                                      </div>
+                                      <p className="text-xs text-gray-700 whitespace-pre-wrap">
+                                        {session.remarks}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden divide-y divide-gray-100">
+                  {currentData.map((session, idx) => {
+                    const globalIndex = filteredSessions.findIndex(
+                      (s) => s.id_preparation === session.id_preparation,
+                    );
                     const sc = getStatusConfig(session.status);
-                    const isExpanded = expandedSessions.has(session.id_preparation);
+                    const isExpanded = expandedSessions.has(
+                      session.id_preparation,
+                    );
                     const detail = sessionDetails[session.id_preparation];
-                    const projectName = detail?.project_name || session?.project_name || "-";
+                    const projectName =
+                      detail?.project_name || session?.project_name || "-";
                     const uniqueKey = `${session.type}_${session.id_preparation}`;
 
                     return (
                       <Fragment key={uniqueKey}>
-                        <tr className="sp-row transition-colors">
-                          <td className="sp-td">
-                            <div className="flex items-center gap-3">
-                              <button
-                                onClick={() => toggleExpandSession(session.id_preparation, session.type)}
-                                className="p-1 hover:bg-gray-100 rounded transition flex-shrink-0"
-                              >
-                                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
-                              </button>
-                              <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">{idx + 1}</div>
-                              <div className="min-w-0">
-                                <div className="font-semibold text-gray-900 text-sm leading-tight truncate max-w-[200px]">{session.checking_name}</div>
-                                <div className="text-xs text-gray-400 mono mt-0.5 truncate">{session.checking_number}</div>
-                                <div className="text-xs text-gray-400 mt-0.5">
-                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${session.type === "device" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}>
-                                    {session.type === "device" ? "Device" : "Material"}
-                                  </span>
+                        <div className="p-3 hover:bg-gray-50 transition-colors">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <div className="w-6 h-6 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">
+                                  {globalIndex + 1}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-semibold text-gray-900 text-sm leading-tight break-words">
+                                    {session.checking_name}
+                                  </div>
                                 </div>
                               </div>
+                              <div className="text-xs text-gray-400 mono ml-8 break-words">
+                                {session.checking_number}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 mt-2 ml-8">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${session.type === "device" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}
+                                >
+                                  {session.type === "device"
+                                    ? "Device"
+                                    : "Material"}
+                                </span>
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}
+                                >
+                                  <span
+                                    className={`w-1 h-1 rounded-full ${sc.dot}`}
+                                  />
+                                  {sc.label}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {formatDate(session.checking_date)}
+                                </span>
+                              </div>
                             </div>
-                          </td>
-                          <td className="sp-td hidden lg:table-cell"><span className="text-xs text-gray-600">{formatDate(session.checking_date)}</span></td>
-                          <td className="sp-td hidden xl:table-cell"><span className="text-xs text-gray-600 truncate max-w-[140px] block">{session.location_name}</span></td>
-                          <td className="sp-td hidden 2xl:table-cell"><span className="text-xs text-gray-600 truncate max-w-[120px] block">{session.project_name || "-"}</span></td>
-                          <td className="sp-td">
-                            <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border} whitespace-nowrap`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`} />
-                              {sc.label}
-                            </span>
-                          </td>
-                          <td className="sp-td">
+                            <button
+                              onClick={() =>
+                                toggleExpandSession(
+                                  session.id_preparation,
+                                  session.type,
+                                )
+                              }
+                              className="p-1 hover:bg-gray-100 rounded transition flex-shrink-0"
+                            >
+                              <ChevronDown
+                                className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                              />
+                            </button>
+                          </div>
+                          <div className="mt-2 ml-8 space-y-1">
+                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                              <MapPin className="w-3 h-3 flex-shrink-0" />
+                              <span className="truncate">
+                                {session.location_name}
+                              </span>
+                            </div>
+                            {session.project_name &&
+                              session.project_name !== "-" && (
+                                <div className="flex items-center gap-1 text-xs text-gray-500">
+                                  <Building2 className="w-3 h-3 flex-shrink-0" />
+                                  <span className="truncate">
+                                    {session.project_name}
+                                  </span>
+                                </div>
+                              )}
+                          </div>
+                          <div className="mt-3 ml-8">
                             <div className="flex items-center gap-2">
-                              <div className="prog-track w-16 md:w-20"><div className="prog-fill" style={{ width: `${session.progress || 0}%` }} /></div>
-                              <span className="text-xs font-semibold text-gray-600">{session.progress || 0}%</span>
+                              <div className="prog-track flex-1">
+                                <div
+                                  className="prog-fill"
+                                  style={{ width: `${session.progress || 0}%` }}
+                                />
+                              </div>
+                              <span className="text-xs font-semibold text-gray-600">
+                                {session.progress || 0}%
+                              </span>
                             </div>
-                          </td>
-                          <td className="sp-td text-center">
-                            <div className="flex items-center justify-center gap-1 md:gap-2">
-                              <button onClick={() => router.push(`/scanning?prep_id=${session.id_preparation}&type=${session.type}`)} className="inline-flex items-center gap-1 px-2 md:px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition" title="Start Scanning">
-                                <ScanLine className="w-3.5 h-3.5" /><span className="hidden sm:inline">Scan</span>
-                              </button>
-                              <button onClick={() => router.push(`/edit_scanning_preparation?id=${session.id_preparation}&type=${session.type}`)} className="inline-flex items-center gap-1 px-2 md:px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-lg hover:bg-gray-700 transition" title="Edit Session">
-                                <Edit className="w-3.5 h-3.5" /><span className="hidden sm:inline">Edit</span>
-                              </button>
-                              <button onClick={() => handleDelete(session.id_preparation, session.checking_name, session.type)} className="inline-flex items-center gap-1 px-2 md:px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition" title="Delete Session">
-                                <Trash2 className="w-3.5 h-3.5" /><span className="hidden sm:inline">Del</span>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                        {isExpanded && detail && (
-                          <tr className="expandable-content">
-                            <td colSpan={7} className="p-4">
-                              <div className="space-y-4">
-                                {projectName !== "-" && (
-                                  <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                                    <div className="flex items-center gap-2 mb-2"><Building2 className="w-4 h-4 text-blue-600" /><h4 className="text-sm font-semibold text-gray-800">Project Information</h4></div>
-                                    <p className="text-sm text-gray-700">Project: <span className="font-medium">{projectName}</span></p>
+                          </div>
+                          <div className="mt-3 ml-8 flex flex-wrap gap-2">
+                            <button
+                              onClick={() =>
+                                router.push(
+                                  `/scanning?prep_id=${session.id_preparation}&type=${session.type}`,
+                                )
+                              }
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+                            >
+                              <ScanLine className="w-3.5 h-3.5" />
+                              Scan
+                            </button>
+                            <button
+                              onClick={() =>
+                                router.push(
+                                  `/edit_scanning_preparation?id=${session.id_preparation}&type=${session.type}`,
+                                )
+                              }
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-lg hover:bg-gray-700 transition"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                              Edit
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDelete(
+                                  session.id_preparation,
+                                  session.checking_name,
+                                  session.type,
+                                )
+                              }
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Delete
+                            </button>
+                          </div>
+                          {isExpanded && detail && (
+                            <div className="mt-3 ml-8 space-y-3 border-t border-gray-100 pt-3">
+                              {detail.items?.length > 0 && (
+                                <div>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Box className="w-4 h-4 text-purple-600" />
+                                    <h4 className="text-xs font-semibold text-gray-800">
+                                      Items ({detail.items.length})
+                                    </h4>
                                   </div>
-                                )}
-                                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                                  <div className="bg-gray-100 px-3 md:px-4 py-2 border-b border-gray-200"><div className="flex items-center gap-2"><Box className="w-4 h-4 text-purple-600" /><h4 className="text-sm font-semibold text-gray-800">Items Preparation ({detail.items?.length || 0} items)</h4></div></div>
-                                  <div className="divide-y divide-gray-100 max-h-[300px] overflow-y-auto">
-                                    {detail.items?.map((item, itemIdx) => (
-                                      <div key={itemIdx} className="p-3 hover:bg-gray-50"><div className="flex justify-between items-start"><div className="flex-1 min-w-0"><div className="font-medium text-gray-900 text-sm break-words">{item.name}</div>{item.detail && <div className="text-xs text-gray-500 mt-0.5 break-words">{item.detail}</div>}<div className="flex flex-wrap gap-1 md:gap-2 mt-1"><span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Qty: {item.quantity} {item.uom || ""}</span>{item.brand && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">Brand: {item.brand}</span>}{item.model && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">Model: {item.model}</span>}</div></div></div></div>
+                                  <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                                    {detail.items
+                                      .slice(0, 5)
+                                      .map((item, itemIdx) => (
+                                        <div
+                                          key={itemIdx}
+                                          className="bg-gray-50 rounded p-2"
+                                        >
+                                          <div className="font-medium text-gray-900 text-xs break-words">
+                                            {item.name}
+                                          </div>
+                                          <div className="text-xs text-gray-500">
+                                            Qty: {item.quantity}{" "}
+                                            {item.uom || ""}
+                                            {item.brand &&
+                                              ` · Brand: ${item.brand}`}
+                                            {item.model &&
+                                              ` · Model: ${item.model}`}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    {detail.items.length > 5 && (
+                                      <p className="text-xs text-gray-400 text-center">
+                                        +{detail.items.length - 5} more items
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              {detail.departments?.length > 0 && (
+                                <div>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Users className="w-4 h-4 text-blue-600" />
+                                    <h4 className="text-xs font-semibold text-gray-800">
+                                      Departments
+                                    </h4>
+                                  </div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {detail.departments.map((dept, deptIdx) => (
+                                      <span
+                                        key={deptIdx}
+                                        className="bg-gray-100 px-2 py-0.5 rounded-full text-xs"
+                                      >
+                                        {dept.name}: {dept.quantity}
+                                      </span>
                                     ))}
                                   </div>
                                 </div>
-                                {detail.departments?.length > 0 && (
-                                  <div className="border border-gray-200 rounded-lg p-3"><div className="flex items-center gap-2 mb-2"><Users className="w-4 h-4 text-blue-600" /><h4 className="text-sm font-semibold text-gray-800">Department Distribution</h4></div><div className="flex flex-wrap gap-2">{detail.departments.map((dept, deptIdx) => (<span key={deptIdx} className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full text-xs">{dept.name}: {dept.quantity}</span>))}</div></div>
-                                )}
-                                {detail.receivers?.length > 0 && (
-                                  <div className="border border-gray-200 rounded-lg p-3"><div className="flex items-center gap-2 mb-2"><User className="w-4 h-4 text-green-600" /><h4 className="text-sm font-semibold text-gray-800">Receiver Assignments</h4></div><div className="space-y-1 max-h-40 overflow-y-auto">{detail.receivers.map((rec, recIdx) => (<div key={recIdx} className="text-xs text-gray-600 break-words">{rec.name} - {rec.department} ({rec.item_name})</div>))}</div></div>
-                                )}
-                                <div className="border border-gray-200 rounded-lg p-3 bg-white">
+                              )}
+                              {detail.receivers?.length > 0 && (
+                                <div>
                                   <div className="flex items-center gap-2 mb-2">
-                                    <Box className="w-4 h-4 text-blue-600" />
-                                    <h4 className="text-sm font-semibold text-gray-800">Items Summary</h4>
+                                    <User className="w-4 h-4 text-green-600" />
+                                    <h4 className="text-xs font-semibold text-gray-800">
+                                      Receivers
+                                    </h4>
                                   </div>
-                                  <div className="grid grid-cols-2 gap-2 text-xs">
-                                    <div>Total Items: <span className="font-semibold">{detail.totalItems || 0}</span></div>
-                                    <div>Total Quantity: <span className="font-semibold">{detail.totalQty || 0}</span></div>
-                                    <div>Scanned: <span className="font-semibold text-green-600">{session.scannedCount || 0}</span></div>
-                                    <div>Remaining: <span className="font-semibold text-orange-600">{(detail.totalQty || 0) - (session.scannedCount || 0)}</span></div>
+                                  <div className="space-y-1">
+                                    {detail.receivers.map((rec, recIdx) => (
+                                      <div
+                                        key={recIdx}
+                                        className="text-xs text-gray-600"
+                                      >
+                                        {rec.name} - {rec.department} (
+                                        {rec.item_name})
+                                      </div>
+                                    ))}
                                   </div>
                                 </div>
-                                {session.remarks && (
-                                  <div className="bg-blue-50 rounded p-2">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <FileText className="w-3.5 h-3.5 text-blue-600" />
-                                      <h4 className="text-sm font-semibold text-gray-800">Remarks</h4>
-                                    </div>
-                                    <p className="text-xs text-gray-700 whitespace-pre-wrap">{session.remarks}</p>
+                              )}
+                              <div className="bg-white border border-gray-200 rounded p-2">
+                                <div className="grid grid-cols-2 gap-1 text-xs">
+                                  <div>
+                                    Total Items:{" "}
+                                    <span className="font-semibold">
+                                      {detail.totalItems || 0}
+                                    </span>
                                   </div>
-                                )}
+                                  <div>
+                                    Total Qty:{" "}
+                                    <span className="font-semibold">
+                                      {detail.totalQty || 0}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    Scanned:{" "}
+                                    <span className="font-semibold text-green-600">
+                                      {session.scannedCount || 0}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    Remaining:{" "}
+                                    <span className="font-semibold text-orange-600">
+                                      {(detail.totalQty || 0) -
+                                        (session.scannedCount || 0)}
+                                    </span>
+                                  </div>
+                                </div>
                               </div>
-                            </td>
-                          </tr>
-                        )}
+                              {session.remarks && (
+                                <div className="bg-blue-50 rounded p-2">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <FileText className="w-3.5 h-3.5 text-blue-600" />
+                                    <h4 className="text-xs font-semibold text-gray-800">
+                                      Remarks
+                                    </h4>
+                                  </div>
+                                  <p className="text-xs text-gray-700 whitespace-pre-wrap">
+                                    {session.remarks}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </Fragment>
                     );
                   })}
-                </tbody>
-              </table>
-
-              {/* Mobile Card View */}
-              <div className="md:hidden divide-y divide-gray-100">
-                {filteredSessions.map((session, idx) => {
-                  const sc = getStatusConfig(session.status);
-                  const isExpanded = expandedSessions.has(session.id_preparation);
-                  const detail = sessionDetails[session.id_preparation];
-                  const projectName = detail?.project_name || session?.project_name || "-";
-                  const uniqueKey = `${session.type}_${session.id_preparation}`;
-
-                  return (
-                    <Fragment key={uniqueKey}>
-                      <div className="p-3 hover:bg-gray-50 transition-colors">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <div className="w-6 h-6 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">{idx + 1}</div>
-                              <div className="flex-1 min-w-0"><div className="font-semibold text-gray-900 text-sm leading-tight break-words">{session.checking_name}</div></div>
-                            </div>
-                            <div className="text-xs text-gray-400 mono ml-8 break-words">{session.checking_number}</div>
-                            <div className="flex flex-wrap items-center gap-2 mt-2 ml-8">
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${session.type === "device" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}>{session.type === "device" ? "Device" : "Material"}</span>
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}><span className={`w-1 h-1 rounded-full ${sc.dot}`} />{sc.label}</span>
-                              <span className="text-xs text-gray-500">{formatDate(session.checking_date)}</span>
-                            </div>
-                          </div>
-                          <button onClick={() => toggleExpandSession(session.id_preparation, session.type)} className="p-1 hover:bg-gray-100 rounded transition flex-shrink-0">
-                            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
-                          </button>
-                        </div>
-                        <div className="mt-2 ml-8 space-y-1">
-                          <div className="flex items-center gap-1 text-xs text-gray-500"><MapPin className="w-3 h-3 flex-shrink-0" /><span className="truncate">{session.location_name}</span></div>
-                          {session.project_name && session.project_name !== "-" && (<div className="flex items-center gap-1 text-xs text-gray-500"><Building2 className="w-3 h-3 flex-shrink-0" /><span className="truncate">{session.project_name}</span></div>)}
-                        </div>
-                        <div className="mt-3 ml-8"><div className="flex items-center gap-2"><div className="prog-track flex-1"><div className="prog-fill" style={{ width: `${session.progress || 0}%` }} /></div><span className="text-xs font-semibold text-gray-600">{session.progress || 0}%</span></div></div>
-                        <div className="mt-3 ml-8 flex flex-wrap gap-2">
-                          <button onClick={() => router.push(`/scanning?prep_id=${session.id_preparation}&type=${session.type}`)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"><ScanLine className="w-3.5 h-3.5" />Scan</button>
-                          <button onClick={() => router.push(`/edit_scanning_preparation?id=${session.id_preparation}&type=${session.type}`)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-gray-600 rounded-lg hover:bg-gray-700 transition"><Edit className="w-3.5 h-3.5" />Edit</button>
-                          <button onClick={() => handleDelete(session.id_preparation, session.checking_name, session.type)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition"><Trash2 className="w-3.5 h-3.5" />Delete</button>
-                        </div>
-                        {isExpanded && detail && (
-                          <div className="mt-3 ml-8 space-y-3 border-t border-gray-100 pt-3">
-                            {detail.items?.length > 0 && (<div><div className="flex items-center gap-2 mb-2"><Box className="w-4 h-4 text-purple-600" /><h4 className="text-xs font-semibold text-gray-800">Items ({detail.items.length})</h4></div><div className="space-y-2 max-h-[200px] overflow-y-auto">{detail.items.slice(0, 5).map((item, itemIdx) => (<div key={itemIdx} className="bg-gray-50 rounded p-2"><div className="font-medium text-gray-900 text-xs break-words">{item.name}</div><div className="text-xs text-gray-500">Qty: {item.quantity} {item.uom || ""}{item.brand && ` · Brand: ${item.brand}`}{item.model && ` · Model: ${item.model}`}</div></div>))}{detail.items.length > 5 && <p className="text-xs text-gray-400 text-center">+{detail.items.length - 5} more items</p>}</div></div>)}
-                            {detail.departments?.length > 0 && (<div><div className="flex items-center gap-2 mb-2"><Users className="w-4 h-4 text-blue-600" /><h4 className="text-xs font-semibold text-gray-800">Departments</h4></div><div className="flex flex-wrap gap-1">{detail.departments.map((dept, deptIdx) => (<span key={deptIdx} className="bg-gray-100 px-2 py-0.5 rounded-full text-xs">{dept.name}: {dept.quantity}</span>))}</div></div>)}
-                            {detail.receivers?.length > 0 && (<div><div className="flex items-center gap-2 mb-2"><User className="w-4 h-4 text-green-600" /><h4 className="text-xs font-semibold text-gray-800">Receivers</h4></div><div className="space-y-1">{detail.receivers.map((rec, recIdx) => (<div key={recIdx} className="text-xs text-gray-600">{rec.name} - {rec.department} ({rec.item_name})</div>))}</div></div>)}
-                            <div className="bg-white border border-gray-200 rounded p-2">
-                              <div className="grid grid-cols-2 gap-1 text-xs">
-                                <div>Total Items: <span className="font-semibold">{detail.totalItems || 0}</span></div>
-                                <div>Total Qty: <span className="font-semibold">{detail.totalQty || 0}</span></div>
-                                <div>Scanned: <span className="font-semibold text-green-600">{session.scannedCount || 0}</span></div>
-                                <div>Remaining: <span className="font-semibold text-orange-600">{(detail.totalQty || 0) - (session.scannedCount || 0)}</span></div>
-                              </div>
-                            </div>
-                            {session.remarks && (
-                              <div className="bg-blue-50 rounded p-2">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <FileText className="w-3.5 h-3.5 text-blue-600" />
-                                  <h4 className="text-xs font-semibold text-gray-800">Remarks</h4>
-                                </div>
-                                <p className="text-xs text-gray-700 whitespace-pre-wrap">{session.remarks}</p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </Fragment>
-                  );
-                })}
+                </div>
               </div>
-            </div>
-          )}
 
-          {/* Footer */}
-          {!loading && filteredSessions.length > 0 && (
-            <div className="px-3 md:px-5 py-3 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-2 rounded-b-2xl">
-              <p className="text-xs text-gray-500 text-center sm:text-left">Showing <span className="font-semibold text-gray-700">{filteredSessions.length}</span> of <span className="font-semibold text-gray-700">{sessions.length}</span> sessions</p>
-              <p className="text-xs text-gray-400">Updated {new Date().toLocaleTimeString("en-US")}</p>
-            </div>
+              {/* ========== PAGINATION COMPONENT ========== */}
+              {filteredSessions.length > 0 && (
+                <div className="px-3 md:px-5 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    {/* Left side - Rows per page selector */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500 whitespace-nowrap">
+                        Show:
+                      </span>
+                      <select
+                        value={rowsPerPage === -1 ? "all" : rowsPerPage}
+                        onChange={handleRowsPerPageChange}
+                        className="text-xs border border-gray-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {rowsPerPageOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                        <option value="all">All</option>
+                      </select>
+                      <span className="text-xs text-gray-500">entries</span>
+                    </div>
+
+                    {/* Center - Pagination buttons */}
+                    {rowsPerPage !== -1 && totalPages > 1 && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={goToPrevPage}
+                          disabled={currentPage === 1}
+                          className="pagination-btn flex items-center justify-center w-8 h-8 rounded-md border border-gray-300 bg-white text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+
+                        {getPageNumbers().map((page, index) => (
+                          <button
+                            key={index}
+                            onClick={() =>
+                              typeof page === "number" && setCurrentPage(page)
+                            }
+                            disabled={page === "..."}
+                            className={`pagination-btn flex items-center justify-center min-w-[32px] h-8 px-2 rounded-md border text-sm font-medium transition ${
+                              currentPage === page
+                                ? "active bg-blue-600 text-white border-blue-600"
+                                : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+                            } ${page === "..." ? "cursor-default border-transparent bg-transparent" : ""}`}
+                          >
+                            {page}
+                          </button>
+                        ))}
+
+                        <button
+                          onClick={goToNextPage}
+                          disabled={currentPage === totalPages}
+                          className="pagination-btn flex items-center justify-center w-8 h-8 rounded-md border border-gray-300 bg-white text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Right side - Info text */}
+                    <div className="text-xs text-gray-500 text-center sm:text-right">
+                      Showing{" "}
+                      <span className="font-semibold text-gray-700">
+                        {rowsPerPage === -1
+                          ? filteredSessions.length
+                          : Math.min(
+                              (currentPage - 1) * rowsPerPage + 1,
+                              filteredSessions.length,
+                            )}
+                      </span>{" "}
+                      to{" "}
+                      <span className="font-semibold text-gray-700">
+                        {rowsPerPage === -1
+                          ? filteredSessions.length
+                          : Math.min(
+                              currentPage * rowsPerPage,
+                              filteredSessions.length,
+                            )}
+                      </span>{" "}
+                      of{" "}
+                      <span className="font-semibold text-gray-700">
+                        {filteredSessions.length}
+                      </span>{" "}
+                      entries
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

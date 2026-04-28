@@ -1417,13 +1417,12 @@ def create_materials_scanning_preparation():
             
 @scanning_prep_bp.route('/api/materials/scanning-preparation/<int:prep_id>', methods=['PUT'])
 def update_materials_scanning_preparation(prep_id):
-    """Update persiapan scanning untuk Materials dengan receiver_id"""
+    """Update persiapan scanning untuk Materials - TIDAK MENGHAPUS DATA SCAN"""
     conn = None
     try:
         data = request.json
         print("="*50)
         print("UPDATE MATERIALS PREPARATION ID:", prep_id)
-        print("UPDATE DATA:", data)
         
         checking_name = data.get('checking_name')
         category_id = data.get('category_id')
@@ -1473,27 +1472,20 @@ def update_materials_scanning_preparation(prep_id):
                 'success': False,
                 'error': 'Preparation not found'
             }), 404
-        
-        # Delete existing items and related data
+
+        # ========== PERBAIKAN: AMBIL DATA EXISTING ==========
         cur.execute("""
-            SELECT id_item FROM materials_scanning_items 
+            SELECT id_item, material_name, material_detail, quantity, uom, vendor, project_name
+            FROM materials_scanning_items 
             WHERE preparation_id = %s
         """, (prep_id,))
-        old_items = cur.fetchall()
+        existing_items = cur.fetchall()
+        existing_items_dict = {item['id_item']: dict(item) for item in existing_items}
         
-        for old_item in old_items:
-            item_id = old_item['id_item']
-            # Delete department distributions
-            cur.execute("DELETE FROM materials_item_departments WHERE scanning_item_id = %s", (item_id,))
-            # Delete individual items preparation
-            cur.execute("DELETE FROM materials_items_preparation WHERE scanning_item_id = %s", (item_id,))
+        # Track item IDs yang masih ada di update
+        kept_item_ids = []
         
-        # Delete all scanning items
-        cur.execute("DELETE FROM materials_scanning_items WHERE preparation_id = %s", (prep_id,))
-        
-        total_items_created = 0
-        
-        # Create new items
+        # Process each item from frontend
         for idx, item in enumerate(items):
             quantity = item.get('quantity', 1)
             uom = item.get('uom', 'PCS')
@@ -1509,103 +1501,253 @@ def update_materials_scanning_preparation(prep_id):
                 if proj:
                     project_name = proj['project_name']
             
-            # Insert ke materials_scanning_items
-            cur.execute("""
-                INSERT INTO materials_scanning_items
-                (preparation_id, material_name, material_detail, quantity, uom, vendor, project_name, user_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id_item
-            """, (
-                prep_id,
-                item.get('item_name', ''),
-                material_detail,
-                quantity,
-                uom,
-                vendor,
-                project_name,
-                user_id
-            ))
+            # Cek apakah item ini sudah ada (match by material_name)
+            existing_item = None
+            for eid, eitem in existing_items_dict.items():
+                if eitem['material_name'] == item.get('item_name', ''):
+                    existing_item = {'id': eid, 'data': eitem}
+                    break
             
-            scanning_item_id = cur.fetchone()[0]
-            
-            # Insert department distributions
-            departments = item.get('departments', [])
-            for dept in departments:
-                if dept.get('department_id') and dept.get('quantity', 0) > 0:
-                    cur.execute("SELECT id_department FROM departments WHERE id_department = %s", (dept['department_id'],))
-                    if cur.fetchone():
-                        cur.execute("""
-                            INSERT INTO materials_item_departments (scanning_item_id, department_id, quantity)
-                            VALUES (%s, %s, %s)
-                            ON CONFLICT (scanning_item_id, department_id) 
-                            DO UPDATE SET quantity = EXCLUDED.quantity
-                        """, (scanning_item_id, dept['department_id'], dept['quantity']))
-            
-            # Get receiver mapping from frontend
-            receivers = item.get('receivers', [])
-            receiver_map = {}
-            for rcvr in receivers:
-                if rcvr.get('department_id') and rcvr.get('receiver_id'):
-                    key = f"{rcvr.get('department_id')}_{rcvr.get('item_index', 0)}"
-                    receiver_map[key] = rcvr.get('receiver_id')
-            
-            # Create individual items
-            dept_allocation = {}
-            for dept in departments:
-                if dept.get('department_id') and dept.get('quantity', 0) > 0:
-                    dept_allocation[dept['department_id']] = dept['quantity']
-            
-            dept_counter = {}
-            
-            for sub_idx in range(int(quantity) if quantity >= 1 else 1):
-                assigned_dept = None
-                if len(dept_allocation) > 0:
-                    remaining = quantity - sub_idx
-                    for dept_id, qty in dept_allocation.items():
-                        if qty > 0 and remaining > 0:
-                            assigned_dept = dept_id
-                            dept_allocation[dept_id] -= 1
-                            break
+            if existing_item:
+                # UPDATE existing item (bukan DELETE)
+                scanning_item_id = existing_item['id']
+                kept_item_ids.append(scanning_item_id)
                 
-                item_number = generate_item_number(prep_id, idx, sub_idx)
-                
-                # Get receiver_id for this specific item
-                receiver_id = None
-                if assigned_dept:
-                    dept_counter[assigned_dept] = dept_counter.get(assigned_dept, 0) + 1
-                    item_index_for_dept = dept_counter[assigned_dept] - 1
-                    key = f"{assigned_dept}_{item_index_for_dept}"
-                    receiver_id = receiver_map.get(key)
-                
+                # Update quantity di materials_scanning_items
                 cur.execute("""
-                    INSERT INTO materials_items_preparation
-                    (scanning_item_id, preparation_id, item_number, quantity, uom, vendor, project_name, status, department_id, user_id, receiver_id, is_stock)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    UPDATE materials_scanning_items 
+                    SET material_name = %s,
+                        material_detail = %s,
+                        quantity = %s,
+                        uom = %s,
+                        vendor = %s,
+                        project_name = %s,
+                        user_id = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id_item = %s
                 """, (
-                    scanning_item_id,
-                    prep_id,
-                    item_number,
-                    1.0,
+                    item.get('item_name', ''),
+                    material_detail,
+                    quantity,
                     uom,
                     vendor,
                     project_name,
-                    'pending',
-                    assigned_dept,
                     user_id,
-                    receiver_id,
-                    assigned_dept is not None
+                    scanning_item_id
                 ))
                 
-                total_items_created += 1
+                # Hapus department distributions lama
+                cur.execute("DELETE FROM materials_item_departments WHERE scanning_item_id = %s", (scanning_item_id,))
+                
+                # Insert department baru
+                departments = item.get('departments', [])
+                for dept in departments:
+                    if dept.get('department_id') and dept.get('quantity', 0) > 0:
+                        cur.execute("SELECT id_department FROM departments WHERE id_department = %s", (dept['department_id'],))
+                        if cur.fetchone():
+                            cur.execute("""
+                                INSERT INTO materials_item_departments (scanning_item_id, department_id, quantity)
+                                VALUES (%s, %s, %s)
+                            """, (scanning_item_id, dept['department_id'], dept['quantity']))
+                
+                # Ambil existing items preparation untuk scanning_item_id ini
+                cur.execute("""
+                    SELECT id_item_preparation, department_id, receiver_id, status, scan_code
+                    FROM materials_items_preparation 
+                    WHERE scanning_item_id = %s
+                    ORDER BY id_item_preparation ASC
+                """, (scanning_item_id,))
+                existing_prep_items = cur.fetchall()
+                
+                # Buat mapping department untuk item preparation yang sudah ada
+                existing_prep_by_dept = {}
+                for prep in existing_prep_items:
+                    dept_id = prep['department_id']
+                    if dept_id not in existing_prep_by_dept:
+                        existing_prep_by_dept[dept_id] = []
+                    existing_prep_by_dept[dept_id].append(prep)
+                
+                # Buat receiver mapping dari frontend
+                receivers = item.get('receivers', [])
+                receiver_map = {}
+                for rcvr in receivers:
+                    if rcvr.get('department_id') and rcvr.get('receiver_id'):
+                        key = f"{rcvr.get('department_id')}_{rcvr.get('item_index', 0)}"
+                        receiver_map[key] = rcvr.get('receiver_id')
+                
+                # HITUNG JUMLAH ITEM YANG DIBUTUHKAN PER DEPARTMENT
+                dept_needed = {}
+                for dept in departments:
+                    if dept.get('department_id') and dept.get('quantity', 0) > 0:
+                        dept_needed[dept['department_id']] = dept['quantity']
+                
+                # Untuk setiap department yang dibutuhkan
+                for dept_id, needed_qty in dept_needed.items():
+                    existing_preps = existing_prep_by_dept.get(dept_id, [])
+                    existing_count = len(existing_preps)
+                    
+                    # Update receiver untuk yang sudah ada (yang belum di-scan)
+                    for i in range(min(needed_qty, existing_count)):
+                        prep = existing_preps[i]
+                        # PERBAIKAN: Jangan update yang sudah di-scan
+                        if prep['status'] != 'scanned':
+                            key = f"{dept_id}_{i}"
+                            receiver_id = receiver_map.get(key)
+                            if receiver_id:
+                                cur.execute("""
+                                    UPDATE materials_items_preparation 
+                                    SET receiver_id = %s, 
+                                        department_id = %s,
+                                        updated_at = CURRENT_TIMESTAMP
+                                    WHERE id_item_preparation = %s
+                                """, (receiver_id, dept_id, prep['id_item_preparation']))
+                    
+                    # Tambah item preparation baru jika quantity bertambah
+                    for i in range(existing_count, needed_qty):
+                        item_number = generate_item_number(prep_id, idx, i)
+                        key = f"{dept_id}_{i}"
+                        receiver_id = receiver_map.get(key)
+                        cur.execute("""
+                            INSERT INTO materials_items_preparation
+                            (scanning_item_id, preparation_id, item_number, quantity, uom, vendor, 
+                             project_name, status, department_id, user_id, receiver_id, is_stock)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            scanning_item_id,
+                            prep_id,
+                            item_number,
+                            1.0,
+                            uom,
+                            vendor,
+                            project_name,
+                            'pending',
+                            dept_id,
+                            user_id,
+                            receiver_id,
+                            dept_id is not None
+                        ))
+                
+                # PERBAIKAN: Hapus item preparation yang tidak lagi dibutuhkan (hanya yang belum di-scan)
+                for dept_id, preps in existing_prep_by_dept.items():
+                    needed = dept_needed.get(dept_id, 0)
+                    if len(preps) > needed:
+                        # Hapus kelebihan item preparation (yang paling akhir dan belum di-scan)
+                        for i in range(needed, len(preps)):
+                            prep_to_delete = preps[i]
+                            # PERBAIKAN: Hanya hapus yang statusnya 'pending' (belum di-scan)
+                            if prep_to_delete['status'] != 'scanned':
+                                cur.execute("DELETE FROM materials_items_preparation WHERE id_item_preparation = %s", 
+                                          (prep_to_delete['id_item_preparation'],))
+                            else:
+                                print(f"INFO: Item preparation {prep_to_delete['id_item_preparation']} sudah di-scan, tidak dihapus")
+                
+            else:
+                # CREATE new item (tambah item baru) - sama seperti sebelumnya
+                cur.execute("""
+                    INSERT INTO materials_scanning_items
+                    (preparation_id, material_name, material_detail, quantity, uom, vendor, project_name, user_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id_item
+                """, (
+                    prep_id,
+                    item.get('item_name', ''),
+                    material_detail,
+                    quantity,
+                    uom,
+                    vendor,
+                    project_name,
+                    user_id
+                ))
+                
+                scanning_item_id = cur.fetchone()[0]
+                kept_item_ids.append(scanning_item_id)
+                
+                departments = item.get('departments', [])
+                for dept in departments:
+                    if dept.get('department_id') and dept.get('quantity', 0) > 0:
+                        cur.execute("SELECT id_department FROM departments WHERE id_department = %s", (dept['department_id'],))
+                        if cur.fetchone():
+                            cur.execute("""
+                                INSERT INTO materials_item_departments (scanning_item_id, department_id, quantity)
+                                VALUES (%s, %s, %s)
+                            """, (scanning_item_id, dept['department_id'], dept['quantity']))
+                
+                receivers = item.get('receivers', [])
+                receiver_map = {}
+                for rcvr in receivers:
+                    if rcvr.get('department_id') and rcvr.get('receiver_id'):
+                        key = f"{rcvr.get('department_id')}_{rcvr.get('item_index', 0)}"
+                        receiver_map[key] = rcvr.get('receiver_id')
+                
+                dept_allocation = {}
+                for dept in departments:
+                    if dept.get('department_id') and dept.get('quantity', 0) > 0:
+                        dept_allocation[dept['department_id']] = dept['quantity']
+                
+                dept_counter = {}
+                
+                for sub_idx in range(int(quantity) if quantity >= 1 else 1):
+                    assigned_dept = None
+                    for dept_id, qty in dept_allocation.items():
+                        if qty > 0:
+                            assigned_dept = dept_id
+                            dept_allocation[dept_id] -= 1
+                            break
+                    
+                    item_number = generate_item_number(prep_id, idx, sub_idx)
+                    
+                    receiver_id = None
+                    if assigned_dept:
+                        dept_counter[assigned_dept] = dept_counter.get(assigned_dept, 0) + 1
+                        item_index_for_dept = dept_counter[assigned_dept] - 1
+                        key = f"{assigned_dept}_{item_index_for_dept}"
+                        receiver_id = receiver_map.get(key)
+                    
+                    cur.execute("""
+                        INSERT INTO materials_items_preparation
+                        (scanning_item_id, preparation_id, item_number, quantity, uom, vendor, 
+                         project_name, status, department_id, user_id, receiver_id, is_stock)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        scanning_item_id,
+                        prep_id,
+                        item_number,
+                        1.0,
+                        uom,
+                        vendor,
+                        project_name,
+                        'pending',
+                        assigned_dept,
+                        user_id,
+                        receiver_id,
+                        assigned_dept is not None
+                    ))
+        
+        # PERBAIKAN: Hapus item yang tidak ada di update (hanya yang belum punya scan)
+        for existing_item in existing_items:
+            if existing_item['id_item'] not in kept_item_ids:
+                # Cek apakah ada scan results untuk item ini
+                cur.execute("""
+                    SELECT COUNT(*) FROM scan_results_materials sr
+                    JOIN materials_items_preparation mip ON sr.item_preparation_id = mip.id_item_preparation
+                    WHERE mip.scanning_item_id = %s
+                """, (existing_item['id_item'],))
+                scan_count = cur.fetchone()[0]
+                
+                if scan_count == 0:
+                    # Hapus department distributions dulu
+                    cur.execute("DELETE FROM materials_item_departments WHERE scanning_item_id = %s", (existing_item['id_item'],))
+                    cur.execute("DELETE FROM materials_items_preparation WHERE scanning_item_id = %s", (existing_item['id_item'],))
+                    cur.execute("DELETE FROM materials_scanning_items WHERE id_item = %s", (existing_item['id_item'],))
+                else:
+                    print(f"WARNING: Item {existing_item['id_item']} sudah memiliki scan, tidak dihapus")
         
         conn.commit()
-        print(f"Updated {total_items_created} individual material items with receivers")
         
         return jsonify({
             'success': True,
             'message': 'Materials scanning preparation updated successfully',
-            'preparation_id': prep_id,
-            'total_items_created': total_items_created
+            'preparation_id': prep_id
         })
         
     except Exception as e:

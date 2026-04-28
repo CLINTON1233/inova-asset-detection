@@ -2308,7 +2308,14 @@ export default function ValidationVerificationPage() {
                                     </span>
                                   </td>
                                   <td className="vv-td">
-                                    <span className="text-xs text-gray-600 truncate max-w-[150px] block">
+                                    <span
+                                      className="text-xs text-gray-600 truncate max-w-[100px] block"
+                                      title={
+                                        validation.receivers
+                                          ?.map((r) => r.receiver_name)
+                                          .join(", ") || "-"
+                                      }
+                                    >
                                       {validation.receivers
                                         ?.map((r) => r.receiver_name)
                                         .join(", ") || "-"}
@@ -2539,7 +2546,14 @@ export default function ValidationVerificationPage() {
                                     </span>
                                   </td>
                                   <td className="vv-td">
-                                    <span className="text-xs text-gray-600 truncate max-w-[150px] block">
+                                    <span
+                                      className="text-xs text-gray-600 truncate max-w-[100px] block"
+                                      title={
+                                        validation.receivers
+                                          ?.map((r) => r.receiver_name)
+                                          .join(", ") || "-"
+                                      }
+                                    >
                                       {validation.receivers
                                         ?.map((r) => r.receiver_name)
                                         .join(", ") || "-"}
