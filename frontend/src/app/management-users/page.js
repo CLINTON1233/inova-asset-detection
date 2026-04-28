@@ -999,18 +999,18 @@ export default function ManagementUsersPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="mu-td">
+                          <td className="mu-td text-center">
                             <span className="text-sm text-gray-600">
                               {u.email}
                             </span>
                           </td>
-                          <td className="mu-td">
+                          <td className="mu-td text-center">
                             <span className="text-sm text-gray-600 font-mono">
                               {u.no_badge}
                             </span>
                           </td>
-                          <td className="mu-td">
-                            <span className="text-sm text-gray-600">
+                          <td className="mu-td text-center">
+                            <span className="text-sm text-center text-gray-600">
                               {u.department}
                             </span>
                           </td>

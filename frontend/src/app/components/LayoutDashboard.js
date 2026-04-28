@@ -273,28 +273,17 @@ export default function LayoutDashboard({ children, activeMenu }) {
       title: "Logout Confirmation",
       text: "Are you sure you want to log out of the system?",
       icon: "warning",
-      iconColor: "#FACC15",
       showCancelButton: true,
-      confirmButtonColor: "#28a745",
-      cancelButtonColor: "#d33",
+      confirmButtonColor: "#dc2626", // Warna merah seperti tombol delete
+      cancelButtonColor: "#6b7280", // Warna abu-abu seperti cancel
       confirmButtonText: "Yes, Log Out!",
-      reverseButtons: true,
       cancelButtonText: "Cancel",
-      background: "#ffffff",
-      color: "#333333",
-      customClass: {
-        popup: "rounded-xl font-poppins",
-        confirmButton: "px-6 py-2 rounded-lg font-medium",
-        cancelButton: "px-6 py-2 rounded-lg font-medium",
-      },
+      reverseButtons: true, // Tombol Cancel di kiri, Confirm di kanan
     }).then((result) => {
       if (result.isConfirmed) {
         Swal.fire({
           title: "Logging out...",
-          text: "Processing your logout...",
-          icon: "info",
-          iconColor: "#2794ecff",
-          showConfirmButton: false,
+          text: "Please wait",
           allowOutsideClick: false,
           didOpen: () => {
             Swal.showLoading();
@@ -307,13 +296,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
             title: "Success!",
             text: "You have been successfully logged out",
             icon: "success",
-            confirmButtonColor: "#1e40af",
-            background: "#ffffff",
-            color: "#333333",
-            customClass: {
-              popup: "rounded-xl font-poppins",
-              confirmButton: "px-4 py-2 text-sm font-medium rounded-lg",
-            },
             timer: 1500,
             showConfirmButton: false,
           }).then(() => {
@@ -323,7 +305,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
       }
     });
   };
-
   const handleSubmenuClick = (href) => {
     setScanDropdownOpen(false);
     setMobileScanDropdownOpen(false);
