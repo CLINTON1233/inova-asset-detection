@@ -1172,663 +1172,783 @@ export default function ValidationVerificationPage() {
                 </button>
               </div>
             ) : viewMode === "grid" ? (
-              /* ===================== GRID VIEW - PERBAIKAN ===================== */
-              <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: 20 }}>
-                {filteredDevices.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-3 px-1 border-b border-gray-200 pb-2">
-                      <Laptop className="w-4 h-4 text-gray-500" />
-                      <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">DEVICES ({filteredDevices.length})</h3>
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px,1fr))", gap: 16 }}>
-                      {paginatedValidations.filter(v => v.validation_type === 'device').map((validation) => {
-                        const sc = getStatusConfig(validation.validation_status);
-                        const photoUrl = validation.photo_url;
-                        return (
-                          <div
-                            key={validation.id_validation}
-                            className="bg-white border border-gray-200 p-4 cursor-pointer hover:shadow-md transition"
-                            style={{ borderRadius: '5px' }}
-                            onClick={() => handleViewDetail(validation)}
-                          >
-                            {/* Header dengan foto dan status */}
-                            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
-                              <div style={{ width: 48, height: 48, borderRadius: '5px', flexShrink: 0, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                                {photoUrl ? (
-                                  <img src={photoUrl.startsWith("http") ? photoUrl : `${API_BASE_URL}${photoUrl}`} alt="Scan result" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; e.target.parentElement.innerHTML = '<svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>'; }} />
-                                ) : (
-                                  <Laptop className="w-6 h-6 text-blue-600" />
-                                )}
-                              </div>
-                              <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border ${sc.badge} ${sc.border}`} style={{ borderRadius: '20px' }}>
-                                {sc.label}
-                              </span>
-                            </div>
-
-                            {/* Informasi Item */}
-                            <h3 className="font-semibold text-sm text-gray-900 truncate mb-1">{validation.item_name || "-"}</h3>
-                            <p className="font-mono text-[10px] text-gray-400 mb-2 truncate">{validation.serial_or_code || "-"}</p>
-
-                            {/* Detail tambahan */}
-                            <div className="flex flex-col gap-1 mb-3">
-                              <div className="flex items-center gap-2">
-                                <Calendar className="w-3 h-3 text-gray-400" />
-                                <span className="text-[10px] text-gray-500">{formatDate(validation.created_at)}</span>
-                              </div>
-                              {validation.brand && (
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] text-gray-500">Brand:</span>
-                                  <span className="text-[10px] text-gray-700 font-medium">{validation.brand}</span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Tombol Actions - RAPI */}
-                            <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                              <span className="px-2 py-0.5 text-[9px] font-medium rounded-full bg-blue-100 text-blue-700" style={{ borderRadius: '5px' }}>
-                                Device
-                              </span>
-                              <div className="flex gap-1.5">
-                                {validation.validation_status === "rejected" && (
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleRescan(validation); }}
-                                    className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
-                                    style={{ borderRadius: '5px', minWidth: '28px', height: '28px' }}
-                                    title="Rescan"
-                                  >
-                                    <ScanLine className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleViewDetail(validation); }}
-                                  className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
-                                  style={{ borderRadius: '5px', minWidth: '28px', height: '28px' }}
-                                  title="View"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </button>
-                                {validation.validation_status === "pending" && (
-                                  <>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); handleApprove(validation); }}
-                                      disabled={isProcessing}
-                                      className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 transition disabled:opacity-50"
-                                      style={{ borderRadius: '5px', minWidth: '28px', height: '28px' }}
-                                      title="Approve"
-                                    >
-                                      <ThumbsUp className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); handleReject(validation); }}
-                                      disabled={isProcessing}
-                                      className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-50"
-                                      style={{ borderRadius: '5px', minWidth: '28px', height: '28px' }}
-                                      title="Reject"
-                                    >
-                                      <ThumbsDown className="w-3.5 h-3.5" />
-                                    </button>
-                                  </>
-                                )}
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleDeleteSingle(validation); }}
-                                  disabled={isProcessing}
-                                  className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-gray-500 hover:bg-gray-600 transition disabled:opacity-50"
-                                  style={{ borderRadius: '5px', minWidth: '28px', height: '28px' }}
-                                  title="Delete"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+              /* ===================== GRID VIEW ===================== */
+<div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: 20 }}>
+  {filteredDevices.length > 0 && (
+    <div>
+      <div className="flex items-center gap-2 mb-3 px-1 border-b border-gray-200 pb-2">
+        <Laptop className="w-5 h-5 text-gray-500" />
+        <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">DEVICES ({filteredDevices.length})</h3>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px,1fr))", gap: 16 }}>
+        {paginatedValidations.filter(v => v.validation_type === 'device').map((validation) => {
+          const sc = getStatusConfig(validation.validation_status);
+          const photoUrl = validation.photo_url;
+          const receiverNames = validation.receivers?.map(r => r.receiver_name).join(', ') || "-";
+          const departmentNames = validation.departments?.map(d => d.department_name).join(', ') || "-";
+          return (
+            <div
+              key={validation.id_validation}
+              className="vv-grid-card"
+              onClick={() => handleViewDetail(validation)}
+            >
+              {/* Header dengan checkbox (jika mode multi select) */}
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
+                {showCheckboxes && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.includes(validation.id_validation)}
+                      onChange={(e) => { e.stopPropagation(); handleSelectItem(validation.id_validation); }}
+                      disabled={validation.validation_status !== "pending"}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                      style={{ width: 18, height: 18 }}
+                    />
                   </div>
                 )}
-
-                {filteredMaterials.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-3 px-1 border-b border-gray-200 pb-2">
-                      <Package className="w-4 h-4 text-gray-500" />
-                      <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">MATERIALS ({filteredMaterials.length})</h3>
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px,1fr))", gap: 16 }}>
-                      {paginatedValidations.filter(v => v.validation_type === 'material').map((validation) => {
-                        const sc = getStatusConfig(validation.validation_status);
-                        const photoUrl = validation.photo_url;
-                        return (
-                          <div
-                            key={validation.id_validation}
-                            className="bg-white border border-gray-200 p-4 cursor-pointer hover:shadow-md transition"
-                            style={{ borderRadius: '5px' }}
-                            onClick={() => handleViewDetail(validation)}
-                          >
-                            {/* Header dengan foto dan status */}
-                            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
-                              <div style={{ width: 48, height: 48, borderRadius: '5px', flexShrink: 0, background: "#ecfdf5", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                                {photoUrl ? (
-                                  <img src={photoUrl.startsWith("http") ? photoUrl : `${API_BASE_URL}${photoUrl}`} alt="Scan result" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none"; e.target.parentElement.innerHTML = '<svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>'; }} />
-                                ) : (
-                                  <Package className="w-6 h-6 text-emerald-600" />
-                                )}
-                              </div>
-                              <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border ${sc.badge} ${sc.border}`} style={{ borderRadius: '20px' }}>
-                                {sc.label}
-                              </span>
-                            </div>
-
-                            {/* Informasi Item */}
-                            <h3 className="font-semibold text-sm text-gray-900 truncate mb-1">{validation.item_name || "-"}</h3>
-                            <p className="font-mono text-[10px] text-gray-400 mb-2 truncate">{validation.serial_or_code || "-"}</p>
-
-                            {/* Detail tambahan */}
-                            <div className="flex flex-col gap-1 mb-3">
-                              <div className="flex items-center gap-2">
-                                <Calendar className="w-3 h-3 text-gray-400" />
-                                <span className="text-[10px] text-gray-500">{formatDate(validation.created_at)}</span>
-                              </div>
-                              {validation.brand && (
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] text-gray-500">Vendor:</span>
-                                  <span className="text-[10px] text-gray-700 font-medium">{validation.brand}</span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Tombol Actions - RAPI */}
-                            <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                              <span className="px-2 py-0.5 text-[9px] font-medium rounded-full bg-emerald-100 text-emerald-700" style={{ borderRadius: '5px' }}>
-                                Material
-                              </span>
-                              <div className="flex gap-1.5">
-                                {validation.validation_status === "rejected" && (
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleRescan(validation); }}
-                                    className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
-                                    style={{ borderRadius: '5px', minWidth: '28px', height: '28px' }}
-                                    title="Rescan"
-                                  >
-                                    <ScanLine className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleViewDetail(validation); }}
-                                  className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
-                                  style={{ borderRadius: '5px', minWidth: '28px', height: '28px' }}
-                                  title="View"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </button>
-                                {validation.validation_status === "pending" && (
-                                  <>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); handleApprove(validation); }}
-                                      disabled={isProcessing}
-                                      className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 transition disabled:opacity-50"
-                                      style={{ borderRadius: '5px', minWidth: '28px', height: '28px' }}
-                                      title="Approve"
-                                    >
-                                      <ThumbsUp className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); handleReject(validation); }}
-                                      disabled={isProcessing}
-                                      className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-50"
-                                      style={{ borderRadius: '5px', minWidth: '28px', height: '28px' }}
-                                      title="Reject"
-                                    >
-                                      <ThumbsDown className="w-3.5 h-3.5" />
-                                    </button>
-                                  </>
-                                )}
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleDeleteSingle(validation); }}
-                                  disabled={isProcessing}
-                                  className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-gray-500 hover:bg-gray-600 transition disabled:opacity-50"
-                                  style={{ borderRadius: '5px', minWidth: '28px', height: '28px' }}
-                                  title="Delete"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                <div style={{ width: 64, height: 64, borderRadius: '8px', flexShrink: 0, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                  {photoUrl ? (
+                    <img 
+                      src={photoUrl.startsWith("http") ? photoUrl : `${API_BASE_URL}${photoUrl}`} 
+                      alt="Scan result" 
+                      className="w-full h-full object-cover" 
+                      onError={(e) => { e.target.style.display = "none"; e.target.parentElement.innerHTML = '<svg class=\"w-8 h-8 text-blue-600\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z\"></path></svg>'; }} 
+                    />
+                  ) : (
+                    <Laptop className="w-8 h-8 text-blue-600" />
+                  )}
+                </div>
+                <span className={`px-2 py-0.5 text-xs font-semibold rounded-full border ${sc.badge} ${sc.border}`} style={{ borderRadius: '20px' }}>
+                  {sc.label}
+                </span>
               </div>
+
+              {/* Informasi Item */}
+              <h3 className="font-semibold text-base text-gray-900 truncate mb-1">{validation.item_name || "-"}</h3>
+              <p className="font-mono text-xs text-gray-400 mb-3 truncate">{validation.serial_or_code || "-"}</p>
+
+              {/* Detail informasi dalam grid 2 kolom */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="bg-gray-50 rounded-lg p-2">
+                  <span className="text-gray-400 block text-[10px]">Session</span>
+                  <span className="text-xs font-medium text-gray-700 truncate block">{validation.checking_name || "-"}</span>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2">
+                  <span className="text-gray-400 block text-[10px]">Brand</span>
+                  <span className="text-xs font-medium text-gray-700 truncate block">{validation.brand || "-"}</span>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2">
+                  <span className="text-gray-400 block text-[10px]">Project</span>
+                  <span className="text-xs font-medium text-gray-700 truncate block">{validation.project_name || "-"}</span>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2">
+                  <span className="text-gray-400 block text-[10px]">Department</span>
+                  <span className="text-xs font-medium text-gray-700 truncate block">{departmentNames}</span>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2 col-span-2">
+                  <span className="text-gray-400 block text-[10px]">Receiver</span>
+                  <span className="text-xs font-medium text-gray-700 truncate block">{receiverNames}</span>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2">
+                  <span className="text-gray-400 block text-[10px]">Submitted</span>
+                  <span className="text-xs font-medium text-gray-700 truncate block">{formatDate(validation.created_at)}</span>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2">
+                  <span className="text-gray-400 block text-[10px]">By</span>
+                  <span className="text-xs font-medium text-gray-700 truncate block">{validation.created_by_name || "System"}</span>
+                </div>
+              </div>
+
+              {/* Tombol Actions */}
+              <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 text-blue-700" style={{ borderRadius: '5px' }}>
+                  Device
+                </span>
+                <div className="flex gap-1.5">
+                  {validation.validation_status === "rejected" && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleRescan(validation); }}
+                      className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
+                      style={{ borderRadius: '5px', minWidth: '32px', height: '32px' }}
+                      title="Rescan"
+                    >
+                      <ScanLine className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleViewDetail(validation); }}
+                    className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
+                    style={{ borderRadius: '5px', minWidth: '32px', height: '32px' }}
+                    title="View"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </button>
+                  {validation.validation_status === "pending" && (
+                    <>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleApprove(validation); }}
+                        disabled={isProcessing}
+                        className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 transition disabled:opacity-50"
+                        style={{ borderRadius: '5px', minWidth: '32px', height: '32px' }}
+                        title="Approve"
+                      >
+                        <ThumbsUp className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleReject(validation); }}
+                        disabled={isProcessing}
+                        className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-50"
+                        style={{ borderRadius: '5px', minWidth: '32px', height: '32px' }}
+                        title="Reject"
+                      >
+                        <ThumbsDown className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeleteSingle(validation); }}
+                    disabled={isProcessing}
+                    className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-gray-500 hover:bg-gray-600 transition disabled:opacity-50"
+                    style={{ borderRadius: '5px', minWidth: '32px', height: '32px' }}
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  )}
+
+  {filteredMaterials.length > 0 && (
+    <div>
+      <div className="flex items-center gap-2 mb-3 px-1 border-b border-gray-200 pb-2">
+        <Package className="w-5 h-5 text-gray-500" />
+        <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">MATERIALS ({filteredMaterials.length})</h3>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px,1fr))", gap: 16 }}>
+        {paginatedValidations.filter(v => v.validation_type === 'material').map((validation) => {
+          const sc = getStatusConfig(validation.validation_status);
+          const photoUrl = validation.photo_url;
+          const receiverNames = validation.receivers?.map(r => r.receiver_name).join(', ') || "-";
+          const departmentNames = validation.departments?.map(d => d.department_name).join(', ') || "-";
+          return (
+            <div
+              key={validation.id_validation}
+              className="vv-grid-card"
+              onClick={() => handleViewDetail(validation)}
+            >
+              {/* Header dengan checkbox (jika mode multi select) */}
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
+                {showCheckboxes && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.includes(validation.id_validation)}
+                      onChange={(e) => { e.stopPropagation(); handleSelectItem(validation.id_validation); }}
+                      disabled={validation.validation_status !== "pending"}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+                      style={{ width: 18, height: 18 }}
+                    />
+                  </div>
+                )}
+                <div style={{ width: 64, height: 64, borderRadius: '8px', flexShrink: 0, background: "#ecfdf5", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                  {photoUrl ? (
+                    <img 
+                      src={photoUrl.startsWith("http") ? photoUrl : `${API_BASE_URL}${photoUrl}`} 
+                      alt="Scan result" 
+                      className="w-full h-full object-cover" 
+                      onError={(e) => { e.target.style.display = "none"; e.target.parentElement.innerHTML = '<svg class=\"w-8 h-8 text-emerald-600\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4\"></path></svg>'; }} 
+                    />
+                  ) : (
+                    <Package className="w-8 h-8 text-emerald-600" />
+                  )}
+                </div>
+                <span className={`px-2 py-0.5 text-xs font-semibold rounded-full border ${sc.badge} ${sc.border}`} style={{ borderRadius: '20px' }}>
+                  {sc.label}
+                </span>
+              </div>
+
+              {/* Informasi Item */}
+              <h3 className="font-semibold text-base text-gray-900 truncate mb-1">{validation.item_name || "-"}</h3>
+              <p className="font-mono text-xs text-gray-400 mb-3 truncate">{validation.serial_or_code || "-"}</p>
+
+              {/* Detail informasi dalam grid 2 kolom */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="bg-gray-50 rounded-lg p-2">
+                  <span className="text-gray-400 block text-[10px]">Session</span>
+                  <span className="text-xs font-medium text-gray-700 truncate block">{validation.checking_name || "-"}</span>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2">
+                  <span className="text-gray-400 block text-[10px]">Vendor</span>
+                  <span className="text-xs font-medium text-gray-700 truncate block">{validation.vendor || validation.brand || "-"}</span>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2">
+                  <span className="text-gray-400 block text-[10px]">Project</span>
+                  <span className="text-xs font-medium text-gray-700 truncate block">{validation.project_name || "-"}</span>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2">
+                  <span className="text-gray-400 block text-[10px]">Department</span>
+                  <span className="text-xs font-medium text-gray-700 truncate block">{departmentNames}</span>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2 col-span-2">
+                  <span className="text-gray-400 block text-[10px]">Receiver</span>
+                  <span className="text-xs font-medium text-gray-700 truncate block">{receiverNames}</span>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2">
+                  <span className="text-gray-400 block text-[10px]">Submitted</span>
+                  <span className="text-xs font-medium text-gray-700 truncate block">{formatDate(validation.created_at)}</span>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2">
+                  <span className="text-gray-400 block text-[10px]">By</span>
+                  <span className="text-xs font-medium text-gray-700 truncate block">{validation.created_by_name || "System"}</span>
+                </div>
+              </div>
+
+              {/* Tombol Actions */}
+              <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-emerald-100 text-emerald-700" style={{ borderRadius: '5px' }}>
+                  Material
+                </span>
+                <div className="flex gap-1.5">
+                  {validation.validation_status === "rejected" && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleRescan(validation); }}
+                      className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
+                      style={{ borderRadius: '5px', minWidth: '32px', height: '32px' }}
+                      title="Rescan"
+                    >
+                      <ScanLine className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleViewDetail(validation); }}
+                    className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
+                    style={{ borderRadius: '5px', minWidth: '32px', height: '32px' }}
+                    title="View"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </button>
+                  {validation.validation_status === "pending" && (
+                    <>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleApprove(validation); }}
+                        disabled={isProcessing}
+                        className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 transition disabled:opacity-50"
+                        style={{ borderRadius: '5px', minWidth: '32px', height: '32px' }}
+                        title="Approve"
+                      >
+                        <ThumbsUp className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleReject(validation); }}
+                        disabled={isProcessing}
+                        className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-50"
+                        style={{ borderRadius: '5px', minWidth: '32px', height: '32px' }}
+                        title="Reject"
+                      >
+                        <ThumbsDown className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeleteSingle(validation); }}
+                    disabled={isProcessing}
+                    className="inline-flex items-center justify-center p-1.5 text-xs font-medium text-white bg-gray-500 hover:bg-gray-600 transition disabled:opacity-50"
+                    style={{ borderRadius: '5px', minWidth: '32px', height: '32px' }}
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  )}
+</div>
 
             ) : (
               /* ===================== LIST VIEW ===================== */
               <>
                 {/* DESKTOP TABLE */}
-                <div className="vv-table-container">
-                  <table className="min-w-full">
-                    <thead>
-                      <tr>
-                        {showCheckboxes && (
-                          <th className="vv-th w-10 text-center">
-                            <input
-                              type="checkbox"
-                              checked={selectedItems.length === sortedFilteredValidations.length && sortedFilteredValidations.length > 0}
-                              onChange={handleSelectAll}
-                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            />
-                          </th>
-                        )}
-                        <th className="vv-th text-left hidden lg:table-cell">Session</th>
-                        <th className="vv-th text-left">Photo</th>
-                        <th className="vv-th text-left">Item</th>
-                        <th className="vv-th text-left hidden md:table-cell">Brand</th>
-                        <th className="vv-th text-left hidden md:table-cell">Code</th>
-                        <th className="vv-th text-left">Status</th>
-                        <th className="vv-th text-left hidden xl:table-cell">Submitted</th>
-                        <th className="vv-th text-center">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredDevices.length > 0 && (
-                        <>
-                          <tr>
-                            <td colSpan={showCheckboxes ? 9 : 8} className="px-4 py-2 border-t border-gray-200">
-                              <div className="flex items-center gap-2">
-                                <Laptop className="w-4 h-4 text-gray-500" />
-                                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">DEVICES ({filteredDevices.length})</span>
-                                <div className="flex-1 border-t border-gray-200 ml-2"></div>
-                              </div>
-                            </td>
-                          </tr>
-                          {paginatedValidations.filter(v => v.validation_type === 'device').map((validation) => {
-                            const sc = getStatusConfig(validation.validation_status);
-                            const photoUrl = validation.photo_url;
-                            return (
-                              <tr key={`device-${validation.id_validation}`} className="vv-row" onClick={() => handleViewDetail(validation)}>
-                                {showCheckboxes && (
-                                  <td className="vv-td text-center">
-                                    <input type="checkbox" checked={selectedItems.includes(validation.id_validation)} onChange={(e) => { e.stopPropagation(); handleSelectItem(validation.id_validation); }} disabled={validation.validation_status !== "pending"} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50" />
-                                  </td>
-                                )}
-                                <td className="vv-td hidden lg:table-cell">
-                                  <div className="font-medium text-gray-800 text-sm">{validation.checking_name || "-"}</div>
-                                  <div className="text-xs text-gray-400 font-mono mt-0.5">{validation.checking_number || "-"}</div>
-                                </td>
-                                <td className="vv-td">
-                                  {photoUrl ? (
-                                    <img src={photoUrl.startsWith("http") ? photoUrl : `${API_BASE_URL}${photoUrl}`} alt="Scan result" className="w-10 h-10 rounded-lg object-cover cursor-pointer hover:opacity-80 transition" onClick={(e) => { e.stopPropagation(); Swal.fire({ imageUrl: photoUrl.startsWith("http") ? photoUrl : `${API_BASE_URL}${photoUrl}`, imageAlt: "Scan Result", title: "Scan Result Preview", imageWidth: 400, imageHeight: "auto", confirmButtonColor: "#2563eb" }); }} onError={(e) => { e.target.style.display = "none"; }} />
-                                  ) : (
-                                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center"><Camera className="w-5 h-5 text-gray-400" /></div>
-                                  )}
-                                </td>
-                                <td className="vv-td">
-                                  <div className="font-semibold text-gray-900 text-sm leading-tight">{validation.item_name || "-"}</div>
-                                  <div className="mt-0.5"><span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700">Device</span></div>
-                                </td>
-                                <td className="vv-td hidden md:table-cell"><span className="text-xs font-medium text-gray-500">{validation.brand || "-"}</span></td>
-                                <td className="vv-td hidden md:table-cell"><code className="text-xs font-mono px-2 py-1 rounded text-gray-500">{validation.serial_or_code || "-"}</code></td>
-                                <td className="vv-td">
-                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`} />{sc.label}
-                                  </span>
-                                </td>
-                                <td className="vv-td hidden xl:table-cell">
-                                  <div className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" /><span className="text-xs text-gray-600">{formatDate(validation.created_at)}</span></div>
-                                  <div className="text-xs text-gray-400 mt-0.5">by {validation.created_by_name || "System"}</div>
-                                </td>
-                                <td className="vv-td text-center">
-                                  <div className="flex items-center justify-center gap-1 flex-wrap">
-                                    {validation.validation_status === "rejected" && (
-                                      <button
-                                        onClick={() => handleRescan(validation)}
-                                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
-                                        style={{ borderRadius: '5px' }}
-                                      >
-                                        <ScanLine className="w-3 h-3" /> Rescan
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={() => handleViewDetail(validation)}
-                                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
-                                      style={{ borderRadius: '5px' }}
-                                    >
-                                      <Eye className="w-3 h-3" />
-                                    </button>
-                                    {validation.validation_status === "pending" && (
-                                      <>
-                                        <button
-                                          onClick={() => handleApprove(validation)}
-                                          disabled={isProcessing}
-                                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 transition disabled:opacity-50"
-                                          style={{ borderRadius: '5px' }}
-                                        >
-                                          <ThumbsUp className="w-3 h-3" />
-                                        </button>
-                                        <button
-                                          onClick={() => handleReject(validation)}
-                                          disabled={isProcessing}
-                                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-50"
-                                          style={{ borderRadius: '5px' }}
-                                        >
-                                          <ThumbsDown className="w-3 h-3" />
-                                        </button>
-                                      </>
-                                    )}
-                                    <button
-                                      onClick={() => handleDeleteSingle(validation)}
-                                      disabled={isProcessing}
-                                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-gray-500 hover:bg-gray-600 transition disabled:opacity-50"
-                                      style={{ borderRadius: '5px' }}
-                                    >
-                                      <Trash2 className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </>
-                      )}
-
-                      {filteredMaterials.length > 0 && (
-                        <>
-                          <tr>
-                            <td colSpan={showCheckboxes ? 9 : 8} className="px-4 py-2 border-t border-gray-200">
-                              <div className="flex items-center gap-2">
-                                <Package className="w-4 h-4 text-gray-500" />
-                                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">MATERIALS ({filteredMaterials.length})</span>
-                                <div className="flex-1 border-t border-gray-200 ml-2"></div>
-                              </div>
-                            </td>
-                          </tr>
-                          {paginatedValidations.filter(v => v.validation_type === 'material').map((validation) => {
-                            const sc = getStatusConfig(validation.validation_status);
-                            const photoUrl = validation.photo_url;
-                            return (
-                              <tr key={`material-${validation.id_validation}`} className="vv-row" onClick={() => handleViewDetail(validation)}>
-                                {showCheckboxes && (
-                                  <td className="vv-td text-center">
-                                    <input type="checkbox" checked={selectedItems.includes(validation.id_validation)} onChange={(e) => { e.stopPropagation(); handleSelectItem(validation.id_validation); }} disabled={validation.validation_status !== "pending"} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50" />
-                                  </td>
-                                )}
-                                <td className="vv-td hidden lg:table-cell">
-                                  <div className="font-medium text-gray-800 text-sm">{validation.checking_name || "-"}</div>
-                                  <div className="text-xs text-gray-400 font-mono mt-0.5">{validation.checking_number || "-"}</div>
-                                </td>
-                                <td className="vv-td">
-                                  {photoUrl ? (
-                                    <img src={photoUrl.startsWith("http") ? photoUrl : `${API_BASE_URL}${photoUrl}`} alt="Scan result" className="w-10 h-10 rounded-lg object-cover cursor-pointer hover:opacity-80 transition" onClick={(e) => { e.stopPropagation(); Swal.fire({ imageUrl: photoUrl.startsWith("http") ? photoUrl : `${API_BASE_URL}${photoUrl}`, imageAlt: "Scan Result", title: "Scan Result Preview", imageWidth: 400, imageHeight: "auto", confirmButtonColor: "#2563eb" }); }} onError={(e) => { e.target.style.display = "none"; }} />
-                                  ) : (
-                                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center"><Camera className="w-5 h-5 text-gray-400" /></div>
-                                  )}
-                                </td>
-                                <td className="vv-td">
-                                  <div className="font-semibold text-gray-900 text-sm leading-tight">{validation.item_name || "-"}</div>
-                                  <div className="mt-0.5"><span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700">Material</span></div>
-                                </td>
-                                <td className="vv-td hidden md:table-cell"><span className="text-xs font-medium text-gray-500">{validation.brand || "-"}</span></td>
-                                <td className="vv-td hidden md:table-cell"><code className="text-xs font-mono px-2 py-1 rounded text-gray-500">{validation.serial_or_code || "-"}</code></td>
-                                <td className="vv-td">
-                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`} />{sc.label}
-                                  </span>
-                                </td>
-                                <td className="vv-td hidden xl:table-cell">
-                                  <div className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" /><span className="text-xs text-gray-600">{formatDate(validation.created_at)}</span></div>
-                                  <div className="text-xs text-gray-400 mt-0.5">by {validation.created_by_name || "System"}</div>
-                                </td>
-                                <td className="vv-td text-center">
-                                  <div className="flex items-center justify-center gap-1 flex-wrap">
-                                    {validation.validation_status === "rejected" && (
-                                      <button
-                                        onClick={() => handleRescan(validation)}
-                                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
-                                        style={{ borderRadius: '5px' }}
-                                      >
-                                        <ScanLine className="w-3 h-3" /> Rescan
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={() => handleViewDetail(validation)}
-                                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
-                                      style={{ borderRadius: '5px' }}
-                                    >
-                                      <Eye className="w-3 h-3" />
-                                    </button>
-                                    {validation.validation_status === "pending" && (
-                                      <>
-                                        <button
-                                          onClick={() => handleApprove(validation)}
-                                          disabled={isProcessing}
-                                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 transition disabled:opacity-50"
-                                          style={{ borderRadius: '5px' }}
-                                        >
-                                          <ThumbsUp className="w-3 h-3" />
-                                        </button>
-                                        <button
-                                          onClick={() => handleReject(validation)}
-                                          disabled={isProcessing}
-                                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-50"
-                                          style={{ borderRadius: '5px' }}
-                                        >
-                                          <ThumbsDown className="w-3 h-3" />
-                                        </button>
-                                      </>
-                                    )}
-                                    <button
-                                      onClick={() => handleDeleteSingle(validation)}
-                                      disabled={isProcessing}
-                                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-gray-500 hover:bg-gray-600 transition disabled:opacity-50"
-                                      style={{ borderRadius: '5px' }}
-                                    >
-                                      <Trash2 className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* MOBILE CARDS LIST */}
-                <div className="vv-mobile-list">
-                  {filteredDevices.length > 0 && paginatedValidations.filter(v => v.validation_type === 'device').length > 0 && (
-                    <div className="mb-1">
-                      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100">
-                        <Laptop className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Devices ({filteredDevices.length})</span>
-                      </div>
-                      {paginatedValidations.filter(v => v.validation_type === 'device').map((validation) => {
-                        const sc = getStatusConfig(validation.validation_status);
-                        const photoUrl = validation.photo_url;
-                        return (
-                          <div key={`mob-device-${validation.id_validation}`} className="vv-mobile-card" onClick={() => handleViewDetail(validation)}>
-                            <div className="flex items-start gap-3">
-                              {showCheckboxes && (
-                                <input type="checkbox" checked={selectedItems.includes(validation.id_validation)} onChange={(e) => { e.stopPropagation(); handleSelectItem(validation.id_validation); }} disabled={validation.validation_status !== "pending"} className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 flex-shrink-0" />
-                              )}
-                              <div className="flex-shrink-0">
-                                {photoUrl ? (
-                                  <img src={photoUrl.startsWith("http") ? photoUrl : `${API_BASE_URL}${photoUrl}`} alt="item" className="w-12 h-12 rounded-xl object-cover" onError={(e) => { e.target.style.display = "none"; }} />
-                                ) : (
-                                  <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
-                                    <Laptop className="w-5 h-5 text-blue-400" />
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between gap-2 mb-1">
-                                  <p className="font-semibold text-gray-900 text-sm leading-tight truncate">{validation.item_name || "-"}</p>
-                                  <span className={`flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${sc.badge} ${sc.border}`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />{sc.label}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-3 text-[11px] text-gray-400">
-                                  {validation.brand && <span className="truncate">{validation.brand}</span>}
-                                  <span className="font-mono truncate">{validation.serial_or_code || "-"}</span>
-                                </div>
-                                <div className="flex items-center gap-1 mt-1">
-                                  <Calendar className="w-3 h-3 text-gray-300" />
-                                  <span className="text-[11px] text-gray-400">{formatDate(validation.created_at)}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 flex-shrink-0">Device</span>
-                              <div className="flex items-center gap-1.5 ml-auto">
-                                {validation.validation_status === "rejected" && (
-                                  <button
-                                    onClick={() => handleRescan(validation)}
-                                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
-                                    style={{ borderRadius: '5px' }}
-                                  >
-                                    <ScanLine className="w-3 h-3" /> Rescan
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleViewDetail(validation)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
-                                  style={{ borderRadius: '5px' }}
-                                >
-                                  <Eye className="w-3 h-3" />
-                                </button>
-                                {validation.validation_status === "pending" && (
-                                  <>
-                                    <button
-                                      onClick={() => handleApprove(validation)}
-                                      disabled={isProcessing}
-                                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 transition disabled:opacity-50"
-                                      style={{ borderRadius: '5px' }}
-                                    >
-                                      <ThumbsUp className="w-3 h-3" />
-                                    </button>
-                                    <button
-                                      onClick={() => handleReject(validation)}
-                                      disabled={isProcessing}
-                                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-50"
-                                      style={{ borderRadius: '5px' }}
-                                    >
-                                      <ThumbsDown className="w-3 h-3" />
-                                    </button>
-                                  </>
-                                )}
-                                <button
-                                  onClick={() => handleDeleteSingle(validation)}
-                                  disabled={isProcessing}
-                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-gray-500 hover:bg-gray-600 transition disabled:opacity-50"
-                                  style={{ borderRadius: '5px' }}
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+<div className="vv-table-container">
+  <table className="min-w-full">
+    <thead>
+      <tr>
+        {showCheckboxes && (
+          <th className="vv-th w-10 text-center">
+            <input
+              type="checkbox"
+              checked={selectedItems.length === sortedFilteredValidations.length && sortedFilteredValidations.length > 0}
+              onChange={handleSelectAll}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+          </th>
+        )}
+        <th className="vv-th text-left hidden lg:table-cell">Session</th>
+        <th className="vv-th text-left">Photo</th>
+        <th className="vv-th text-left">Item Name</th>
+        <th className="vv-th text-left hidden sm:table-cell">Type</th>
+        <th className="vv-th text-left hidden md:table-cell">Serial/Code</th>
+        <th className="vv-th text-left hidden md:table-cell">Brand/Vendor</th>
+        <th className="vv-th text-center hidden lg:table-cell">Project</th>
+        <th className="vv-th text-left hidden xl:table-cell">Department</th>
+        <th className="vv-th text-left">Receiver</th>
+        <th className="vv-th text-left">Status</th>
+        <th className="vv-th text-left hidden xl:table-cell">Submitted</th>
+        <th className="vv-th text-center">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {filteredDevices.length > 0 && (
+        <>
+          <tr>
+            <td colSpan={showCheckboxes ? 14 : 13} className="px-4 py-2 border-t border-gray-200 bg-gray-50">
+              <div className="flex items-center gap-2">
+                <Laptop className="w-4 h-4 text-gray-500" />
+                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">DEVICES ({filteredDevices.length})</span>
+                <div className="flex-1 border-t border-gray-200 ml-2"></div>
+              </div>
+            </td>
+          </tr>
+          {paginatedValidations.filter(v => v.validation_type === 'device').map((validation) => {
+            const sc = getStatusConfig(validation.validation_status);
+            const photoUrl = validation.photo_url;
+            return (
+              <tr key={`device-${validation.id_validation}`} className="vv-row" onClick={() => handleViewDetail(validation)}>
+                {showCheckboxes && (
+                  <td className="vv-td text-center">
+                    <input type="checkbox" checked={selectedItems.includes(validation.id_validation)} onChange={(e) => { e.stopPropagation(); handleSelectItem(validation.id_validation); }} disabled={validation.validation_status !== "pending"} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50" />
+                  </td>
+                )}
+             <td className="vv-td hidden lg:table-cell">
+  <div className="font-normal text-blue-700 text-sm">{validation.checking_name || "-"}</div>
+  <div className="text-xs text-gray-400 font-mono mt-0.5">{validation.checking_number || "-"}</div>
+</td>
+                <td className="vv-td">
+                  {photoUrl ? (
+                    <img src={photoUrl.startsWith("http") ? photoUrl : `${API_BASE_URL}${photoUrl}`} alt="Scan result" className="w-10 h-10 rounded-lg object-cover cursor-pointer hover:opacity-80 transition" onClick={(e) => { e.stopPropagation(); Swal.fire({ imageUrl: photoUrl.startsWith("http") ? photoUrl : `${API_BASE_URL}${photoUrl}`, imageAlt: "Scan Result", title: "Scan Result Preview", imageWidth: 400, imageHeight: "auto", confirmButtonColor: "#2563eb" }); }} onError={(e) => { e.target.style.display = "none"; }} />
+                  ) : (
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center"><Camera className="w-5 h-5 text-gray-400" /></div>
                   )}
+                 </td>
+              <td className="vv-td">
+  <div className="font-medium text-gray-900 text-sm leading-tight break-words max-w-[200px]">{validation.item_name || "-"}</div>
+</td>
+                <td className="vv-td hidden sm:table-cell">
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700">Device</span>
+                 </td>
+                <td className="vv-td hidden md:table-cell">
+                  <code className="text-xs font-mono px-2 py-1 rounded text-center text-gray-500 break-all max-w-[150px] block">{validation.serial_or_code || "-"}</code>
+                 </td>
+                <td className="vv-td hidden md:table-cell text-center">
+                  <span className="text-xs font-medium text-gray-600">{validation.brand || "-"}</span>
+                 </td>
+            <td className="vv-td hidden lg:table-cell">
+  <span className="text-xs text-gray-600 truncate max-w-[100px] block" title={validation.project_name || "-"}>
+    {validation.project_name || "-"}
+  </span>
+</td>
+                <td className="vv-td hidden xl:table-cell text-center">
+                  <span className="text-xs text-gray-600 truncate max-w-[100px] block">
+                    {validation.departments?.map(d => d.department_name).join(', ') || "-"}
+                  </span>
+                 </td>
+                <td className="vv-td">
+                  <span className="text-xs text-gray-600 truncate max-w-[150px] block">
+                    {validation.receivers?.map(r => r.receiver_name).join(', ') || "-"}
+                  </span>
+                 </td>
+                <td className="vv-td">
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`} />{sc.label}
+                  </span>
+                 </td>
+                <td className="vv-td hidden xl:table-cell">
+                  <div className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" /><span className="text-xs text-gray-600">{formatDate(validation.created_at)}</span></div>
+                  <div className="text-xs text-gray-400 mt-0.5">by {validation.created_by_name || "System"}</div>
+                 </td>
+                <td className="vv-td text-center">
+                  <div className="flex items-center justify-center gap-1 flex-wrap">
+                    {validation.validation_status === "rejected" && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleRescan(validation); }}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
+                        style={{ borderRadius: '5px' }}
+                      >
+                        <ScanLine className="w-3 h-3" /> Rescan
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleViewDetail(validation); }}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
+                      style={{ borderRadius: '5px' }}
+                    >
+                      <Eye className="w-3 h-3" />
+                    </button>
+                    {validation.validation_status === "pending" && (
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleApprove(validation); }}
+                          disabled={isProcessing}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 transition disabled:opacity-50"
+                          style={{ borderRadius: '5px' }}
+                        >
+                          <ThumbsUp className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleReject(validation); }}
+                          disabled={isProcessing}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-50"
+                          style={{ borderRadius: '5px' }}
+                        >
+                          <ThumbsDown className="w-3 h-3" />
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteSingle(validation); }}
+                      disabled={isProcessing}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-gray-500 hover:bg-gray-600 transition disabled:opacity-50"
+                      style={{ borderRadius: '5px' }}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                 </td>
+              </tr>
+            );
+          })}
+        </>
+      )}
 
-                  {filteredMaterials.length > 0 && paginatedValidations.filter(v => v.validation_type === 'material').length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100">
-                        <Package className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Materials ({filteredMaterials.length})</span>
-                      </div>
-                      {paginatedValidations.filter(v => v.validation_type === 'material').map((validation) => {
-                        const sc = getStatusConfig(validation.validation_status);
-                        const photoUrl = validation.photo_url;
-                        return (
-                          <div key={`mob-mat-${validation.id_validation}`} className="vv-mobile-card" onClick={() => handleViewDetail(validation)}>
-                            <div className="flex items-start gap-3">
-                              {showCheckboxes && (
-                                <input type="checkbox" checked={selectedItems.includes(validation.id_validation)} onChange={(e) => { e.stopPropagation(); handleSelectItem(validation.id_validation); }} disabled={validation.validation_status !== "pending"} className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 flex-shrink-0" />
-                              )}
-                              <div className="flex-shrink-0">
-                                {photoUrl ? (
-                                  <img src={photoUrl.startsWith("http") ? photoUrl : `${API_BASE_URL}${photoUrl}`} alt="item" className="w-12 h-12 rounded-xl object-cover" onError={(e) => { e.target.style.display = "none"; }} />
-                                ) : (
-                                  <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center">
-                                    <Package className="w-5 h-5 text-emerald-400" />
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between gap-2 mb-1">
-                                  <p className="font-semibold text-gray-900 text-sm leading-tight truncate">{validation.item_name || "-"}</p>
-                                  <span className={`flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${sc.badge} ${sc.border}`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />{sc.label}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-3 text-[11px] text-gray-400">
-                                  {validation.brand && <span className="truncate">{validation.brand}</span>}
-                                  <span className="font-mono truncate">{validation.serial_or_code || "-"}</span>
-                                </div>
-                                <div className="flex items-center gap-1 mt-1">
-                                  <Calendar className="w-3 h-3 text-gray-300" />
-                                  <span className="text-[11px] text-gray-400">{formatDate(validation.created_at)}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 flex-shrink-0">Material</span>
-                              <div className="flex items-center gap-1.5 ml-auto">
-                                {validation.validation_status === "rejected" && (
-                                  <button
-                                    onClick={() => handleRescan(validation)}
-                                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
-                                    style={{ borderRadius: '5px' }}
-                                  >
-                                    <ScanLine className="w-3 h-3" /> Rescan
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleViewDetail(validation)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
-                                  style={{ borderRadius: '5px' }}
-                                >
-                                  <Eye className="w-3 h-3" />
-                                </button>
-                                {validation.validation_status === "pending" && (
-                                  <>
-                                    <button
-                                      onClick={() => handleApprove(validation)}
-                                      disabled={isProcessing}
-                                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 transition disabled:opacity-50"
-                                      style={{ borderRadius: '5px' }}
-                                    >
-                                      <ThumbsUp className="w-3 h-3" />
-                                    </button>
-                                    <button
-                                      onClick={() => handleReject(validation)}
-                                      disabled={isProcessing}
-                                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-50"
-                                      style={{ borderRadius: '5px' }}
-                                    >
-                                      <ThumbsDown className="w-3 h-3" />
-                                    </button>
-                                  </>
-                                )}
-                                <button
-                                  onClick={() => handleDeleteSingle(validation)}
-                                  disabled={isProcessing}
-                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-gray-500 hover:bg-gray-600 transition disabled:opacity-50"
-                                  style={{ borderRadius: '5px' }}
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+      {filteredMaterials.length > 0 && (
+        <>
+          <tr>
+            <td colSpan={showCheckboxes ? 14 : 13} className="px-4 py-2 border-t border-gray-200 bg-gray-50">
+              <div className="flex items-center gap-2">
+                <Package className="w-4 h-4 text-gray-500" />
+                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">MATERIALS ({filteredMaterials.length})</span>
+                <div className="flex-1 border-t border-gray-200 ml-2"></div>
+              </div>
+             </td>
+           </tr>
+          {paginatedValidations.filter(v => v.validation_type === 'material').map((validation) => {
+            const sc = getStatusConfig(validation.validation_status);
+            const photoUrl = validation.photo_url;
+            return (
+              <tr key={`material-${validation.id_validation}`} className="vv-row" onClick={() => handleViewDetail(validation)}>
+                {showCheckboxes && (
+                  <td className="vv-td text-center">
+                    <input type="checkbox" checked={selectedItems.includes(validation.id_validation)} onChange={(e) => { e.stopPropagation(); handleSelectItem(validation.id_validation); }} disabled={validation.validation_status !== "pending"} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50" />
+                   </td>
+                )}
+            <td className="vv-td hidden lg:table-cell">
+  <div className="font-normal text-emerald-700 text-sm">{validation.checking_name || "-"}</div>
+  <div className="text-xs text-gray-400 font-mono mt-0.5">{validation.checking_number || "-"}</div>
+</td>
+                <td className="vv-td">
+                  {photoUrl ? (
+                    <img src={photoUrl.startsWith("http") ? photoUrl : `${API_BASE_URL}${photoUrl}`} alt="Scan result" className="w-10 h-10 rounded-lg object-cover cursor-pointer hover:opacity-80 transition" onClick={(e) => { e.stopPropagation(); Swal.fire({ imageUrl: photoUrl.startsWith("http") ? photoUrl : `${API_BASE_URL}${photoUrl}`, imageAlt: "Scan Result", title: "Scan Result Preview", imageWidth: 400, imageHeight: "auto", confirmButtonColor: "#2563eb" }); }} onError={(e) => { e.target.style.display = "none"; }} />
+                  ) : (
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center"><Camera className="w-5 h-5 text-gray-400" /></div>
+                  )}
+                 </td>
+           <td className="vv-td">
+  <div className="font-medium text-gray-900 text-sm leading-tight break-words max-w-[200px]">{validation.item_name || "-"}</div>
+</td>
+                <td className="vv-td hidden sm:table-cell">
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700">Material</span>
+                 </td>
+                <td className="vv-td hidden md:table-cell">
+                  <code className="text-xs font-mono px-2 py-1 rounded text-gray-500 break-all max-w-[150px] block">{validation.serial_or_code || "-"}</code>
+                 </td>
+                <td className="vv-td hidden md:table-cell text-center" >
+                  <span className="text-xs text-center font-medium text-gray-600">{validation.vendor || validation.brand || "-"}</span>
+                 </td>
+            <td className="vv-td hidden lg:table-cell text-center">
+  <span className="text-xs text-gray-600 truncate max-w-[60px] block" title={validation.project_name || "-"}>
+    {validation.project_name || "-"}
+  </span>
+</td>
+                <td className="vv-td hidden xl:table-cell text-center">
+                  <span className="text-xs text-gray-600 truncate max-w-[100px] block">
+                    {validation.departments?.map(d => d.department_name).join(', ') || "-"}
+                  </span>
+                 </td>
+                <td className="vv-td">
+                  <span className="text-xs text-gray-600 truncate max-w-[150px] block">
+                    {validation.receivers?.map(r => r.receiver_name).join(', ') || "-"}
+                  </span>
+                 </td>
+                <td className="vv-td">
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`} />{sc.label}
+                  </span>
+                 </td>
+                <td className="vv-td hidden xl:table-cell">
+                  <div className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" /><span className="text-xs text-gray-600">{formatDate(validation.created_at)}</span></div>
+                  <div className="text-xs text-gray-400 mt-0.5">by {validation.created_by_name || "System"}</div>
+                 </td>
+                <td className="vv-td text-center">
+                  <div className="flex items-center justify-center gap-1 flex-wrap">
+                    {validation.validation_status === "rejected" && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleRescan(validation); }}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
+                        style={{ borderRadius: '5px' }}
+                      >
+                        <ScanLine className="w-3 h-3" /> Rescan
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleViewDetail(validation); }}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
+                      style={{ borderRadius: '5px' }}
+                    >
+                      <Eye className="w-3 h-3" />
+                    </button>
+                    {validation.validation_status === "pending" && (
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleApprove(validation); }}
+                          disabled={isProcessing}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 transition disabled:opacity-50"
+                          style={{ borderRadius: '5px' }}
+                        >
+                          <ThumbsUp className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleReject(validation); }}
+                          disabled={isProcessing}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-50"
+                          style={{ borderRadius: '5px' }}
+                        >
+                          <ThumbsDown className="w-3 h-3" />
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteSingle(validation); }}
+                      disabled={isProcessing}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-gray-500 hover:bg-gray-600 transition disabled:opacity-50"
+                      style={{ borderRadius: '5px' }}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                 </td>
+              </tr>
+            );
+          })}
+        </>
+      )}
+    </tbody>
+  </table>
+</div>
+
+             {/* MOBILE CARDS LIST */}
+<div className="vv-mobile-list">
+  {filteredDevices.length > 0 && (
+    <div className="mb-4">
+      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200">
+        <Laptop className="w-4 h-4 text-blue-500" />
+        <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">DEVICES ({filteredDevices.length})</span>
+      </div>
+      {paginatedValidations.filter(v => v.validation_type === 'device').map((validation) => {
+        const sc = getStatusConfig(validation.validation_status);
+        const photoUrl = validation.photo_url;
+        return (
+          <div key={`mob-device-${validation.id_validation}`} className="bg-white border border-gray-200 rounded-xl p-3 mb-3 shadow-sm hover:shadow-md transition cursor-pointer" onClick={() => handleViewDetail(validation)}>
+            {/* Header with photo and status */}
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  {photoUrl ? (
+                    <img src={photoUrl.startsWith("http") ? photoUrl : `${API_BASE_URL}${photoUrl}`} alt="Scan result" className="w-full h-full object-cover" />
+                  ) : (
+                    <Camera className="w-4 h-4 text-gray-400" />
                   )}
                 </div>
+                <div>
+                  <div className="font-semibold text-gray-900 text-sm">{validation.item_name || "-"}</div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">{validation.checking_name || "-"}</div>
+                </div>
+              </div>
+              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />{sc.label}
+              </span>
+            </div>
+
+            {/* Info grid */}
+            <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+              <div className="bg-gray-50 rounded-lg p-2">
+                <span className="text-gray-400 block text-[9px]">Type</span>
+                <span className="font-medium text-gray-700">Device</span>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <span className="text-gray-400 block text-[9px]">{validation.validation_type === "device" ? "Serial" : "Scan Code"}</span>
+                <code className="font-mono text-[10px] text-gray-600 break-all">{validation.serial_or_code || "-"}</code>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <span className="text-gray-400 block text-[9px]">Brand/Vendor</span>
+                <span className="font-medium text-gray-700 truncate">{validation.brand || validation.vendor || "-"}</span>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <span className="text-gray-400 block text-[9px]">Project</span>
+                <span className="font-medium text-gray-700 truncate">{validation.project_name || "-"}</span>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <span className="text-gray-400 block text-[9px]">Department</span>
+                <span className="font-medium text-gray-700 truncate">{validation.departments?.map(d => d.department_name).join(', ') || "-"}</span>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <span className="text-gray-400 block text-[9px]">Receiver</span>
+                <span className="font-medium text-gray-700 truncate">{validation.receivers?.map(r => r.receiver_name).join(', ') || "-"}</span>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <span className="text-gray-400 block text-[9px]">Submitted</span>
+                <span className="font-medium text-gray-700">{formatDate(validation.created_at)}</span>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <span className="text-gray-400 block text-[9px]">By</span>
+                <span className="font-medium text-gray-700 truncate">{validation.created_by_name || "System"}</span>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+              {validation.validation_status === "rejected" && (
+                <button onClick={(e) => { e.stopPropagation(); handleRescan(validation); }} className="inline-flex items-center gap-1 px-2 py-1.5 text-[10px] font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
+                  <ScanLine className="w-3 h-3" /> Rescan
+                </button>
+              )}
+              <button onClick={(e) => { e.stopPropagation(); handleViewDetail(validation); }} className="inline-flex items-center gap-1 px-2 py-1.5 text-[10px] font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
+                <Eye className="w-3 h-3" /> View
+              </button>
+              {validation.validation_status === "pending" && (
+                <>
+                  <button onClick={(e) => { e.stopPropagation(); handleApprove(validation); }} disabled={isProcessing} className="inline-flex items-center gap-1 px-2 py-1.5 text-[10px] font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition disabled:opacity-50">
+                    <ThumbsUp className="w-3 h-3" /> Approve
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); handleReject(validation); }} disabled={isProcessing} className="inline-flex items-center gap-1 px-2 py-1.5 text-[10px] font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition disabled:opacity-50">
+                    <ThumbsDown className="w-3 h-3" /> Reject
+                  </button>
+                </>
+              )}
+              <button onClick={(e) => { e.stopPropagation(); handleDeleteSingle(validation); }} disabled={isProcessing} className="inline-flex items-center gap-1 px-2 py-1.5 text-[10px] font-medium text-white bg-gray-500 rounded-lg hover:bg-gray-600 transition disabled:opacity-50">
+                <Trash2 className="w-3 h-3" /> Delete
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  )}
+
+  {filteredMaterials.length > 0 && (
+    <div>
+      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200">
+        <Package className="w-4 h-4 text-emerald-500" />
+        <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">MATERIALS ({filteredMaterials.length})</span>
+      </div>
+      {paginatedValidations.filter(v => v.validation_type === 'material').map((validation) => {
+        const sc = getStatusConfig(validation.validation_status);
+        const photoUrl = validation.photo_url;
+        return (
+          <div key={`mob-mat-${validation.id_validation}`} className="bg-white border border-gray-200 rounded-xl p-3 mb-3 shadow-sm hover:shadow-md transition cursor-pointer" onClick={() => handleViewDetail(validation)}>
+            {/* Header with photo and status */}
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  {photoUrl ? (
+                    <img src={photoUrl.startsWith("http") ? photoUrl : `${API_BASE_URL}${photoUrl}`} alt="Scan result" className="w-full h-full object-cover" />
+                  ) : (
+                    <Camera className="w-4 h-4 text-gray-400" />
+                  )}
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-900 text-sm">{validation.item_name || "-"}</div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">{validation.checking_name || "-"}</div>
+                </div>
+              </div>
+              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />{sc.label}
+              </span>
+            </div>
+
+            {/* Info grid */}
+            <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+              <div className="bg-gray-50 rounded-lg p-2">
+                <span className="text-gray-400 block text-[9px]">Type</span>
+                <span className="font-medium text-gray-700">Material</span>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <span className="text-gray-400 block text-[9px]">Vendor</span>
+                <span className="font-medium text-gray-700 truncate">{validation.vendor || validation.brand || "-"}</span>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <span className="text-gray-400 block text-[9px]">Scan Code</span>
+                <code className="font-mono text-[10px] text-gray-600 break-all">{validation.serial_or_code || "-"}</code>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <span className="text-gray-400 block text-[9px]">Project</span>
+                <span className="font-medium text-gray-700 truncate">{validation.project_name || "-"}</span>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <span className="text-gray-400 block text-[9px]">Department</span>
+                <span className="font-medium text-gray-700 truncate">{validation.departments?.map(d => d.department_name).join(', ') || "-"}</span>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <span className="text-gray-400 block text-[9px]">Receiver</span>
+                <span className="font-medium text-gray-700 truncate">{validation.receivers?.map(r => r.receiver_name).join(', ') || "-"}</span>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <span className="text-gray-400 block text-[9px]">Submitted</span>
+                <span className="font-medium text-gray-700">{formatDate(validation.created_at)}</span>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <span className="text-gray-400 block text-[9px]">By</span>
+                <span className="font-medium text-gray-700 truncate">{validation.created_by_name || "System"}</span>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+              {validation.validation_status === "rejected" && (
+                <button onClick={(e) => { e.stopPropagation(); handleRescan(validation); }} className="inline-flex items-center gap-1 px-2 py-1.5 text-[10px] font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
+                  <ScanLine className="w-3 h-3" /> Rescan
+                </button>
+              )}
+              <button onClick={(e) => { e.stopPropagation(); handleViewDetail(validation); }} className="inline-flex items-center gap-1 px-2 py-1.5 text-[10px] font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
+                <Eye className="w-3 h-3" /> View
+              </button>
+              {validation.validation_status === "pending" && (
+                <>
+                  <button onClick={(e) => { e.stopPropagation(); handleApprove(validation); }} disabled={isProcessing} className="inline-flex items-center gap-1 px-2 py-1.5 text-[10px] font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition disabled:opacity-50">
+                    <ThumbsUp className="w-3 h-3" /> Approve
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); handleReject(validation); }} disabled={isProcessing} className="inline-flex items-center gap-1 px-2 py-1.5 text-[10px] font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition disabled:opacity-50">
+                    <ThumbsDown className="w-3 h-3" /> Reject
+                  </button>
+                </>
+              )}
+              <button onClick={(e) => { e.stopPropagation(); handleDeleteSingle(validation); }} disabled={isProcessing} className="inline-flex items-center gap-1 px-2 py-1.5 text-[10px] font-medium text-white bg-gray-500 rounded-lg hover:bg-gray-600 transition disabled:opacity-50">
+                <Trash2 className="w-3 h-3" /> Delete
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  )}
+</div>
               </>
             )}
 
