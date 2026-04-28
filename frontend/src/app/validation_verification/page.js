@@ -1482,7 +1482,7 @@ export default function ValidationVerificationPage() {
     <thead>
       <tr>
         {showCheckboxes && (
-          <th className="vv-th w-10 text-center">
+          <th className="vv-th font-normal w-10 text-center">
             <input
               type="checkbox"
               checked={selectedItems.length === sortedFilteredValidations.length && sortedFilteredValidations.length > 0}
@@ -1491,18 +1491,18 @@ export default function ValidationVerificationPage() {
             />
           </th>
         )}
-        <th className="vv-th text-left hidden lg:table-cell">Session</th>
-        <th className="vv-th text-left">Photo</th>
-        <th className="vv-th text-left">Item Name</th>
-        <th className="vv-th text-left hidden sm:table-cell">Type</th>
-        <th className="vv-th text-left hidden md:table-cell">Serial/Code</th>
-        <th className="vv-th text-left hidden md:table-cell">Brand/Vendor</th>
-        <th className="vv-th text-center hidden lg:table-cell">Project</th>
-        <th className="vv-th text-left hidden xl:table-cell">Department</th>
-        <th className="vv-th text-left">Receiver</th>
-        <th className="vv-th text-left">Status</th>
-        <th className="vv-th text-left hidden xl:table-cell">Submitted</th>
-        <th className="vv-th text-center">Actions</th>
+        <th className="vv-th font-normal text-left hidden lg:table-cell">Session</th>
+        <th className="vv-th font-normal text-left">Photo</th>
+        <th className="vv-th font-normal text-left">Item Name</th>
+        <th className="vv-th font-normal text-left hidden sm:table-cell">Type</th>
+        <th className="vv-th font-normal text-left hidden md:table-cell">Serial/Code</th>
+        <th className="vv-th font-normal text-left hidden md:table-cell">Brand/Vendor</th>
+        <th className="vv-th font-normal text-center hidden lg:table-cell">Project</th>
+        <th className="vv-th font-normal text-left hidden xl:table-cell">Department</th>
+        <th className="vv-th font-normal text-left">Receiver</th>
+        <th className="vv-th font-normal text-left">Status</th>
+        <th className="vv-th font-normal text-left hidden xl:table-cell">Submitted</th>
+        <th className="vv-th font-normal text-center">Actions</th>
       </tr>
     </thead>
     <tbody>

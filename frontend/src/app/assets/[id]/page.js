@@ -189,24 +189,163 @@ export default function AssetDetailPage() {
 
   const displayedAssets = expandedAssets ? assets : assets.slice(0, 5);
 
+  // ── stat card config ──
+  const statCards = [
+    {
+      label: "Total Assets",
+      value: stats.total,
+      icon: <Box className="w-5 h-5" />,
+      accent: "#2563eb",
+      bg: "#eff6ff",
+      iconColor: "#2563eb",
+      bar: 100,
+    },
+    {
+      label: "Active",
+      value: stats.active,
+      icon: <CheckCircle className="w-5 h-5" />,
+      accent: "#059669",
+      bg: "#ecfdf5",
+      iconColor: "#059669",
+      bar: stats.total ? Math.round((stats.active / stats.total) * 100) : 0,
+    },
+    {
+      label: "Inactive",
+      value: stats.inactive,
+      icon: <Clock className="w-5 h-5" />,
+      accent: "#6b7280",
+      bg: "#f3f4f6",
+      iconColor: "#6b7280",
+      bar: stats.total ? Math.round((stats.inactive / stats.total) * 100) : 0,
+    },
+    {
+      label: "Devices",
+      value: stats.devices,
+      icon: <Laptop className="w-5 h-5" />,
+      accent: "#3b82f6",
+      bg: "#eff6ff",
+      iconColor: "#3b82f6",
+      bar: stats.total ? Math.round((stats.devices / stats.total) * 100) : 0,
+    },
+    {
+      label: "Materials",
+      value: stats.materials,
+      icon: <Package className="w-5 h-5" />,
+      accent: "#10b981",
+      bg: "#ecfdf5",
+      iconColor: "#10b981",
+      bar: stats.total ? Math.round((stats.materials / stats.total) * 100) : 0,
+    },
+  ];
+
   return (
     <ProtectedPage>
       <LayoutDashboard activeMenu={2}>
+        {/* ─────────────────────────────────────────────
+            GLOBAL STYLES
+            Semua font disamakan dengan halaman Assets:
+            DM Sans body, DM Mono untuk kode/mono
+        ───────────────────────────────────────────── */}
         <style jsx global>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap');
-          .ad-root { font-family: 'DM Sans', sans-serif; }
-          .ad-root * { box-sizing: border-box; }
 
+          /* ── root font (sama dengan assets page) ── */
+          .ad-root {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 14px;
+            color: #374151;
+          }
+          .ad-root * { box-sizing: border-box; }
+          .ad-root .mono { font-family: 'DM Mono', monospace; }
+
+          /* ── shared card shell ── */
           .vv-card {
             background: #ffffff;
             border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08), 0 2px 4px -1px rgba(0,0,0,0.05);
             transition: box-shadow 0.2s ease;
           }
-          .vv-card:hover {
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+
+          /* ── session header card ── */
+          .session-header-card {
+            background: #ffffff;
+            border-radius: 18px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            overflow: hidden;
           }
 
+          /* ── NEW: stat cards row ── */
+          .stat-cards-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            padding: 16px;
+          }
+          @media (max-width: 1024px) {
+            .stat-cards-row { grid-template-columns: repeat(3, 1fr); }
+          }
+          @media (max-width: 640px) {
+            .stat-cards-row { grid-template-columns: repeat(2, 1fr); }
+          }
+
+          .stat-item {
+            border-radius: 14px;
+            border: 1px solid #e5e7eb;
+            padding: 14px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            transition: box-shadow 0.2s, transform 0.2s;
+            background: #fff;
+          }
+          .stat-item:hover {
+            box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+            transform: translateY(-2px);
+          }
+
+          .stat-item-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          }
+          .stat-icon-wrap {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+          }
+          .stat-value {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1;
+          }
+          .stat-label {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+          }
+          .stat-progress-track {
+            width: 100%;
+            height: 4px;
+            background: #f3f4f6;
+            border-radius: 99px;
+            overflow: hidden;
+          }
+          .stat-progress-fill {
+            height: 100%;
+            border-radius: 99px;
+            transition: width 0.6s cubic-bezier(.4,0,.2,1);
+          }
+
+          /* ── table section ── */
           .ai-section {
             background: #ffffff;
             border-radius: 18px;
@@ -215,47 +354,65 @@ export default function AssetDetailPage() {
             overflow: hidden;
           }
 
-          .ai-th {
-            padding: 10px 14px;
+          /* ── table typography — semua DM Sans, konsisten ── */
+          .ad-root table {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+          }
+          .ad-root thead th {
+            font-family: 'DM Sans', sans-serif;
             font-size: 11px;
             font-weight: 700;
             color: #6b7280;
             text-transform: uppercase;
             letter-spacing: 0.07em;
             background: #f9fafb;
-            white-space: nowrap;
+            padding: 10px 14px;
             border-bottom: 1px solid #e5e7eb;
+            white-space: nowrap;
           }
-          .ai-td {
-            padding: 13px 14px;
+          .ad-root tbody td {
+            font-family: 'DM Sans', sans-serif;
             font-size: 13px;
             color: #374151;
+            padding: 12px 14px;
             border-top: 1px solid #f3f4f6;
             vertical-align: middle;
           }
-          .ai-row { cursor: pointer; transition: background 0.1s; }
-          .ai-row:hover { background: #f8faff; }
+          .ad-root tbody tr:hover { background: #f8faff; }
 
-          .badge-device   { background:#dbeafe; color:#1d4ed8; border:1px solid #bfdbfe; }
-          .badge-material { background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; }
-          .badge-active    { background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; }
-          .badge-inactive  { background:#f3f4f6; color:#6b7280; border:1px solid #e5e7eb; }
+          /* asset code — biru, DM Sans medium */
+          .asset-code {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            color: #2563eb;
+          }
 
+          /* serial number — mono, lebih kecil */
+          .asset-serial {
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            color: #6b7280;
+          }
+
+          /* badge base */
           .badge {
             display: inline-flex;
             align-items: center;
             gap: 4px;
             padding: 3px 10px;
             border-radius: 9999px;
+            font-family: 'DM Sans', sans-serif;
             font-size: 11px;
             font-weight: 600;
           }
+          .badge-device   { background:#dbeafe; color:#1d4ed8; border:1px solid #bfdbfe; }
+          .badge-material { background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; }
+          .badge-active   { background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; }
+          .badge-inactive { background:#f3f4f6; color:#6b7280; border:1px solid #e5e7eb; }
 
-          .ai-view-btn {
-            opacity: 1;
-            transition: opacity 0.15s, transform 0.15s;
-          }
-
+          /* footer bar */
           .ai-footer {
             display: flex;
             align-items: center;
@@ -263,6 +420,7 @@ export default function AssetDetailPage() {
             padding: 10px 18px;
             background: #f9fafb;
             border-top: 1px solid #f3f4f6;
+            font-family: 'DM Sans', sans-serif;
           }
 
           .ai-empty {
@@ -272,8 +430,10 @@ export default function AssetDetailPage() {
             justify-content: center;
             padding: 72px 24px;
             text-align: center;
+            font-family: 'DM Sans', sans-serif;
           }
 
+          /* modal */
           .modal-backdrop {
             position: fixed;
             inset: 0;
@@ -292,14 +452,11 @@ export default function AssetDetailPage() {
             max-height: 90vh;
             overflow: hidden;
             box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+            font-family: 'DM Sans', sans-serif;
           }
 
           @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
           .animate-spin { animation: spin 1s linear infinite; }
-          
-          .font-mono {
-            font-family: 'DM Mono', monospace;
-          }
         `}</style>
 
         <div className="ad-root space-y-5">
@@ -348,19 +505,20 @@ export default function AssetDetailPage() {
             </div>
           </div>
 
-          {/* ── Session Info KPI Card ── */}
+          {/* ── Session Info Card ── */}
           {sessionInfo && (
-            <div className="vv-card">
-              <div className="p-5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
+            <div className="session-header-card">
+              {/* Session identity row */}
+              <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${prepType === "device" ? "bg-blue-50" : "bg-emerald-50"}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${prepType === "device" ? "bg-blue-50" : "bg-emerald-50"}`}>
                     {prepType === "device"
-                      ? <Laptop className="w-6 h-6 text-blue-600" />
-                      : <Package className="w-6 h-6 text-emerald-600" />}
+                      ? <Laptop className="w-5 h-5 text-blue-600" />
+                      : <Package className="w-5 h-5 text-emerald-600" />}
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-gray-900">{sessionInfo.session_name}</h2>
-                    <p className="text-xs text-gray-400 font-mono mt-1">{sessionInfo.session_number}</p>
+                    <h2 className="text-sm font-bold text-gray-900">{sessionInfo.session_name}</h2>
+                    <p className="text-xs text-gray-400 mt-1">{sessionInfo.session_number}</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-4">
@@ -375,17 +533,27 @@ export default function AssetDetailPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-5 divide-x divide-gray-100">
-                {[
-                  { label: "Total Assets", value: stats.total, accent: "#2563eb" },
-                  { label: "Active", value: stats.active, accent: "#059669" },
-                  { label: "Inactive", value: stats.inactive, accent: "#6b7280" },
-                  { label: "Devices", value: stats.devices, accent: "#3b82f6" },
-                  { label: "Materials", value: stats.materials, accent: "#10b981" },
-                ].map((d, i) => (
-                  <div key={i} className="flex flex-col items-center justify-center py-5 px-3 text-center">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">{d.label}</p>
-                    <span className="text-3xl font-bold" style={{ color: d.accent }}>{d.value}</span>
+              {/* ── IMPROVED STAT CARDS ── */}
+              <div className="stat-cards-row">
+                {statCards.map((s, i) => (
+                  <div className="stat-item" key={i}>
+                    <div className="stat-item-top">
+                      <div className="stat-icon-wrap" style={{ background: s.bg }}>
+                        <span style={{ color: s.iconColor }}>{s.icon}</span>
+                      </div>
+                      <span className="stat-value" style={{ color: s.accent }}>
+                        {s.value}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="stat-label mb-2">{s.label}</p>
+                      <div className="stat-progress-track">
+                        <div
+                          className="stat-progress-fill"
+                          style={{ width: `${s.bar}%`, background: s.accent }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -393,14 +561,13 @@ export default function AssetDetailPage() {
           )}
 
           {/* ── Assets Table Card ── */}
-          {/* ── Assets Table Card ── */}
           <div className="ai-section">
             <div className="px-5 py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                  <Box className="w-4 h-4 text-blue-600" />
-                  Assets in this session
-                </h2>
+                <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+    <Box className="w-4 h-4 text-blue-600" />
+    Assets in this session
+  </h4>
                 <p className="text-sm text-gray-500 mt-0.5">{assets.length} validated items</p>
               </div>
 
@@ -423,36 +590,37 @@ export default function AssetDetailPage() {
               </div>
             ) : assets.length === 0 ? (
               <div className="ai-empty">
-                <div className="p-3 rounded-full bg-transparent inline-block mb-4">
-                  <Box className="w-10 h-10 text-gray-300" strokeWidth={1.5} />
-                </div>
+                <Box className="w-10 h-10 text-gray-300 mb-4" strokeWidth={1.5} />
                 <h3 className="text-sm font-medium text-gray-600 mb-1">No assets found</h3>
                 <p className="text-xs text-gray-400">This session has no validated assets</p>
               </div>
             ) : (
               <div className="overflow-x-auto rounded-lg border border-gray-200">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                  <thead>
                     <tr>
-                      <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Photo</th>
-                      <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Asset Code</th>
-                      <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Asset Name</th>
-                      <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">Type</th>
-                      <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Serial Number/Scan Code</th>
-                      <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                      <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden xl:table-cell">Validated</th>
-                      <th className="py-3 px-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                      <th>Photo</th>
+                      <th>Asset Code</th>
+                      <th>Asset Name</th>
+                      <th className="hidden lg:table-cell">Serial/Code</th>
+                      <th className="hidden md:table-cell">Brand/Vendor</th>
+                      <th className="hidden xl:table-cell">Project</th>
+                      <th className="hidden 2xl:table-cell">Department</th>
+                      <th className="hidden lg:table-cell">Receiver</th>
+                      <th>Status</th>
+                      <th className="hidden xl:table-cell">Validated</th>
+                      <th style={{ textAlign: "center" }}>Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody>
                     {displayedAssets.map((asset) => (
                       <tr
                         key={asset.id_assets}
-                        className="hover:bg-gray-50 transition-colors cursor-pointer group"
+                        className="cursor-pointer group"
                         onClick={() => handleShowDetail(asset)}
                       >
                         {/* Photo */}
-                        <td className="py-3 px-4">
+                        <td>
                           {asset.photo_url ? (
                             <img
                               src={asset.photo_url.startsWith("http") ? asset.photo_url : `http://localhost:5001${asset.photo_url}`}
@@ -460,66 +628,78 @@ export default function AssetDetailPage() {
                               className="w-9 h-9 rounded-lg object-cover"
                               onError={(e) => {
                                 e.target.style.display = "none";
-                                e.target.parentElement.innerHTML = `<div class="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="#9ca3af" stroke-width="2" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>`;
+                                e.target.parentElement.innerHTML = `<div style="width:36px;height:36px;border-radius:8px;background:#f3f4f6;display:flex;align-items:center;justify-content:center"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="#9ca3af" stroke-width="2" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>`;
                               }}
                             />
                           ) : (
                             <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center">
-                              <Camera className="w-4 h-4 text-gray-400" />
+                              <Camera className="w-5 h-5 text-gray-400" />
                             </div>
                           )}
                         </td>
 
                         {/* Asset Code */}
-                        <td className="py-3 px-4">
-                          <span className="font-mono text-[11px] font-medium text-blue-600">
-                            {asset.asset_code}
-                          </span>
-                        </td>
-                        {/* Asset Name */}
-                        <td className="py-3 px-4">
-                          <div className="font-semibold text-sm text-gray-900 group-hover:text-blue-600 transition-colors truncate max-w-[180px]">
-                            {asset.asset_name}
-                          </div>
-                          <div className="text-[11px] text-gray-400 truncate max-w-[180px] mt-0.5">
-                            {asset.brand || asset.vendor || "-"}
-                          </div>
+                        <td>
+                          <span className="asset-code">{asset.asset_code}</span>
                         </td>
 
-                        {/* Type */}
-                        <td className="py-3 px-4 hidden md:table-cell">
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${asset.category === "Device" ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"}`}>
-                            {asset.category === "Device" ? (
-                              <Laptop className="w-3 h-3 mr-1" />
-                            ) : (
-                              <Package className="w-3 h-3 mr-1" />
-                            )}
-                            {asset.category === "Device" ? "Device" : "Material"}
+                        {/* Asset Name */}
+                        <td>
+                          <span className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors truncate block max-w-[180px]">
+                            {asset.asset_name}
                           </span>
                         </td>
 
                         {/* Serial / Code */}
-                        <td className="py-3 px-4 hidden lg:table-cell">
-                          <code className="font-mono text-[11px] text-gray-600">
+                        <td className="hidden lg:table-cell">
+                          <span className="asset-serial">
                             {asset.serial_number || asset.scan_code || "-"}
-                          </code>
+                          </span>
+                        </td>
+
+                        {/* Brand / Vendor */}
+                        <td className="hidden md:table-cell" style={{ textAlign: "center" }}>
+                          <span className="text-xs font-medium text-gray-600">
+                            {asset.brand || asset.vendor || "-"}
+                          </span>
+                        </td>
+
+                        {/* Project */}
+                        <td className="hidden xl:table-cell">
+                          <span className="text-xs text-gray-600 truncate max-w-[100px] block" title={asset.project_name || "-"}>
+                            {asset.project_name || "-"}
+                          </span>
+                        </td>
+
+                        {/* Department */}
+                        <td className="hidden 2xl:table-cell">
+                          <span className="text-xs text-gray-600 truncate max-w-[100px] block">
+                            {asset.department_name || "-"}
+                          </span>
+                        </td>
+
+                        {/* Receiver */}
+                        <td className="hidden lg:table-cell">
+                          <span className="text-xs text-gray-600 truncate max-w-[120px] block" title={asset.receiver_name || "-"}>
+                            {asset.receiver_name || "-"}
+                          </span>
                         </td>
 
                         {/* Status */}
-                        <td className="py-3 px-4">
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${asset.status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>
+                        <td>
+                          <span className={`badge ${asset.status === "active" ? "badge-active" : "badge-inactive"}`}>
                             {asset.status === "active" ? "Active" : "Inactive"}
                           </span>
                         </td>
 
                         {/* Validated */}
-                        <td className="py-3 px-4 hidden xl:table-cell">
+                        <td className="hidden xl:table-cell">
                           <div className="text-xs text-gray-600">{formatDateTime(asset.validated_at)}</div>
-                          <div className="text-[10px] text-gray-400 mt-0.5">by {asset.validated_by_name || "System"}</div>
+                          <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 2 }}>by {asset.validated_by_name || "System"}</div>
                         </td>
 
                         {/* Actions */}
-                        <td className="py-3 px-4 text-center">
+                        <td style={{ textAlign: "center" }}>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleShowDetail(asset); }}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-gray-600 hover:bg-gray-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow"
@@ -545,7 +725,7 @@ export default function AssetDetailPage() {
                   <span className="font-semibold text-gray-700">{assets.length}</span>{" "}
                   assets
                 </p>
-                <p className="text-[11px] text-gray-400">
+                <p style={{ fontSize: 11, color: "#9ca3af" }}>
                   Updated {new Date().toLocaleTimeString("id-ID")}
                 </p>
               </div>
@@ -567,7 +747,7 @@ export default function AssetDetailPage() {
                   </div>
                   <div>
                     <h2 className="text-base font-bold text-gray-900">Asset Details</h2>
-                    <p className="text-[11px] text-gray-400 font-mono">{selectedAsset.asset_code}</p>
+                    <p style={{ fontSize: 11, color: "#9ca3af", fontFamily: "'DM Mono', monospace", marginTop: 2 }}>{selectedAsset.asset_code}</p>
                   </div>
                 </div>
                 <button onClick={() => setSelectedAsset(null)} className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-700">
@@ -588,31 +768,23 @@ export default function AssetDetailPage() {
                 )}
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Tag className="w-3.5 h-3.5 text-gray-400" />
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Asset Name</p>
+                  {[
+                    { icon: <Tag className="w-3.5 h-3.5 text-gray-400" />, label: "Asset Name", value: selectedAsset.asset_name, mono: false },
+                    { icon: <QrCode className="w-3.5 h-3.5 text-gray-400" />, label: selectedAsset.category === "Device" ? "Serial Number" : "Scan Code", value: selectedAsset.serial_number || selectedAsset.scan_code || "-", mono: true },
+                    { icon: <Building2 className="w-3.5 h-3.5 text-gray-400" />, label: "Brand / Vendor", value: selectedAsset.brand || selectedAsset.vendor || "-", mono: false },
+                  ].map((row, i) => (
+                    <div key={i} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                      <div className="flex items-center gap-2 mb-2">
+                        {row.icon}
+                        <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.07em" }}>{row.label}</p>
+                      </div>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: "#111827", fontFamily: row.mono ? "'DM Mono',monospace" : "'DM Sans',sans-serif", wordBreak: "break-all" }}>{row.value}</p>
                     </div>
-                    <p className="text-sm font-semibold text-gray-900">{selectedAsset.asset_name}</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <div className="flex items-center gap-2 mb-2">
-                      <QrCode className="w-3.5 h-3.5 text-gray-400" />
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{selectedAsset.category === "Device" ? "Serial Number" : "Scan Code"}</p>
-                    </div>
-                    <p className="text-sm font-mono text-gray-800 break-all">{selectedAsset.serial_number || selectedAsset.scan_code || "-"}</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Building2 className="w-3.5 h-3.5 text-gray-400" />
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Brand / Vendor</p>
-                    </div>
-                    <p className="text-sm font-medium text-gray-900">{selectedAsset.brand || selectedAsset.vendor || "-"}</p>
-                  </div>
+                  ))}
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <div className="flex items-center gap-2 mb-2">
                       <Activity className="w-3.5 h-3.5 text-gray-400" />
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Status</p>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.07em" }}>Status</p>
                     </div>
                     <span className={`badge ${getStatusColor(selectedAsset.status)}`}>{getStatusLabel(selectedAsset.status)}</span>
                   </div>
@@ -622,17 +794,17 @@ export default function AssetDetailPage() {
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <div className="flex items-center gap-2 mb-2">
                       <FileText className="w-3.5 h-3.5 text-gray-400" />
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Specifications</p>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.07em" }}>Specifications</p>
                     </div>
                     <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedAsset.specifications}</p>
-                    {selectedAsset.model && <p className="text-xs text-gray-400 mt-2">Model: {selectedAsset.model}</p>}
+                    {selectedAsset.model && <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 6 }}>Model: {selectedAsset.model}</p>}
                   </div>
                 )}
 
                 <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                   <div className="flex items-center gap-2 mb-3">
                     <User className="w-3.5 h-3.5 text-gray-400" />
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Assignment</p>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.07em" }}>Assignment</p>
                   </div>
                   <div className="space-y-2">
                     {[
@@ -652,7 +824,7 @@ export default function AssetDetailPage() {
                 <div className="bg-blue-50 rounded-xl p-3 border border-blue-200">
                   <div className="flex items-center gap-2 mb-3">
                     <CheckCircle className="w-3.5 h-3.5 text-blue-600" />
-                    <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wide">Validation Information</p>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase", letterSpacing: "0.07em" }}>Validation Information</p>
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -671,7 +843,8 @@ export default function AssetDetailPage() {
               <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
                 <button
                   onClick={() => setSelectedAsset(null)}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 transition"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl transition"
+                  style={{ background: "linear-gradient(135deg,#2563eb,#1d4ed8)" }}
                 >
                   Close
                 </button>
