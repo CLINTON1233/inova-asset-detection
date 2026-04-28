@@ -24,7 +24,7 @@ import {
 import LayoutDashboard from "../components/LayoutDashboard";
 import Swal from "sweetalert2";
 import { useAuth } from "../context/AuthContext";
-import { API_ENDPOINTS } from '../../config/api';
+import { API_ENDPOINTS } from "../../config/api";
 import ProtectedPage from "../components/ProtectedPage";
 
 export default function ProfilePage() {
@@ -64,6 +64,10 @@ export default function ProfilePage() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    // PERBAIKAN: Email dan Badge Number tidak bisa diubah
+    if (name === "email" || name === "no_badge") {
+      return;
+    }
     setFormData((prev) => ({
       ...prev,
       [name]: value,
@@ -84,15 +88,10 @@ export default function ProfilePage() {
       return;
     }
 
-    if (
-      !formData.username ||
-      !formData.email ||
-      !formData.no_badge ||
-      !formData.department
-    ) {
+    if (!formData.username || !formData.department) {
       Swal.fire({
         title: "Validation Error",
-        text: "Please fill in all required fields",
+        text: "Please fill in all required fields (Username and Department)",
         icon: "error",
         confirmButtonColor: "#1e40af",
       });
@@ -107,6 +106,7 @@ export default function ProfilePage() {
         throw new Error("Authentication token not found");
       }
 
+      // PERBAIKAN: Hanya kirim username dan department saja
       const response = await fetch(API_ENDPOINTS.UPDATE_PROFILE, {
         method: "PUT",
         headers: {
@@ -134,10 +134,8 @@ export default function ProfilePage() {
       const updatedUserData = {
         ...currentUserData,
         username: formData.username,
-        email: formData.email,
-        no_badge: formData.no_badge,
         department: formData.department,
-        created_at: data.user.created_at,
+        created_at: data.user?.created_at || currentUserData.created_at,
       };
 
       localStorage.setItem("user_data", JSON.stringify(updatedUserData));
@@ -268,7 +266,7 @@ export default function ProfilePage() {
 
   if (!user) {
     return (
-      <LayoutDashboard activeMenu={7}>
+      <LayoutDashboard activeMenu={null}>
         <div className="min-h-[60vh] flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -281,18 +279,24 @@ export default function ProfilePage() {
 
   return (
     <ProtectedPage>
-      <LayoutDashboard activeMenu={7}>
+      <LayoutDashboard activeMenu={null}>
         <style jsx>{`
-          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-          .profile-root { font-family: 'DM Sans', sans-serif; }
+          @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap");
+          .profile-root {
+            font-family: "DM Sans", sans-serif;
+          }
           .card {
             background: #ffffff;
             border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            box-shadow:
+              0 4px 6px -1px rgba(0, 0, 0, 0.1),
+              0 2px 4px -1px rgba(0, 0, 0, 0.06);
             transition: box-shadow 0.2s ease;
           }
           .card:hover {
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            box-shadow:
+              0 10px 15px -3px rgba(0, 0, 0, 0.1),
+              0 4px 6px -2px rgba(0, 0, 0, 0.05);
           }
           .section-title {
             font-size: 13px;
@@ -327,13 +331,20 @@ export default function ProfilePage() {
             border-radius: 12px;
             padding: 12px;
           }
+          .readonly-field {
+            background-color: #f3f4f6;
+            color: #6b7280;
+            cursor: not-allowed;
+          }
         `}</style>
 
         <div className="profile-root space-y-5">
           {/* Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-xl sm:text-lg font-bold text-gray-900">Profile Settings</h1>
+              <h1 className="text-xl sm:text-lg font-bold text-gray-900">
+                Profile Settings
+              </h1>
               <p className="text-sm text-gray-500 mt-1">
                 Manage your personal information and account security
               </p>
@@ -341,10 +352,11 @@ export default function ProfilePage() {
             <button
               onClick={handleSaveProfile}
               disabled={isLoading}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${isEditing
-                ? "bg-blue-600 hover:bg-blue-700 text-white"
-                : "bg-white hover:bg-gray-50 text-gray-700 border border-gray-300"
-                } ${isLoading ? "opacity-70 cursor-not-allowed" : ""}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
+                isEditing
+                  ? "bg-blue-600 hover:bg-blue-700 text-white"
+                  : "bg-white hover:bg-gray-50 text-gray-700 border border-gray-300"
+              } ${isLoading ? "opacity-70 cursor-not-allowed" : ""}`}
             >
               {isLoading ? (
                 <>
@@ -380,9 +392,15 @@ export default function ProfilePage() {
                     <div className="w-28 h-28 bg-gray-100 rounded-full flex items-center justify-center mb-4 border-2 border-gray-200">
                       <User className="w-14 h-14 text-gray-500" />
                     </div>
-                    <h3 className="text-xl font-bold text-gray-900">{formData.username}</h3>
-                    <p className="text-gray-500 text-sm mt-1 capitalize">
-                      {user?.role === 'superadmin' ? 'Super Admin' : user?.role === 'admin' ? 'Admin' : 'Staff'}
+                    <h3 className="text-xl font-bold text-gray-900">
+                      {formData.username}
+                    </h3>
+                    <p className="text-gray-500 text-sm mt-1">
+                      {user?.role === "superadmin"
+                        ? "Super Admin"
+                        : user?.role === "admin"
+                          ? "Admin"
+                          : user?.role}
                     </p>
                     <span className="mt-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold flex items-center gap-1">
                       <CheckCircle className="w-3 h-3" />
@@ -404,7 +422,9 @@ export default function ProfilePage() {
                         <Mail className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-xs text-gray-500">Email Address</p>
-                          <p className="text-sm font-medium text-gray-800 break-all">{formData.email}</p>
+                          <p className="text-sm font-medium text-gray-800 break-all">
+                            {formData.email}
+                          </p>
                         </div>
                       </div>
 
@@ -412,7 +432,9 @@ export default function ProfilePage() {
                         <BadgeCheck className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-xs text-gray-500">Badge Number</p>
-                          <p className="text-sm font-medium text-gray-800">{formData.no_badge}</p>
+                          <p className="text-sm font-medium text-gray-800">
+                            {formData.no_badge}
+                          </p>
                         </div>
                       </div>
 
@@ -420,15 +442,21 @@ export default function ProfilePage() {
                         <Building className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-xs text-gray-500">Department</p>
-                          <p className="text-sm font-medium text-gray-800">{formData.department}</p>
+                          <p className="text-sm font-medium text-gray-800">
+                            {formData.department}
+                          </p>
                         </div>
                       </div>
 
                       <div className="flex items-start gap-3 py-2">
                         <Calendar className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
-                          <p className="text-xs text-gray-500">Account Created</p>
-                          <p className="text-sm font-medium text-gray-800">{formData.join_date}</p>
+                          <p className="text-xs text-gray-500">
+                            Account Created
+                          </p>
+                          <p className="text-sm font-medium text-gray-800">
+                            {formData.join_date}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -440,14 +468,36 @@ export default function ProfilePage() {
                       Account Information
                     </p>
                     <div className="space-y-2">
-
                       <div className="flex justify-between items-center py-1">
-                        <span className="text-xs text-gray-500">Account Type</span>
-                        <span className="text-xs font-semibold text-gray-700">Staff</span>
+                        <span className="text-xs text-gray-500">
+                          Account Type
+                        </span>
+                        <span
+                          className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            user?.role === "superadmin"
+                              ? "bg-purple-100 text-purple-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}
+                        >
+                          {user?.role === "superadmin"
+                            ? "Super Admin"
+                            : "Admin"}
+                        </span>
                       </div>
                       <div className="flex justify-between items-center py-1">
-                        <span className="text-xs text-gray-500">Last Login</span>
-                        <span className="text-xs text-gray-600">{new Date().toLocaleDateString()}</span>
+                        <span className="text-xs text-gray-500">Status</span>
+                        <span className="text-xs font-semibold text-green-600 flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" />
+                          Active
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center py-1">
+                        <span className="text-xs text-gray-500">
+                          Last Login
+                        </span>
+                        <span className="text-xs text-gray-600">
+                          {new Date().toLocaleDateString()}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -460,8 +510,13 @@ export default function ProfilePage() {
               {/* Personal Information Card */}
               <div className="card">
                 <div className="p-5 border-b border-gray-100">
-                  <h2 className="text-lg font-semibold text-gray-900">Personal Information</h2>
-                  <p className="text-sm text-gray-500 mt-1">Update your personal details and contact information</p>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Personal Information
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Update your personal details (Email and Badge Number cannot
+                    be changed)
+                  </p>
                 </div>
 
                 <div className="p-5">
@@ -476,10 +531,11 @@ export default function ProfilePage() {
                         value={formData.username}
                         onChange={handleInputChange}
                         disabled={!isEditing}
-                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${isEditing
-                          ? "bg-white border-gray-300"
-                          : "bg-gray-50 border-gray-200 text-gray-500"
-                          }`}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${
+                          isEditing
+                            ? "bg-white border-gray-300"
+                            : "bg-gray-50 border-gray-200 text-gray-500"
+                        }`}
                       />
                     </div>
 
@@ -491,13 +547,13 @@ export default function ProfilePage() {
                         type="email"
                         name="email"
                         value={formData.email}
-                        onChange={handleInputChange}
-                        disabled={!isEditing}
-                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${isEditing
-                          ? "bg-white border-gray-300"
-                          : "bg-gray-50 border-gray-200 text-gray-500"
-                          }`}
+                        disabled={true}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
                       />
+                      <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        Email address cannot be changed
+                      </p>
                     </div>
 
                     <div>
@@ -508,13 +564,13 @@ export default function ProfilePage() {
                         type="text"
                         name="no_badge"
                         value={formData.no_badge}
-                        onChange={handleInputChange}
-                        disabled={!isEditing}
-                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${isEditing
-                          ? "bg-white border-gray-300"
-                          : "bg-gray-50 border-gray-200 text-gray-500"
-                          }`}
+                        disabled={true}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
                       />
+                      <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        Badge number cannot be changed
+                      </p>
                     </div>
 
                     <div>
@@ -527,10 +583,11 @@ export default function ProfilePage() {
                         value={formData.department}
                         onChange={handleInputChange}
                         disabled={!isEditing}
-                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${isEditing
-                          ? "bg-white border-gray-300"
-                          : "bg-gray-50 border-gray-200 text-gray-500"
-                          }`}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${
+                          isEditing
+                            ? "bg-white border-gray-300"
+                            : "bg-gray-50 border-gray-200 text-gray-500"
+                        }`}
                       />
                     </div>
 
@@ -543,7 +600,7 @@ export default function ProfilePage() {
                         name="join_date"
                         value={formData.join_date}
                         disabled={true}
-                        className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500"
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
                       />
                       <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
                         <AlertCircle className="w-3 h-3" />
@@ -583,8 +640,12 @@ export default function ProfilePage() {
               {/* Security Settings Card */}
               <div className="card">
                 <div className="p-5 border-b border-gray-100">
-                  <h2 className="text-lg font-semibold text-gray-900">Security Settings</h2>
-                  <p className="text-sm text-gray-500 mt-1">Update your password and security preferences</p>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Security Settings
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Update your password and security preferences
+                  </p>
                 </div>
 
                 <div className="p-5">
@@ -633,7 +694,9 @@ export default function ProfilePage() {
                             />
                             <button
                               type="button"
-                              onClick={() => setShowNewPassword(!showNewPassword)}
+                              onClick={() =>
+                                setShowNewPassword(!showNewPassword)
+                              }
                               className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                             >
                               {showNewPassword ? (
@@ -660,7 +723,9 @@ export default function ProfilePage() {
                             />
                             <button
                               type="button"
-                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                              onClick={() =>
+                                setShowConfirmPassword(!showConfirmPassword)
+                              }
                               className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                             >
                               {showConfirmPassword ? (

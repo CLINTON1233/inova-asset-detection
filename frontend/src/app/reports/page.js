@@ -557,14 +557,14 @@ export default function ReportsPage() {
                         key={idx}
                         className="hover:bg-gray-50 transition-colors"
                       >
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
+                        <td className="py-2.5 px-3">
+                          <div className="flex items-center gap-1.5">
                             {report.period_type === "weekly" ? (
-                              <Calendar className="w-4 h-4 text-blue-500" />
+                              <Calendar className="w-4 h-4 text-gray-400" />
                             ) : (
-                              <CalendarRange className="w-4 h-4 text-blue-500" />
+                              <CalendarRange className="w-4 h-4 text-gray-400" />
                             )}
-                            <span className="font-medium text-gray-900">
+                            <span className="font-medium text-gray-700 text-sm">
                               {report.period_label}
                             </span>
                           </div>
@@ -575,45 +575,57 @@ export default function ReportsPage() {
                               </p>
                             )}
                         </td>
-                        <td className="py-3 px-4 text-center">
-                          <span
-                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              report.period_type === "weekly"
-                                ? "bg-blue-100 text-blue-700"
-                                : "bg-purple-100 text-purple-700"
-                            }`}
-                          >
+
+                        <td className="py-2.5 px-3 text-center">
+                          <span className="inline-flex px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600">
                             {report.period_type === "weekly"
                               ? "Weekly"
                               : "Monthly"}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className="text-sm font-semibold text-gray-800">
-                            {Math.floor(report.session_count || 0)} Sessions
+
+                        <td className="py-2.5 px-3 text-center">
+                          <span className="text-sm font-medium text-gray-700">
+                            {Math.floor(report.session_count || 0)} session
+                            {Math.floor(report.session_count || 0) !== 1
+                              ? "s"
+                              : ""}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className="text-sm font-normal text-blue-600">
-                            {Math.floor(report.total_devices || 0)} Devices
+
+                        <td className="py-2.5 px-3 text-center">
+                          <span className="text-sm text-gray-600">
+                            {Math.floor(report.total_devices || 0)} device
+                            {Math.floor(report.total_devices || 0) !== 1
+                              ? "s"
+                              : ""}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className="text-sm font-normal text-green-600">
-                            {Math.floor(report.total_materials || 0)} Materials
+
+                        <td className="py-2.5 px-3 text-center">
+                          <span className="text-sm text-gray-600">
+                            {Math.floor(report.total_materials || 0)} material
+                            {Math.floor(report.total_materials || 0) !== 1
+                              ? "s"
+                              : ""}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className="text-sm font-semibold text-gray-900">
-                            {Math.floor(report.total_items || 0)} Items
+
+                        <td className="py-2.5 px-3 text-center">
+                          <span className="text-sm font-bold text-gray-800">
+                            {Math.floor(report.total_items || 0)} item
+                            {Math.floor(report.total_items || 0) !== 1
+                              ? "s"
+                              : ""}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-center">
+
+                        <td className="py-2.5 px-3 text-center">
                           <button
                             onClick={() => handleViewReportDetail(report)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-gray-600 hover:bg-gray-700 rounded-lg transition"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gray-500 hover:bg-gray-600 rounded-lg transition"
                           >
-                            <Eye className="w-3.5 h-4.0" /> View Details
+                            <Eye className="w-3.5 h-3.5" /> View Details
                           </button>
                         </td>
                       </tr>
