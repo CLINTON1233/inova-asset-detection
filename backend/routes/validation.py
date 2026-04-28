@@ -3,7 +3,6 @@ from utils.database import get_db_connection
 import psycopg2.extras
 from datetime import datetime
 import traceback
-from routes.reports import create_report_from_validation
 
 validation_bp = Blueprint('validation', __name__)
 
@@ -46,7 +45,6 @@ def check_and_update_session_status(preparation_id, validation_type):
                 return True
                 
         else:  # material
-            # Hitung total item preparation dalam session
             cur.execute("""
                 SELECT COUNT(*) as total_items
                 FROM materials_items_preparation
@@ -54,7 +52,6 @@ def check_and_update_session_status(preparation_id, validation_type):
             """, (preparation_id,))
             total_items = cur.fetchone()['total_items']
             
-            # Hitung jumlah item yang sudah divalidasi (approved)
             cur.execute("""
                 SELECT COUNT(DISTINCT mip.id_item_preparation) as validated_items
                 FROM materials_items_preparation mip
@@ -64,7 +61,6 @@ def check_and_update_session_status(preparation_id, validation_type):
             """, (preparation_id,))
             validated_items = cur.fetchone()['validated_items']
             
-            # Jika semua item sudah divalidasi, update status session menjadi completed
             if total_items == validated_items and total_items > 0:
                 cur.execute("""
                     UPDATE materials_scanning_preparations 
@@ -174,7 +170,6 @@ def create_asset_from_validation_id(validation_id, validated_by, existing_conn=N
                 receiver_name = item_data.get('receiver_name') if item_data else None
                 project_name = item_data.get('project_name') if item_data else None
             else:
-                # Fallback jika tidak ada item_prep
                 asset_name = validation.get('device_name')
                 serial_number = validation.get('serial_number')
                 brand = None
@@ -264,7 +259,7 @@ def create_asset_from_validation_id(validation_id, validated_by, existing_conn=N
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id_assets
         """, (
-            1,  # user_id default
+            1,
             validation_id,
             asset_code,
             asset_name,
@@ -308,7 +303,6 @@ def create_asset_from_validation_id(validation_id, validated_by, existing_conn=N
         print(f"Error in create_asset_from_validation_id: {e}")
         print(traceback.format_exc())
         if existing_conn:
-            # Jangan commit, biarkan parent yang handle rollback
             pass
         elif conn:
             conn.rollback()
@@ -318,16 +312,14 @@ def create_asset_from_validation_id(validation_id, validated_by, existing_conn=N
             conn.close()
 
 # ==================== GET VALIDATIONS ====================
-# ==================== GET VALIDATIONS ====================
 @validation_bp.route('/api/validations', methods=['GET'])
 def get_validations():
-    """Mendapatkan daftar validations dengan lengkap (termasuk receivers)"""
+    """Mendapatkan daftar validations dengan departments, receivers, brand, dan vendor"""
     conn = None
     try:
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
-        # Query utama untuk validations
         cur.execute("""
         SELECT 
             v.id_validation,
@@ -338,7 +330,6 @@ def get_validations():
             v.rejection_reason,
             v.created_at,
             v.validated_at,
-            v.asset_id,
             COALESCE(v.scan_id, v.scan_material_id) as scan_id,
             CASE 
                 WHEN v.scan_id IS NOT NULL THEN 'device'
@@ -351,28 +342,21 @@ def get_validations():
             srd.scan_value as device_name,
             srd.photo_url as device_photo,
             srd.item_preparation_id as device_item_prep_id,
-            srd.detection_data as device_detection,
             
             -- Material info
             srm.scan_code,
             srm.scan_value as material_name,
             srm.photo_url as material_photo,
             srm.item_preparation_id as material_item_prep_id,
-            srm.detection_data as material_detection,
             
             -- Preparation info
             dsp.checking_number as device_checking_number,
             dsp.checking_name as device_checking_name,
             dsp.id_preparation as device_preparation_id,
-            dsp.checking_date as device_checking_date,
-            dsp.remarks as device_remarks,
             msp.checking_number as material_checking_number,
             msp.checking_name as material_checking_name,
             msp.id_preparation as material_preparation_id,
-            msp.checking_date as material_checking_date,
-            msp.remarks as material_remarks,
             l.location_name,
-            l.id_location,
             u.username as created_by_name,
             vu.username as validated_by_name
             
@@ -395,15 +379,12 @@ def get_validations():
         for val in validations:
             val_dict = dict(val)
             
-            # Tentukan tipe dan siapkan data dasar
             if val_dict['validation_type'] == 'device':
                 val_dict['item_name'] = val_dict.get('device_name')
                 val_dict['serial_or_code'] = val_dict.get('serial_number')
                 val_dict['checking_number'] = val_dict.get('device_checking_number')
                 val_dict['checking_name'] = val_dict.get('device_checking_name')
-                val_dict['checking_date'] = val_dict.get('device_checking_date')
                 val_dict['photo_url'] = val_dict.get('device_photo')
-                val_dict['remarks'] = val_dict.get('device_remarks')
                 preparation_id = val_dict.get('device_preparation_id')
                 item_prep_id = val_dict.get('device_item_prep_id')
             else:
@@ -411,182 +392,100 @@ def get_validations():
                 val_dict['serial_or_code'] = val_dict.get('scan_code')
                 val_dict['checking_number'] = val_dict.get('material_checking_number')
                 val_dict['checking_name'] = val_dict.get('material_checking_name')
-                val_dict['checking_date'] = val_dict.get('material_checking_date')
                 val_dict['photo_url'] = val_dict.get('material_photo')
-                val_dict['remarks'] = val_dict.get('material_remarks')
                 preparation_id = val_dict.get('material_preparation_id')
                 item_prep_id = val_dict.get('material_item_prep_id')
             
-            # Default values
+            project_name = None
+            department_name = None
+            receiver_name = None
             brand = None
             vendor = None
             model = None
             specifications = None
-            project_name = None
-            department_name = None
-            receiver_name = None
-            receiver_id = None
-            department_id = None
             
-            # ========== AMBIL DATA DARI ITEM PREPARATION (untuk receiver) ==========
             if item_prep_id:
-                try:
+                if val_dict['validation_type'] == 'device':
+                    cur.execute("""
+                        SELECT 
+                            dip.department_id,
+                            d.department_name,
+                            dip.receiver_id,
+                            mr.receiver_name,
+                            dip.project_name,
+                            dip.scanning_item_id,
+                            si.device_name,
+                            si.brand,
+                            si.vendor,
+                            si.model,
+                            si.specifications
+                        FROM devices_items_preparation dip
+                        LEFT JOIN departments d ON dip.department_id = d.id_department
+                        LEFT JOIN master_receivers mr ON dip.receiver_id = mr.id_receiver
+                        LEFT JOIN devices_scanning_items si ON dip.scanning_item_id = si.id_item
+                        WHERE dip.id_item_preparation = %s
+                    """, (item_prep_id,))
+                else:
+                    cur.execute("""
+                        SELECT 
+                            mip.department_id,
+                            d.department_name,
+                            mip.receiver_id,
+                            mr.receiver_name,
+                            mip.project_name,
+                            mip.scanning_item_id,
+                            si.material_name,
+                            si.vendor,
+                            si.uom,
+                            si.material_detail as specifications
+                        FROM materials_items_preparation mip
+                        LEFT JOIN departments d ON mip.department_id = d.id_department
+                        LEFT JOIN master_receivers mr ON mip.receiver_id = mr.id_receiver
+                        LEFT JOIN materials_scanning_items si ON mip.scanning_item_id = si.id_item
+                        WHERE mip.id_item_preparation = %s
+                    """, (item_prep_id,))
+                
+                item_data = cur.fetchone()
+                
+                if item_data:
+                    project_name = item_data.get('project_name')
+                    department_name = item_data.get('department_name')
+                    receiver_name = item_data.get('receiver_name')
+                    
                     if val_dict['validation_type'] == 'device':
-                        cur.execute("""
-                            SELECT 
-                                dip.department_id,
-                                d.department_name,
-                                dip.receiver_id,
-                                mr.receiver_name,
-                                dip.project_name,
-                                si.brand,
-                                si.vendor,
-                                si.model,
-                                si.specifications
-                            FROM devices_items_preparation dip
-                            LEFT JOIN departments d ON dip.department_id = d.id_department
-                            LEFT JOIN master_receivers mr ON dip.receiver_id = mr.id_receiver
-                            LEFT JOIN devices_scanning_items si ON dip.scanning_item_id = si.id_item
-                            WHERE dip.id_item_preparation = %s
-                        """, (item_prep_id,))
+                        brand = item_data.get('brand')
+                        vendor = item_data.get('vendor')
+                        model = item_data.get('model')
+                        specifications = item_data.get('specifications')
                     else:
-                        cur.execute("""
-                            SELECT 
-                                mip.department_id,
-                                d.department_name,
-                                mip.receiver_id,
-                                mr.receiver_name,
-                                mip.project_name,
-                                si.vendor,
-                                si.material_detail as specifications
-                            FROM materials_items_preparation mip
-                            LEFT JOIN departments d ON mip.department_id = d.id_department
-                            LEFT JOIN master_receivers mr ON mip.receiver_id = mr.id_receiver
-                            LEFT JOIN materials_scanning_items si ON mip.scanning_item_id = si.id_item
-                            WHERE mip.id_item_preparation = %s
-                        """, (item_prep_id,))
+                        vendor = item_data.get('vendor')
+                        specifications = item_data.get('specifications')
                     
-                    item_data = cur.fetchone()
-                    
-                    if item_data:
-                        project_name = item_data.get('project_name')
-                        department_name = item_data.get('department_name')
-                        receiver_name = item_data.get('receiver_name')
-                        receiver_id = item_data.get('receiver_id')
-                        department_id = item_data.get('department_id')
-                        
-                        if val_dict['validation_type'] == 'device':
-                            brand = item_data.get('brand')
-                            vendor = item_data.get('vendor')
-                            model = item_data.get('model')
-                            specifications = item_data.get('specifications')
-                        else:
-                            vendor = item_data.get('vendor')
-                            specifications = item_data.get('specifications')
-                            
-                except Exception as e:
-                    print(f"Error fetching item data for validation {val_dict['id_validation']}: {e}")
+                    print(f"Validation {val_dict['id_validation']}: type={val_dict['validation_type']}, item_prep_id={item_prep_id}, brand={brand}, vendor={vendor}, department={department_name}, receiver={receiver_name}, project={project_name}")
             
-            # ========== AMBIL BRAND/VENDOR DARI SCANNING ITEMS JIKA KOSONG ==========
-            if not brand and not vendor and preparation_id:
-                try:
-                    if val_dict['validation_type'] == 'device':
-                        cur.execute("""
-                            SELECT brand, vendor, model, specifications
-                            FROM devices_scanning_items
-                            WHERE preparation_id = %s
-                            LIMIT 1
-                        """, (preparation_id,))
-                        scan_item = cur.fetchone()
-                        if scan_item:
-                            brand = scan_item.get('brand')
-                            vendor = scan_item.get('vendor')
-                            model = scan_item.get('model')
-                            if not specifications:
-                                specifications = scan_item.get('specifications')
-                    else:
-                        cur.execute("""
-                            SELECT vendor, material_detail
-                            FROM materials_scanning_items
-                            WHERE preparation_id = %s
-                            LIMIT 1
-                        """, (preparation_id,))
-                        scan_item = cur.fetchone()
-                        if scan_item:
-                            vendor = scan_item.get('vendor')
-                            if not specifications:
-                                specifications = scan_item.get('material_detail')
-                except Exception as e:
-                    print(f"Error fetching scanning items for preparation {preparation_id}: {e}")
-            
-            # ========== AMBIL DATA RECEIVER DARI SESSION ==========
-            # Untuk memastikan receiver muncul, coba ambil dari validasi yang sudah approve
-            receivers_list = []
-            
-            if receiver_name:
-                receivers_list.append({
-                    'receiver_id': receiver_id,
-                    'receiver_name': receiver_name,
-                    'department_name': department_name
-                })
-            elif validation_id and val_dict['validation_status'] == 'approved':
-                # Coba ambil receiver dari validations yang sudah di-approve
-                try:
-                    if val_dict['validation_type'] == 'device' and val_dict.get('device_item_prep_id'):
-                        cur.execute("""
-                            SELECT 
-                                dip.receiver_id,
-                                mr.receiver_name,
-                                d.department_name
-                            FROM validations v
-                            JOIN devices_items_preparation dip ON v.item_preparation_id = dip.id_item_preparation
-                            LEFT JOIN master_receivers mr ON dip.receiver_id = mr.id_receiver
-                            LEFT JOIN departments d ON dip.department_id = d.id_department
-                            WHERE v.id_validation = %s
-                            AND dip.receiver_id IS NOT NULL
-                        """, (val_dict['id_validation'],))
-                    else:
-                        cur.execute("""
-                            SELECT 
-                                mip.receiver_id,
-                                mr.receiver_name,
-                                d.department_name
-                            FROM validations v
-                            JOIN materials_items_preparation mip ON v.material_item_preparation_id = mip.id_item_preparation
-                            LEFT JOIN master_receivers mr ON mip.receiver_id = mr.id_receiver
-                            LEFT JOIN departments d ON mip.department_id = d.id_department
-                            WHERE v.id_validation = %s
-                            AND mip.receiver_id IS NOT NULL
-                        """, (val_dict['id_validation'],))
-                    
-                    rec_data = cur.fetchone()
-                    if rec_data and rec_data.get('receiver_name'):
-                        receivers_list.append({
-                            'receiver_id': rec_data.get('receiver_id'),
-                            'receiver_name': rec_data.get('receiver_name'),
-                            'department_name': rec_data.get('department_name')
-                        })
-                except Exception as e:
-                    print(f"Error fetching receiver from validation {validation_id}: {e}")
-            
-            # Format departments
-            departments_list = []
+            departments = []
             if department_name:
-                departments_list.append({
-                    'department_id': department_id,
+                departments.append({
+                    'department_id': item_data.get('department_id') if item_data else None,
                     'department_name': department_name,
                     'quantity': 1
                 })
             
-            # Tambahkan semua data ke response
+            receivers = []
+            if receiver_name:
+                receivers.append({
+                    'receiver_id': item_data.get('receiver_id') if item_data else None,
+                    'receiver_name': receiver_name,
+                    'department_name': department_name
+                })
+            
+            val_dict['project_name'] = project_name
+            val_dict['departments'] = departments
+            val_dict['receivers'] = receivers
             val_dict['brand'] = brand
             val_dict['vendor'] = vendor
             val_dict['model'] = model
             val_dict['specifications'] = specifications
-            val_dict['project_name'] = project_name
-            val_dict['departments'] = departments_list
-            val_dict['receivers'] = receivers_list
-            val_dict['preparation_id'] = preparation_id
             
             result.append(val_dict)
         
@@ -631,7 +530,6 @@ def create_validation():
         print(f"item_preparation_id: {item_preparation_id}")
         print(f"material_item_preparation_id: {material_item_preparation_id}")
         
-        # Generate unique code
         import random
         import string
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -681,6 +579,7 @@ def create_validation():
         if conn:
             conn.close()
 
+# ==================== UPDATE VALIDATION ====================
 @validation_bp.route('/api/validations/<int:validation_id>', methods=['PUT'])
 def update_validation(validation_id):
     """Update status validation (approve/reject)"""
@@ -698,7 +597,6 @@ def update_validation(validation_id):
         validation_notes = data.get('validation_notes')
         validated_by = data.get('validated_by', 1)
         
-        # Ambil informasi preparation_id dan validation_type sebelum update
         cur.execute("""
             SELECT 
                 v.item_preparation_id,
@@ -717,7 +615,6 @@ def update_validation(validation_id):
         material_item_preparation_id = val_info[1] if val_info else None
         validation_type = val_info[2] if val_info else None
         
-        # Update validation status
         cur.execute("""
             UPDATE validations 
             SET validation_status = %s,
@@ -747,17 +644,11 @@ def update_validation(validation_id):
                 'error': 'Validation not found'
             }), 404
         
-        # COMMIT perubahan validation status TERLEBIH DAHULU
         conn.commit()
         print(f"✅ Validation {validation_id} status updated to {validation_status}")
 
         # ==================== CREATE ASSET IF APPROVED ====================
         if validation_status == 'approved' and is_approved:
-            asset_result = None
-            asset_code = None
-            asset_id_created = None
-            
-            # CREATE ASSET
             try:
                 from routes.assets import create_asset_from_validation
                 from flask import current_app as app
@@ -782,7 +673,6 @@ def update_validation(validation_id):
                         asset_code = asset_result.get('asset_code')
                         asset_id_created = asset_result.get('asset_id')
                         print(f"✅ Asset created for validation {validation_id}: {asset_code}")
-                        # Commit asset creation
                         conn.commit()
                     else:
                         print(f"Asset creation failed for validation {validation_id}: {asset_result}")
@@ -791,47 +681,6 @@ def update_validation(validation_id):
                 print(f"Error creating asset for validation {validation_id}: {asset_error}")
                 print(traceback.format_exc())
             
-            # ==================== CREATE REPORT ====================
-            # Tunggu sebentar agar asset_id terupdate di database
-            import time
-            time.sleep(0.5)
-            
-            # Pastikan asset_id sudah terisi di validations
-            cur.execute("SELECT asset_id FROM validations WHERE id_validation = %s", (validation_id,))
-            check_row = cur.fetchone()
-            
-            if check_row and check_row[0]:
-                print(f"✅ Asset_id found: {check_row[0]}, creating report...")
-                
-                try:
-                    from routes.reports import create_report_from_validation
-                    report_created, report_id = create_report_from_validation(validation_id, conn, cur)
-                    if report_created:
-                        print(f"✅ Report created/updated for validation {validation_id}")
-                        conn.commit()
-                    else:
-                        print(f"Report creation failed for validation {validation_id}")
-                except Exception as report_error:
-                    print(f"Error creating report for validation {validation_id}: {report_error}")
-                    print(traceback.format_exc())
-            else:
-                print(f"Asset_id still NULL for validation {validation_id}, retrying...")
-                # Coba lagi setelah 1 detik
-                time.sleep(1)
-                cur.execute("SELECT asset_id FROM validations WHERE id_validation = %s", (validation_id,))
-                check_row = cur.fetchone()
-                if check_row and check_row[0]:
-                    try:
-                        from routes.reports import create_report_from_validation
-                        report_created, report_id = create_report_from_validation(validation_id, conn, cur)
-                        if report_created:
-                            print(f"✅ Report created after retry for validation {validation_id}")
-                            conn.commit()
-                    except Exception as report_error:
-                        print(f"Error creating report on retry: {report_error}")
-                else:
-                    print(f"Asset_id still NULL after retry, report not created")
-                      
             # ==================== UPDATE SESSION STATUS ====================
             try:
                 if validation_type == 'device' and item_preparation_id:
@@ -855,7 +704,6 @@ def update_validation(validation_id):
             except Exception as session_error:
                 print(f"Error updating session status: {session_error}")
         
-        # Final commit untuk semua perubahan
         conn.commit()
            
         return jsonify({
@@ -904,7 +752,6 @@ def bulk_update_validations():
         created_assets = []
         
         for val_id in validation_ids:
-            # Ambil informasi validation sebelum update
             cur.execute("""
                 SELECT 
                     item_preparation_id,
@@ -928,7 +775,6 @@ def bulk_update_validations():
             material_item_prep_id = val_info['material_item_preparation_id']
             validation_type = val_info['validation_type']
             
-            # Update validation status
             cur.execute("""
                 UPDATE validations 
                 SET validation_status = %s,
@@ -951,7 +797,6 @@ def bulk_update_validations():
             if cur.fetchone():
                 updated_count += 1
                 
-                # ==================== CREATE ASSET IF APPROVED ====================
                 if validation_status == 'approved' and is_approved:
                     try:
                         conn.commit()
@@ -967,7 +812,6 @@ def bulk_update_validations():
                         print(f"Error creating asset for validation {val_id}: {asset_error}")
                         print(traceback.format_exc())
                 
-                # Update scan result status if rejected
                 if validation_status == 'rejected':
                     try:
                         if val_info['scan_id']:
@@ -985,7 +829,6 @@ def bulk_update_validations():
                     except Exception as scan_error:
                         print(f"Error updating scan result: {scan_error}")
                 
-                # UPDATE SESSION STATUS
                 try:
                     if validation_type == 'device' and item_prep_id:
                         cur.execute("""
@@ -1008,7 +851,6 @@ def bulk_update_validations():
                 except Exception as session_error:
                     print(f"Error updating session status: {session_error}")
                 
-                # Commit setiap iterasi untuk asset
                 if validation_status == 'approved' and is_approved:
                     conn.commit()
         
@@ -1112,7 +954,6 @@ def get_validation_detail(validation_id):
             result['photo_url'] = result.get('material_photo')
             item_prep_id = result.get('material_item_preparation_id')
         
-        # ========== AMBIL DATA DEPARTMENT, RECEIVER, PROJECT, BRAND, VENDOR ==========
         department_name = None
         receiver_name = None
         project_name = None
@@ -1174,7 +1015,6 @@ def get_validation_detail(validation_id):
                     vendor = item_data.get('vendor')
                     specifications = item_data.get('specifications')
         
-        # Format departments dan receivers sebagai array
         departments = []
         if department_name:
             departments.append({
