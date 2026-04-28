@@ -3,29 +3,33 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
-  FileText,
+  Box,
   Calendar,
+  MapPin,
   Loader2,
   Search,
   RefreshCw,
   ArrowUp,
   ArrowDown,
+  Filter,
   ChevronDown,
   X,
   Eye,
+  Building2,
   CheckCircle,
-  XCircle,
-  Clock,
-  TrendingUp,
   Package,
+  Trash2,
   Laptop,
   LayoutGrid,
   List,
   FileSpreadsheet,
+  TrendingUp,
+  Clock,
+  ChevronRight,
   BarChart3,
-  PieChart,
-  Download,
-  Trash2,
+  FileBarChart,
+  CalendarRange,
+  ChevronLeft,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import Swal from "sweetalert2";
@@ -33,221 +37,113 @@ import LayoutDashboard from "../components/LayoutDashboard";
 import ProtectedPage from "../components/ProtectedPage";
 import API_BASE_URL from "../../config/api";
 
-export default function ReportsAnalyticsPage() {
+export default function ReportsPage() {
   const router = useRouter();
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [sorting, setSorting] = useState({ id: "report_date", desc: true });
+  const [periodType, setPeriodType] = useState("monthly");
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [availableYears, setAvailableYears] = useState([]);
   const [mounted, setMounted] = useState(false);
   const [viewMode, setViewMode] = useState("list");
-  const [showExportDropdown, setShowExportDropdown] = useState(false);
-  const [summary, setSummary] = useState({
-    total_reports: 0,
-    total_assets: 0,
-    avg_success_rate: 0,
-    weekly_data: [],
-  });
-  const [stats, setStats] = useState({
-    monthly_stats: [],
-    type_stats: { total_devices: 0, total_materials: 0 },
-  });
 
   useEffect(() => {
     setMounted(true);
-    fetchReports();
-    fetchSummary();
-    fetchStats();
+    fetchAvailableYears();
   }, []);
+
+  useEffect(() => {
+    if (mounted) {
+      fetchReports();
+    }
+  }, [periodType, selectedYear, selectedMonth]);
+
+  const fetchAvailableYears = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/reports/years`);
+      const result = await response.json();
+      if (result.success && result.data.length > 0) {
+        setAvailableYears(result.data);
+        setSelectedYear(result.data[0]);
+      } else {
+        setAvailableYears([new Date().getFullYear()]);
+      }
+    } catch (error) {
+      console.error("Error fetching years:", error);
+      setAvailableYears([new Date().getFullYear()]);
+    }
+  };
 
   const fetchReports = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/reports`);
+      let url = `${API_BASE_URL}/api/reports?period=${periodType}`;
+      if (periodType === "monthly") {
+        url += `&year=${selectedYear}&month=${selectedMonth}`;
+      }
+
+      const response = await fetch(url);
       const result = await response.json();
+
       if (result.success) {
         setReports(result.data);
       } else {
         throw new Error(result.error || "Failed to load reports");
       }
     } catch (error) {
-      Swal.fire({ title: "Error!", text: error.message, icon: "error" });
+      console.error("Error fetching reports:", error);
+      Swal.fire({
+        title: "Error!",
+        text: error.message || "Failed to load reports",
+        icon: "error",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchSummary = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/reports/summary`);
-      const result = await response.json();
-      if (result.success) {
-        setSummary(result.data);
-      }
-    } catch (error) {
-      console.error("Error fetching summary:", error);
-    }
-  };
+  const handleViewReportDetail = (report) => {
+    const year = report.year || selectedYear;
+    const month = report.month || selectedMonth;
+    const periodType = report.period_type || periodType;
 
-  const fetchStats = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/reports/stats`);
-      const result = await response.json();
-      if (result.success) {
-        setStats(result.data);
-      }
-    } catch (error) {
-      console.error("Error fetching stats:", error);
-    }
-  };
-
-  const handleViewReport = (reportId) => {
-    router.push(`/reports/${reportId}`);
-  };
-
-  const handleDeleteReport = async (report) => {
-    const result = await Swal.fire({
-      title: "Delete Report?",
-      text: `Are you sure you want to delete report "${report.report_name}"?`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#dc2626",
-      confirmButtonText: "Yes, Delete!",
-    });
-
-    if (result.isConfirmed) {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/reports/${report.id_report}`, {
-          method: "DELETE",
-        });
-        const data = await response.json();
-        if (data.success) {
-          Swal.fire({
-            title: "Deleted!",
-            text: "Report deleted successfully",
-            icon: "success",
-            timer: 1500,
-            showConfirmButton: false,
-          });
-          fetchReports();
-          fetchSummary();
-          fetchStats();
-        } else {
-          throw new Error(data.error);
-        }
-      } catch (error) {
-        Swal.fire({ title: "Error!", text: error.message, icon: "error" });
-      }
-    }
-  };
-
-  const handleSort = (columnId) => {
-    setSorting((prev) => ({
-      id: columnId,
-      desc: prev.id === columnId ? !prev.desc : false,
-    }));
-  };
-
-  const getSortIcon = (columnId) => {
-    if (sorting.id !== columnId)
-      return <span style={{ color: "#d1d5db", marginLeft: 4, fontSize: 11 }}>⇅</span>;
-    return sorting.desc ? (
-      <ArrowDown style={{ width: 12, height: 12, marginLeft: 4, color: "#2563eb" }} />
-    ) : (
-      <ArrowUp style={{ width: 12, height: 12, marginLeft: 4, color: "#2563eb" }} />
+    router.push(
+      `/report/detail?period_type=${periodType}&period_key=${encodeURIComponent(report.period_key)}&year=${year}&month=${month}`,
     );
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
+  const formatDateRange = (report) => {
+    if (report.period_type === "weekly") {
+      return `${report.start_date} - ${report.end_date}`;
+    }
+    return report.period_label;
   };
 
-  const getSuccessRateColor = (rate) => {
-    if (rate >= 80) return "#10b981";
-    if (rate >= 60) return "#f59e0b";
-    return "#ef4444";
-  };
-
-  const getStatusBadge = (rate) => {
-    if (rate >= 80) return "badge-success";
-    if (rate >= 60) return "badge-warning";
-    return "badge-danger";
-  };
-
-  const exportToExcel = async (exportType = "current") => {
-    const source = exportType === "current" ? filteredReports : reports;
-    if (!source.length) {
-      alert("No data to export");
-      return;
-    }
-
-    try {
-      const dataToExport = source.map((r) => ({
-        "Report Code": r.report_code,
-        "Report Name": r.report_name,
-        "Report Date": formatDate(r.report_date),
-        "Total Scans": r.total_scans,
-        "Valid Scans": r.valid_scans,
-        "Error Scans": r.error_scans,
-        "Success Rate": `${r.success_rate}%`,
-        "Total Assets": r.total_assets,
-        "Devices": r.devices_count,
-        "Materials": r.materials_count,
-        "Locations": r.locations_count,
-        "Departments": r.departments_count,
-        "Projects": r.projects_count,
-        "Generated By": r.generated_by_name || "System",
-        "Generated At": new Date(r.generated_at).toLocaleString(),
-      }));
-
-      const ws = XLSX.utils.json_to_sheet(dataToExport);
-      ws["!cols"] = [{ wch: 18 }, { wch: 30 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 20 }, { wch: 22 }];
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Reports");
-      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:]/g, "-");
-      XLSX.writeFile(wb, `reports_${exportType}_${timestamp}.xlsx`);
-      setShowExportDropdown(false);
-    } catch (error) {
-      alert("Failed to export data");
-    }
-  };
-
-  const filteredReports = useMemo(() => {
-    let filtered = [...reports];
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (r) =>
-          r.report_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          r.report_code?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    if (sorting.id) {
-      filtered.sort((a, b) => {
-        let aVal = a[sorting.id];
-        let bVal = b[sorting.id];
-        if (sorting.id === "report_date") {
-          aVal = new Date(a.report_date);
-          bVal = new Date(b.report_date);
-        }
-        if (aVal < bVal) return sorting.desc ? 1 : -1;
-        if (aVal > bVal) return sorting.desc ? -1 : 1;
-        return 0;
-      });
-    }
-    return filtered;
-  }, [reports, searchTerm, sorting]);
-
-  const kpis = [
-    { title: "Total Reports", value: summary.total_reports, icon: FileText, color: "#2563eb", sub: "All time" },
-    { title: "Total Assets", value: summary.total_assets, icon: Package, color: "#10b981", sub: "Validated items" },
-    { title: "Avg Success Rate", value: `${summary.avg_success_rate}%`, icon: TrendingUp, color: "#f59e0b", sub: "Overall" },
-    { title: "Devices vs Materials", value: `${stats.type_stats.total_devices || 0} / ${stats.type_stats.total_materials || 0}`, icon: Laptop, color: "#8b5cf6", sub: "Devices / Materials" },
+  const months = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
   ];
+
+  const stats = {
+    total: reports.length,
+    totalItems: reports.reduce((sum, r) => sum + (r.total_items || 0), 0),
+    totalDevices: reports.reduce((sum, r) => sum + (r.total_devices || 0), 0),
+    totalMaterials: reports.reduce(
+      (sum, r) => sum + (r.total_materials || 0),
+      0,
+    ),
+  };
 
   if (!mounted) {
     return (
@@ -265,425 +161,460 @@ export default function ReportsAnalyticsPage() {
     <ProtectedPage>
       <LayoutDashboard activeMenu={4}>
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap');
-          .rr-root { font-family: 'DM Sans', sans-serif; }
-          .rr-root * { box-sizing: border-box; }
-
-          .rr-stat-card {
+          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+          .rp-root { font-family: 'DM Sans', sans-serif; }
+          
+          .rp-card {
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            transition: box-shadow 0.2s ease;
+          }
+          
+          .rp-stat-card {
             border-radius: 14px;
             padding: 16px;
             color: #fff;
             box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-            transition: box-shadow 0.2s, transform 0.2s;
+            transition: transform 0.2s;
           }
-          .rr-stat-card:hover {
-            box-shadow: 0 8px 24px rgba(0,0,0,0.16);
-            transform: translateY(-2px);
-          }
-
-          .rr-section {
+          .rp-stat-card:hover { transform: translateY(-2px); }
+          
+          .rp-section {
             background: #ffffff;
             border-radius: 18px;
             border: 1px solid #e5e7eb;
             box-shadow: 0 1px 4px rgba(0,0,0,0.06);
             overflow: hidden;
           }
-
-          .rr-th {
-            padding: 10px 14px;
-            font-size: 11px;
-            font-weight: 700;
-            color: #6b7280;
-            text-transform: uppercase;
-            letter-spacing: 0.07em;
-            background: #f9fafb;
-            cursor: pointer;
-            user-select: none;
-            white-space: nowrap;
-            border-bottom: 1px solid #e5e7eb;
-          }
-          .rr-th:hover { color: #374151; }
-          .rr-td {
-            padding: 13px 14px;
-            font-size: 13px;
-            color: #374151;
-            border-top: 1px solid #f3f4f6;
-            vertical-align: middle;
-          }
-          .rr-row { cursor: pointer; transition: background 0.1s; }
-          .rr-row:hover { background: #f8faff; }
-
-          .rr-grid-card {
+          
+          .rp-grid-card {
             background: #f9fafb;
             border: 1px solid #e5e7eb;
             border-radius: 14px;
             padding: 16px;
             cursor: pointer;
-            transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
+            transition: all 0.2s;
           }
-          .rr-grid-card:hover {
+          .rp-grid-card:hover {
             box-shadow: 0 6px 20px rgba(37,99,235,0.1);
             border-color: #bfdbfe;
             transform: translateY(-2px);
           }
-
-          .badge-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
-          .badge-warning { background: #fed7aa; color: #9a3412; border: 1px solid #fed7aa; }
-          .badge-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
-
-          .rr-view-tog {
+          
+          .rp-view-tog {
             display: flex;
             border: 1px solid #d1d5db;
             border-radius: 10px;
             overflow: hidden;
           }
-          .rr-view-tog button {
-            padding: 7px 10px; background: #fff; color: #6b7280;
-            border: none; cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-            transition: background 0.15s, color 0.15s;
+          .rp-view-tog button {
+            padding: 7px 10px;
+            background: #fff;
+            color: #6b7280;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s;
           }
-          .rr-view-tog button.active,
-          .rr-view-tog button:hover { background: #2563eb; color: #fff; }
-
-          .rr-export-drop {
-            position: absolute; right: 0; top: calc(100% + 6px);
-            background: #fff; border: 1px solid #e5e7eb;
-            border-radius: 14px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.12);
-            z-index: 50; min-width: 220px; overflow: hidden;
+          .rp-view-tog button.active,
+          .rp-view-tog button:hover {
+            background: #2563eb;
+            color: #fff;
           }
-
-          .rr-search { border: 1px solid #d1d5db; border-radius: 12px; }
-          .rr-search:focus { box-shadow: 0 0 0 3px rgba(37,99,235,0.12); border-color: #93c5fd; outline: none; }
-
-          .rr-footer {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 10px 18px; background: #f9fafb;
-            border-top: 1px solid #f3f4f6;
-            border-radius: 0 0 18px 18px;
-          }
-
-          .rr-empty {
-            display: flex; flex-direction: column; align-items: center;
-            justify-content: center; padding: 72px 24px; text-align: center;
-          }
-
-          .kpi-cell {
+          
+          .rp-empty {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 24px 16px;
+            padding: 72px 24px;
             text-align: center;
           }
-
-          .view-btn-sm {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            background: #2563eb;
-            color: #fff;
-            padding: 5px 10px;
-            border-radius: 8px;
-            font-size: 11px;
-            font-weight: 600;
-            transition: background 0.15s;
-            border: none;
-            cursor: pointer;
+          
+          .badge-device { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
+          .badge-material { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+          
+          @media (max-width: 640px) {
+            .rp-stat-val { font-size: 24px !important; }
           }
-          .view-btn-sm:hover { background: #1d4ed8; }
         `}</style>
 
-        <div className="rr-root space-y-5 max-w-7xl mx-auto px-4 py-2">
+        <div className="rp-root space-y-5">
           {/* Page Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-blue-600" />
-                Reports & Analytics
+                <FileBarChart className="w-5 h-5 text-blue-600" />
+                Reports Assets
               </h1>
               <p className="text-sm text-gray-500 mt-0.5">
-                View and manage asset validation reports
+                Monitor and manage asset reports by weekly or monthly periods
               </p>
             </div>
           </div>
 
-          {/* KPI Cards */}
-          <div className="rr-section">
+          {/* Period Filter */}
+          <div className="rp-card p-4">
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <CalendarRange className="w-4 h-4 text-blue-500" />
+                  Period:
+                </span>
+                <div className="flex rounded-lg overflow-hidden border border-gray-300">
+                  <button
+                    onClick={() => setPeriodType("weekly")}
+                    className={`px-4 py-2 text-sm font-medium transition ${
+                      periodType === "weekly"
+                        ? "bg-blue-600 text-white"
+                        : "bg-white text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    Weekly
+                  </button>
+                  <button
+                    onClick={() => setPeriodType("monthly")}
+                    className={`px-4 py-2 text-sm font-medium transition ${
+                      periodType === "monthly"
+                        ? "bg-blue-600 text-white"
+                        : "bg-white text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    Monthly
+                  </button>
+                </div>
+              </div>
+
+              {periodType === "monthly" && (
+                <div className="flex items-center gap-3">
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                    className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    {availableYears.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                    className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    {months.map((month, idx) => (
+                      <option key={idx + 1} value={idx + 1}>
+                        {month}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <button
+                onClick={fetchReports}
+                disabled={loading}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+                />
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          {/* Stat Cards */}
+          <div className="rp-card">
             <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-gray-100">
-              {kpis.map((d, i) => (
-                <div key={i} className="kpi-cell">
-                  <div className="flex items-center justify-center mb-2">
-                    <d.icon style={{ width: 24, height: 24, color: d.color }} />
-                  </div>
-                  <span className="text-3xl font-bold" style={{ color: d.color }}>
+              {[
+                {
+                  title: "Total Reports",
+                  value: stats.total,
+                  sub: "Periods",
+                  accent: "#2563eb",
+                  icon: FileBarChart,
+                },
+                {
+                  title: "Total Assets",
+                  value: stats.totalItems,
+                  sub: "All items",
+                  accent: "#10b981",
+                  icon: Box,
+                },
+                {
+                  title: "Devices",
+                  value: stats.totalDevices,
+                  sub: "Device items",
+                  accent: "#3b82f6",
+                  icon: Laptop,
+                },
+                {
+                  title: "Materials",
+                  value: stats.totalMaterials,
+                  sub: "Material items",
+                  accent: "#8b5cf6",
+                  icon: Package,
+                },
+              ].map((d, i) => (
+                <div
+                  key={i}
+                  className="kpi-cell"
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "20px 16px",
+                    textAlign: "center",
+                  }}
+                >
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                    {d.title}
+                  </p>
+                  <span
+                    className="rp-stat-val text-3xl sm:text-4xl font-bold"
+                    style={{ color: d.accent }}
+                  >
                     {d.value}
                   </span>
-                  <p className="text-xs font-semibold text-gray-600 mt-2">{d.title}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{d.sub}</p>
+                  <p className="text-xs text-gray-400 mt-1.5">{d.sub}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Weekly Chart Card */}
-          {summary.weekly_data && summary.weekly_data.length > 0 && (
-            <div className="rr-section">
-              <div className="p-5 border-b border-gray-200">
-                <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-blue-600" />
-                  Last 7 Days Performance
-                </h2>
-              </div>
-              <div className="p-5 overflow-x-auto">
-                <div className="flex items-end gap-4 min-w-[600px]">
-                  {summary.weekly_data.map((day, idx) => (
-                    <div key={idx} className="flex-1 text-center">
-                      <div className="relative h-40 mb-2">
-                        <div
-                          className="absolute bottom-0 left-0 right-0 bg-blue-500 rounded-t-lg transition-all duration-300 hover:bg-blue-600"
-                          style={{ height: `${(day.valid_scans / (day.total_scans || 1)) * 100}%`, maxHeight: "100%" }}
-                        />
-                      </div>
-                      <p className="text-xs font-medium text-gray-600">
-                        {new Date(day.report_date).toLocaleDateString("id-ID", { weekday: "short" })}
-                      </p>
-                      <p className="text-xs text-gray-400">{day.valid_scans}/{day.total_scans}</p>
-                      <p className="text-xs font-semibold" style={{ color: getSuccessRateColor(day.success_rate) }}>
-                        {day.success_rate}%
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Main Section Card */}
-          <div className="rr-section">
-            {/* Section Header */}
+          {/* Main Section */}
+          <div className="rp-section">
+            {/* Header */}
             <div className="p-5 border-b border-gray-200">
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-blue-600" />
-                    All Reports
+                    <BarChart3 className="w-4 h-4 text-blue-600" />
+                    {periodType === "weekly"
+                      ? "Weekly Reports"
+                      : "Monthly Reports"}
                   </h2>
                   <p className="text-sm text-gray-500 mt-0.5">
-                    View and manage all generated reports
+                    {periodType === "weekly"
+                      ? "View reports grouped by week"
+                      : `Reports for ${months[selectedMonth - 1]} ${selectedYear}`}
                   </p>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* Export Button */}
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowExportDropdown(!showExportDropdown)}
-                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-all"
-                      style={{ background: "linear-gradient(135deg,#059669,#10b981)" }}
-                    >
-                      <FileSpreadsheet className="w-4 h-4" />
-                      Export Excel
-                      <ChevronDown className="w-4 h-4" />
-                    </button>
-                    {showExportDropdown && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setShowExportDropdown(false)} />
-                        <div className="rr-export-drop">
-                          <div style={{ padding: "10px 16px 8px", fontSize: 10, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", borderBottom: "1px solid #f3f4f6" }}>
-                            Export Options
-                          </div>
-                          {[
-                            { label: "Export Current View", sub: `${filteredReports.length} reports`, type: "current", color: "#059669" },
-                            { label: "Export All Reports", sub: `${reports.length} total`, type: "all", color: "#2563eb" },
-                          ].map((opt) => (
-                            <button
-                              key={opt.type}
-                              onClick={() => exportToExcel(opt.type)}
-                              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left transition-colors"
-                              style={{ background: "transparent" }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = "#f9fafb")}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                            >
-                              <Download className="w-4 h-4 flex-shrink-0" style={{ color: opt.color }} />
-                              <div>
-                                <div style={{ fontWeight: 500, color: "#111827", fontSize: 13 }}>{opt.label}</div>
-                                <div style={{ fontSize: 11, color: "#9ca3af" }}>{opt.sub}</div>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Refresh Button */}
+                {/* View Toggle */}
+                <div className="rp-view-tog">
                   <button
-                    onClick={() => { fetchReports(); fetchSummary(); fetchStats(); }}
-                    disabled={loading}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all disabled:opacity-50"
+                    className={viewMode === "list" ? "active" : ""}
+                    onClick={() => setViewMode("list")}
+                    title="List View"
                   >
-                    <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                    {loading ? "Refreshing..." : "Refresh"}
+                    <List className="w-4 h-4" />
                   </button>
-
-                  {/* View Toggle */}
-                  <div className="rr-view-tog" style={{ marginLeft: "auto" }}>
-                    <button className={viewMode === "list" ? "active" : ""} onClick={() => setViewMode("list")} title="List View">
-                      <List className="w-4 h-4" />
-                    </button>
-                    <button className={viewMode === "grid" ? "active" : ""} onClick={() => setViewMode("grid")} title="Grid View">
-                      <LayoutGrid className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Search & Filter */}
-            <div style={{ padding: "14px 20px", borderBottom: "1px solid #e5e7eb", background: "#f9fafb" }}>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search by report name or code..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="rr-search w-full pl-9 pr-8 py-2.5 rounded-xl text-sm text-gray-800 bg-white transition"
-                  />
-                  {searchTerm && (
-                    <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  <button
+                    className={viewMode === "grid" ? "active" : ""}
+                    onClick={() => setViewMode("grid")}
+                    title="Grid View"
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             </div>
 
             {/* Content */}
             {loading ? (
-              <div className="rr-empty">
+              <div className="rp-empty">
                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-4" />
-                <p className="text-gray-500 text-sm font-medium">Loading reports...</p>
+                <p className="text-gray-500 text-sm font-medium">
+                  Loading reports...
+                </p>
               </div>
             ) : reports.length === 0 ? (
-              <div className="rr-empty">
-                <div style={{ padding: 12, borderRadius: 60, background: "transparent", display: "inline-block", marginBottom: 16 }}>
-                  <FileText className="w-10 h-10 text-gray-300" strokeWidth={1.5} />
-                </div>
-                <h3 className="text-gray-500 font-medium text-sm mb-1">No reports yet</h3>
-                <p className="text-gray-400 text-xs max-w-xs">Reports will be generated automatically when validations are approved.</p>
-              </div>
-            ) : filteredReports.length === 0 ? (
-              <div className="rr-empty">
-                <Search className="w-10 h-10 text-gray-300 mb-3" strokeWidth={1.5} />
-                <h3 className="text-gray-500 font-medium text-sm mb-1">No matching reports</h3>
-                <p className="text-gray-400 text-xs mb-4">Try adjusting your search.</p>
-                <button onClick={() => setSearchTerm("")} className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs hover:bg-gray-200 transition">
-                  <RefreshCw className="w-3 h-3" /> Clear Search
+              <div className="rp-empty">
+                <FileBarChart
+                  className="w-12 h-12 text-gray-300 mb-4"
+                  strokeWidth={1.5}
+                />
+                <h3 className="text-gray-500 font-medium text-sm mb-1">
+                  No reports available
+                </h3>
+                <p className="text-gray-400 text-xs max-w-xs">
+                  Complete asset validations to generate reports.
+                </p>
+                <button
+                  onClick={() => router.push("/validation_verification")}
+                  className="inline-flex items-center gap-2 px-4 py-2 mt-4 text-white text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 transition"
+                >
+                  <CheckCircle className="w-3.5 h-3.5" /> Go to Validations
                 </button>
               </div>
             ) : viewMode === "grid" ? (
-              <div style={{ padding: 20, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px,1fr))", gap: 16 }}>
-                {filteredReports.map((report) => (
-                  <div key={report.id_report} className="rr-grid-card" onClick={() => handleViewReport(report.id_report)}>
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 12, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <FileText className="w-5 h-5 text-blue-600" />
+              /* Grid View */
+              <div className="p-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {reports.map((report, idx) => (
+                    <div
+                      key={idx}
+                      className="rp-grid-card"
+                      onClick={() => handleViewReportDetail(report)}
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                          {report.period_type === "weekly" ? (
+                            <Calendar className="w-5 h-5 text-blue-600" />
+                          ) : (
+                            <CalendarRange className="w-5 h-5 text-blue-600" />
+                          )}
+                        </div>
+                        <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-blue-100 text-blue-700">
+                          {report.period_type === "weekly"
+                            ? "Weekly"
+                            : "Monthly"}
+                        </span>
                       </div>
-                      <span className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border ${getStatusBadge(report.success_rate)}`}>
-                        {report.success_rate}%
-                      </span>
+
+                      <h3 className="font-semibold text-gray-900 text-base mb-1">
+                        {report.period_label}
+                      </h3>
+                      {report.period_type === "weekly" && report.start_date && (
+                        <p className="text-xs text-gray-500 mb-3">
+                          {report.start_date} - {report.end_date}
+                        </p>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        <div className="bg-white rounded-lg p-2 text-center border border-gray-100">
+                          <span className="text-xl font-bold text-gray-800">
+                            {report.session_count || 0}
+                          </span>
+                          <span className="text-[10px] text-gray-400 block">
+                            Sessions
+                          </span>
+                        </div>
+                        <div className="bg-white rounded-lg p-2 text-center border border-gray-100">
+                          <span className="text-xl font-bold text-gray-800">
+                            {report.total_items || 0}
+                          </span>
+                          <span className="text-[10px] text-gray-400 block">
+                            Total Items
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                        <div className="flex gap-2">
+                          <span className="text-[10px] px-2 py-1 rounded-full bg-blue-50 text-blue-600 font-medium">
+                            🔵 {report.total_devices || 0} Devices
+                          </span>
+                          <span className="text-[10px] px-2 py-1 rounded-full bg-green-50 text-green-600 font-medium">
+                            🟢 {report.total_materials || 0} Materials
+                          </span>
+                        </div>
+                        <button className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700">
+                          View Details <ChevronRight className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
-                    <h3 style={{ fontWeight: 600, fontSize: 14, color: "#111827", marginBottom: 2 }} className="truncate">
-                      {report.report_name}
-                    </h3>
-                    <p style={{ fontFamily: "DM Mono, monospace", fontSize: 11, color: "#9ca3af", marginBottom: 8 }}>
-                      {report.report_code}
-                    </p>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <Calendar style={{ width: 12, height: 12, color: "#9ca3af" }} />
-                        <span style={{ fontSize: 11, color: "#6b7280" }}>{formatDate(report.report_date)}</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <Package style={{ width: 12, height: 12, color: "#9ca3af" }} />
-                        <span style={{ fontSize: 11, color: "#6b7280" }}>{report.total_assets} assets</span>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 12, borderTop: "1px solid #e5e7eb" }}>
-                      <div>
-                        <span style={{ fontSize: 20, fontWeight: 700, color: "#111827" }}>{report.total_scans}</span>
-                        <span style={{ fontSize: 11, color: "#9ca3af", marginLeft: 4 }}>scans</span>
-                      </div>
-                      <button onClick={(e) => { e.stopPropagation(); handleViewReport(report.id_report); }} className="view-btn-sm">
-                        <Eye className="w-3 h-3" /> View
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             ) : (
+              /* List View Table */
               <div className="overflow-x-auto">
                 <table className="min-w-full">
-                  <thead>
+                  <thead className="bg-gray-50">
                     <tr>
-                      <th className="rr-th text-left" onClick={() => handleSort("report_name")}>
-                        <span style={{ display: "flex", alignItems: "center" }}>Report Name {getSortIcon("report_name")}</span>
+                      <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Period
                       </th>
-                      <th className="rr-th text-left hidden md:table-cell" onClick={() => handleSort("report_code")}>
-                        <span style={{ display: "flex", alignItems: "center" }}>Code {getSortIcon("report_code")}</span>
+                      <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Type
                       </th>
-                      <th className="rr-th text-left" onClick={() => handleSort("report_date")}>
-                        <span style={{ display: "flex", alignItems: "center" }}>Date {getSortIcon("report_date")}</span>
+                      <th className="py-3 px-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Sessions
                       </th>
-                      <th className="rr-th text-left hidden lg:table-cell">Scans</th>
-                      <th className="rr-th text-left">Success Rate</th>
-                      <th className="rr-th text-left hidden xl:table-cell">Assets</th>
-                      <th className="rr-th text-center">Actions</th>
+                      <th className="py-3 px-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Devices
+                      </th>
+                      <th className="py-3 px-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Materials
+                      </th>
+                      <th className="py-3 px-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Total Items
+                      </th>
+                      <th className="py-3 px-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {filteredReports.map((report) => (
-                      <tr key={report.id_report} className="rr-row" onClick={() => handleViewReport(report.id_report)}>
-                        <td className="rr-td">
-                          <div style={{ fontWeight: 600, fontSize: 13, color: "#111827" }}>{report.report_name}</div>
-                          <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>by {report.generated_by_name || "System"}</div>
-                        </td>
-                        <td className="rr-td hidden md:table-cell">
-                          <code style={{ fontFamily: "DM Mono, monospace", fontSize: 11, color: "#6b7280" }}>{report.report_code}</code>
-                        </td>
-                        <td className="rr-td">
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <Calendar style={{ width: 13, height: 13, color: "#9ca3af" }} />
-                            <span style={{ fontSize: 12, color: "#4b5563" }}>{formatDate(report.report_date)}</span>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {reports.map((report, idx) => (
+                      <tr
+                        key={idx}
+                        className="hover:bg-gray-50 transition-colors"
+                      >
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            {report.period_type === "weekly" ? (
+                              <Calendar className="w-4 h-4 text-blue-500" />
+                            ) : (
+                              <CalendarRange className="w-4 h-4 text-blue-500" />
+                            )}
+                            <span className="font-medium text-gray-900">
+                              {report.period_label}
+                            </span>
                           </div>
+                          {report.period_type === "weekly" &&
+                            report.start_date && (
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                {report.start_date} - {report.end_date}
+                              </p>
+                            )}
                         </td>
-                        <td className="rr-td hidden lg:table-cell">
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>{report.valid_scans}</span>
-                          <span style={{ fontSize: 11, color: "#9ca3af" }}> / {report.total_scans}</span>
-                        </td>
-                        <td className="rr-td">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusBadge(report.success_rate)}`}>
-                            {report.success_rate}%
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              report.period_type === "weekly"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-purple-100 text-purple-700"
+                            }`}
+                          >
+                            {report.period_type === "weekly"
+                              ? "Weekly"
+                              : "Monthly"}
                           </span>
                         </td>
-                        <td className="rr-td hidden xl:table-cell">
-                          <span style={{ fontSize: 13, fontWeight: 500, color: "#374151" }}>{report.total_assets}</span>
-                          <span style={{ fontSize: 11, color: "#9ca3af", marginLeft: 4 }}>items</span>
+                        <td className="py-3 px-4 text-center">
+                          <span className="text-sm font-semibold text-gray-800">
+                            {report.session_count || 0}
+                          </span>
                         </td>
-                        <td className="rr-td text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button onClick={(e) => { e.stopPropagation(); handleViewReport(report.id_report); }} className="view-btn-sm" title="View Details">
-                              <Eye className="w-3 h-3" />
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); handleDeleteReport(report); }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 transition" title="Delete">
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
+                        <td className="py-3 px-4 text-center">
+                          <span className="text-sm font-semibold text-blue-600">
+                            {report.total_devices || 0}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className="text-sm font-semibold text-green-600">
+                            {report.total_materials || 0}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className="text-sm font-bold text-gray-900">
+                            {report.total_items || 0}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <button
+                            onClick={() => handleViewReportDetail(report)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition"
+                          >
+                            <Eye className="w-3.5 h-3.5" /> View
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -693,14 +624,13 @@ export default function ReportsAnalyticsPage() {
             )}
 
             {/* Footer */}
-            {!loading && filteredReports.length > 0 && (
-              <div className="rr-footer">
-                <p style={{ fontSize: 12, color: "#6b7280" }}>
-                  Showing <span style={{ fontWeight: 600, color: "#374151" }}>{filteredReports.length}</span> of{" "}
-                  <span style={{ fontWeight: 600, color: "#374151" }}>{reports.length}</span> reports
-                  {searchTerm && <span style={{ color: "#9ca3af", marginLeft: 4 }}>· "{searchTerm}"</span>}
+            {!loading && reports.length > 0 && (
+              <div className="px-5 py-3 bg-gray-50 border-t border-gray-200">
+                <p className="text-xs text-gray-500">
+                  Showing {reports.length} report(s)
+                  {periodType === "monthly" &&
+                    ` for ${months[selectedMonth - 1]} ${selectedYear}`}
                 </p>
-                <p style={{ fontSize: 11, color: "#9ca3af" }}>Updated {new Date().toLocaleTimeString("id-ID")}</p>
               </div>
             )}
           </div>

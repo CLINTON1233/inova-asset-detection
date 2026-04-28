@@ -762,51 +762,42 @@ def add_asset_reference_to_validations(conn):
     except Exception as e:
         conn.rollback()
         print(f"Error adding asset reference: {e}")
-        
+
 # ==================== TABEL REPORTS ====================
 def create_reports_table(conn):
-    """Membuat tabel reports untuk menyimpan laporan aset"""
+    """Tabel untuk menyimpan report data"""
     try:
         cur = conn.cursor()
         cur.execute("""
             CREATE TABLE IF NOT EXISTS reports (
                 id_report SERIAL PRIMARY KEY,
-                report_code VARCHAR(50) UNIQUE NOT NULL,
+                report_code VARCHAR(100) UNIQUE NOT NULL,
                 report_name VARCHAR(255) NOT NULL,
-                report_type VARCHAR(50) DEFAULT 'daily',
-                report_date DATE NOT NULL,
-                
-                -- Summary statistics
-                total_scans INTEGER DEFAULT 0,
-                valid_scans INTEGER DEFAULT 0,
-                error_scans INTEGER DEFAULT 0,
-                pending_scans INTEGER DEFAULT 0,
-                success_rate DECIMAL(5,2) DEFAULT 0,
-                
-                -- Asset counts
-                total_assets INTEGER DEFAULT 0,
-                devices_count INTEGER DEFAULT 0,
-                materials_count INTEGER DEFAULT 0,
-                
-                -- Location & department stats
-                locations_count INTEGER DEFAULT 0,
-                departments_count INTEGER DEFAULT 0,
-                projects_count INTEGER DEFAULT 0,
-                receivers_count INTEGER DEFAULT 0,
-                
-                -- Additional info
-                generated_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
-                generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                report_type VARCHAR(50) NOT NULL, -- 'weekly' or 'monthly'
+                period_key VARCHAR(50) NOT NULL, -- '2024-W01' or '2024-01'
+                period_label VARCHAR(100) NOT NULL,
+                year INTEGER NOT NULL,
+                month INTEGER, -- for monthly reports
+                week_number INTEGER, -- for weekly reports
+                start_date DATE NOT NULL,
+                end_date DATE NOT NULL,
+                total_devices INTEGER DEFAULT 0,
+                total_materials INTEGER DEFAULT 0,
+                total_items INTEGER DEFAULT 0,
+                session_count INTEGER DEFAULT 0,
+                status VARCHAR(50) DEFAULT 'active',
+                created_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
-        # Create indexes
+        # Index untuk performa query
         cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_code ON reports(report_code)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_date ON reports(report_date)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_type ON reports(report_type)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_generated_by ON reports(generated_by)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_period ON reports(period_key)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_year ON reports(year)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_date ON reports(start_date, end_date)")
         
         conn.commit()
         print("✓ Tabel reports berhasil dibuat")
@@ -814,32 +805,45 @@ def create_reports_table(conn):
         conn.rollback()
         print(f"Error creating reports table: {e}")
 
-def create_report_items_table_last(conn):
-    """Tabel untuk menyimpan detail items dalam report - dibuat paling akhir"""
+def create_report_items_table(conn):
+    """Tabel untuk menyimpan item-item dalam report (sessions yang termasuk dalam report)"""
     try:
         cur = conn.cursor()
-        
-        # Cek apakah tabel report_items sudah ada
         cur.execute("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_name = 'report_items'
-            )
-        """)
-        exists = cur.fetchone()[0]
-        
-        if exists:
-            print("✓ Tabel report_items sudah ada, skip creation")
-            return
-        
-        cur.execute("""
-            CREATE TABLE report_items (
+            CREATE TABLE IF NOT EXISTS report_items (
                 id_report_item SERIAL PRIMARY KEY,
                 report_id INTEGER REFERENCES reports(id_report) ON DELETE CASCADE,
-                asset_id INTEGER REFERENCES assets(id_assets) ON DELETE SET NULL,
-                validation_id INTEGER REFERENCES validations(id_validation) ON DELETE SET NULL,
-                
-                -- Asset info at report time
+                session_type VARCHAR(50) NOT NULL, -- 'device' or 'material'
+                session_id INTEGER NOT NULL, -- id_preparation dari devices atau materials
+                session_name VARCHAR(255),
+                session_number VARCHAR(50),
+                session_date DATE,
+                location_name VARCHAR(255),
+                project_name VARCHAR(255),
+                total_items INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Index untuk performa query
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_report_items_report ON report_items(report_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_report_items_session ON report_items(session_type, session_id)")
+        
+        conn.commit()
+        print("✓ Tabel report_items berhasil dibuat")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating report_items table: {e}")
+
+def create_report_assets_table(conn):
+    """Tabel untuk snapshot assets dalam report (optional, untuk historical data)"""
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS report_assets (
+                id_report_asset SERIAL PRIMARY KEY,
+                report_id INTEGER REFERENCES reports(id_report) ON DELETE CASCADE,
+                asset_id INTEGER REFERENCES assets(id_assets) ON DELETE CASCADE,
                 asset_code VARCHAR(100),
                 asset_name VARCHAR(255),
                 asset_type VARCHAR(50),
@@ -849,57 +853,60 @@ def create_report_items_table_last(conn):
                 brand VARCHAR(100),
                 vendor VARCHAR(255),
                 model VARCHAR(100),
-                specifications TEXT,
-                
-                -- Assignment info
                 project_name VARCHAR(255),
                 department_name VARCHAR(255),
                 receiver_name VARCHAR(255),
                 location_name VARCHAR(255),
-                
-                -- Validation info
-                validation_status VARCHAR(50),
-                validated_by VARCHAR(100),
+                quantity DECIMAL(10,2),
+                uom VARCHAR(20),
+                status VARCHAR(50),
                 validated_at TIMESTAMP,
-                
-                -- Report metadata
-                unique_code VARCHAR(100),
+                session_name VARCHAR(255),
+                session_number VARCHAR(50),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_report_items_report ON report_items(report_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_report_items_asset ON report_items(asset_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_report_items_validation ON report_items(validation_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_report_items_status ON report_items(validation_status)")
+        # Index untuk performa query
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_report_assets_report ON report_assets(report_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_report_assets_asset ON report_assets(asset_id)")
         
         conn.commit()
-        print("✓ Tabel report_items berhasil dibuat")
+        print("✓ Tabel report_assets berhasil dibuat")
     except Exception as e:
         conn.rollback()
-        print(f"Error creating report_items table: {e}")
+        print(f"Error creating report_assets table: {e}")
 
-# def create_history_logs_table(conn):
-#     """Tabel history logs untuk audit"""
-#     try:
-#         cur = conn.cursor()
-#         cur.execute("""
-#             CREATE TABLE IF NOT EXISTS history_logs (
-#                 id_logs SERIAL PRIMARY KEY,
-#                 user_id INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
-#                 asset_id INTEGER REFERENCES assets(id_assets) ON DELETE SET NULL,
-#                 action VARCHAR(100) NOT NULL,
-#                 action_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-#                 description TEXT
-#             )
-#         """)
-#         cur.execute("CREATE INDEX IF NOT EXISTS idx_history_user ON history_logs(user_id)")
-#         cur.execute("CREATE INDEX IF NOT EXISTS idx_history_asset ON history_logs(asset_id)")
-#         conn.commit()
-#         print("✓ Tabel history_logs berhasil dibuat")
-#     except Exception as e:
-#         conn.rollback()
-#         print(f"Error creating history_logs table: {e}")
+def create_history_logs_table(conn):
+    """Tabel untuk menyimpan history logs aktivitas"""
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS history_logs (
+                id_log SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
+                action VARCHAR(100) NOT NULL,
+                entity_type VARCHAR(50),
+                entity_id INTEGER,
+                old_data JSONB,
+                new_data JSONB,
+                ip_address VARCHAR(45),
+                user_agent TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Index untuk performa query
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_history_logs_user ON history_logs(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_history_logs_action ON history_logs(action)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_history_logs_entity ON history_logs(entity_type, entity_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_history_logs_created ON history_logs(created_at)")
+        
+        conn.commit()
+        print("✓ Tabel history_logs berhasil dibuat")
+    except Exception as e:
+        conn.rollback()
+        print(f"Error creating history_logs table: {e}")
 
 # ==================== MAIN FUNCTION ====================
 def create_all_tables():
@@ -949,12 +956,12 @@ def create_all_tables():
         # Tambahkan foreign keys setelah kedua tabel selesai dibuat
         add_validation_reference_to_assets(conn)
         add_asset_reference_to_validations(conn)
-        
-        # Tabel reports (sebelum report_items)
+
+        # ==================== TABEL REPORTS ====================
         create_reports_table(conn)
-        
-        # Tabel report_items dibuat SETELAH reports, assets, validations selesai
-        create_report_items_table_last(conn)
+        create_report_items_table(conn)
+        create_report_assets_table(conn)
+        create_history_logs_table(conn)
         
         print("-" * 50)
         print("✅ Migrasi database selesai!")
@@ -993,8 +1000,10 @@ def drop_all_tables():
         cur = conn.cursor()
         
         tables_to_drop = [
-            'report_items',        
-            'reports', 
+            'report_assets',
+            'report_items',
+            'reports',
+            'history_logs',
             'history_logs',
             'validations',
             'assets',

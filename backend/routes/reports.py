@@ -17,272 +17,193 @@ def generate_report_code():
     random_chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
     return f"RPT-{date_str}-{random_chars}"
 
-# ==================== CREATE REPORT FROM VALIDATION ====================
-def create_report_from_validation(validation_id, conn, cur):
-    """Membuat atau update report berdasarkan validasi yang di-approve"""
-    try:
-        # FIRST, refresh the validation data to get the latest asset_id
-        cur.execute("""
-            SELECT id_validation, asset_id, validated_at, validated_by
-            FROM validations 
-            WHERE id_validation = %s
-        """, (validation_id,))
-        val_check = cur.fetchone()
-        
-        if not val_check:
-            print(f"Validation {validation_id} not found")
-            return False, None
-        
-        # If asset_id is still NULL, wait a moment and try again
-        if not val_check[1]:  # asset_id is NULL
-            print(f"Asset_id for validation {validation_id} is NULL, waiting for asset creation...")
-            import time
-            time.sleep(0.5)  # Wait 500ms for asset to be created
-            cur.execute("SELECT asset_id FROM validations WHERE id_validation = %s", (validation_id,))
-            val_check = cur.fetchone()
-            if val_check and not val_check[0]:
-                print(f"Asset_id still NULL after waiting, skipping report for {validation_id}")
-                return False, None
-        
-        asset_id = val_check[1] if val_check else None
-        
-        # Now get complete validation data with asset
-        cur.execute("""
-            SELECT 
-                v.id_validation,
-                v.unique_code,
-                v.created_at,
-                v.validated_at,
-                v.validation_status,
-                v.user_id,
-                v.validated_by,
-                v.asset_id,
-                CASE 
-                    WHEN v.scan_id IS NOT NULL THEN 'device'
-                    WHEN v.scan_material_id IS NOT NULL THEN 'material'
-                    ELSE 'unknown'
-                END as validation_type,
-                srd.serial_number,
-                srd.scan_value as device_name,
-                srm.scan_code,
-                srm.scan_value as material_name,
-                dsp.checking_name as device_checking_name,
-                msp.checking_name as material_checking_name,
-                dsp.location_id as device_location_id,
-                msp.location_id as material_location_id,
-                l.location_name,
-                a.id_assets,
-                a.asset_code,
-                a.asset_name,
-                a.category,
-                a.brand,
-                a.vendor,
-                a.model,
-                a.specifications,
-                a.project_name,
-                a.department_name,
-                a.receiver_name,
-                a.location_name as asset_location
-            FROM validations v
-            LEFT JOIN scan_results_devices srd ON v.scan_id = srd.id_scan
-            LEFT JOIN scan_results_materials srm ON v.scan_material_id = srm.id_scan
-            LEFT JOIN devices_items_preparation dip ON v.item_preparation_id = dip.id_item_preparation
-            LEFT JOIN materials_items_preparation mip ON v.material_item_preparation_id = mip.id_item_preparation
-            LEFT JOIN devices_scanning_preparations dsp ON dip.preparation_id = dsp.id_preparation
-            LEFT JOIN materials_scanning_preparations msp ON mip.preparation_id = msp.id_preparation
-            LEFT JOIN locations l ON COALESCE(dsp.location_id, msp.location_id) = l.id_location
-            LEFT JOIN assets a ON v.asset_id = a.id_assets
-            WHERE v.id_validation = %s AND v.validation_status = 'approved'
-        """, (validation_id,))
-        
-        validation = cur.fetchone()
-        
-        if not validation:
-            print(f"No approved validation found for ID {validation_id}")
-            return False, None
-        
-        # Log untuk debugging
-        print(f"Processing report for validation {validation_id}:")
-        print(f"  - asset_id from validation: {validation['asset_id']}")
-        print(f"  - id_assets from assets join: {validation['id_assets']}")
-        print(f"  - asset_code: {validation['asset_code']}")
-        
-        # Use the correct asset ID
-        final_asset_id = validation['asset_id'] or validation['id_assets']
-        
-        if not final_asset_id:
-            print(f"WARNING: No asset_id found for validation {validation_id}, report item may not be created")
-        
-        # Tentukan report_date dari tanggal validasi
-        report_date = validation['validated_at'].date() if validation['validated_at'] else datetime.now().date()
-        
-        # Cek apakah sudah ada report untuk tanggal ini
-        cur.execute("""
-            SELECT id_report, report_code, total_scans, valid_scans, error_scans, pending_scans,
-                   total_assets, devices_count, materials_count, success_rate
-            FROM reports
-            WHERE report_type = 'daily' AND report_date = %s
-        """, (report_date,))
-        
-        existing_report = cur.fetchone()
-        
-        # Hitung statistik untuk tanggal ini (dari validations yang approved)
-        cur.execute("""
-            SELECT 
-                COUNT(*) as total_scans,
-                SUM(CASE WHEN validation_status = 'approved' THEN 1 ELSE 0 END) as valid_scans,
-                SUM(CASE WHEN validation_status = 'rejected' THEN 1 ELSE 0 END) as error_scans,
-                SUM(CASE WHEN validation_status = 'pending' THEN 1 ELSE 0 END) as pending_scans,
-                COUNT(DISTINCT CASE WHEN scan_id IS NOT NULL THEN id_validation END) as devices_count,
-                COUNT(DISTINCT CASE WHEN scan_material_id IS NOT NULL THEN id_validation END) as materials_count,
-                COUNT(DISTINCT a.id_assets) as total_assets,
-                COUNT(DISTINCT l.id_location) as locations_count,
-                COUNT(DISTINCT a.department_name) as departments_count,
-                COUNT(DISTINCT a.project_name) as projects_count,
-                COUNT(DISTINCT a.receiver_name) as receivers_count
-            FROM validations v
-            LEFT JOIN assets a ON v.asset_id = a.id_assets
-            LEFT JOIN locations l ON a.location_id = l.id_location
-            WHERE DATE(v.validated_at) = %s AND v.validation_status = 'approved'
-        """, (report_date,))
-        
-        stats = cur.fetchone()
-        
-        total_scans = stats['total_scans'] or 0
-        valid_scans = stats['valid_scans'] or 0
-        error_scans = stats['error_scans'] or 0
-        pending_scans = stats['pending_scans'] or 0
-        devices_count = stats['devices_count'] or 0
-        materials_count = stats['materials_count'] or 0
-        total_assets = stats['total_assets'] or 0
-        locations_count = stats['locations_count'] or 0
-        departments_count = stats['departments_count'] or 0
-        projects_count = stats['projects_count'] or 0
-        receivers_count = stats['receivers_count'] or 0
-        success_rate = (valid_scans / total_scans * 100) if total_scans > 0 else 0
-        
-        if existing_report:
-            # Update existing report
-            cur.execute("""
-                UPDATE reports 
-                SET total_scans = %s,
-                    valid_scans = %s,
-                    error_scans = %s,
-                    pending_scans = %s,
-                    success_rate = %s,
-                    total_assets = %s,
-                    devices_count = %s,
-                    materials_count = %s,
-                    locations_count = %s,
-                    departments_count = %s,
-                    projects_count = %s,
-                    receivers_count = %s,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id_report = %s
-                RETURNING id_report
-            """, (total_scans, valid_scans, error_scans, pending_scans, success_rate,
-                  total_assets, devices_count, materials_count, locations_count,
-                  departments_count, projects_count, receivers_count, existing_report['id_report']))
-            
-            report_id = existing_report['id_report']
-            print(f"✅ Report {existing_report['report_code']} updated for {report_date}")
-        else:
-            # Create new report
-            report_code = generate_report_code()
-            report_name = f"Daily Report - {report_date.strftime('%d %B %Y')}"
-            
-            cur.execute("""
-                INSERT INTO reports (
-                    report_code, report_name, report_type, report_date,
-                    total_scans, valid_scans, error_scans, pending_scans, success_rate,
-                    total_assets, devices_count, materials_count,
-                    locations_count, departments_count, projects_count, receivers_count,
-                    generated_by, generated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id_report
-            """, (report_code, report_name, 'daily', report_date,
-                  total_scans, valid_scans, error_scans, pending_scans, success_rate,
-                  total_assets, devices_count, materials_count,
-                  locations_count, departments_count, projects_count, receivers_count,
-                  validation['validated_by'] or 1, datetime.now()))
-            
-            report_id = cur.fetchone()[0]
-            print(f"✅ New report {report_code} created for {report_date}")
-        
-        # Update atau insert report items untuk asset ini
-        if final_asset_id:
-            # Cek apakah asset sudah ada di report_items untuk report ini
-            cur.execute("""
-                SELECT id_report_item FROM report_items 
-                WHERE report_id = %s AND asset_id = %s
-            """, (report_id, final_asset_id))
-            
-            if not cur.fetchone():
-                # Get asset data from assets table
-                cur.execute("""
-                    SELECT 
-                        asset_code, asset_name, category,
-                        serial_number, scan_code, brand, vendor, model, specifications,
-                        project_name, department_name, receiver_name, location_name
-                    FROM assets 
-                    WHERE id_assets = %s
-                """, (final_asset_id,))
-                asset_data = cur.fetchone()
-                
-                if asset_data:
-                    cur.execute("""
-                        INSERT INTO report_items (
-                            report_id, asset_id, validation_id,
-                            asset_code, asset_name, asset_type, category,
-                            serial_number, scan_code, brand, vendor, model, specifications,
-                            project_name, department_name, receiver_name, location_name,
-                            validation_status, validated_by, validated_at, unique_code
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
-                        report_id, final_asset_id, validation['id_validation'],
-                        asset_data['asset_code'], asset_data['asset_name'], validation['validation_type'], asset_data['category'],
-                        asset_data['serial_number'], asset_data['scan_code'], asset_data['brand'], asset_data['vendor'],
-                        asset_data['model'], asset_data['specifications'],
-                        asset_data['project_name'], asset_data['department_name'], asset_data['receiver_name'],
-                        asset_data['location_name'],
-                        validation['validation_status'], validation['validated_by'], validation['validated_at'],
-                        validation['unique_code']
-                    ))
-                    print(f"✅ Report item added for asset {asset_data['asset_code']}")
-        else:
-            print(f"⚠️ No asset_id for validation {validation_id}, skipping report item")
-        
-        return True, report_id
-        
-    except Exception as e:
-        print(f"Error creating/updating report: {e}")
-        traceback.print_exc()
-        return False, None
-
-# ==================== GET ALL REPORTS ====================
+# ==================== GET REPORTS LIST (GROUPED BY PERIOD) ====================
 @reports_bp.route('/api/reports', methods=['GET'])
-def get_all_reports():
-    """Mendapatkan daftar semua reports"""
+def get_reports():
+    """Mendapatkan daftar report yang sudah memiliki asset, dikelompokkan berdasarkan periode (mingguan/bulanan)"""
     conn = None
     try:
+        period = request.args.get('period', 'monthly')  # weekly, monthly, or all
+        year = request.args.get('year', None)
+        month = request.args.get('month', None)
+        
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
+        # Ambil semua sessions yang memiliki assets
+        # Device sessions
         cur.execute("""
             SELECT 
-                r.*,
-                u.username as generated_by_name
-            FROM reports r
-            LEFT JOIN users u ON r.generated_by = u.id_user
-            ORDER BY r.report_date DESC, r.created_at DESC
+                dsp.id_preparation,
+                dsp.checking_number,
+                dsp.checking_name,
+                dsp.checking_date,
+                dsp.location_id,
+                l.location_name,
+                dsp.created_at,
+                'device' as type,
+                COUNT(DISTINCT a.id_assets) as total_items,
+                COALESCE(SUM(CASE WHEN a.asset_type = 'device' THEN a.quantity ELSE 0 END), 0) as device_count,
+                COALESCE(SUM(CASE WHEN a.asset_type = 'material' THEN a.quantity ELSE 0 END), 0) as material_count
+            FROM devices_scanning_preparations dsp
+            LEFT JOIN devices_items_preparation dip ON dsp.id_preparation = dip.preparation_id
+            LEFT JOIN validations v ON dip.id_item_preparation = v.item_preparation_id AND v.validation_status = 'approved'
+            LEFT JOIN assets a ON v.id_validation = a.validation_id
+            LEFT JOIN locations l ON dsp.location_id = l.id_location
+            GROUP BY dsp.id_preparation, dsp.checking_number, dsp.checking_name, 
+                     dsp.checking_date, dsp.location_id, l.location_name, dsp.created_at
+            HAVING COUNT(DISTINCT a.id_assets) > 0
         """)
+        devices_sessions = cur.fetchall()
         
-        reports = cur.fetchall()
+        # Material sessions
+        cur.execute("""
+            SELECT 
+                msp.id_preparation,
+                msp.checking_number,
+                msp.checking_name,
+                msp.checking_date,
+                msp.location_id,
+                l.location_name,
+                msp.created_at,
+                'material' as type,
+                COUNT(DISTINCT a.id_assets) as total_items,
+                COALESCE(SUM(CASE WHEN a.asset_type = 'device' THEN a.quantity ELSE 0 END), 0) as device_count,
+                COALESCE(SUM(CASE WHEN a.asset_type = 'material' THEN a.quantity ELSE 0 END), 0) as material_count
+            FROM materials_scanning_preparations msp
+            LEFT JOIN materials_items_preparation mip ON msp.id_preparation = mip.preparation_id
+            LEFT JOIN validations v ON mip.id_item_preparation = v.material_item_preparation_id AND v.validation_status = 'approved'
+            LEFT JOIN assets a ON v.id_validation = a.validation_id
+            LEFT JOIN locations l ON msp.location_id = l.id_location
+            GROUP BY msp.id_preparation, msp.checking_number, msp.checking_name, 
+                     msp.checking_date, msp.location_id, l.location_name, msp.created_at
+            HAVING COUNT(DISTINCT a.id_assets) > 0
+        """)
+        materials_sessions = cur.fetchall()
+        
+        # Gabungkan semua sessions
+        all_sessions = []
+        for prep in devices_sessions:
+            prep_dict = dict(prep)
+            # Ambil project name
+            cur.execute("""
+                SELECT DISTINCT project_name 
+                FROM devices_scanning_items 
+                WHERE preparation_id = %s 
+                AND project_name IS NOT NULL 
+                LIMIT 1
+            """, (prep_dict['id_preparation'],))
+            project = cur.fetchone()
+            prep_dict['project_name'] = project['project_name'] if project else None
+            all_sessions.append(prep_dict)
+            
+        for prep in materials_sessions:
+            prep_dict = dict(prep)
+            cur.execute("""
+                SELECT DISTINCT project_name 
+                FROM materials_scanning_items 
+                WHERE preparation_id = %s 
+                AND project_name IS NOT NULL 
+                LIMIT 1
+            """, (prep_dict['id_preparation'],))
+            project = cur.fetchone()
+            prep_dict['project_name'] = project['project_name'] if project else None
+            all_sessions.append(prep_dict)
+        
+        # Filter berdasarkan periode
+        filtered_sessions = []
+        for session in all_sessions:
+            checking_date = session.get('checking_date')
+            if not checking_date:
+                continue
+            
+            date_obj = checking_date if isinstance(checking_date, datetime) else datetime.strptime(str(checking_date), '%Y-%m-%d')
+            
+            if period == 'weekly':
+                # Cek apakah dalam 7 hari terakhir
+                week_ago = datetime.now() - timedelta(days=7)
+                if date_obj >= week_ago:
+                    filtered_sessions.append(session)
+            elif period == 'monthly':
+                # Filter berdasarkan tahun dan bulan
+                if year and month:
+                    if date_obj.year == int(year) and date_obj.month == int(month):
+                        filtered_sessions.append(session)
+                else:
+                    # Default: bulan ini
+                    if date_obj.year == datetime.now().year and date_obj.month == datetime.now().month:
+                        filtered_sessions.append(session)
+            else:
+                filtered_sessions.append(session)
+        
+        # Kelompokkan berdasarkan periode untuk tampilan ringkasan
+        reports_grouped = {}
+        
+        for session in filtered_sessions:
+            checking_date = session.get('checking_date')
+            if not checking_date:
+                continue
+            
+            date_obj = checking_date if isinstance(checking_date, datetime) else datetime.strptime(str(checking_date), '%Y-%m-%d')
+            
+            if period == 'weekly':
+                # Kelompokkan per minggu (gunakan week number dan year)
+                week_key = f"{date_obj.year}-W{date_obj.isocalendar()[1]:02d}"
+                week_label = f"Week {date_obj.isocalendar()[1]} - {date_obj.year}"
+                
+                if week_key not in reports_grouped:
+                    reports_grouped[week_key] = {
+                        'period_key': week_key,
+                        'period_label': week_label,
+                        'period_type': 'weekly',
+                        'start_date': (date_obj - timedelta(days=date_obj.weekday())).strftime('%Y-%m-%d'),
+                        'end_date': (date_obj + timedelta(days=6 - date_obj.weekday())).strftime('%Y-%m-%d'),
+                        'sessions': [],
+                        'total_devices': 0,
+                        'total_materials': 0,
+                        'total_items': 0,
+                        'session_count': 0
+                    }
+                
+                reports_grouped[week_key]['sessions'].append(session)
+                reports_grouped[week_key]['session_count'] += 1
+                reports_grouped[week_key]['total_items'] += int(session.get('total_items', 0) or 0)
+                reports_grouped[week_key]['total_devices'] += int(session.get('device_count', 0) or 0)
+                reports_grouped[week_key]['total_materials'] += int(session.get('material_count', 0) or 0)
+                
+            else:  # monthly
+                month_key = f"{date_obj.year}-{date_obj.month:02d}"
+                month_label = f"{date_obj.strftime('%B')} {date_obj.year}"
+                
+                if month_key not in reports_grouped:
+                    reports_grouped[month_key] = {
+                        'period_key': month_key,
+                        'period_label': month_label,
+                        'period_type': 'monthly',
+                        'month': date_obj.month,
+                        'year': date_obj.year,
+                        'sessions': [],
+                        'total_devices': 0,
+                        'total_materials': 0,
+                        'total_items': 0,
+                        'session_count': 0
+                    }
+                
+                reports_grouped[month_key]['sessions'].append(session)
+                reports_grouped[month_key]['session_count'] += 1
+                reports_grouped[month_key]['total_items'] += session.get('total_items', 0)
+                reports_grouped[month_key]['total_devices'] += session.get('device_count', 0)
+                reports_grouped[month_key]['total_materials'] += session.get('material_count', 0)
+        
+        # Konversi ke list dan urutkan berdasarkan periode (descending)
+        reports_list = list(reports_grouped.values())
+        reports_list.sort(key=lambda x: x['period_key'], reverse=True)
         
         return jsonify({
             'success': True,
-            'data': [dict(report) for report in reports],
-            'count': len(reports)
+            'data': reports_list,
+            'count': len(reports_list),
+            'period': period
         })
         
     except Exception as e:
@@ -296,53 +217,138 @@ def get_all_reports():
         if conn:
             conn.close()
 
-# ==================== GET REPORT BY ID ====================
-@reports_bp.route('/api/reports/<int:report_id>', methods=['GET'])
-def get_report_by_id(report_id):
-    """Mendapatkan detail report berdasarkan ID"""
+# ==================== GET REPORT DETAIL BY PERIOD ====================
+@reports_bp.route('/api/reports/detail', methods=['GET'])
+def get_report_detail():
+    """Mendapatkan detail report untuk periode tertentu"""
     conn = None
     try:
+        period_type = request.args.get('period_type', 'monthly')
+        period_key = request.args.get('period_key', '')
+        year = request.args.get('year', None)
+        month = request.args.get('month', None)
+        
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
-        cur.execute("""
-            SELECT 
-                r.*,
-                u.username as generated_by_name
-            FROM reports r
-            LEFT JOIN users u ON r.generated_by = u.id_user
-            WHERE r.id_report = %s
-        """, (report_id,))
+        # Tentukan rentang tanggal berdasarkan periode
+        start_date = None
+        end_date = None
         
-        report = cur.fetchone()
+        if period_type == 'weekly' and period_key:
+            try:
+                # Parse period_key like "2024-W01"
+                import re
+                match = re.match(r'(\d+)-W(\d+)', period_key)
+                if match:
+                    year = int(match.group(1))
+                    week_num = int(match.group(2))
+                    # Hitung tanggal mulai minggu
+                    first_day_of_year = datetime(year, 1, 1)
+                    days_to_first_week = (7 - first_day_of_year.weekday()) % 7
+                    first_week_start = first_day_of_year + timedelta(days=days_to_first_week)
+                    start_date = first_week_start + timedelta(weeks=week_num - 1)
+                    end_date = start_date + timedelta(days=6)
+            except:
+                pass
+        elif period_type == 'monthly' and year and month:
+            start_date = datetime(int(year), int(month), 1)
+            if int(month) == 12:
+                end_date = datetime(int(year) + 1, 1, 1) - timedelta(days=1)
+            else:
+                end_date = datetime(int(year), int(month) + 1, 1) - timedelta(days=1)
         
-        if not report:
-            return jsonify({
-                'success': False,
-                'error': 'Report not found'
-            }), 404
+        # Ambil semua sessions yang memiliki assets berdasarkan rentang tanggal
+        sessions_data = []
         
-        # Get report items
-        cur.execute("""
-            SELECT 
-                ri.*,
-                ri.validated_by as validated_by_name
-            FROM report_items ri
-            WHERE ri.report_id = %s
-            ORDER BY ri.id_report_item ASC
-        """, (report_id,))
+        if start_date and end_date:
+            # Device sessions
+            cur.execute("""
+                SELECT 
+                    dsp.id_preparation,
+                    dsp.checking_number,
+                    dsp.checking_name,
+                    dsp.checking_date,
+                    dsp.location_id,
+                    l.location_name,
+                    dsp.created_at,
+                    'device' as type,
+                    COUNT(DISTINCT a.id_assets) as total_items,
+                    COALESCE(SUM(CASE WHEN a.asset_type = 'device' THEN a.quantity ELSE 0 END), 0) as device_count,
+                    COALESCE(SUM(CASE WHEN a.asset_type = 'material' THEN a.quantity ELSE 0 END), 0) as material_count
+                FROM devices_scanning_preparations dsp
+                LEFT JOIN devices_items_preparation dip ON dsp.id_preparation = dip.preparation_id
+                LEFT JOIN validations v ON dip.id_item_preparation = v.item_preparation_id AND v.validation_status = 'approved'
+                LEFT JOIN assets a ON v.id_validation = a.validation_id
+                LEFT JOIN locations l ON dsp.location_id = l.id_location
+                WHERE dsp.checking_date BETWEEN %s AND %s
+                GROUP BY dsp.id_preparation, dsp.checking_number, dsp.checking_name, 
+                         dsp.checking_date, dsp.location_id, l.location_name, dsp.created_at
+                HAVING COUNT(DISTINCT a.id_assets) > 0
+                ORDER BY dsp.checking_date DESC
+            """, (start_date, end_date))
+            device_sessions = cur.fetchall()
+            
+            # Material sessions
+            cur.execute("""
+                SELECT 
+                    msp.id_preparation,
+                    msp.checking_number,
+                    msp.checking_name,
+                    msp.checking_date,
+                    msp.location_id,
+                    l.location_name,
+                    msp.created_at,
+                    'material' as type,
+                    COUNT(DISTINCT a.id_assets) as total_items,
+                    COALESCE(SUM(CASE WHEN a.asset_type = 'device' THEN a.quantity ELSE 0 END), 0) as device_count,
+                    COALESCE(SUM(CASE WHEN a.asset_type = 'material' THEN a.quantity ELSE 0 END), 0) as material_count
+                FROM materials_scanning_preparations msp
+                LEFT JOIN materials_items_preparation mip ON msp.id_preparation = mip.preparation_id
+                LEFT JOIN validations v ON mip.id_item_preparation = v.material_item_preparation_id AND v.validation_status = 'approved'
+                LEFT JOIN assets a ON v.id_validation = a.validation_id
+                LEFT JOIN locations l ON msp.location_id = l.id_location
+                WHERE msp.checking_date BETWEEN %s AND %s
+                GROUP BY msp.id_preparation, msp.checking_number, msp.checking_name, 
+                         msp.checking_date, msp.location_id, l.location_name, msp.created_at
+                HAVING COUNT(DISTINCT a.id_assets) > 0
+                ORDER BY msp.checking_date DESC
+            """, (start_date, end_date))
+            material_sessions = cur.fetchall()
+            
+            # Gabungkan
+            for session in device_sessions:
+                session_dict = dict(session)
+                sessions_data.append(session_dict)
+            for session in material_sessions:
+                session_dict = dict(session)
+                sessions_data.append(session_dict)
+            
+            # Urutkan berdasarkan tanggal
+            sessions_data.sort(key=lambda x: x.get('checking_date', ''), reverse=True)
         
-        items = cur.fetchall()
+        # Hitung total keseluruhan
+        total_devices = sum(s.get('device_count', 0) for s in sessions_data)
+        total_materials = sum(s.get('material_count', 0) for s in sessions_data)
+        total_items = sum(s.get('total_items', 0) for s in sessions_data)
         
         return jsonify({
             'success': True,
-            'data': dict(report),
-            'items': [dict(item) for item in items],
-            'items_count': len(items)
+            'data': {
+                'period_type': period_type,
+                'period_key': period_key,
+                'start_date': start_date.strftime('%Y-%m-%d') if start_date else None,
+                'end_date': end_date.strftime('%Y-%m-%d') if end_date else None,
+                'sessions': sessions_data,
+                'total_devices': total_devices,
+                'total_materials': total_materials,
+                'total_items': total_items,
+                'session_count': len(sessions_data)
+            }
         })
         
     except Exception as e:
-        print(f"Error getting report: {e}")
+        print(f"Error getting report detail: {e}")
         print(traceback.format_exc())
         return jsonify({
             'success': False,
@@ -352,48 +358,127 @@ def get_report_by_id(report_id):
         if conn:
             conn.close()
 
-# ==================== GET REPORTS SUMMARY ====================
-@reports_bp.route('/api/reports/summary', methods=['GET'])
-def get_reports_summary():
-    """Mendapatkan summary untuk dashboard reports"""
+# ==================== EXPORT REPORT TO EXCEL ====================
+@reports_bp.route('/api/reports/export', methods=['GET'])
+def export_report():
+    """Export report ke Excel"""
     conn = None
     try:
+        period_type = request.args.get('period_type', 'monthly')
+        period_key = request.args.get('period_key', '')
+        year = request.args.get('year', None)
+        month = request.args.get('month', None)
+        
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
-        # Total reports
-        cur.execute("SELECT COUNT(*) as total FROM reports")
-        total_reports = cur.fetchone()['total']
+        # Tentukan rentang tanggal
+        start_date = None
+        end_date = None
         
-        # Total assets from all reports
-        cur.execute("SELECT SUM(total_assets) as total_assets FROM reports")
-        total_assets = cur.fetchone()['total_assets'] or 0
+        if period_type == 'weekly' and period_key:
+            import re
+            match = re.match(r'(\d+)-W(\d+)', period_key)
+            if match:
+                year = int(match.group(1))
+                week_num = int(match.group(2))
+                first_day_of_year = datetime(year, 1, 1)
+                days_to_first_week = (7 - first_day_of_year.weekday()) % 7
+                first_week_start = first_day_of_year + timedelta(days=days_to_first_week)
+                start_date = first_week_start + timedelta(weeks=week_num - 1)
+                end_date = start_date + timedelta(days=6)
+        elif period_type == 'monthly' and year and month:
+            start_date = datetime(int(year), int(month), 1)
+            if int(month) == 12:
+                end_date = datetime(int(year) + 1, 1, 1) - timedelta(days=1)
+            else:
+                end_date = datetime(int(year), int(month) + 1, 1) - timedelta(days=1)
         
-        # Average success rate
-        cur.execute("SELECT AVG(success_rate) as avg_success_rate FROM reports WHERE total_scans > 0")
-        avg_success_rate = cur.fetchone()['avg_success_rate'] or 0
+        # Ambil semua asset details dalam periode
+        assets_data = []
         
-        # Reports last 7 days
-        cur.execute("""
-            SELECT report_date, total_scans, valid_scans, error_scans, success_rate
-            FROM reports
-            WHERE report_date >= CURRENT_DATE - INTERVAL '7 days'
-            ORDER BY report_date ASC
-        """)
-        weekly_data = cur.fetchall()
+        if start_date and end_date:
+            # Device assets
+            cur.execute("""
+                SELECT 
+                    a.asset_code,
+                    a.asset_name,
+                    a.asset_type,
+                    a.category,
+                    a.serial_number,
+                    a.brand,
+                    a.vendor,
+                    a.model,
+                    a.project_name,
+                    a.department_name,
+                    a.receiver_name,
+                    a.location_name,
+                    a.status,
+                    a.quantity,
+                    a.uom,
+                    a.validated_at,
+                    dsp.checking_name as session_name,
+                    dsp.checking_number as session_number,
+                    dsp.checking_date
+                FROM assets a
+                INNER JOIN validations v ON a.validation_id = v.id_validation
+                INNER JOIN devices_items_preparation dip ON v.item_preparation_id = dip.id_item_preparation
+                INNER JOIN devices_scanning_preparations dsp ON dip.preparation_id = dsp.id_preparation
+                WHERE dsp.checking_date BETWEEN %s AND %s
+                AND a.asset_type = 'device'
+                ORDER BY dsp.checking_date DESC, a.asset_name ASC
+            """, (start_date, end_date))
+            device_assets = cur.fetchall()
+            
+            # Material assets
+            cur.execute("""
+                SELECT 
+                    a.asset_code,
+                    a.asset_name,
+                    a.asset_type,
+                    a.category,
+                    a.scan_code,
+                    a.vendor,
+                    a.project_name,
+                    a.department_name,
+                    a.receiver_name,
+                    a.location_name,
+                    a.status,
+                    a.quantity,
+                    a.uom,
+                    a.validated_at,
+                    msp.checking_name as session_name,
+                    msp.checking_number as session_number,
+                    msp.checking_date
+                FROM assets a
+                INNER JOIN validations v ON a.validation_id = v.id_validation
+                INNER JOIN materials_items_preparation mip ON v.material_item_preparation_id = mip.id_item_preparation
+                INNER JOIN materials_scanning_preparations msp ON mip.preparation_id = msp.id_preparation
+                WHERE msp.checking_date BETWEEN %s AND %s
+                AND a.asset_type = 'material'
+                ORDER BY msp.checking_date DESC, a.asset_name ASC
+            """, (start_date, end_date))
+            material_assets = cur.fetchall()
+            
+            for asset in device_assets:
+                assets_data.append(dict(asset))
+            for asset in material_assets:
+                assets_data.append(dict(asset))
         
         return jsonify({
             'success': True,
-            'data': {
-                'total_reports': total_reports,
-                'total_assets': total_assets,
-                'avg_success_rate': round(float(avg_success_rate), 2),
-                'weekly_data': [dict(row) for row in weekly_data]
+            'data': assets_data,
+            'count': len(assets_data),
+            'period': {
+                'period_type': period_type,
+                'start_date': start_date.strftime('%Y-%m-%d') if start_date else None,
+                'end_date': end_date.strftime('%Y-%m-%d') if end_date else None
             }
         })
         
     except Exception as e:
-        print(f"Error getting reports summary: {e}")
+        print(f"Error exporting report: {e}")
+        print(traceback.format_exc())
         return jsonify({
             'success': False,
             'error': str(e)
@@ -402,91 +487,36 @@ def get_reports_summary():
         if conn:
             conn.close()
 
-# ==================== GET REPORTS STATS ====================
-@reports_bp.route('/api/reports/stats', methods=['GET'])
-def get_reports_stats():
-    """Mendapatkan statistik untuk dashboard reports"""
-    conn = None
-    try:
-        conn = get_conn()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        
-        # Statistik per bulan
-        cur.execute("""
-            SELECT 
-                DATE_TRUNC('month', report_date) as month,
-                COUNT(*) as report_count,
-                SUM(total_scans) as total_scans,
-                SUM(valid_scans) as valid_scans,
-                SUM(error_scans) as error_scans,
-                SUM(total_assets) as total_assets,
-                AVG(success_rate) as avg_success_rate
-            FROM reports
-            GROUP BY DATE_TRUNC('month', report_date)
-            ORDER BY month DESC
-            LIMIT 6
-        """)
-        
-        monthly_stats = cur.fetchall()
-        
-        # Statistik per type
-        cur.execute("""
-            SELECT 
-                SUM(devices_count) as total_devices,
-                SUM(materials_count) as total_materials
-            FROM reports
-        """)
-        
-        type_stats = cur.fetchone()
-        
-        return jsonify({
-            'success': True,
-            'data': {
-                'monthly_stats': [dict(row) for row in monthly_stats],
-                'type_stats': dict(type_stats) if type_stats else {'total_devices': 0, 'total_materials': 0}
-            }
-        })
-        
-    except Exception as e:
-        print(f"Error getting reports stats: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-    finally:
-        if conn:
-            conn.close()
-
-# ==================== DELETE REPORT ====================
-@reports_bp.route('/api/reports/<int:report_id>', methods=['DELETE'])
-def delete_report(report_id):
-    """Menghapus report berdasarkan ID"""
+# ==================== GET AVAILABLE YEARS ====================
+@reports_bp.route('/api/reports/years', methods=['GET'])
+def get_available_years():
+    """Mendapatkan daftar tahun yang tersedia untuk report"""
     conn = None
     try:
         conn = get_conn()
         cur = conn.cursor()
         
-        cur.execute("SELECT id_report FROM reports WHERE id_report = %s", (report_id,))
-        if not cur.fetchone():
-            return jsonify({
-                'success': False,
-                'error': 'Report not found'
-            }), 404
+        # Ambil dari device sessions
+        cur.execute("""
+            SELECT DISTINCT EXTRACT(YEAR FROM checking_date) as year
+            FROM devices_scanning_preparations
+            WHERE status = 'completed'
+            UNION
+            SELECT DISTINCT EXTRACT(YEAR FROM checking_date) as year
+            FROM materials_scanning_preparations
+            WHERE status = 'completed'
+            ORDER BY year DESC
+        """)
         
-        # Delete akan cascade ke report_items
-        cur.execute("DELETE FROM reports WHERE id_report = %s", (report_id,))
-        
-        conn.commit()
+        years = [row[0] for row in cur.fetchall() if row[0]]
         
         return jsonify({
             'success': True,
-            'message': 'Report deleted successfully'
+            'data': years
         })
         
     except Exception as e:
-        if conn:
-            conn.rollback()
-        print(f"Error deleting report: {e}")
+        print(f"Error getting available years: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

@@ -1,8 +1,10 @@
 from flask import Blueprint, request, jsonify
 from utils.database import get_db_connection
 import psycopg2.extras
-from datetime import datetime
+from datetime import datetime, timedelta  
 import traceback
+import random
+import string
 
 validation_bp = Blueprint('validation', __name__)
 
@@ -42,6 +44,10 @@ def check_and_update_session_status(preparation_id, validation_type):
                 """, (preparation_id,))
                 conn.commit()
                 print(f"✅ Session {preparation_id} (device) updated to completed")
+                
+                # ==================== GENERATE REPORT ====================
+                generate_report_for_session(preparation_id, 'device', conn)
+                
                 return True
                 
         else:  # material
@@ -69,6 +75,10 @@ def check_and_update_session_status(preparation_id, validation_type):
                 """, (preparation_id,))
                 conn.commit()
                 print(f"✅ Session {preparation_id} (material) updated to completed")
+                
+                # ==================== GENERATE REPORT ====================
+                generate_report_for_session(preparation_id, 'material', conn)
+                
                 return True
                 
         return False
@@ -79,7 +89,197 @@ def check_and_update_session_status(preparation_id, validation_type):
     finally:
         if conn:
             conn.close()
+
+# ==================== AUTO GENERATE REPORT ====================
+def generate_report_for_session(preparation_id, validation_type, conn=None):
+    """Generate atau update report untuk session yang telah completed"""
+    should_close = False
+    try:
+        if not conn:
+            conn = get_conn()
+            should_close = True
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        # Ambil data session
+        if validation_type == 'device':
+            cur.execute("""
+                SELECT 
+                    dsp.id_preparation,
+                    dsp.checking_number,
+                    dsp.checking_name,
+                    dsp.checking_date,
+                    dsp.location_id,
+                    l.location_name,
+                    dsp.created_at
+                FROM devices_scanning_preparations dsp
+                LEFT JOIN locations l ON dsp.location_id = l.id_location
+                WHERE dsp.id_preparation = %s AND dsp.status = 'completed'
+            """, (preparation_id,))
+        else:
+            cur.execute("""
+                SELECT 
+                    msp.id_preparation,
+                    msp.checking_number,
+                    msp.checking_name,
+                    msp.checking_date,
+                    msp.location_id,
+                    l.location_name,
+                    msp.created_at
+                FROM materials_scanning_preparations msp
+                LEFT JOIN locations l ON msp.location_id = l.id_location
+                WHERE msp.id_preparation = %s AND msp.status = 'completed'
+            """, (preparation_id,))
+        
+        session = cur.fetchone()
+        if not session:
+            return False
+        
+        checking_date = session['checking_date']
+        date_obj = checking_date if isinstance(checking_date, datetime) else datetime.strptime(str(checking_date), '%Y-%m-%d')
+        
+        # Tentukan periode (weekly dan monthly)
+        year = date_obj.year
+        month = date_obj.month
+        week_number = date_obj.isocalendar()[1]
+        
+        # Weekly period key
+        week_key = f"{year}-W{week_number:02d}"
+        week_label = f"Week {week_number} - {year}"
+        
+        # Hitung start_date dan end_date untuk minggu
+        start_of_week = date_obj - timedelta(days=date_obj.weekday())
+        end_of_week = start_of_week + timedelta(days=6)
+        
+        # Monthly period key
+        month_key = f"{year}-{month:02d}"
+        from calendar import month_name
+        month_label = f"{month_name[month]} {year}"
+        
+        start_of_month = datetime(year, month, 1)
+        if month == 12:
+            end_of_month = datetime(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_of_month = datetime(year, month + 1, 1) - timedelta(days=1)
+        
+        # Update atau buat report untuk weekly
+        update_or_create_report(conn, year, week_key, week_label, 'weekly', 
+                                start_of_week, end_of_week, week_number=week_number)
+        
+        # Update atau buat report untuk monthly
+        update_or_create_report(conn, year, month_key, month_label, 'monthly',
+                                start_of_month, end_of_month, month=month)
+        
+        if should_close:
+            conn.commit()
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error generating report for session {preparation_id}: {e}")
+        print(traceback.format_exc())
+        return False
+    finally:
+        if should_close and conn:
+            conn.close()
+
+def update_or_create_report(conn, year, period_key, period_label, report_type, 
+                            start_date, end_date, month=None, week_number=None):
+    """Update atau create report berdasarkan periode"""
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        # Cek apakah report sudah ada
+        cur.execute("""
+            SELECT id_report, total_devices, total_materials, total_items, session_count
+            FROM reports 
+            WHERE period_key = %s AND report_type = %s
+        """, (period_key, report_type))
+        
+        existing_report = cur.fetchone()
+        
+        # Hitung total devices, materials, items untuk periode ini
+        # Device sessions dalam periode
+        cur.execute("""
+            SELECT 
+                COUNT(DISTINCT a.id_assets) as total_items,
+                COALESCE(SUM(CASE WHEN a.asset_type = 'device' THEN a.quantity ELSE 0 END), 0) as device_count,
+                COALESCE(SUM(CASE WHEN a.asset_type = 'material' THEN a.quantity ELSE 0 END), 0) as material_count,
+                COUNT(DISTINCT dsp.id_preparation) as session_count
+            FROM devices_scanning_preparations dsp
+            LEFT JOIN devices_items_preparation dip ON dsp.id_preparation = dip.preparation_id
+            LEFT JOIN validations v ON dip.id_item_preparation = v.item_preparation_id AND v.validation_status = 'approved'
+            LEFT JOIN assets a ON v.id_validation = a.validation_id
+            WHERE dsp.checking_date BETWEEN %s AND %s
+            AND dsp.status = 'completed'
+        """, (start_date, end_date))
+        device_stats = cur.fetchone()
+        
+        # Material sessions dalam periode
+        cur.execute("""
+            SELECT 
+                COUNT(DISTINCT a.id_assets) as total_items,
+                COALESCE(SUM(CASE WHEN a.asset_type = 'device' THEN a.quantity ELSE 0 END), 0) as device_count,
+                COALESCE(SUM(CASE WHEN a.asset_type = 'material' THEN a.quantity ELSE 0 END), 0) as material_count,
+                COUNT(DISTINCT msp.id_preparation) as session_count
+            FROM materials_scanning_preparations msp
+            LEFT JOIN materials_items_preparation mip ON msp.id_preparation = mip.preparation_id
+            LEFT JOIN validations v ON mip.id_item_preparation = v.material_item_preparation_id AND v.validation_status = 'approved'
+            LEFT JOIN assets a ON v.id_validation = a.validation_id
+            WHERE msp.checking_date BETWEEN %s AND %s
+            AND msp.status = 'completed'
+        """, (start_date, end_date))
+        material_stats = cur.fetchone()
+        
+        total_items = (device_stats['total_items'] or 0) + (material_stats['total_items'] or 0)
+        total_devices = (device_stats['device_count'] or 0) + (material_stats['device_count'] or 0)
+        total_materials = (device_stats['material_count'] or 0) + (material_stats['material_count'] or 0)
+        session_count = (device_stats['session_count'] or 0) + (material_stats['session_count'] or 0)
+        
+        if existing_report:
+            # Update report yang sudah ada
+            cur.execute("""
+                UPDATE reports 
+                SET total_devices = %s,
+                    total_materials = %s,
+                    total_items = %s,
+                    session_count = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id_report = %s
+            """, (total_devices, total_materials, total_items, session_count, existing_report['id_report']))
             
+            print(f"✅ Report updated: {period_label} ({report_type})")
+        else:
+            # Buat report baru
+            import random
+            import string
+            date_str = datetime.now().strftime('%Y%m%d')
+            random_chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+            report_code = f"RPT-{date_str}-{random_chars}"
+            
+            cur.execute("""
+                INSERT INTO reports (
+                    report_code, report_name, report_type, period_key, period_label,
+                    year, month, week_number, start_date, end_date,
+                    total_devices, total_materials, total_items, session_count,
+                    status, created_at, updated_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                report_code, period_label, report_type, period_key, period_label,
+                year, month, week_number, start_date, end_date,
+                total_devices, total_materials, total_items, session_count,
+                'active', datetime.now(), datetime.now()
+            ))
+            
+            print(f"✅ Report created: {period_label} ({report_type})")
+        
+        conn.commit()
+        return True
+        
+    except Exception as e:
+        print(f"Error in update_or_create_report: {e}")
+        print(traceback.format_exc())
+        return False
+
 def create_asset_from_validation_id(validation_id, validated_by, existing_conn=None):
     """Helper function to create asset from validation (can use existing connection)"""
     conn = None

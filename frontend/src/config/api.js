@@ -51,8 +51,10 @@ export const API_ENDPOINTS = {
   MASTER_MATERIALS_LIST: `${API_BASE_URL}/api/master-materials/list`,
   MASTER_RECEIVERS_LIST: `${API_BASE_URL}/api/master-receivers/list`,
 
-  DEVICES_ITEMS_PREPARATION_DETAIL: (id) => `${API_BASE_URL}/api/devices/items-preparation/${id}`,
-  MATERIALS_ITEMS_PREPARATION_DETAIL: (id) => `${API_BASE_URL}/api/materials/items-preparation/${id}`,
+  DEVICES_ITEMS_PREPARATION_DETAIL: (id) =>
+    `${API_BASE_URL}/api/devices/items-preparation/${id}`,
+  MATERIALS_ITEMS_PREPARATION_DETAIL: (id) =>
+    `${API_BASE_URL}/api/materials/items-preparation/${id}`,
 
   // Scanning Preparation (Devices)
   DEVICES_SCANNING_PREP_CREATE: `${API_BASE_URL}/api/devices/scanning-preparation/create`,
@@ -140,17 +142,20 @@ export const API_ENDPOINTS = {
   ASSETS_UPDATE: (id) => `${API_BASE_URL}/api/assets/${id}`,
   ASSETS_DELETE: (id) => `${API_BASE_URL}/api/assets/${id}`,
   ASSETS_BULK_DELETE: `${API_BASE_URL}/api/assets/bulk-delete`,
-  ASSETS_BY_PREPARATION: (prepId) => `${API_BASE_URL}/api/assets/by-preparation/${prepId}`,
+  ASSETS_BY_PREPARATION: (prepId) =>
+    `${API_BASE_URL}/api/assets/by-preparation/${prepId}`,
   ASSETS_PREPARATIONS_COMPLETED: `${API_BASE_URL}/api/assets/preparations/completed`,
 
   // Di dalam API_ENDPOINTS
   SYNC_SESSION_STATUS: `${API_BASE_URL}/api/scanning-preparation/sync-status`,
 
-  // Reports
+  // ==================== REPORTS ====================
   REPORTS_LIST: `${API_BASE_URL}/api/reports`,
-  REPORTS_DETAIL: (id) => `${API_BASE_URL}/api/reports/${id}`,
-  REPORTS_SUMMARY: `${API_BASE_URL}/api/reports/summary`,
-  REPORTS_STATS: `${API_BASE_URL}/api/reports/stats`,
+  REPORTS_DETAIL: `${API_BASE_URL}/api/reports/detail`,
+  REPORTS_EXPORT: `${API_BASE_URL}/api/reports/export`,
+  REPORTS_YEARS: `${API_BASE_URL}/api/reports/years`,
+  REPORTS_CREATE: `${API_BASE_URL}/api/reports/create`,
+  REPORTS_UPDATE: (id) => `${API_BASE_URL}/api/reports/${id}`,
   REPORTS_DELETE: (id) => `${API_BASE_URL}/api/reports/${id}`,
 };
 
