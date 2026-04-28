@@ -49,7 +49,7 @@ export default function ValidationVerificationPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
   const [selectedItems, setSelectedItems] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [detailModal, setDetailModal] = useState(null);
@@ -3043,55 +3043,48 @@ export default function ValidationVerificationPage() {
 
             {/* Footer / Pagination */}
             {!loading && filteredValidations.length > 0 && (
-              <div className="vv-footer flex-col sm:flex-row gap-2 sm:gap-0">
-                <p
-                  style={{ fontSize: 12, color: "#6b7280" }}
-                  className="text-center sm:text-left"
-                >
-                  Showing{" "}
-                  <span style={{ fontWeight: 600, color: "#374151" }}>
-                    {(currentPage - 1) * itemsPerPage + 1}–
-                    {Math.min(
-                      currentPage * itemsPerPage,
-                      filteredValidations.length,
-                    )}
-                  </span>{" "}
-                  of{" "}
-                  <span style={{ fontWeight: 600, color: "#374151" }}>
-                    {filteredValidations.length}
-                  </span>{" "}
-                  validations
-                  {typeFilter !== "all" && (
-                    <span
-                      style={{
-                        marginLeft: 6,
-                        padding: "2px 8px",
-                        background: "#eff6ff",
-                        color: "#2563eb",
-                        borderRadius: 20,
-                        fontSize: 11,
-                        fontWeight: 500,
+              <div className="vv-footer flex-col sm:flex-row gap-3 sm:gap-0">
+                <div className="flex items-center gap-3">
+                  <p style={{ fontSize: 12, color: "#6b7280" }}>
+                    Showing{" "}
+                    <span style={{ fontWeight: 600, color: "#374151" }}>
+                      {(currentPage - 1) * itemsPerPage + 1}–
+                      {Math.min(
+                        currentPage * itemsPerPage,
+                        filteredValidations.length,
+                      )}
+                    </span>{" "}
+                    of{" "}
+                    <span style={{ fontWeight: 600, color: "#374151" }}>
+                      {filteredValidations.length}
+                    </span>{" "}
+                    validations
+                  </p>
+
+                  {/* SHOW ENTRIES DROPDOWN */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">Show</span>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => {
+                        setItemsPerPage(Number(e.target.value));
+                        setCurrentPage(1);
                       }}
+                      className="px-2 py-1 text-xs border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                     >
-                      {typeFilter === "device" ? "Devices" : "Materials"}
-                    </span>
-                  )}
-                  {statusFilter !== "all" && (
-                    <span
-                      style={{
-                        marginLeft: 6,
-                        padding: "2px 8px",
-                        background: "#fef3c7",
-                        color: "#b45309",
-                        borderRadius: 20,
-                        fontSize: 11,
-                        fontWeight: 500,
-                      }}
-                    >
-                      {statusFilter}
-                    </span>
-                  )}
-                </p>
+                      <option value={20}>20</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                      <option value={200}>200</option>
+                      <option value={500}>500</option>
+                      <option value={1000}>1000</option>
+                      <option value={5000}>5000</option>
+                    </select>
+                    <span className="text-xs text-gray-500">entries</span>
+                  </div>
+                </div>
+
                 {totalPages > 1 && (
                   <div className="flex items-center gap-1">
                     <button
