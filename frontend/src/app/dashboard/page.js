@@ -16,6 +16,8 @@ import {
   Cable,
   Server,
   ScanLine,
+  Users,
+  Calendar,
   Eye,
   Settings,
   BarChart2,
@@ -38,6 +40,7 @@ import LayoutDashboard from "../components/LayoutDashboard";
 import ProtectedPage from "../components/ProtectedPage";
 import API_BASE_URL, { API_ENDPOINTS } from "../../config/api";
 import Swal from "sweetalert2";
+import { useAuth } from "../context/AuthContext";
 
 // ─── Inline Donut Component ─────────────────────────────────────────────────
 const InlineDonut = ({ pct, color, size = 100, stroke = 10 }) => {
@@ -84,6 +87,7 @@ const InlineDonut = ({ pct, color, size = 100, stroke = 10 }) => {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { user } = useAuth(); // Ambil user dari AuthContext
   const [sessions, setSessions] = useState([]);
   const [validations, setValidations] = useState([]);
   const [assets, setAssets] = useState([]);
@@ -91,6 +95,10 @@ export default function DashboardPage() {
   const [recentChecks, setRecentChecks] = useState([]);
   const [recentValidations, setRecentValidations] = useState([]);
   const [recentAssets, setRecentAssets] = useState([]);
+
+  // Cek role user
+  const isSuperAdmin = user?.role === "superadmin";
+  const isAdmin = user?.role === "admin";
 
   useEffect(() => {
     fetchDashboardData();
@@ -296,7 +304,8 @@ export default function DashboardPage() {
     return sum + (sessionDate === today ? s.totalScanned || 0 : 0);
   }, 0);
 
-  const stats = [
+  // ========== STATS UNTUK SUPERADMIN (berbeda dengan admin) ==========
+  const adminStats = [
     {
       label: "Total IT Assets",
       value: totalAssets,
@@ -318,6 +327,32 @@ export default function DashboardPage() {
       description: "Requires Re-Scanning",
     },
   ];
+
+  // Stats untuk Superadmin (fokus ke monitoring, bukan scanning)
+  const superadminStats = [
+    {
+      label: "Total IT Assets",
+      value: totalAssets,
+      description: "IT Devices & Materials",
+    },
+    {
+      label: "Total Sessions",
+      value: totalSessions,
+      description: "All scanning sessions",
+    },
+    {
+      label: "Completed Sessions",
+      value: completedSessions,
+      description: "Fully validated sessions",
+    },
+    {
+      label: "Total Validations",
+      value: totalValidations,
+      description: "All validation records",
+    },
+  ];
+
+  const stats = isSuperAdmin ? superadminStats : adminStats;
 
   const getWeeklyData = () => {
     const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -422,10 +457,92 @@ export default function DashboardPage() {
     return null;
   };
 
+  // ========== QUICK ACTIONS BERDASARKAN ROLE ==========
+  const adminQuickActions = [
+    {
+      icon: ScanLine,
+      label: "Start Scan",
+      desc: "Check Devices & Materials",
+      href: "/scanning",
+    },
+    {
+      icon: CheckCircle,
+      label: "Validation",
+      desc: "Review Asset Checking Results",
+      href: "/validation_verification",
+    },
+    {
+      icon: FileText,
+      label: "Reports",
+      desc: "View Asset Checking Report Data",
+      href: "/reports",
+    },
+    {
+      icon: BarChart2,
+      label: "Monitoring",
+      desc: "View Device Checking Percentage",
+      href: "/history",
+    },
+  ];
+
+  const superadminQuickActions = [
+    {
+      icon: FileText,
+      label: "Reports",
+      desc: "View Asset Checking Report Data",
+      href: "/reports",
+    },
+    {
+      icon: BarChart2,
+      label: "Monitoring",
+      desc: "View Device Checking Percentage",
+      href: "/history",
+    },
+    {
+      icon: Users,
+      label: "Manage Users",
+      desc: "Manage system users",
+      href: "/management-users",
+    },
+    {
+      icon: Box,
+      label: "Assets Inventory",
+      desc: "View all IT assets",
+      href: "/assets",
+    },
+  ];
+
+  const quickActions = isSuperAdmin
+    ? superadminQuickActions
+    : adminQuickActions;
+
+  // ========== SIDEBAR QUICK ACTIONS (Right Column) ==========
+  const adminSidebarActions = [
+    { label: "Start Scan", icon: ScanLine, href: "/scanning" },
+    {
+      label: "View Validations",
+      icon: Shield,
+      href: "/validation_verification",
+    },
+    { label: "Asset Inventory", icon: Box, href: "/assets" },
+    { label: "View Reports", icon: FileText, href: "/reports" },
+  ];
+
+  const superadminSidebarActions = [
+    { label: "Asset Inventory", icon: Box, href: "/assets" },
+    { label: "View Reports", icon: FileText, href: "/reports" },
+    { label: "Manage Users", icon: Users, href: "/management-users" },
+    { label: "History Log", icon: Calendar, href: "/history" },
+  ];
+
+  const sidebarActions = isSuperAdmin
+    ? superadminSidebarActions
+    : adminSidebarActions;
+
   if (loading) {
     return (
       <ProtectedPage>
-        <LayoutDashboard>
+        <LayoutDashboard activeMenu="home">
           <div className="min-h-screen bg-gray-100 flex items-center justify-center">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -610,8 +727,9 @@ export default function DashboardPage() {
                 IT Assets Inventory System
               </h1>
               <p className="text-sm text-gray-500 mt-1">
-                Automatic Validation of IT Asset Serial Numbers or Scan Code
-                (Devices &amp; Materials)
+                {isSuperAdmin
+                  ? "Monitor and manage IT asset validation system"
+                  : "Automatic Validation of IT Asset Serial Numbers or Scan Code (Devices & Materials)"}
               </p>
             </div>
           </div>
@@ -668,38 +786,14 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* ── Row 2: Quick Actions ── */}
+              {/* ── Row 2: Quick Actions (berdasarkan role) ── */}
               <div className="db-card p-5">
                 <p className="db-section-title">
-                  <ScanLine className="w-4 h-4" /> Start Asset Checking
+                  <ScanLine className="w-4 h-4" />
+                  {isSuperAdmin ? "System Monitoring" : "Start Asset Checking"}
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {[
-                    {
-                      icon: ScanLine,
-                      label: "Start Scan",
-                      desc: "Check Devices & Materials",
-                      href: "/scanning",
-                    },
-                    {
-                      icon: CheckCircle,
-                      label: "Validation",
-                      desc: "Review Asset Checking Results",
-                      href: "/validation_verification",
-                    },
-                    {
-                      icon: FileText,
-                      label: "Reports",
-                      desc: "View Asset Checking Report Data",
-                      href: "/reports",
-                    },
-                    {
-                      icon: BarChart2,
-                      label: "Monitoring",
-                      desc: "View Device Checking Percentage",
-                      href: "/history",
-                    },
-                  ].map((item, index) => (
+                  {quickActions.map((item, index) => (
                     <button
                       key={index}
                       onClick={() => router.push(item.href)}
@@ -899,116 +993,119 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* ── Latest Asset Scanning Table ── */}
-              <div className="db-card overflow-hidden">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-5 border-b border-gray-100">
-                  <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-                    <Eye className="w-4 h-4 text-gray-500" /> Latest Asset Scans
-                  </h3>
-                  <button
-                    onClick={() => router.push("/validation_verification")}
-                    className="text-sm text-blue-600 font-medium hover:text-blue-700 transition-colors"
-                  >
-                    View All Validations →
-                  </button>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-gray-50">
-                        {[
-                          "Asset Name",
-                          "Type",
-                          "Location",
-                          "Status",
-                          "Date",
-                        ].map((h) => (
-                          <th
-                            key={h}
-                            className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap"
-                          >
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {recentChecks.length > 0 ? (
-                        recentChecks.map((row, index) => {
-                          const handleRowClick = () => {
-                            if (row.preparation_id) {
-                              router.push(
-                                `/scanning?prep_id=${row.preparation_id}&type=${row.kategori === "Perangkat" ? "device" : "material"}`,
-                              );
-                            } else {
-                              router.push(`/validation_verification`);
-                            }
-                          };
-
-                          return (
-                            <tr
-                              key={index}
-                              onClick={handleRowClick}
-                              className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer"
+              {/* ── Latest Asset Scanning Table (hanya untuk Admin) ── */}
+              {!isSuperAdmin && (
+                <div className="db-card overflow-hidden">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-5 border-b border-gray-100">
+                    <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                      <Eye className="w-4 h-4 text-gray-500" /> Latest Asset
+                      Scans
+                    </h3>
+                    <button
+                      onClick={() => router.push("/validation_verification")}
+                      className="text-sm text-blue-600 font-medium hover:text-blue-700 transition-colors"
+                    >
+                      View All Validations →
+                    </button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          {[
+                            "Asset Name",
+                            "Type",
+                            "Location",
+                            "Status",
+                            "Date",
+                          ].map((h) => (
+                            <th
+                              key={h}
+                              className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap"
                             >
-                              <td className="px-4 py-3">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
-                                    {getCategoryIcon(row.kategori)}
-                                  </div>
-                                  <span className="font-medium text-gray-900 max-w-[200px] truncate">
-                                    {row.jenisAset}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <span
-                                  className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
-                                    row.kategori === "Perangkat"
-                                      ? "bg-blue-100 text-blue-700"
-                                      : "bg-green-100 text-green-700"
-                                  }`}
-                                >
-                                  {row.kategori === "Perangkat"
-                                    ? "Device"
-                                    : "Material"}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-xs text-gray-600 max-w-[150px] truncate">
-                                {row.lokasi}
-                              </td>
-                              <td className="px-4 py-3">
-                                <span
-                                  className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(row.validation_status || row.status)}`}
-                                >
-                                  {row.validation_status || row.status}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="text-xs text-gray-600">
-                                  {row.tanggal}
-                                </div>
-                                <div className="text-xs text-gray-400">
-                                  {row.waktu}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      ) : (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            className="text-center py-8 text-gray-500 text-sm"
-                          >
-                            No scan history available
-                          </td>
+                              {h}
+                            </th>
+                          ))}
                         </tr>
-                      )}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {recentChecks.length > 0 ? (
+                          recentChecks.map((row, index) => {
+                            const handleRowClick = () => {
+                              if (row.preparation_id) {
+                                router.push(
+                                  `/scanning?prep_id=${row.preparation_id}&type=${row.kategori === "Perangkat" ? "device" : "material"}`,
+                                );
+                              } else {
+                                router.push(`/validation_verification`);
+                              }
+                            };
+
+                            return (
+                              <tr
+                                key={index}
+                                onClick={handleRowClick}
+                                className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer"
+                              >
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                                      {getCategoryIcon(row.kategori)}
+                                    </div>
+                                    <span className="font-medium text-gray-900 max-w-[200px] truncate">
+                                      {row.jenisAset}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span
+                                    className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
+                                      row.kategori === "Perangkat"
+                                        ? "bg-blue-100 text-blue-700"
+                                        : "bg-green-100 text-green-700"
+                                    }`}
+                                  >
+                                    {row.kategori === "Perangkat"
+                                      ? "Device"
+                                      : "Material"}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-xs text-gray-600 max-w-[150px] truncate">
+                                  {row.lokasi}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span
+                                    className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(row.validation_status || row.status)}`}
+                                  >
+                                    {row.validation_status || row.status}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="text-xs text-gray-600">
+                                    {row.tanggal}
+                                  </div>
+                                  <div className="text-xs text-gray-400">
+                                    {row.waktu}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr>
+                            <td
+                              colSpan={5}
+                              className="text-center py-8 text-gray-500 text-sm"
+                            >
+                              No scan history available
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* ── Recent Validations Table ── */}
               {recentValidations.length > 0 && (
@@ -1102,7 +1199,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="p-4 space-y-4">
-                  {/* Stat Cards — menggunakan db-stat-box sama seperti profile page */}
+                  {/* Stat Cards — berdasarkan role */}
                   <div className="grid grid-cols-2 gap-2">
                     {stats.slice(0, 2).map((item, i) => (
                       <div key={i} className="db-stat-box">
@@ -1241,34 +1338,13 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* Quick Actions */}
+                  {/* Quick Actions (Sidebar) - berdasarkan role */}
                   <div className="border-t border-gray-100 pt-3">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
                       Quick Actions
                     </p>
                     <div className="space-y-1">
-                      {[
-                        {
-                          label: "Start Scan",
-                          icon: ScanLine,
-                          href: "/scanning",
-                        },
-                        {
-                          label: "View Validations",
-                          icon: Shield,
-                          href: "/validation_verification",
-                        },
-                        {
-                          label: "Asset Inventory",
-                          icon: Box,
-                          href: "/assets",
-                        },
-                        {
-                          label: "View Reports",
-                          icon: FileText,
-                          href: "/reports",
-                        },
-                      ].map((action, i) => (
+                      {sidebarActions.map((action, i) => (
                         <button
                           key={i}
                           onClick={() => router.push(action.href)}
