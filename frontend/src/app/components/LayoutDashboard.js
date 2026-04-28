@@ -63,23 +63,32 @@ export default function LayoutDashboard({ children, activeMenu }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Show welcome notification when user first loads
+  // PERBAIKAN: Cek apakah welcome sudah pernah ditampilkan untuk user ini
   useEffect(() => {
-    if (user && !hasShownWelcome) {
-      const timer = setTimeout(() => {
-        setShowWelcome(true);
-        setHasShownWelcome(true);
+    if (user) {
+      // Buat key unik berdasarkan user id
+      const welcomeShownKey = `welcome_shown_${user.id}`;
+      const alreadyShown = localStorage.getItem(welcomeShownKey);
 
-        const hideTimer = setTimeout(() => {
-          setShowWelcome(false);
-        }, 5000);
+      if (!alreadyShown) {
+        // Belum pernah ditampilkan, tampilkan sekarang
+        const timer = setTimeout(() => {
+          setShowWelcome(true);
+          setHasShownWelcome(true);
+          // Simpan ke localStorage bahwa welcome sudah ditampilkan
+          localStorage.setItem(welcomeShownKey, "true");
 
-        return () => clearTimeout(hideTimer);
-      }, 1000);
+          const hideTimer = setTimeout(() => {
+            setShowWelcome(false);
+          }, 5000);
 
-      return () => clearTimeout(timer);
+          return () => clearTimeout(hideTimer);
+        }, 1000);
+
+        return () => clearTimeout(timer);
+      }
     }
-  }, [user, hasShownWelcome]);
+  }, [user]);
 
   // ==================== MENU ITEMS BASED ON ROLE ====================
 
