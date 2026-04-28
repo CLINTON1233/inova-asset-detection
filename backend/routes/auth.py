@@ -4,6 +4,9 @@ from datetime import datetime, timedelta
 from utils.database import get_db_connection
 import secrets
 import jwt 
+import traceback
+import psycopg2
+import psycopg2.extras
 
 active_tokens = {}
 auth_bp = Blueprint('auth', __name__, url_prefix='/api')
@@ -515,6 +518,246 @@ def protected():
             'success': False,
             'message': str(e)
         }), 500
+
+# ==================== MANAGEMENT USERS ENDPOINTS ====================
+@auth_bp.route('/users', methods=['GET'])
+def get_all_users():
+    """Mendapatkan semua users (hanya untuk superadmin)"""
+    conn = None
+    cursor = None
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'Authentication required'}), 401
+        
+        token = auth_header.split(' ')[1]
+        secret_key = current_app.config.get('SECRET_KEY', '27cdc60e29397b35b746d68e8c55b703267367cf2d084aa9')
+        payload = jwt.decode(token, secret_key, algorithms=['HS256'])
+        
+        conn = get_db_connection()
+        # Gunakan cursor biasa dulu, bukan DictCursor untuk menghindari error
+        cursor = conn.cursor()
+        
+        # Cek apakah user adalah superadmin
+        cursor.execute("SELECT role FROM users WHERE id_user = %s", (payload['user_id'],))
+        current_user = cursor.fetchone()
+        
+        if not current_user or current_user[0] != 'superadmin':
+            return jsonify({'success': False, 'error': 'Access denied - Superadmin only'}), 403
+        
+        cursor.execute("""
+            SELECT 
+                id_user as id, 
+                username, 
+                email, 
+                no_badge, 
+                department, 
+                role, 
+                status, 
+                created_at,
+                updated_at
+            FROM users
+            ORDER BY created_at DESC
+        """)
+        
+        users = cursor.fetchall()
+        
+        # Konversi ke list of dicts
+        users_list = []
+        for user in users:
+            users_list.append({
+                'id': user[0],
+                'username': user[1],
+                'email': user[2],
+                'no_badge': user[3],
+                'department': user[4],
+                'role': user[5],
+                'status': user[6],
+                'created_at': user[7].isoformat() if user[7] else None,
+                'updated_at': user[8].isoformat() if user[8] else None
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': users_list,
+            'count': len(users_list)
+        })
+        
+    except jwt.ExpiredSignatureError:
+        return jsonify({'success': False, 'error': 'Token has expired'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'success': False, 'error': 'Invalid token'}), 401
+    except Exception as e:
+        print(f"Error getting users: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+@auth_bp.route('/users/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    """Menghapus user (hanya untuk superadmin)"""
+    conn = None
+    cursor = None
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'Authentication required'}), 401
+        
+        token = auth_header.split(' ')[1]
+        secret_key = current_app.config.get('SECRET_KEY', '27cdc60e29397b35b746d68e8c55b703267367cf2d084aa9')
+        payload = jwt.decode(token, secret_key, algorithms=['HS256'])
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Cek apakah user adalah superadmin
+        cursor.execute("SELECT role, id_user FROM users WHERE id_user = %s", (payload['user_id'],))
+        current_user = cursor.fetchone()
+        
+        if not current_user or current_user[0] != 'superadmin':
+            return jsonify({'success': False, 'error': 'Access denied - Superadmin only'}), 403
+        
+        # Cek apakah user yang akan dihapus ada
+        cursor.execute("SELECT id_user FROM users WHERE id_user = %s", (user_id,))
+        if not cursor.fetchone():
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Jangan izinkan menghapus diri sendiri
+        if user_id == payload['user_id']:
+            return jsonify({'success': False, 'error': 'Cannot delete your own account'}), 400
+        
+        cursor.execute("DELETE FROM users WHERE id_user = %s", (user_id,))
+        conn.commit()
+        
+        return jsonify({'success': True, 'message': 'User deleted successfully'})
+        
+    except jwt.ExpiredSignatureError:
+        return jsonify({'success': False, 'error': 'Token has expired'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'success': False, 'error': 'Invalid token'}), 401
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Error deleting user: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@auth_bp.route('/users/role/<int:user_id>', methods=['PUT'])
+def update_user_role(user_id):
+    """Update role user (hanya untuk superadmin)"""
+    conn = None
+    cursor = None
+    try:
+        data = request.json
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'Authentication required'}), 401
+        
+        token = auth_header.split(' ')[1]
+        secret_key = current_app.config.get('SECRET_KEY', '27cdc60e29397b35b746d68e8c55b703267367cf2d084aa9')
+        payload = jwt.decode(token, secret_key, algorithms=['HS256'])
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Cek apakah user adalah superadmin
+        cursor.execute("SELECT role FROM users WHERE id_user = %s", (payload['user_id'],))
+        current_user = cursor.fetchone()
+        
+        if not current_user or current_user[0] != 'superadmin':
+            return jsonify({'success': False, 'error': 'Access denied - Superadmin only'}), 403
+        
+        new_role = data.get('role')
+        if new_role not in ['admin', 'superadmin']:
+            return jsonify({'success': False, 'error': 'Invalid role. Must be admin or superadmin'}), 400
+        
+        # Cek apakah user yang akan diupdate ada
+        cursor.execute("SELECT id_user FROM users WHERE id_user = %s", (user_id,))
+        if not cursor.fetchone():
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        cursor.execute("UPDATE users SET role = %s, updated_at = CURRENT_TIMESTAMP WHERE id_user = %s", (new_role, user_id))
+        conn.commit()
+        
+        return jsonify({'success': True, 'message': 'Role updated successfully'})
+        
+    except jwt.ExpiredSignatureError:
+        return jsonify({'success': False, 'error': 'Token has expired'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'success': False, 'error': 'Invalid token'}), 401
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Error updating role: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+@auth_bp.route('/users/reset-password/<int:user_id>', methods=['PUT'])
+def reset_user_password(user_id):
+    """Reset password user (hanya untuk superadmin)"""
+    conn = None
+    cursor = None
+    try:
+        data = request.json
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'error': 'Authentication required'}), 401
+        
+        token = auth_header.split(' ')[1]
+        secret_key = current_app.config.get('SECRET_KEY', '27cdc60e29397b35b746d68e8c55b703267367cf2d084aa9')
+        payload = jwt.decode(token, secret_key, algorithms=['HS256'])
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Cek apakah user adalah superadmin
+        cursor.execute("SELECT role FROM users WHERE id_user = %s", (payload['user_id'],))
+        current_user = cursor.fetchone()
+        
+        if not current_user or current_user[0] != 'superadmin':
+            return jsonify({'success': False, 'error': 'Access denied - Superadmin only'}), 403
+        
+        new_password = data.get('new_password')
+        if not new_password or len(new_password) < 6:
+            return jsonify({'success': False, 'error': 'Password must be at least 6 characters'}), 400
+        
+        hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        cursor.execute("UPDATE users SET password = %s, updated_at = CURRENT_TIMESTAMP WHERE id_user = %s", (hashed_password, user_id))
+        conn.commit()
+        
+        return jsonify({'success': True, 'message': 'Password reset successfully'})
+        
+    except jwt.ExpiredSignatureError:
+        return jsonify({'success': False, 'error': 'Token has expired'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'success': False, 'error': 'Invalid token'}), 401
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Error resetting password: {e}")
+        print(traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 @auth_bp.route('/logout', methods=['POST'])
 def logout():

@@ -18,6 +18,7 @@ import {
   Package,
   User as UserIcon,
   Key,
+  Users,
   CheckCircle,
   ScanLine,
   Plus,
@@ -186,6 +187,13 @@ export default function LayoutDashboard({ children, activeMenu }) {
       hasDropdown: false,
       href: "/reports",
       menuId: "reports",
+    },
+    {
+      icon: Users,
+      label: "Management Users",
+      hasDropdown: false,
+      href: "/management-users",
+      menuId: "management_users",
     },
   ];
 

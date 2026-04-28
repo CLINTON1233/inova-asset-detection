@@ -32,6 +32,13 @@ export const API_ENDPOINTS = {
   UPDATE_PROFILE: `${API_BASE_URL}/api/update-profile`,
   CHANGE_PASSWORD: `${API_BASE_URL}/api/change-password`,
 
+  // Users:
+  USERS_LIST: `${API_BASE_URL}/api/users`,
+  USERS_DELETE: (id) => `${API_BASE_URL}/api/users/${id}`,
+  USERS_UPDATE_ROLE: (id) => `${API_BASE_URL}/api/users/role/${id}`,
+  USERS_RESET_PASSWORD: (id) =>
+    `${API_BASE_URL}/api/users/reset-password/${id}`,
+
   // Location
   LOCATION_ALL: `${API_BASE_URL}/api/location/all`,
   LOCATION_SEARCH: (q) =>
