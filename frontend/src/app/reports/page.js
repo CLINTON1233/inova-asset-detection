@@ -109,7 +109,7 @@ export default function ReportsPage() {
     const periodType = report.period_type || periodType;
 
     router.push(
-      `/report/detail?period_type=${periodType}&period_key=${encodeURIComponent(report.period_key)}&year=${year}&month=${month}`,
+      `/reports/detail?period_type=${periodType}&period_key=${encodeURIComponent(report.period_key)}&year=${year}&month=${month}`,
     );
   };
 
@@ -378,14 +378,14 @@ export default function ReportsPage() {
                     className="rp-stat-val text-3xl sm:text-4xl font-bold"
                     style={{ color: d.accent }}
                   >
-                    {d.value}
+                    {/* PERUBAHAN ADA DI SINI - Gunakan Math.floor() untuk membulatkan ke bawah */}
+                    {Math.floor(d.value)}
                   </span>
                   <p className="text-xs text-gray-400 mt-1.5">{d.sub}</p>
                 </div>
               ))}
             </div>
           </div>
-
           {/* Main Section */}
           <div className="rp-section">
             {/* Header */}
@@ -531,8 +531,8 @@ export default function ReportsPage() {
                       <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                         Period
                       </th>
-                      <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        Type
+                      <th className="py-3 px-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Weekly/Monthly
                       </th>
                       <th className="py-3 px-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
                         Sessions
@@ -575,7 +575,7 @@ export default function ReportsPage() {
                               </p>
                             )}
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4 text-center">
                           <span
                             className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                               report.period_type === "weekly"
@@ -590,30 +590,30 @@ export default function ReportsPage() {
                         </td>
                         <td className="py-3 px-4 text-center">
                           <span className="text-sm font-semibold text-gray-800">
-                            {report.session_count || 0}
+                            {Math.floor(report.session_count || 0)} Sessions
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className="text-sm font-semibold text-blue-600">
-                            {report.total_devices || 0}
+                          <span className="text-sm font-normal text-blue-600">
+                            {Math.floor(report.total_devices || 0)} Devices
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className="text-sm font-semibold text-green-600">
-                            {report.total_materials || 0}
+                          <span className="text-sm font-normal text-green-600">
+                            {Math.floor(report.total_materials || 0)} Materials
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className="text-sm font-bold text-gray-900">
-                            {report.total_items || 0}
+                          <span className="text-sm font-semibold text-gray-900">
+                            {Math.floor(report.total_items || 0)} Items
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
                           <button
                             onClick={() => handleViewReportDetail(report)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-gray-600 hover:bg-gray-700 rounded-lg transition"
                           >
-                            <Eye className="w-3.5 h-3.5" /> View
+                            <Eye className="w-3.5 h-4.0" /> View Details
                           </button>
                         </td>
                       </tr>

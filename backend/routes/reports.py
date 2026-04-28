@@ -237,13 +237,11 @@ def get_report_detail():
         
         if period_type == 'weekly' and period_key:
             try:
-                # Parse period_key like "2024-W01"
                 import re
                 match = re.match(r'(\d+)-W(\d+)', period_key)
                 if match:
                     year = int(match.group(1))
                     week_num = int(match.group(2))
-                    # Hitung tanggal mulai minggu
                     first_day_of_year = datetime(year, 1, 1)
                     days_to_first_week = (7 - first_day_of_year.weekday()) % 7
                     first_week_start = first_day_of_year + timedelta(days=days_to_first_week)
@@ -262,7 +260,7 @@ def get_report_detail():
         sessions_data = []
         
         if start_date and end_date:
-            # Device sessions
+            # Device sessions - TAMBAHKAN project_name
             cur.execute("""
                 SELECT 
                     dsp.id_preparation,
@@ -275,7 +273,10 @@ def get_report_detail():
                     'device' as type,
                     COUNT(DISTINCT a.id_assets) as total_items,
                     COALESCE(SUM(CASE WHEN a.asset_type = 'device' THEN a.quantity ELSE 0 END), 0) as device_count,
-                    COALESCE(SUM(CASE WHEN a.asset_type = 'material' THEN a.quantity ELSE 0 END), 0) as material_count
+                    COALESCE(SUM(CASE WHEN a.asset_type = 'material' THEN a.quantity ELSE 0 END), 0) as material_count,
+                    -- Ambil project_name dari devices_scanning_items
+                    (SELECT DISTINCT project_name FROM devices_scanning_items 
+                     WHERE preparation_id = dsp.id_preparation AND project_name IS NOT NULL LIMIT 1) as project_name
                 FROM devices_scanning_preparations dsp
                 LEFT JOIN devices_items_preparation dip ON dsp.id_preparation = dip.preparation_id
                 LEFT JOIN validations v ON dip.id_item_preparation = v.item_preparation_id AND v.validation_status = 'approved'
@@ -289,7 +290,7 @@ def get_report_detail():
             """, (start_date, end_date))
             device_sessions = cur.fetchall()
             
-            # Material sessions
+            # Material sessions - TAMBAHKAN project_name
             cur.execute("""
                 SELECT 
                     msp.id_preparation,
@@ -302,7 +303,10 @@ def get_report_detail():
                     'material' as type,
                     COUNT(DISTINCT a.id_assets) as total_items,
                     COALESCE(SUM(CASE WHEN a.asset_type = 'device' THEN a.quantity ELSE 0 END), 0) as device_count,
-                    COALESCE(SUM(CASE WHEN a.asset_type = 'material' THEN a.quantity ELSE 0 END), 0) as material_count
+                    COALESCE(SUM(CASE WHEN a.asset_type = 'material' THEN a.quantity ELSE 0 END), 0) as material_count,
+                    -- Ambil project_name dari materials_scanning_items
+                    (SELECT DISTINCT project_name FROM materials_scanning_items 
+                     WHERE preparation_id = msp.id_preparation AND project_name IS NOT NULL LIMIT 1) as project_name
                 FROM materials_scanning_preparations msp
                 LEFT JOIN materials_items_preparation mip ON msp.id_preparation = mip.preparation_id
                 LEFT JOIN validations v ON mip.id_item_preparation = v.material_item_preparation_id AND v.validation_status = 'approved'
@@ -319,18 +323,23 @@ def get_report_detail():
             # Gabungkan
             for session in device_sessions:
                 session_dict = dict(session)
+                # Pastikan project_name tidak None
+                if not session_dict.get('project_name'):
+                    session_dict['project_name'] = '-'
                 sessions_data.append(session_dict)
             for session in material_sessions:
                 session_dict = dict(session)
+                if not session_dict.get('project_name'):
+                    session_dict['project_name'] = '-'
                 sessions_data.append(session_dict)
             
             # Urutkan berdasarkan tanggal
             sessions_data.sort(key=lambda x: x.get('checking_date', ''), reverse=True)
         
         # Hitung total keseluruhan
-        total_devices = sum(s.get('device_count', 0) for s in sessions_data)
-        total_materials = sum(s.get('material_count', 0) for s in sessions_data)
-        total_items = sum(s.get('total_items', 0) for s in sessions_data)
+        total_devices = sum(int(s.get('device_count', 0)) for s in sessions_data)
+        total_materials = sum(int(s.get('material_count', 0)) for s in sessions_data)
+        total_items = sum(int(s.get('total_items', 0)) for s in sessions_data)
         
         return jsonify({
             'success': True,
@@ -340,9 +349,9 @@ def get_report_detail():
                 'start_date': start_date.strftime('%Y-%m-%d') if start_date else None,
                 'end_date': end_date.strftime('%Y-%m-%d') if end_date else None,
                 'sessions': sessions_data,
-                'total_devices': total_devices,
-                'total_materials': total_materials,
-                'total_items': total_items,
+                'total_devices': int(total_devices),
+                'total_materials': int(total_materials),
+                'total_items': int(total_items),
                 'session_count': len(sessions_data)
             }
         })
