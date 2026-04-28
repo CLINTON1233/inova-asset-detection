@@ -26,14 +26,14 @@ import {
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Swal from "sweetalert2";
-import { useAuth } from "../context/AuthContext"; // Sesuaikan path
+import { useAuth } from "../context/AuthContext";
 
 export default function LayoutDashboard({ children, activeMenu }) {
   const [activeMenuIndex, setActiveMenuIndex] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  const [scanDropdownOpen, setScanDropdownOpen] = useState(false); // Untuk desktop
-  const [mobileScanDropdownOpen, setMobileScanDropdownOpen] = useState(false); // Untuk mobile
+  const [scanDropdownOpen, setScanDropdownOpen] = useState(false);
+  const [mobileScanDropdownOpen, setMobileScanDropdownOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState("");
   const [showWelcome, setShowWelcome] = useState(false);
   const [hasShownWelcome, setHasShownWelcome] = useState(false);
@@ -81,39 +81,138 @@ export default function LayoutDashboard({ children, activeMenu }) {
     }
   }, [user, hasShownWelcome]);
 
-  const menuItems = [
-    { icon: Home, label: "Home", hasDropdown: false, href: "/dashboard" },
+  // ==================== MENU ITEMS BASED ON ROLE ====================
+
+  // Menu untuk ADMIN (bisa scan, create preparation, dll)
+  const adminMenuItems = [
+    {
+      icon: Home,
+      label: "Home",
+      hasDropdown: false,
+      href: "/dashboard",
+      menuId: "home",
+    },
     {
       icon: ScanLine,
       label: "Assets Scanning",
       hasDropdown: true,
       href: "#",
+      menuId: "assets_scanning",
       submenu: [
-        { icon: Plus, label: "Create Preparation", href: "/create_scanning_preparation" },
-        { icon: List, label: "Preparation List", href: "/scanning_preparation_list" },
-        { icon: ScanLine, label: "Start Scanning", href: "/scanning" },
-        { icon: CheckCircle, label: "Validation & Verification", href: "/validation_verification" }
-      ]
+        {
+          icon: Plus,
+          label: "Create Preparation",
+          href: "/create_scanning_preparation",
+          menuId: "create_preparation",
+        },
+        {
+          icon: List,
+          label: "Preparation List",
+          href: "/scanning_preparation_list",
+          menuId: "preparation_list",
+        },
+        {
+          icon: ScanLine,
+          label: "Start Scanning",
+          href: "/scanning",
+          menuId: "start_scanning",
+        },
+        {
+          icon: CheckCircle,
+          label: "Validation & Verification",
+          href: "/validation_verification",
+          menuId: "validation",
+        },
+      ],
     },
     {
       icon: FileText,
       label: "Assets Inventory",
-      hasDropdown: true,
+      hasDropdown: false,
       href: "/assets",
+      menuId: "assets_inventory",
     },
     {
       icon: Calendar,
       label: "History & Activity Log",
-      hasDropdown: true,
+      hasDropdown: false,
       href: "/history",
+      menuId: "history",
     },
     {
       icon: Settings,
       label: "Reports & Analytics",
-      hasDropdown: true,
+      hasDropdown: false,
       href: "/reports",
+      menuId: "reports",
     },
   ];
+
+  // Menu untuk SUPERADMIN (hanya monitoring, tidak bisa scanning)
+  const superadminMenuItems = [
+    {
+      icon: Home,
+      label: "Home",
+      hasDropdown: false,
+      href: "/dashboard",
+      menuId: "home",
+    },
+    {
+      icon: FileText,
+      label: "Assets Inventory",
+      hasDropdown: false,
+      href: "/assets",
+      menuId: "assets_inventory",
+    },
+    {
+      icon: Calendar,
+      label: "History & Activity Log",
+      hasDropdown: false,
+      href: "/history",
+      menuId: "history",
+    },
+    {
+      icon: Settings,
+      label: "Reports & Analytics",
+      hasDropdown: false,
+      href: "/reports",
+      menuId: "reports",
+    },
+  ];
+
+  // Pilih menu berdasarkan role user
+  const getMenuItems = () => {
+    if (!user) return adminMenuItems;
+
+    // Superadmin hanya mendapat menu monitoring
+    if (user.role === "superadmin") {
+      return superadminMenuItems;
+    }
+
+    // Admin dan role lainnya mendapat full akses
+    return adminMenuItems;
+  };
+
+  const menuItems = getMenuItems();
+
+  // ==================== FUNGSI UNTUK MENDAPATKAN INDEX MENU BERDASARKAN MENU ID ====================
+  const getActiveMenuIndex = () => {
+    if (activeMenu === undefined || activeMenu === null) return null;
+
+    // Cari index menu berdasarkan menuId yang sesuai dengan activeMenu
+    const index = menuItems.findIndex((item) => item.menuId === activeMenu);
+
+    // Jika ditemukan, return index tersebut
+    if (index !== -1) return index;
+
+    // Fallback: jika activeMenu adalah angka, gunakan langsung
+    if (typeof activeMenu === "number") return activeMenu;
+
+    return null;
+  };
+
+  // Hitung active menu index berdasarkan activeMenu prop
+  const computedActiveMenuIndex = getActiveMenuIndex();
 
   // Handle click outside untuk menutup dropdown
   useEffect(() => {
@@ -130,7 +229,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
       ) {
         setScanDropdownOpen(false);
       }
-      // Close mobile menu when clicking outside
       if (
         mobileMenuRef.current &&
         !mobileMenuRef.current.contains(event.target) &&
@@ -197,10 +295,10 @@ export default function LayoutDashboard({ children, activeMenu }) {
             color: "#333333",
             customClass: {
               popup: "rounded-xl font-poppins",
-              confirmButton: "px-4 py-2 text-sm font-medium rounded-lg"
+              confirmButton: "px-4 py-2 text-sm font-medium rounded-lg",
             },
             timer: 1500,
-            showConfirmButton: false
+            showConfirmButton: false,
           }).then(() => {
             router.push("/login");
           });
@@ -230,7 +328,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* 🔹 Welcome Notification - Snackbar Style */}
+      {/* 🔹 Role Badge di Welcome Notification */}
       {showWelcome && (
         <div className="fixed top-4 right-4 z-50 animate-fade-in">
           <div className="w-80 bg-white rounded-lg shadow-md border border-gray-200">
@@ -257,6 +355,14 @@ export default function LayoutDashboard({ children, activeMenu }) {
               </p>
               <div className="mt-2 text-xs text-gray-500 space-y-1">
                 <div>
+                  <span className="font-medium text-gray-600">Role:</span>{" "}
+                  <span
+                    className={`font-semibold ${user.role === "superadmin" ? "text-purple-600" : "text-blue-600"}`}
+                  >
+                    {user.role === "superadmin" ? "Super Admin" : "Admin"}
+                  </span>
+                </div>
+                <div>
                   <span className="font-medium text-gray-600">Department:</span>{" "}
                   {user.department}
                 </div>
@@ -273,16 +379,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
       {/* 🔹 Top Navbar - Mobile & Desktop */}
       <nav className="bg-white shadow-sm sticky top-0 z-40">
         <div className="px-4 py-3 flex items-center justify-between">
-          {/* <div className="flex items-center space-x-2">
-            <Image
-              src="/seatrium.png"
-              alt="Seatrium Logo"
-              width={200}
-              height={200}
-              className="object-contain"
-              priority
-            />
-          </div> */}
           <div className="flex items-center space-x-2">
             <Image
               src="/logo_inovaa.png"
@@ -309,8 +405,9 @@ export default function LayoutDashboard({ children, activeMenu }) {
                 <User className="w-4 h-4" />
                 <span>{user.username}</span>
                 <ChevronDown
-                  className={`w-4 h-4 transition-transform ${userDropdownOpen ? "rotate-180" : ""
-                    }`}
+                  className={`w-4 h-4 transition-transform ${
+                    userDropdownOpen ? "rotate-180" : ""
+                  }`}
                 />
               </button>
 
@@ -322,6 +419,13 @@ export default function LayoutDashboard({ children, activeMenu }) {
                     </p>
                     <p className="text-xs text-gray-500">{user.email}</p>
                     <p className="text-xs text-gray-500">{user.department}</p>
+                    <p className="text-xs font-semibold mt-1">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] ${user.role === "superadmin" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}
+                      >
+                        {user.role === "superadmin" ? "Super Admin" : "Admin"}
+                      </span>
+                    </p>
                   </div>
                   <button
                     className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition"
@@ -339,7 +443,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
                     onClick={() => {
                       setUserDropdownOpen(false);
                       setMobileMenuOpen(false);
-                      router.push("/profile");
+                      router.push("/profile?tab=password");
                     }}
                   >
                     <Key className="w-4 h-4 mr-3 text-gray-500" />
@@ -371,28 +475,36 @@ export default function LayoutDashboard({ children, activeMenu }) {
           </div>
         </div>
 
-        {/* Desktop Menu */}
+        {/* Desktop Menu - Hanya untuk role yang sesuai */}
         <div className="hidden md:block bg-blue-600 px-4">
           <div className="flex flex-wrap items-center gap-1 py-2">
             {menuItems.map((item, index) => {
-              const isActive =
-                activeMenu !== undefined
-                  ? index === activeMenu
-                  : index === activeMenuIndex;
+              // Gunakan computedActiveMenuIndex untuk menentukan apakah menu aktif
+              const isActive = computedActiveMenuIndex === index;
+
+              // Untuk Superadmin, Assets Scanning tidak ditampilkan
+              if (
+                user.role === "superadmin" &&
+                item.label === "Assets Scanning"
+              ) {
+                return null;
+              }
 
               if (item.label === "Assets Scanning") {
                 return (
                   <div key={index} className="relative" ref={scanDropdownRef}>
                     <button
-                      className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition ${isActive ? "bg-blue-700" : ""
-                        }`}
+                      className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition ${
+                        isActive ? "bg-blue-700" : ""
+                      }`}
                       onClick={() => setScanDropdownOpen(!scanDropdownOpen)}
                     >
                       <item.icon className="w-4 h-4" />
                       <span>{item.label}</span>
                       <ChevronDown
-                        className={`w-3 h-3 transition-transform ${scanDropdownOpen ? "rotate-180" : ""
-                          }`}
+                        className={`w-3 h-3 transition-transform ${
+                          scanDropdownOpen ? "rotate-180" : ""
+                        }`}
                       />
                     </button>
 
@@ -417,14 +529,15 @@ export default function LayoutDashboard({ children, activeMenu }) {
               return (
                 <button
                   key={index}
-                  className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition ${isActive ? "bg-blue-700" : ""
-                    }`}
+                  className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition ${
+                    isActive ? "bg-blue-700" : ""
+                  }`}
                   onClick={() => {
                     if (item.href) {
                       router.push(item.href);
                     } else {
                       setActiveMenuIndex(
-                        activeMenuIndex === index ? null : index
+                        index === activeMenuIndex ? null : index,
                       );
                     }
                   }}
@@ -460,7 +573,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
                 <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
                   <div className="w-4 h-1 border-t-2 border-blue-600 rounded-full"></div>
                 </div>
-                <span className="text-white font-bold">Seatrium</span>
+                <span className="text-white font-bold">Inova</span>
               </div>
               <button
                 onClick={() => setMobileMenuOpen(false)}
@@ -481,6 +594,13 @@ export default function LayoutDashboard({ children, activeMenu }) {
                     {user.username}
                   </div>
                   <div className="text-blue-100 text-xs">{user.department}</div>
+                  <div className="mt-1">
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full ${user.role === "superadmin" ? "bg-purple-700 text-white" : "bg-blue-700 text-white"}`}
+                    >
+                      {user.role === "superadmin" ? "Super Admin" : "Admin"}
+                    </span>
+                  </div>
                   <button
                     className="text-blue-100 text-xs flex items-center mt-1 hover:text-white transition"
                     onClick={(e) => {
@@ -490,8 +610,9 @@ export default function LayoutDashboard({ children, activeMenu }) {
                   >
                     <span>Account Settings</span>
                     <ChevronDown
-                      className={`w-3 h-3 ml-1 transition-transform ${userDropdownOpen ? "rotate-180" : ""
-                        }`}
+                      className={`w-3 h-3 ml-1 transition-transform ${
+                        userDropdownOpen ? "rotate-180" : ""
+                      }`}
                     />
                   </button>
                 </div>
@@ -537,22 +658,27 @@ export default function LayoutDashboard({ children, activeMenu }) {
               )}
             </div>
 
-            {/* Menu Items */}
+            {/* Menu Items - Mobile */}
             <div className="py-2">
               {menuItems.map((item, index) => {
-                const isActive =
-                  activeMenu !== undefined
-                    ? index === activeMenu
-                    : index === activeMenuIndex;
+                const isActive = computedActiveMenuIndex === index;
+
+                // Superadmin tidak dapat mengakses menu Assets Scanning
+                if (
+                  user.role === "superadmin" &&
+                  item.label === "Assets Scanning"
+                ) {
+                  return null;
+                }
 
                 return (
                   <div key={index}>
                     <button
-                      className={`flex items-center space-x-3 px-4 py-3 text-white hover:bg-blue-700 text-sm transition w-full text-left ${isActive ? "bg-blue-700" : ""
-                        }`}
+                      className={`flex items-center space-x-3 px-4 py-3 text-white hover:bg-blue-700 text-sm transition w-full text-left ${
+                        isActive ? "bg-blue-700" : ""
+                      }`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        // Untuk mobile - Assets Scanning
                         if (item.label === "Assets Scanning") {
                           setMobileScanDropdownOpen(!mobileScanDropdownOpen);
                         } else if (item.href && item.href !== "#") {
@@ -560,7 +686,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
                           setMobileMenuOpen(false);
                         } else {
                           setActiveMenuIndex(
-                            activeMenuIndex === index ? null : index
+                            index === activeMenuIndex ? null : index,
                           );
                         }
                       }}
@@ -569,32 +695,37 @@ export default function LayoutDashboard({ children, activeMenu }) {
                       <span className="flex-1 text-left">{item.label}</span>
                       {item.hasDropdown && (
                         <ChevronDown
-                          className={`w-4 h-4 transition-transform ${mobileScanDropdownOpen && item.label === "Assets Scanning" ? "rotate-180" : ""
-                            }`}
+                          className={`w-4 h-4 transition-transform ${
+                            mobileScanDropdownOpen &&
+                            item.label === "Assets Scanning"
+                              ? "rotate-180"
+                              : ""
+                          }`}
                         />
                       )}
                     </button>
 
                     {/* Submenu untuk mobile - Assets Scanning */}
-                    {item.label === "Assets Scanning" && mobileScanDropdownOpen && (
-                      <div className="bg-blue-500 py-1">
-                        {item.submenu.map((subItem, subIndex) => (
-                          <button
-                            key={subIndex}
-                            className="flex items-center w-full px-6 py-3 text-white hover:bg-blue-600 text-sm transition text-left"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(subItem.href);
-                              setMobileMenuOpen(false);
-                              setMobileScanDropdownOpen(false);
-                            }}
-                          >
-                            <subItem.icon className="w-4 h-4 mr-3 flex-shrink-0" />
-                            {subItem.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    {item.label === "Assets Scanning" &&
+                      mobileScanDropdownOpen && (
+                        <div className="bg-blue-500 py-1">
+                          {item.submenu.map((subItem, subIndex) => (
+                            <button
+                              key={subIndex}
+                              className="flex items-center w-full px-6 py-3 text-white hover:bg-blue-600 text-sm transition text-left"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(subItem.href);
+                                setMobileMenuOpen(false);
+                                setMobileScanDropdownOpen(false);
+                              }}
+                            >
+                              <subItem.icon className="w-4 h-4 mr-3 flex-shrink-0" />
+                              {subItem.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                   </div>
                 );
               })}
@@ -626,7 +757,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
         .animate-fade-in {
           animation: fadeIn 0.3s ease-out forwards;
         }
-        
+
         @media (max-width: 768px) {
           .fixed {
             pointer-events: auto;

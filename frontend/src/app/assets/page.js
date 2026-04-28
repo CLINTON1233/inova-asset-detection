@@ -275,7 +275,7 @@ export default function AssetsInventoryPage() {
 
   return (
     <ProtectedPage>
-      <LayoutDashboard activeMenu={2}>
+      <LayoutDashboard activeMenu="assets_inventory">
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
           .vv-root { font-family: 'DM Sans', sans-serif; }

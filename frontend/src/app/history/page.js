@@ -546,7 +546,7 @@ export default function HistoryLogsPage() {
 
   return (
     <ProtectedPage>
-      <LayoutDashboard activeMenu={3}>
+      <LayoutDashboard activeMenu="history">
         <style jsx>{`
           @import url("https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap");
 

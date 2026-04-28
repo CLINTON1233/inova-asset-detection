@@ -268,7 +268,7 @@ export default function ReportDetailPage() {
 
   return (
     <ProtectedPage>
-      <LayoutDashboard activeMenu={4}>
+      <LayoutDashboard activeMenu="reports">
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
           .rd-root { font-family: 'DM Sans', sans-serif; }

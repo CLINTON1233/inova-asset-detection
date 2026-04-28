@@ -630,7 +630,7 @@ export default function ScanningPreparationListPage() {
   const mobileKpis = kpis.slice(0, 4);
 
   return (
-    <LayoutDashboard activeMenu={1}>
+    <LayoutDashboard activeMenu="assets_scanning">
       <style jsx>{`
         @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap");
         .sp-root {

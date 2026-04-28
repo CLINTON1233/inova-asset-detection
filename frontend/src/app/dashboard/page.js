@@ -99,10 +99,13 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const sessionsResponse = await fetch(API_ENDPOINTS.SCANNING_PREP_LIST_ALL, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
+      const sessionsResponse = await fetch(
+        API_ENDPOINTS.SCANNING_PREP_LIST_ALL,
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
       const sessionsResult = await sessionsResponse.json();
 
       const validationsResponse = await fetch(API_ENDPOINTS.VALIDATIONS_LIST, {
@@ -124,9 +127,17 @@ export default function DashboardPage() {
       if (sessionsResult.success) {
         sessionsData = sessionsResult.data.map((session) => ({
           ...session,
-          type: session.type || (session.category_id === 1 ? "device" : "material"),
-          totalQty: session.totalQty || session.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) || 0,
-          totalScanned: session.items?.reduce((sum, i) => sum + (i.scanned_count || 0), 0) || 0,
+          type:
+            session.type || (session.category_id === 1 ? "device" : "material"),
+          totalQty:
+            session.totalQty ||
+            session.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) ||
+            0,
+          totalScanned:
+            session.items?.reduce(
+              (sum, i) => sum + (i.scanned_count || 0),
+              0,
+            ) || 0,
           totalItems: session.items?.length || 0,
           status: session.status || "pending",
           progress: session.progress || 0,
@@ -152,29 +163,56 @@ export default function DashboardPage() {
         try {
           let progressResponse;
           if (session.type === "device") {
-            progressResponse = await fetch(API_ENDPOINTS.DEVICES_SCANNING_PREP_PROGRESS(session.id_preparation));
+            progressResponse = await fetch(
+              API_ENDPOINTS.DEVICES_SCANNING_PREP_PROGRESS(
+                session.id_preparation,
+              ),
+            );
           } else {
-            progressResponse = await fetch(API_ENDPOINTS.MATERIALS_SCANNING_PREP_PROGRESS(session.id_preparation));
+            progressResponse = await fetch(
+              API_ENDPOINTS.MATERIALS_SCANNING_PREP_PROGRESS(
+                session.id_preparation,
+              ),
+            );
           }
 
           const progressData = await progressResponse.json();
 
           if (progressData.success && progressData.data.scan_results) {
             for (const scan of progressData.data.scan_results) {
-              const item = session.items?.find(i => i.id_item === scan.scanning_item_id);
+              const item = session.items?.find(
+                (i) => i.id_item === scan.scanning_item_id,
+              );
               if (item) {
                 allScanResults.push({
                   id: scan.id_scan || `SCAN-${Date.now()}`,
-                  jenisAset: item.device_name || item.material_name || item.item_name || "Unknown",
-                  kategori: session.type === "device" ? "Perangkat" : "Material",
+                  jenisAset:
+                    item.device_name ||
+                    item.material_name ||
+                    item.item_name ||
+                    "Unknown",
+                  kategori:
+                    session.type === "device" ? "Perangkat" : "Material",
                   lokasi: session.location_name || "Unknown",
-                  status: scan.status === "submitted" ? "Valid" :
-                    scan.status === "rejected" ? "Error" : "Tertunda",
-                  tanggal: scan.scanned_at ? new Date(scan.scanned_at).toLocaleDateString("id-ID") : new Date().toLocaleDateString("id-ID"),
-                  waktu: scan.scanned_at ? new Date(scan.scanned_at).toLocaleTimeString("id-ID") : new Date().toLocaleTimeString("id-ID"),
+                  status:
+                    scan.status === "submitted"
+                      ? "Valid"
+                      : scan.status === "rejected"
+                        ? "Error"
+                        : "Tertunda",
+                  tanggal: scan.scanned_at
+                    ? new Date(scan.scanned_at).toLocaleDateString("id-ID")
+                    : new Date().toLocaleDateString("id-ID"),
+                  waktu: scan.scanned_at
+                    ? new Date(scan.scanned_at).toLocaleTimeString("id-ID")
+                    : new Date().toLocaleTimeString("id-ID"),
                   nomorSeri: scan.serial_number || scan.scan_code || "-",
-                  validation_status: scan.status === "submitted" ? "Submitted" :
-                    scan.status === "rejected" ? "Rejected" : "Pending",
+                  validation_status:
+                    scan.status === "submitted"
+                      ? "Submitted"
+                      : scan.status === "rejected"
+                        ? "Rejected"
+                        : "Pending",
                   preparation_id: session.id_preparation,
                   scan_id: scan.id_scan,
                 });
@@ -182,13 +220,15 @@ export default function DashboardPage() {
             }
           }
         } catch (error) {
-          console.error(`Error fetching scan results for session ${session.id_preparation}:`, error);
+          console.error(
+            `Error fetching scan results for session ${session.id_preparation}:`,
+            error,
+          );
         }
       }
 
       allScanResults.sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
       setRecentChecks(allScanResults.slice(0, 5));
-
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
       Swal.fire({
@@ -203,34 +243,57 @@ export default function DashboardPage() {
   };
 
   const totalSessions = sessions.length;
-  const totalDevices = sessions.filter(s => s.type === "device").length;
-  const totalMaterials = sessions.filter(s => s.type === "material").length;
+  const totalDevices = sessions.filter((s) => s.type === "device").length;
+  const totalMaterials = sessions.filter((s) => s.type === "material").length;
   const totalQuantity = sessions.reduce((sum, s) => sum + (s.totalQty || 0), 0);
-  const totalScanned = sessions.reduce((sum, s) => sum + (s.totalScanned || 0), 0);
-  const pendingSessions = sessions.filter(s => s.status === "pending").length;
-  const inProgressSessions = sessions.filter(s => s.status === "in-progress").length;
-  const completedSessions = sessions.filter(s => s.status === "completed").length;
+  const totalScanned = sessions.reduce(
+    (sum, s) => sum + (s.totalScanned || 0),
+    0,
+  );
+  const pendingSessions = sessions.filter((s) => s.status === "pending").length;
+  const inProgressSessions = sessions.filter(
+    (s) => s.status === "in-progress",
+  ).length;
+  const completedSessions = sessions.filter(
+    (s) => s.status === "completed",
+  ).length;
 
   const totalValidations = validations.length;
-  const approvedValidations = validations.filter(v => v.validation_status === "approved").length;
-  const pendingValidations = validations.filter(v => v.validation_status === "pending").length;
-  const rejectedValidations = validations.filter(v => v.validation_status === "rejected").length;
+  const approvedValidations = validations.filter(
+    (v) => v.validation_status === "approved",
+  ).length;
+  const pendingValidations = validations.filter(
+    (v) => v.validation_status === "pending",
+  ).length;
+  const rejectedValidations = validations.filter(
+    (v) => v.validation_status === "rejected",
+  ).length;
 
   const totalAssets = assets.length;
-  const deviceAssets = assets.filter(a => a.asset_type === "device" || a.type === "device").length;
-  const materialAssets = assets.filter(a => a.asset_type === "material" || a.type === "material").length;
+  const deviceAssets = assets.filter(
+    (a) => a.asset_type === "device" || a.type === "device",
+  ).length;
+  const materialAssets = assets.filter(
+    (a) => a.asset_type === "material" || a.type === "material",
+  ).length;
 
-  const validPct = totalValidations > 0 ? (approvedValidations / totalValidations) * 100 : 0;
-  const errorPct = totalValidations > 0 ? (rejectedValidations / totalValidations) * 100 : 0;
-  const pendingPct = totalValidations > 0 ? (pendingValidations / totalValidations) * 100 : 0;
-  const scanSuccessRate = totalScanned > 0 ? (approvedValidations / totalScanned) * 100 : 0;
+  const validPct =
+    totalValidations > 0 ? (approvedValidations / totalValidations) * 100 : 0;
+  const errorPct =
+    totalValidations > 0 ? (rejectedValidations / totalValidations) * 100 : 0;
+  const pendingPct =
+    totalValidations > 0 ? (pendingValidations / totalValidations) * 100 : 0;
+  const scanSuccessRate =
+    totalScanned > 0 ? (approvedValidations / totalScanned) * 100 : 0;
 
   const errorAssets = rejectedValidations;
 
   const todayScanned = sessions.reduce((sum, s) => {
     const today = new Date().toDateString();
-    const sessionDate = s.checking_date ? new Date(s.checking_date).toDateString() : null;
-    return sum + (sessionDate === today ? (s.totalScanned || 0) : 0);
+    const sessionDate = s.checking_date
+      ? new Date(s.checking_date).toDateString()
+      : null;
+    return sum + (sessionDate === today ? s.totalScanned || 0 : 0);
   }, 0);
 
   const stats = [
@@ -258,21 +321,23 @@ export default function DashboardPage() {
 
   const getWeeklyData = () => {
     const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    const weeklyData = days.map(day => ({
+    const weeklyData = days.map((day) => ({
       name: day,
       Approved: 0,
       Pending: 0,
       Rejected: 0,
     }));
 
-    validations.forEach(validation => {
+    validations.forEach((validation) => {
       const date = new Date(validation.created_at);
       const dayName = days[date.getDay() === 0 ? 6 : date.getDay() - 1];
-      const dayData = weeklyData.find(d => d.name === dayName);
+      const dayData = weeklyData.find((d) => d.name === dayName);
       if (dayData) {
         if (validation.validation_status === "approved") dayData.Approved += 1;
-        else if (validation.validation_status === "pending") dayData.Pending += 1;
-        else if (validation.validation_status === "rejected") dayData.Rejected += 1;
+        else if (validation.validation_status === "pending")
+          dayData.Pending += 1;
+        else if (validation.validation_status === "rejected")
+          dayData.Rejected += 1;
       }
     });
 
@@ -289,14 +354,17 @@ export default function DashboardPage() {
 
   const getAssetTypeDistribution = () => {
     const typeMap = new Map();
-    assets.forEach(asset => {
+    assets.forEach((asset) => {
       const category = asset.asset_type === "device" ? "Perangkat" : "Material";
       typeMap.set(category, (typeMap.get(category) || 0) + 1);
     });
     if (assets.length === 0) {
-      sessions.forEach(session => {
+      sessions.forEach((session) => {
         const category = session.type === "device" ? "Perangkat" : "Material";
-        typeMap.set(category, (typeMap.get(category) || 0) + (session.totalQty || 0));
+        typeMap.set(
+          category,
+          (typeMap.get(category) || 0) + (session.totalQty || 0),
+        );
       });
     }
     return Array.from(typeMap.entries())
@@ -340,7 +408,8 @@ export default function DashboardPage() {
     if (active && payload && payload.length) {
       const data = payload[0];
       const total = assetStatusData.reduce((sum, item) => sum + item.value, 0);
-      const percentage = total > 0 ? ((data.value / total) * 100).toFixed(1) : 0;
+      const percentage =
+        total > 0 ? ((data.value / total) * 100).toFixed(1) : 0;
       return (
         <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
           <p className="font-semibold text-gray-800">{data.name}</p>
@@ -360,7 +429,9 @@ export default function DashboardPage() {
           <div className="min-h-screen bg-gray-100 flex items-center justify-center">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600 font-medium">Loading dashboard...</p>
+              <p className="mt-4 text-gray-600 font-medium">
+                Loading dashboard...
+              </p>
             </div>
           </div>
         </LayoutDashboard>
@@ -370,7 +441,7 @@ export default function DashboardPage() {
 
   return (
     <ProtectedPage>
-      <LayoutDashboard>
+      <LayoutDashboard activeMenu="home">
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
 
@@ -532,7 +603,6 @@ export default function DashboardPage() {
         `}</style>
 
         <div className="db-root space-y-5">
-
           {/* ── Header ── */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
@@ -540,17 +610,16 @@ export default function DashboardPage() {
                 IT Assets Inventory System
               </h1>
               <p className="text-sm text-gray-500 mt-1">
-                Automatic Validation of IT Asset Serial Numbers or Scan Code (Devices &amp; Materials)
+                Automatic Validation of IT Asset Serial Numbers or Scan Code
+                (Devices &amp; Materials)
               </p>
             </div>
           </div>
 
           {/* ── Main Layout ── */}
           <div className="flex flex-col xl:flex-row gap-5">
-
             {/* ══ LEFT COLUMN ══ */}
             <div className="flex-1 min-w-0 space-y-5">
-
               {/* ── Row 1: 4 Donut KPIs ── */}
               <div className="db-card">
                 <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-gray-100">
@@ -575,15 +644,25 @@ export default function DashboardPage() {
                     },
                     {
                       title: "Complete Sessions",
-                      pct: totalSessions > 0 ? (completedSessions / totalSessions) * 100 : 0,
+                      pct:
+                        totalSessions > 0
+                          ? (completedSessions / totalSessions) * 100
+                          : 0,
                       color: "#6366f1",
                       sub: `${completedSessions} of ${totalSessions} sessions`,
                     },
                   ].map((d, i) => (
                     <div key={i} className="db-donut-card">
                       <h4>{d.title}</h4>
-                      <InlineDonut pct={d.pct} color={d.color} size={100} stroke={10} />
-                      <p className="text-xs text-gray-500 mt-3 text-center">{d.sub}</p>
+                      <InlineDonut
+                        pct={d.pct}
+                        color={d.color}
+                        size={100}
+                        stroke={10}
+                      />
+                      <p className="text-xs text-gray-500 mt-3 text-center">
+                        {d.sub}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -627,7 +706,10 @@ export default function DashboardPage() {
                       className="db-action-btn"
                     >
                       <div className="icon-wrap">
-                        <item.icon className="w-6 h-6 text-gray-700" strokeWidth={2} />
+                        <item.icon
+                          className="w-6 h-6 text-gray-700"
+                          strokeWidth={2}
+                        />
                       </div>
                       <span className="btn-label">{item.label}</span>
                       <span className="btn-desc">{item.desc}</span>
@@ -638,11 +720,11 @@ export default function DashboardPage() {
 
               {/* ── Row 3: Charts ── */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
                 {/* Pie Chart */}
                 <div className="db-card p-5 lg:col-span-1">
                   <p className="db-section-title">
-                    <span className="bullet-dot bg-blue-600" /> Validation Status
+                    <span className="bullet-dot bg-blue-600" /> Validation
+                    Status
                   </p>
                   <div className="flex flex-col items-center justify-center h-[200px]">
                     <ResponsiveContainer width="100%" height="100%">
@@ -667,7 +749,10 @@ export default function DashboardPage() {
                     </ResponsiveContainer>
                     <div className="flex flex-wrap justify-center gap-4 mt-2">
                       {assetStatusData.map((item) => (
-                        <div key={item.name} className="flex items-center gap-1.5">
+                        <div
+                          key={item.name}
+                          className="flex items-center gap-1.5"
+                        >
                           <span
                             className="w-2.5 h-2.5 rounded-sm"
                             style={{ backgroundColor: item.color }}
@@ -684,7 +769,8 @@ export default function DashboardPage() {
                 {/* Bar Chart */}
                 <div className="db-card p-5 lg:col-span-2">
                   <p className="db-section-title">
-                    <span className="bullet-dot bg-blue-600" /> Weekly Validation Activity
+                    <span className="bullet-dot bg-blue-600" /> Weekly
+                    Validation Activity
                   </p>
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart
@@ -711,9 +797,27 @@ export default function DashboardPage() {
                           fontFamily: "'DM Sans', sans-serif",
                         }}
                       />
-                      <Bar dataKey="Approved" stackId="a" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={20} />
-                      <Bar dataKey="Pending" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={20} />
-                      <Bar dataKey="Rejected" stackId="a" fill="#dc2626" radius={[4, 4, 0, 0]} barSize={20} />
+                      <Bar
+                        dataKey="Approved"
+                        stackId="a"
+                        fill="#2563eb"
+                        radius={[4, 4, 0, 0]}
+                        barSize={20}
+                      />
+                      <Bar
+                        dataKey="Pending"
+                        stackId="a"
+                        fill="#f59e0b"
+                        radius={[4, 4, 0, 0]}
+                        barSize={20}
+                      />
+                      <Bar
+                        dataKey="Rejected"
+                        stackId="a"
+                        fill="#dc2626"
+                        radius={[4, 4, 0, 0]}
+                        barSize={20}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                   <div className="flex flex-wrap gap-4 justify-center mt-3">
@@ -722,8 +826,18 @@ export default function DashboardPage() {
                       { color: "#f59e0b", label: "Pending" },
                       { color: "#dc2626", label: "Rejected" },
                     ].map((item) => (
-                      <span key={item.label} className="flex items-center gap-2 text-xs text-gray-500">
-                        <span style={{ width: 20, height: 2, background: item.color, display: "inline-block" }} />
+                      <span
+                        key={item.label}
+                        className="flex items-center gap-2 text-xs text-gray-500"
+                      >
+                        <span
+                          style={{
+                            width: 20,
+                            height: 2,
+                            background: item.color,
+                            display: "inline-block",
+                          }}
+                        />
                         {item.label}
                       </span>
                     ))}
@@ -737,11 +851,14 @@ export default function DashboardPage() {
                 <div className="space-y-4">
                   {assetTypeData.length > 0 ? (
                     assetTypeData.map((item, index) => {
-                      const percentage = totalAset > 0 ? (item.jumlah / totalAset) * 100 : 0;
+                      const percentage =
+                        totalAset > 0 ? (item.jumlah / totalAset) * 100 : 0;
                       return (
                         <div key={index}>
                           <div className="flex justify-between text-sm mb-1">
-                            <span className="text-gray-600 font-medium">{item.name}</span>
+                            <span className="text-gray-600 font-medium">
+                              {item.name}
+                            </span>
                             <span className="font-semibold text-gray-900">
                               {item.jumlah}{" "}
                               <span className="text-xs text-gray-500 font-normal">
@@ -754,7 +871,8 @@ export default function DashboardPage() {
                               className="h-2 rounded-full transition-all duration-500"
                               style={{
                                 width: `${percentage}%`,
-                                background: percentage > 50 ? "#10b981" : "#2563eb",
+                                background:
+                                  percentage > 50 ? "#10b981" : "#2563eb",
                               }}
                             />
                           </div>
@@ -769,10 +887,13 @@ export default function DashboardPage() {
                 </div>
                 <div className="mt-4 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-600">
                   <p className="text-xs text-gray-700">
-                    <span className="font-semibold">Total: {totalAset} Assets</span>
+                    <span className="font-semibold">
+                      Total: {totalAset} Assets
+                    </span>
                     <br />
                     <span className="text-gray-600">
-                      System automatically reads Serial Numbers for Devices and Scan Code for Materials.
+                      System automatically reads Serial Numbers for Devices and
+                      Scan Code for Materials.
                     </span>
                   </p>
                 </div>
@@ -795,7 +916,13 @@ export default function DashboardPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-50">
-                        {["Asset Name", "Type", "Location", "Status", "Date"].map((h) => (
+                        {[
+                          "Asset Name",
+                          "Type",
+                          "Location",
+                          "Status",
+                          "Date",
+                        ].map((h) => (
                           <th
                             key={h}
                             className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap"
@@ -810,7 +937,9 @@ export default function DashboardPage() {
                         recentChecks.map((row, index) => {
                           const handleRowClick = () => {
                             if (row.preparation_id) {
-                              router.push(`/scanning?prep_id=${row.preparation_id}&type=${row.kategori === "Perangkat" ? "device" : "material"}`);
+                              router.push(
+                                `/scanning?prep_id=${row.preparation_id}&type=${row.kategori === "Perangkat" ? "device" : "material"}`,
+                              );
                             } else {
                               router.push(`/validation_verification`);
                             }
@@ -833,31 +962,45 @@ export default function DashboardPage() {
                                 </div>
                               </td>
                               <td className="px-4 py-3">
-                                <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${row.kategori === "Perangkat"
-                                  ? "bg-blue-100 text-blue-700"
-                                  : "bg-green-100 text-green-700"
-                                  }`}>
-                                  {row.kategori === "Perangkat" ? "Device" : "Material"}
+                                <span
+                                  className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
+                                    row.kategori === "Perangkat"
+                                      ? "bg-blue-100 text-blue-700"
+                                      : "bg-green-100 text-green-700"
+                                  }`}
+                                >
+                                  {row.kategori === "Perangkat"
+                                    ? "Device"
+                                    : "Material"}
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-xs text-gray-600 max-w-[150px] truncate">
                                 {row.lokasi}
                               </td>
                               <td className="px-4 py-3">
-                                <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(row.validation_status || row.status)}`}>
+                                <span
+                                  className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(row.validation_status || row.status)}`}
+                                >
                                   {row.validation_status || row.status}
                                 </span>
                               </td>
                               <td className="px-4 py-3">
-                                <div className="text-xs text-gray-600">{row.tanggal}</div>
-                                <div className="text-xs text-gray-400">{row.waktu}</div>
+                                <div className="text-xs text-gray-600">
+                                  {row.tanggal}
+                                </div>
+                                <div className="text-xs text-gray-400">
+                                  {row.waktu}
+                                </div>
                               </td>
                             </tr>
                           );
                         })
                       ) : (
                         <tr>
-                          <td colSpan={5} className="text-center py-8 text-gray-500 text-sm">
+                          <td
+                            colSpan={5}
+                            className="text-center py-8 text-gray-500 text-sm"
+                          >
                             No scan history available
                           </td>
                         </tr>
@@ -872,7 +1015,8 @@ export default function DashboardPage() {
                 <div className="db-card overflow-hidden">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-5 border-b border-gray-100">
                     <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-                      <Shield className="w-4 h-4 text-gray-500" /> Recent Validations
+                      <Shield className="w-4 h-4 text-gray-500" /> Recent
+                      Validations
                     </h3>
                     <button
                       onClick={() => router.push("/validation_verification")}
@@ -885,8 +1029,17 @@ export default function DashboardPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-gray-50">
-                          {["Item Name", "Serial/Code", "Type", "Status", "Date"].map((h) => (
-                            <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          {[
+                            "Item Name",
+                            "Serial/Code",
+                            "Type",
+                            "Status",
+                            "Date",
+                          ].map((h) => (
+                            <th
+                              key={h}
+                              className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide"
+                            >
                               {h}
                             </th>
                           ))}
@@ -894,25 +1047,41 @@ export default function DashboardPage() {
                       </thead>
                       <tbody>
                         {recentValidations.map((validation, index) => (
-                          <tr key={index} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                            <td className="px-4 py-3 text-gray-900 font-medium">{validation.item_name || "-"}</td>
-                            <td className="px-4 py-3 font-mono text-xs text-gray-600">{validation.serial_or_code || "-"}</td>
+                          <tr
+                            key={index}
+                            className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                          >
+                            <td className="px-4 py-3 text-gray-900 font-medium">
+                              {validation.item_name || "-"}
+                            </td>
+                            <td className="px-4 py-3 font-mono text-xs text-gray-600">
+                              {validation.serial_or_code || "-"}
+                            </td>
                             <td className="px-4 py-3">
-                              <span className={`px-2 py-0.5 text-xs rounded-full font-semibold ${validation.validation_type === "device"
-                                ? "bg-blue-100 text-blue-700"
-                                : "bg-green-100 text-green-700"
-                                }`}>
-                                {validation.validation_type === "device" ? "Device" : "Material"}
+                              <span
+                                className={`px-2 py-0.5 text-xs rounded-full font-semibold ${
+                                  validation.validation_type === "device"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-green-100 text-green-700"
+                                }`}
+                              >
+                                {validation.validation_type === "device"
+                                  ? "Device"
+                                  : "Material"}
                               </span>
                             </td>
                             <td className="px-4 py-3">
-                              <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(validation.validation_status)}`}>
+                              <span
+                                className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(validation.validation_status)}`}
+                              >
                                 {validation.validation_status}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-xs text-gray-500">
                               {validation.created_at
-                                ? new Date(validation.created_at).toLocaleDateString("id-ID")
+                                ? new Date(
+                                    validation.created_at,
+                                  ).toLocaleDateString("id-ID")
                                 : "-"}
                             </td>
                           </tr>
@@ -927,14 +1096,12 @@ export default function DashboardPage() {
             {/* ══ RIGHT COLUMN — System Summary ══ */}
             <div className="w-full xl:w-80 flex-shrink-0">
               <div className="db-card sticky top-4 overflow-hidden">
-
                 {/* Header */}
                 <div className="bg-[#1e3a5f] text-white text-center py-3 px-4 font-bold text-sm uppercase tracking-wide">
                   System Summary
                 </div>
 
                 <div className="p-4 space-y-4">
-
                   {/* Stat Cards — menggunakan db-stat-box sama seperti profile page */}
                   <div className="grid grid-cols-2 gap-2">
                     {stats.slice(0, 2).map((item, i) => (
@@ -963,15 +1130,40 @@ export default function DashboardPage() {
                     </p>
                     <div className="space-y-1">
                       {[
-                        { label: "Total Sessions", value: totalSessions, color: "text-gray-900" },
-                        { label: "Device Sessions", value: totalDevices, color: "text-gray-900" },
-                        { label: "Material Sessions", value: totalMaterials, color: "text-gray-900" },
-                        { label: "In Progress", value: inProgressSessions, color: "text-gray-900" },
-                        { label: "Completed", value: completedSessions, color: "text-gray-900" },
+                        {
+                          label: "Total Sessions",
+                          value: totalSessions,
+                          color: "text-gray-900",
+                        },
+                        {
+                          label: "Device Sessions",
+                          value: totalDevices,
+                          color: "text-gray-900",
+                        },
+                        {
+                          label: "Material Sessions",
+                          value: totalMaterials,
+                          color: "text-gray-900",
+                        },
+                        {
+                          label: "In Progress",
+                          value: inProgressSessions,
+                          color: "text-gray-900",
+                        },
+                        {
+                          label: "Completed",
+                          value: completedSessions,
+                          color: "text-gray-900",
+                        },
                       ].map((row, i) => (
-                        <div key={i} className="flex justify-between items-center py-2 text-sm border-b border-gray-50">
+                        <div
+                          key={i}
+                          className="flex justify-between items-center py-2 text-sm border-b border-gray-50"
+                        >
                           <span className="text-gray-500">{row.label}</span>
-                          <span className={`font-bold ${row.color}`}>{row.value}</span>
+                          <span className={`font-bold ${row.color}`}>
+                            {row.value}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -984,13 +1176,30 @@ export default function DashboardPage() {
                     </p>
                     <div className="space-y-1">
                       {[
-                        { label: "Total Validations", value: totalValidations, color: "text-gray-900" },
-                        { label: "Approved", value: approvedValidations, color: "text-green-600" },
-                        { label: "Rejected", value: rejectedValidations, color: "text-red-600" },
+                        {
+                          label: "Total Validations",
+                          value: totalValidations,
+                          color: "text-gray-900",
+                        },
+                        {
+                          label: "Approved",
+                          value: approvedValidations,
+                          color: "text-green-600",
+                        },
+                        {
+                          label: "Rejected",
+                          value: rejectedValidations,
+                          color: "text-red-600",
+                        },
                       ].map((row, i) => (
-                        <div key={i} className="flex justify-between items-center py-2 text-sm border-b border-gray-50">
+                        <div
+                          key={i}
+                          className="flex justify-between items-center py-2 text-sm border-b border-gray-50"
+                        >
                           <span className="text-gray-500">{row.label}</span>
-                          <span className={`font-bold ${row.color}`}>{row.value}</span>
+                          <span className={`font-bold ${row.color}`}>
+                            {row.value}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -1003,13 +1212,30 @@ export default function DashboardPage() {
                     </p>
                     <div className="space-y-1">
                       {[
-                        { label: "Total Assets", value: totalAssets, color: "text-gray-900" },
-                        { label: "Devices", value: deviceAssets, color: "text-blue-600" },
-                        { label: "Materials", value: materialAssets, color: "text-green-600" },
+                        {
+                          label: "Total Assets",
+                          value: totalAssets,
+                          color: "text-gray-900",
+                        },
+                        {
+                          label: "Devices",
+                          value: deviceAssets,
+                          color: "text-blue-600",
+                        },
+                        {
+                          label: "Materials",
+                          value: materialAssets,
+                          color: "text-green-600",
+                        },
                       ].map((row, i) => (
-                        <div key={i} className="flex justify-between items-center py-2 text-sm border-b border-gray-50">
+                        <div
+                          key={i}
+                          className="flex justify-between items-center py-2 text-sm border-b border-gray-50"
+                        >
                           <span className="text-gray-500">{row.label}</span>
-                          <span className={`font-bold ${row.color}`}>{row.value}</span>
+                          <span className={`font-bold ${row.color}`}>
+                            {row.value}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -1022,10 +1248,26 @@ export default function DashboardPage() {
                     </p>
                     <div className="space-y-1">
                       {[
-                        { label: "Start Scan", icon: ScanLine, href: "/scanning" },
-                        { label: "View Validations", icon: Shield, href: "/validation_verification" },
-                        { label: "Asset Inventory", icon: Box, href: "/assets" },
-                        { label: "View Reports", icon: FileText, href: "/reports" },
+                        {
+                          label: "Start Scan",
+                          icon: ScanLine,
+                          href: "/scanning",
+                        },
+                        {
+                          label: "View Validations",
+                          icon: Shield,
+                          href: "/validation_verification",
+                        },
+                        {
+                          label: "Asset Inventory",
+                          icon: Box,
+                          href: "/assets",
+                        },
+                        {
+                          label: "View Reports",
+                          icon: FileText,
+                          href: "/reports",
+                        },
                       ].map((action, i) => (
                         <button
                           key={i}
@@ -1040,11 +1282,9 @@ export default function DashboardPage() {
                       ))}
                     </div>
                   </div>
-
                 </div>
               </div>
             </div>
-
           </div>
         </div>
       </LayoutDashboard>

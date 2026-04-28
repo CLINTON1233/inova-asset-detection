@@ -2518,7 +2518,7 @@ export default function SerialScanningPage() {
 
   return (
     <ProtectedPage>
-      <LayoutDashboard activeMenu={1}>
+      <LayoutDashboard activeMenu="assets scanning">
         <style jsx global>{`
           @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap");
           .scan-root {
