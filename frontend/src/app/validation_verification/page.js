@@ -306,7 +306,32 @@ export default function ValidationVerificationPage() {
     }
   };
 
+  // ==================== PERBAIKAN handleApprove ====================
   const handleApprove = async (validation) => {
+    // PERBAIKAN: Ambil user_id dari user_data
+    const userDataStr = localStorage.getItem("user_data");
+    if (!userDataStr) {
+      Swal.fire({
+        title: "Error!",
+        text: "User not logged in. Please login again.",
+        icon: "error",
+      });
+      return;
+    }
+
+    const userData = JSON.parse(userDataStr);
+    const userId = userData.id;
+    const userName = userData.username || userData.name;
+
+    if (!userId) {
+      Swal.fire({
+        title: "Error!",
+        text: "User ID not found. Please login again.",
+        icon: "error",
+      });
+      return;
+    }
+
     const result = await Swal.fire({
       title: "Approve Validation?",
       html: `
@@ -314,6 +339,7 @@ export default function ValidationVerificationPage() {
         <p class="text-sm text-gray-600 mb-2">Item: <span class="font-semibold">${validation.item_name || "-"}</span></p>
         <p class="text-sm text-gray-600 mb-2">Brand: <span class="font-semibold">${validation.brand || "-"}</span></p>
         <p class="text-sm text-gray-600 mb-4">Code: <span class="font-mono">${validation.serial_or_code || "-"}</span></p>
+        <p class="text-xs text-gray-500 mb-2">Approved by: <span class="font-semibold text-green-600">${userName}</span></p>
         <textarea id="notes" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" rows="3" placeholder="Validation notes (optional)"></textarea>
       </div>`,
       icon: "question",
@@ -339,7 +365,7 @@ export default function ValidationVerificationPage() {
               validation_status: "approved",
               is_approved: true,
               validation_notes: result.value.notes,
-              validated_by: 1,
+              validated_by: userId, // ← PERBAIKAN: Gunakan userId yang login
             }),
           },
         );
@@ -353,8 +379,8 @@ export default function ValidationVerificationPage() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 validation_id: validation.id_validation,
-                user_id: 1,
-                validated_by: 1,
+                user_id: userId, // ← PERBAIKAN
+                validated_by: userId, // ← PERBAIKAN
               }),
             },
           );
@@ -363,7 +389,7 @@ export default function ValidationVerificationPage() {
           if (assetResult.success) {
             Swal.fire({
               title: "Approved & Added to Assets!",
-              html: `Validation approved and asset <strong>${assetResult.asset_code}</strong> has been added to inventory.`,
+              html: `Validation approved and asset <strong>${assetResult.asset_code}</strong> has been added to inventory.<br><small>Approved by: ${userName}</small>`,
               icon: "success",
               timer: 2000,
               showConfirmButton: false,
@@ -394,7 +420,23 @@ export default function ValidationVerificationPage() {
     }
   };
 
+  // ==================== PERBAIKAN handleReject ====================
   const handleReject = async (validation) => {
+    // PERBAIKAN: Ambil user_id dari user_data
+    const userDataStr = localStorage.getItem("user_data");
+    if (!userDataStr) {
+      Swal.fire({
+        title: "Error!",
+        text: "User not logged in. Please login again.",
+        icon: "error",
+      });
+      return;
+    }
+
+    const userData = JSON.parse(userDataStr);
+    const userId = userData.id;
+    const userName = userData.username || userData.name;
+
     const result = await Swal.fire({
       title: "Reject Validation?",
       html: `
@@ -402,6 +444,7 @@ export default function ValidationVerificationPage() {
         <p class="text-sm text-gray-600 mb-2">Item: <span class="font-semibold">${validation.item_name || "-"}</span></p>
         <p class="text-sm text-gray-600 mb-2">Brand: <span class="font-semibold">${validation.brand || "-"}</span></p>
         <p class="text-sm text-gray-600 mb-4">Code: <span class="font-mono">${validation.serial_or_code || "-"}</span></p>
+        <p class="text-xs text-gray-500 mb-2">Rejected by: <span class="font-semibold text-red-600">${userName}</span></p>
         <label class="block text-sm font-medium text-gray-700 mb-1">Rejection Reason</label>
         <textarea id="reason" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" rows="3" placeholder="Please provide reason for rejection..." required></textarea>
       </div>`,
@@ -432,7 +475,7 @@ export default function ValidationVerificationPage() {
               validation_status: "rejected",
               is_approved: false,
               rejection_reason: result.value.reason,
-              validated_by: 1,
+              validated_by: userId, // ← PERBAIKAN
             }),
           },
         );
@@ -441,7 +484,7 @@ export default function ValidationVerificationPage() {
         if (data.success) {
           Swal.fire({
             title: "Rejected!",
-            text: "Validation has been rejected. You can now rescan the item.",
+            html: `Validation has been rejected by <strong>${userName}</strong>. You can now rescan the item.`,
             icon: "warning",
             timer: 2000,
             showConfirmButton: false,
@@ -462,6 +505,7 @@ export default function ValidationVerificationPage() {
     }
   };
 
+  // ==================== PERBAIKAN handleBulkAction ====================
   const handleBulkAction = async (action) => {
     if (selectedItems.length === 0) {
       Swal.fire({
@@ -472,26 +516,45 @@ export default function ValidationVerificationPage() {
       return;
     }
 
+    // PERBAIKAN: Ambil user_id dari user_data
+    const userDataStr = localStorage.getItem("user_data");
+    if (!userDataStr) {
+      Swal.fire({
+        title: "Error!",
+        text: "User not logged in. Please login again.",
+        icon: "error",
+      });
+      return;
+    }
+
+    const userData = JSON.parse(userDataStr);
+    const userId = userData.id;
+    const userName = userData.username || userData.name;
+
     const isApprove = action === "approve";
     const result = await Swal.fire({
       title: isApprove ? "Approve Selected Items?" : "Reject Selected Items?",
-      text: `Are you sure you want to ${action} ${selectedItems.length} item(s)?`,
+      html: `
+      <div class="text-left">
+        <p>Are you sure you want to ${action} ${selectedItems.length} item(s)?</p>
+        <p class="text-xs text-gray-500 mt-2">Processed by: <span class="font-semibold">${userName}</span></p>
+        ${!isApprove ? '<label class="block text-sm font-medium text-gray-700 mt-3 mb-1">Rejection Reason</label><textarea id="reason" class="w-full px-3 py-2 border border-gray-300 rounded-lg" rows="3" placeholder="Rejection reason for all selected items..."></textarea>' : ""}
+      </div>`,
       icon: isApprove ? "question" : "warning",
       showCancelButton: true,
       confirmButtonText: isApprove ? "Yes, Approve" : "Yes, Reject",
       confirmButtonColor: isApprove ? "#22c55e" : "#ef4444",
-      ...(isApprove
-        ? {}
-        : {
-            input: "textarea",
-            inputPlaceholder: "Rejection reason for all selected items...",
-            inputLabel: "Rejection Reason",
-            inputValidator: (value) => {
-              if (!value || value.trim() === "")
-                return "Please provide a rejection reason";
-              return null;
-            },
-          }),
+      preConfirm: () => {
+        if (!isApprove) {
+          const reason = document.getElementById("reason").value;
+          if (!reason || reason.trim() === "") {
+            Swal.showValidationMessage("Please provide a rejection reason");
+            return false;
+          }
+          return { reason };
+        }
+        return {};
+      },
     });
 
     if (result.isConfirmed) {
@@ -503,8 +566,8 @@ export default function ValidationVerificationPage() {
           body: JSON.stringify({
             validation_ids: selectedItems,
             action,
-            rejection_reason: isApprove ? null : result.value,
-            validated_by: 1,
+            rejection_reason: isApprove ? null : result.value?.reason,
+            validated_by: userId, // ← PERBAIKAN
           }),
         });
         const data = await response.json();
@@ -512,7 +575,7 @@ export default function ValidationVerificationPage() {
         if (data.success) {
           Swal.fire({
             title: "Success!",
-            text: data.message,
+            html: `${data.message}<br><small>Processed by: ${userName}</small>`,
             icon: "success",
             timer: 2000,
             showConfirmButton: false,

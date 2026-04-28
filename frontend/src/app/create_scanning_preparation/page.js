@@ -188,12 +188,12 @@ export default function ScanningPreparationPage() {
   };
 
   const toggleSaveToStock = (sessionId, itemId) => {
-    setSessions(prev =>
-      prev.map(session => {
+    setSessions((prev) =>
+      prev.map((session) => {
         if (session.id === sessionId) {
           return {
             ...session,
-            items: session.items.map(item => {
+            items: session.items.map((item) => {
               if (item.id === itemId) {
                 const newSaveToStock = !item.saveToStock;
                 return {
@@ -208,7 +208,7 @@ export default function ScanningPreparationPage() {
           };
         }
         return session;
-      })
+      }),
     );
   };
 
@@ -277,7 +277,13 @@ export default function ScanningPreparationPage() {
     return receiversByDepartment[departmentId] || [];
   };
 
-  const updateReceiverAssignment = (sessionId, itemId, departmentId, receiverId, itemIndex) => {
+  const updateReceiverAssignment = (
+    sessionId,
+    itemId,
+    departmentId,
+    receiverId,
+    itemIndex,
+  ) => {
     setSessions((prev) =>
       prev.map((session) => {
         if (session.id === sessionId) {
@@ -286,7 +292,9 @@ export default function ScanningPreparationPage() {
             items: session.items.map((item) => {
               if (item.id === itemId) {
                 const existingIndex = item.receivers.findIndex(
-                  (r) => r.department_id === departmentId && r.item_index === itemIndex
+                  (r) =>
+                    r.department_id === departmentId &&
+                    r.item_index === itemIndex,
                 );
 
                 let newReceivers;
@@ -297,7 +305,9 @@ export default function ScanningPreparationPage() {
                     receiver_id: parseInt(receiverId),
                   };
                 } else {
-                  const deptInfo = departments.find(d => d.id_department === departmentId);
+                  const deptInfo = departments.find(
+                    (d) => d.id_department === departmentId,
+                  );
                   newReceivers = [
                     ...item.receivers,
                     {
@@ -399,9 +409,9 @@ export default function ScanningPreparationPage() {
       prev.map((session) =>
         session.id === sessionId
           ? {
-            ...session,
-            formData: { ...session.formData, [field]: value },
-          }
+              ...session,
+              formData: { ...session.formData, [field]: value },
+            }
           : session,
       ),
     );
@@ -412,28 +422,28 @@ export default function ScanningPreparationPage() {
       prev.map((session) =>
         session.id === sessionId
           ? {
-            ...session,
-            items: [
-              ...session.items,
-              {
-                id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-                device_name: "",
-                device_detail: "",
-                brand: "",
-                vendor: "",
-                model: "",
-                specifications: "",
-                quantity: 1,
-                departments: [],
-                receivers: [],
-                uom: "PCS",
-                material_name: "",
-                material_detail: "",
-                project_id: "",
-                saveToStock: false,
-              },
-            ],
-          }
+              ...session,
+              items: [
+                ...session.items,
+                {
+                  id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                  device_name: "",
+                  device_detail: "",
+                  brand: "",
+                  vendor: "",
+                  model: "",
+                  specifications: "",
+                  quantity: 1,
+                  departments: [],
+                  receivers: [],
+                  uom: "PCS",
+                  material_name: "",
+                  material_detail: "",
+                  project_id: "",
+                  saveToStock: false,
+                },
+              ],
+            }
           : session,
       ),
     );
@@ -468,11 +478,11 @@ export default function ScanningPreparationPage() {
       prev.map((session) =>
         session.id === sessionId
           ? {
-            ...session,
-            items: session.items.map((item) =>
-              item.id === itemId ? { ...item, [field]: value } : item,
-            ),
-          }
+              ...session,
+              items: session.items.map((item) =>
+                item.id === itemId ? { ...item, [field]: value } : item,
+              ),
+            }
           : session,
       ),
     );
@@ -485,7 +495,12 @@ export default function ScanningPreparationPage() {
     }));
   };
 
-  const updateDepartmentQuantity = (sessionId, itemId, departmentId, quantity) => {
+  const updateDepartmentQuantity = (
+    sessionId,
+    itemId,
+    departmentId,
+    quantity,
+  ) => {
     const department = departments.find(
       (d) => d.id_department === departmentId,
     );
@@ -512,8 +527,9 @@ export default function ScanningPreparationPage() {
 
                 // Hitung total quantity yang sudah dialokasikan ke department lain (selain department ini)
                 const totalOtherDepts = item.departments.reduce(
-                  (sum, d) => d.department_id === departmentId ? sum : sum + d.quantity,
-                  0
+                  (sum, d) =>
+                    d.department_id === departmentId ? sum : sum + d.quantity,
+                  0,
                 );
 
                 // Hitung sisa quantity yang tersedia untuk department ini
@@ -536,7 +552,7 @@ export default function ScanningPreparationPage() {
 
                 // Cek apakah department sudah ada
                 const existingDeptIndex = item.departments.findIndex(
-                  (d) => d.department_id === departmentId
+                  (d) => d.department_id === departmentId,
                 );
 
                 let newDepartments;
@@ -548,47 +564,53 @@ export default function ScanningPreparationPage() {
                     newDepartments = [...item.departments];
                     newDepartments[existingDeptIndex] = {
                       ...newDepartments[existingDeptIndex],
-                      quantity: finalQuantity
+                      quantity: finalQuantity,
                     };
                   } else {
                     newDepartments = [
                       ...item.departments,
                       {
                         department_id: departmentId,
-                        department_name: department?.department_name || `Department ${departmentId}`,
-                        quantity: finalQuantity
-                      }
+                        department_name:
+                          department?.department_name ||
+                          `Department ${departmentId}`,
+                        quantity: finalQuantity,
+                      },
                     ];
                   }
 
                   // Update receiver entries
                   newReceivers = [...item.receivers];
                   // Hapus receiver lama untuk department ini
-                  newReceivers = newReceivers.filter(r => r.department_id !== departmentId);
+                  newReceivers = newReceivers.filter(
+                    (r) => r.department_id !== departmentId,
+                  );
                   // Tambah receiver baru sesuai quantity
                   for (let i = 0; i < finalQuantity; i++) {
                     newReceivers.push({
                       department_id: departmentId,
-                      department_name: department?.department_name || `Department ${departmentId}`,
+                      department_name:
+                        department?.department_name ||
+                        `Department ${departmentId}`,
                       receiver_id: "",
-                      item_index: i
+                      item_index: i,
                     });
                   }
                 } else {
                   // Hapus department
                   newDepartments = item.departments.filter(
-                    (d) => d.department_id !== departmentId
+                    (d) => d.department_id !== departmentId,
                   );
                   // Hapus semua receiver untuk department ini
                   newReceivers = item.receivers.filter(
-                    (r) => r.department_id !== departmentId
+                    (r) => r.department_id !== departmentId,
                   );
                 }
 
                 return {
                   ...item,
                   departments: newDepartments,
-                  receivers: newReceivers
+                  receivers: newReceivers,
                 };
               }
               return item;
@@ -604,7 +626,7 @@ export default function ScanningPreparationPage() {
     if (item.saveToStock) return true;
     const totalAssigned = item.departments.reduce(
       (sum, d) => sum + (d.department_id === departmentId ? 0 : d.quantity),
-      0
+      0,
     );
     return totalAssigned >= item.quantity;
   };
@@ -639,10 +661,13 @@ export default function ScanningPreparationPage() {
         item.departments.forEach((dept) => {
           for (let i = 0; i < dept.quantity; i++) {
             const receiver = item.receivers.find(
-              (r) => r.department_id === dept.department_id && r.item_index === i
+              (r) =>
+                r.department_id === dept.department_id && r.item_index === i,
             );
             if (!receiver || !receiver.receiver_id) {
-              const deptName = departments.find(d => d.id_department === dept.department_id)?.department_name;
+              const deptName = departments.find(
+                (d) => d.id_department === dept.department_id,
+              )?.department_name;
               errors.push(
                 `Session ${session.checking_number} - Item #${index + 1}: Please select a receiver for department "${deptName}" item #${i + 1}`,
               );
@@ -689,13 +714,13 @@ export default function ScanningPreparationPage() {
     const result = await Swal.fire({
       title: "Create Scanning Preparations?",
       html: `
-        <div class="text-left text-sm">
-          <p><strong>Total Sessions:</strong> ${sessions.length}</p>
-          <p><strong>Total Items:</strong> ${totalItems}</p>
-          <p><strong>Total Quantity:</strong> ${totalQuantity}</p>
-          <p class="mt-2 text-xs text-gray-500">This will create ${sessions.length} new scanning session(s)</p>
-        </div>
-      `,
+      <div class="text-left text-sm">
+        <p><strong>Total Sessions:</strong> ${sessions.length}</p>
+        <p><strong>Total Items:</strong> ${totalItems}</p>
+        <p><strong>Total Quantity:</strong> ${totalQuantity}</p>
+        <p class="mt-2 text-xs text-gray-500">This will create ${sessions.length} new scanning session(s)</p>
+      </div>
+    `,
       icon: "question",
       showCancelButton: true,
       confirmButtonText: "Yes, Create All",
@@ -709,7 +734,20 @@ export default function ScanningPreparationPage() {
     setLoading(true);
     try {
       const results = [];
-      const userId = localStorage.getItem("user_id") || 1;
+      const userDataStr = localStorage.getItem("user_data");
+      if (!userDataStr) {
+        throw new Error("User not logged in. Please login again.");
+      }
+
+      const userData = JSON.parse(userDataStr);
+      const userId = userData.id; // ← Ambil dari object user_data
+      const userName = userData.username || userData.name;
+
+      if (!userId) {
+        throw new Error("User ID not found. Please login again.");
+      }
+
+      console.log("Creating with user_id:", userId, "user_name:", userName);
 
       for (const session of sessions) {
         const isMaterial = session.formData.category_id === "2";
@@ -727,21 +765,25 @@ export default function ScanningPreparationPage() {
               item_name: item.material_name,
               specifications: item.material_detail,
               quantity: parseFloat(item.quantity),
-              departments: item.saveToStock ? [] : item.departments.map((d) => ({
-                department_id: d.department_id,
-                quantity: parseFloat(d.quantity),
-              })),
-              receivers: item.saveToStock ? [] : item.receivers.map((r) => ({
-                department_id: r.department_id,
-                receiver_id: r.receiver_id,
-                item_index: r.item_index !== undefined ? r.item_index : 0,
-              })),
+              departments: item.saveToStock
+                ? []
+                : item.departments.map((d) => ({
+                    department_id: d.department_id,
+                    quantity: parseFloat(d.quantity),
+                  })),
+              receivers: item.saveToStock
+                ? []
+                : item.receivers.map((r) => ({
+                    department_id: r.department_id,
+                    receiver_id: r.receiver_id,
+                    item_index: r.item_index !== undefined ? r.item_index : 0,
+                  })),
               uom: item.uom || "PCS",
               vendor: item.vendor || "",
               project_id: item.project_id ? parseInt(item.project_id) : null,
               is_stock: item.saveToStock || false,
             })),
-            user_id: userId,
+            user_id: parseInt(userId), // ← Gunakan userId dari localStorage
           };
         } else {
           payload = {
@@ -758,19 +800,23 @@ export default function ScanningPreparationPage() {
               model: item.model,
               specifications: item.specifications,
               quantity: parseInt(item.quantity),
-              departments: item.saveToStock ? [] : item.departments.map((d) => ({
-                department_id: d.department_id,
-                quantity: parseInt(d.quantity),
-              })),
-              receivers: item.saveToStock ? [] : item.receivers.map((r) => ({
-                department_id: r.department_id,
-                receiver_id: r.receiver_id,
-                item_index: r.item_index !== undefined ? r.item_index : 0,
-              })),
+              departments: item.saveToStock
+                ? []
+                : item.departments.map((d) => ({
+                    department_id: d.department_id,
+                    quantity: parseInt(d.quantity),
+                  })),
+              receivers: item.saveToStock
+                ? []
+                : item.receivers.map((r) => ({
+                    department_id: r.department_id,
+                    receiver_id: r.receiver_id,
+                    item_index: r.item_index !== undefined ? r.item_index : 0,
+                  })),
               project_id: item.project_id ? parseInt(item.project_id) : null,
               is_stock: item.saveToStock || false,
             })),
-            user_id: userId,
+            user_id: parseInt(userId), // ← Gunakan userId dari localStorage
           };
         }
 
@@ -787,6 +833,8 @@ export default function ScanningPreparationPage() {
         const data = await response.json();
         if (data.success) {
           results.push(data);
+        } else {
+          console.error("Failed to create session:", data);
         }
       }
 
@@ -794,20 +842,23 @@ export default function ScanningPreparationPage() {
         await Swal.fire({
           title: "Success!",
           html: `
-            <div class="text-center">
-              <p>Successfully created ${results.length} scanning preparations!</p>
-              <div class="font-mono text-xs bg-gray-100 p-2 rounded mt-2 max-h-32 overflow-y-auto">
-                ${results.map((r) => `<div>${r.checking_number}</div>`).join("")}
-              </div>
+          <div class="text-center">
+            <p>Successfully created ${results.length} scanning preparations!</p>
+            <div class="font-mono text-xs bg-gray-100 p-2 rounded mt-2 max-h-32 overflow-y-auto">
+              ${results.map((r) => `<div>${r.checking_number}</div>`).join("")}
             </div>
-          `,
+          </div>
+        `,
           icon: "success",
           timer: 3000,
           showConfirmButton: false,
         });
         router.push("/scanning");
+      } else {
+        throw new Error("No sessions were created successfully");
       }
     } catch (error) {
+      console.error("Submit error:", error);
       Swal.fire({
         title: "Error!",
         text: error.message || "Failed to create scanning preparations",
@@ -899,19 +950,25 @@ export default function ScanningPreparationPage() {
   return (
     <LayoutDashboard activeMenu={1}>
       <style jsx>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-        .sp-root { font-family: 'DM Sans', sans-serif; }
-        
+        @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap");
+        .sp-root {
+          font-family: "DM Sans", sans-serif;
+        }
+
         .card {
           background: #ffffff;
           border-radius: 16px;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          box-shadow:
+            0 4px 6px -1px rgba(0, 0, 0, 0.1),
+            0 2px 4px -1px rgba(0, 0, 0, 0.06);
           transition: box-shadow 0.2s ease;
         }
         .card:hover {
-          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+          box-shadow:
+            0 10px 15px -3px rgba(0, 0, 0, 0.1),
+            0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
-        
+
         .session-card {
           background: #ffffff;
           border-radius: 16px;
@@ -926,7 +983,7 @@ export default function ScanningPreparationPage() {
           border-color: #93c5fd;
           box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.1);
         }
-        
+
         .section-title {
           font-size: 13px;
           font-weight: 600;
@@ -935,7 +992,7 @@ export default function ScanningPreparationPage() {
           letter-spacing: 0.05em;
           margin-bottom: 16px;
         }
-        
+
         .dropdown-menu {
           position: absolute;
           top: 100%;
@@ -944,15 +1001,24 @@ export default function ScanningPreparationPage() {
           background: white;
           border: 1px solid #e5e7eb;
           border-radius: 8px;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
           max-height: 200px;
           overflow-y: auto;
           z-index: 50;
         }
-        
-        .animate-spin { animation: spin 1s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        
+
+        .animate-spin {
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
         @media (max-width: 768px) {
           .session-card {
             border-radius: 12px;
@@ -984,7 +1050,7 @@ export default function ScanningPreparationPage() {
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
               <Layers className="w-3 h-3 inline mr-1" />
-              {sessions.length} Session{sessions.length !== 1 ? 's' : ''}
+              {sessions.length} Session{sessions.length !== 1 ? "s" : ""}
             </span>
           </div>
         </div>
@@ -1087,7 +1153,10 @@ export default function ScanningPreparationPage() {
                           >
                             <option value="">Select Category</option>
                             {categories.map((cat) => (
-                              <option key={cat.id_category} value={cat.id_category}>
+                              <option
+                                key={cat.id_category}
+                                value={cat.id_category}
+                              >
                                 {cat.category_name}
                               </option>
                             ))}
@@ -1117,7 +1186,10 @@ export default function ScanningPreparationPage() {
                           >
                             <option value="">Select Location</option>
                             {locations.map((loc) => (
-                              <option key={loc.id_location} value={loc.id_location}>
+                              <option
+                                key={loc.id_location}
+                                value={loc.id_location}
+                              >
                                 {loc.location_name}
                               </option>
                             ))}
@@ -1154,7 +1226,8 @@ export default function ScanningPreparationPage() {
                           );
                           const remainingQty = item.quantity - totalDeptQty;
                           const isExpanded = expandedItems[item.id];
-                          const isMaterial = session.formData.category_id === "2";
+                          const isMaterial =
+                            session.formData.category_id === "2";
 
                           return (
                             <div
@@ -1172,19 +1245,26 @@ export default function ScanningPreparationPage() {
                                     </span>
                                   )}
                                   <button
-                                    onClick={() => toggleSaveToStock(session.id, item.id)}
-                                    className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full transition ${item.saveToStock
-                                      ? "bg-yellow-100 text-yellow-700 border border-yellow-200"
-                                      : "bg-gray-100 text-gray-600 border border-gray-200"
-                                      }`}
+                                    onClick={() =>
+                                      toggleSaveToStock(session.id, item.id)
+                                    }
+                                    className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full transition ${
+                                      item.saveToStock
+                                        ? "bg-yellow-100 text-yellow-700 border border-yellow-200"
+                                        : "bg-gray-100 text-gray-600 border border-gray-200"
+                                    }`}
                                   >
                                     <Package className="w-3 h-3" />
-                                    {item.saveToStock ? "Save to Stock" : "Will Distribute"}
+                                    {item.saveToStock
+                                      ? "Save to Stock"
+                                      : "Will Distribute"}
                                   </button>
                                 </div>
                                 {session.items.length > 1 && (
                                   <button
-                                    onClick={() => removeItem(session.id, item.id)}
+                                    onClick={() =>
+                                      removeItem(session.id, item.id)
+                                    }
                                     className="text-red-500 hover:text-red-700 p-1"
                                   >
                                     <Trash2 className="w-4 h-4" />
@@ -1197,7 +1277,8 @@ export default function ScanningPreparationPage() {
                                   <div className="flex items-start gap-2">
                                     <Info className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
                                     <p className="text-xs text-yellow-700">
-                                      Save to Stock Mode Active - This item will be saved to stock and not distributed.
+                                      Save to Stock Mode Active - This item will
+                                      be saved to stock and not distributed.
                                     </p>
                                   </div>
                                 </div>
@@ -1211,18 +1292,39 @@ export default function ScanningPreparationPage() {
                                     <select
                                       value={item.material_name}
                                       onChange={(e) => {
-                                        const selectedMaterial = masterMaterials.find(m => m.material_name === e.target.value);
-                                        updateItem(session.id, item.id, "material_name", e.target.value);
+                                        const selectedMaterial =
+                                          masterMaterials.find(
+                                            (m) =>
+                                              m.material_name ===
+                                              e.target.value,
+                                          );
+                                        updateItem(
+                                          session.id,
+                                          item.id,
+                                          "material_name",
+                                          e.target.value,
+                                        );
                                         // Optional: Auto-fill material details jika ada
-                                        if (selectedMaterial && selectedMaterial.material_detail) {
-                                          updateItem(session.id, item.id, "material_detail", selectedMaterial.material_detail);
+                                        if (
+                                          selectedMaterial &&
+                                          selectedMaterial.material_detail
+                                        ) {
+                                          updateItem(
+                                            session.id,
+                                            item.id,
+                                            "material_detail",
+                                            selectedMaterial.material_detail,
+                                          );
                                         }
                                       }}
                                       className={selectCls}
                                     >
                                       <option value="">Select Material</option>
                                       {masterMaterials.map((material) => (
-                                        <option key={material.id_material} value={material.material_name}>
+                                        <option
+                                          key={material.id_material}
+                                          value={material.material_name}
+                                        >
                                           {material.material_name}
                                         </option>
                                       ))}
@@ -1234,7 +1336,12 @@ export default function ScanningPreparationPage() {
                                     <textarea
                                       value={item.material_detail}
                                       onChange={(e) =>
-                                        updateItem(session.id, item.id, "material_detail", e.target.value)
+                                        updateItem(
+                                          session.id,
+                                          item.id,
+                                          "material_detail",
+                                          e.target.value,
+                                        )
                                       }
                                       className={inputCls}
                                       rows="2"
@@ -1248,7 +1355,12 @@ export default function ScanningPreparationPage() {
                                       type="number"
                                       value={item.quantity}
                                       onChange={(e) =>
-                                        updateItem(session.id, item.id, "quantity", parseFloat(e.target.value) || 1)
+                                        updateItem(
+                                          session.id,
+                                          item.id,
+                                          "quantity",
+                                          parseFloat(e.target.value) || 1,
+                                        )
                                       }
                                       className={inputCls}
                                       min="0.01"
@@ -1261,7 +1373,12 @@ export default function ScanningPreparationPage() {
                                     <select
                                       value={item.uom || "PCS"}
                                       onChange={(e) =>
-                                        updateItem(session.id, item.id, "uom", e.target.value)
+                                        updateItem(
+                                          session.id,
+                                          item.id,
+                                          "uom",
+                                          e.target.value,
+                                        )
                                       }
                                       className={selectCls}
                                     >
@@ -1279,7 +1396,12 @@ export default function ScanningPreparationPage() {
                                       type="text"
                                       value={item.vendor}
                                       onChange={(e) =>
-                                        updateItem(session.id, item.id, "vendor", e.target.value)
+                                        updateItem(
+                                          session.id,
+                                          item.id,
+                                          "vendor",
+                                          e.target.value,
+                                        )
                                       }
                                       className={inputCls}
                                       placeholder="e.g. Belden, 3M"
@@ -1291,13 +1413,21 @@ export default function ScanningPreparationPage() {
                                     <select
                                       value={item.project_id}
                                       onChange={(e) =>
-                                        updateItem(session.id, item.id, "project_id", e.target.value)
+                                        updateItem(
+                                          session.id,
+                                          item.id,
+                                          "project_id",
+                                          e.target.value,
+                                        )
                                       }
                                       className={selectCls}
                                     >
                                       <option value="">Select Project</option>
                                       {projects.map((project) => (
-                                        <option key={project.id_project} value={project.id_project}>
+                                        <option
+                                          key={project.id_project}
+                                          value={project.id_project}
+                                        >
                                           {project.project_name}
                                         </option>
                                       ))}
@@ -1310,10 +1440,14 @@ export default function ScanningPreparationPage() {
                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                           <Label>Department Distribution</Label>
                                           <button
-                                            onClick={() => toggleDepartmentSection(item.id)}
+                                            onClick={() =>
+                                              toggleDepartmentSection(item.id)
+                                            }
                                             className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition"
                                           >
-                                            {isExpanded ? "Close Distribution" : "Distribute Items"}
+                                            {isExpanded
+                                              ? "Close Distribution"
+                                              : "Distribute Items"}
                                             {isExpanded ? (
                                               <ChevronUp className="w-3 h-3" />
                                             ) : (
@@ -1326,13 +1460,24 @@ export default function ScanningPreparationPage() {
                                           <div className="mt-3 space-y-3">
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                               {departments.map((dept) => {
-                                                const assignedDept = item.departments.find(
-                                                  (d) => d.department_id === dept.id_department,
-                                                );
-                                                const assignedQty = assignedDept?.quantity || 0;
-                                                const isDisabled = isDepartmentInputDisabled(item, dept.id_department);
+                                                const assignedDept =
+                                                  item.departments.find(
+                                                    (d) =>
+                                                      d.department_id ===
+                                                      dept.id_department,
+                                                  );
+                                                const assignedQty =
+                                                  assignedDept?.quantity || 0;
+                                                const isDisabled =
+                                                  isDepartmentInputDisabled(
+                                                    item,
+                                                    dept.id_department,
+                                                  );
                                                 return (
-                                                  <div key={dept.id_department} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                                                  <div
+                                                    key={dept.id_department}
+                                                    className="flex items-center justify-between p-3 border border-gray-200 rounded-lg"
+                                                  >
                                                     <span className="text-sm font-medium text-gray-700 truncate">
                                                       {dept.department_name}
                                                     </span>
@@ -1342,11 +1487,19 @@ export default function ScanningPreparationPage() {
                                                       max={item.quantity}
                                                       value={assignedQty}
                                                       onChange={(e) =>
-                                                        updateDepartmentQuantity(session.id, item.id, dept.id_department, e.target.value)
+                                                        updateDepartmentQuantity(
+                                                          session.id,
+                                                          item.id,
+                                                          dept.id_department,
+                                                          e.target.value,
+                                                        )
                                                       }
                                                       disabled={isDisabled}
-                                                      className={`w-20 px-2 py-1.5 text-sm border rounded-md focus:ring-2 focus:ring-blue-500 ${isDisabled ? "bg-gray-50 text-gray-400" : "bg-white"
-                                                        }`}
+                                                      className={`w-20 px-2 py-1.5 text-sm border rounded-md focus:ring-2 focus:ring-blue-500 ${
+                                                        isDisabled
+                                                          ? "bg-gray-50 text-gray-400"
+                                                          : "bg-white"
+                                                      }`}
                                                       placeholder="Qty"
                                                     />
                                                   </div>
@@ -1355,74 +1508,142 @@ export default function ScanningPreparationPage() {
                                             </div>
                                             <div className="p-3 bg-gray-50 rounded-lg">
                                               <div className="flex justify-between items-center">
-                                                <span className="text-sm font-medium text-gray-700">Distribution Summary:</span>
-                                                <span className={`text-sm font-semibold ${totalDeptQty === item.quantity ? "text-green-600" : "text-blue-600"
-                                                  }`}>
-                                                  {totalDeptQty} of {item.quantity} assigned
+                                                <span className="text-sm font-medium text-gray-700">
+                                                  Distribution Summary:
+                                                </span>
+                                                <span
+                                                  className={`text-sm font-semibold ${
+                                                    totalDeptQty ===
+                                                    item.quantity
+                                                      ? "text-green-600"
+                                                      : "text-blue-600"
+                                                  }`}
+                                                >
+                                                  {totalDeptQty} of{" "}
+                                                  {item.quantity} assigned
                                                 </span>
                                               </div>
                                               {remainingQty > 0 && (
                                                 <p className="text-xs text-gray-500 mt-1">
-                                                  {remainingQty} unassigned items will stay at main location
+                                                  {remainingQty} unassigned
+                                                  items will stay at main
+                                                  location
                                                 </p>
                                               )}
                                             </div>
                                           </div>
                                         )}
 
-                                        {!isExpanded && item.departments.length > 0 && (
-                                          <div className="mt-2 flex flex-wrap gap-2">
-                                            {item.departments.map((dept) => (
-                                              <div key={dept.department_id} className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full">
-                                                <Users className="w-3 h-3 text-gray-500" />
-                                                <span className="text-xs text-gray-700">{dept.department_name}: {dept.quantity}</span>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        )}
+                                        {!isExpanded &&
+                                          item.departments.length > 0 && (
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                              {item.departments.map((dept) => (
+                                                <div
+                                                  key={dept.department_id}
+                                                  className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full"
+                                                >
+                                                  <Users className="w-3 h-3 text-gray-500" />
+                                                  <span className="text-xs text-gray-700">
+                                                    {dept.department_name}:{" "}
+                                                    {dept.quantity}
+                                                  </span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
                                       </div>
 
                                       {item.departments.length > 0 && (
                                         <div className="md:col-span-2 pt-2 border-t border-gray-100">
                                           <div className="flex items-center gap-2 mb-3">
                                             <User className="w-4 h-4 text-green-600" />
-                                            <h4 className="text-sm font-semibold text-gray-800">Receiver Assignment</h4>
+                                            <h4 className="text-sm font-semibold text-gray-800">
+                                              Receiver Assignment
+                                            </h4>
                                           </div>
                                           <div className="space-y-3">
                                             {item.departments.map((dept) => {
-                                              const deptInfo = departments.find(d => d.id_department === dept.department_id);
-                                              const availableReceivers = getReceiversForDepartment(dept.department_id);
+                                              const deptInfo = departments.find(
+                                                (d) =>
+                                                  d.id_department ===
+                                                  dept.department_id,
+                                              );
+                                              const availableReceivers =
+                                                getReceiversForDepartment(
+                                                  dept.department_id,
+                                                );
                                               return (
-                                                <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                                <div
+                                                  key={dept.department_id}
+                                                  className="border border-gray-200 rounded-lg overflow-hidden"
+                                                >
                                                   <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
                                                     <span className="text-sm font-semibold text-gray-800">
-                                                      {deptInfo?.department_name || `Department ${dept.department_id}`}
+                                                      {deptInfo?.department_name ||
+                                                        `Department ${dept.department_id}`}
                                                     </span>
                                                     <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                                                       {dept.quantity} item(s)
                                                     </span>
                                                   </div>
                                                   <div className="p-3 space-y-3">
-                                                    {[...Array(dept.quantity)].map((_, i) => {
-                                                      const receiver = item.receivers.find(
-                                                        (r) => r.department_id === dept.department_id && r.item_index === i
-                                                      );
+                                                    {[
+                                                      ...Array(dept.quantity),
+                                                    ].map((_, i) => {
+                                                      const receiver =
+                                                        item.receivers.find(
+                                                          (r) =>
+                                                            r.department_id ===
+                                                              dept.department_id &&
+                                                            r.item_index === i,
+                                                        );
                                                       return (
                                                         <div key={i}>
-                                                          <Label>Item #{i + 1} Receiver</Label>
+                                                          <Label>
+                                                            Item #{i + 1}{" "}
+                                                            Receiver
+                                                          </Label>
                                                           <select
-                                                            value={receiver?.receiver_id || ""}
-                                                            onChange={(e) =>
-                                                              updateReceiverAssignment(session.id, item.id, dept.department_id, e.target.value, i)
+                                                            value={
+                                                              receiver?.receiver_id ||
+                                                              ""
                                                             }
-                                                            className={selectCls}
+                                                            onChange={(e) =>
+                                                              updateReceiverAssignment(
+                                                                session.id,
+                                                                item.id,
+                                                                dept.department_id,
+                                                                e.target.value,
+                                                                i,
+                                                              )
+                                                            }
+                                                            className={
+                                                              selectCls
+                                                            }
                                                           >
-                                                            <option value="">Select Receiver</option>
-                                                            {availableReceivers.map((rec) => (
-                                                              <option key={rec.id_receiver} value={rec.id_receiver}>
-                                                                {rec.receiver_name} - {rec.receiver_title}
-                                                              </option>
-                                                            ))}
+                                                            <option value="">
+                                                              Select Receiver
+                                                            </option>
+                                                            {availableReceivers.map(
+                                                              (rec) => (
+                                                                <option
+                                                                  key={
+                                                                    rec.id_receiver
+                                                                  }
+                                                                  value={
+                                                                    rec.id_receiver
+                                                                  }
+                                                                >
+                                                                  {
+                                                                    rec.receiver_name
+                                                                  }{" "}
+                                                                  -{" "}
+                                                                  {
+                                                                    rec.receiver_title
+                                                                  }
+                                                                </option>
+                                                              ),
+                                                            )}
                                                           </select>
                                                         </div>
                                                       );
@@ -1445,21 +1666,57 @@ export default function ScanningPreparationPage() {
                                     <select
                                       value={item.device_name}
                                       onChange={(e) => {
-                                        const selectedDevice = masterDevices.find(d => d.device_name === e.target.value);
-                                        updateItem(session.id, item.id, "device_name", e.target.value);
+                                        const selectedDevice =
+                                          masterDevices.find(
+                                            (d) =>
+                                              d.device_name === e.target.value,
+                                          );
+                                        updateItem(
+                                          session.id,
+                                          item.id,
+                                          "device_name",
+                                          e.target.value,
+                                        );
                                         // Optional: Auto-fill device details jika ada
                                         if (selectedDevice) {
-                                          if (selectedDevice.brand) updateItem(session.id, item.id, "brand", selectedDevice.brand);
-                                          if (selectedDevice.model) updateItem(session.id, item.id, "model", selectedDevice.model);
-                                          if (selectedDevice.specifications) updateItem(session.id, item.id, "specifications", selectedDevice.specifications);
-                                          if (selectedDevice.device_detail) updateItem(session.id, item.id, "device_detail", selectedDevice.device_detail);
+                                          if (selectedDevice.brand)
+                                            updateItem(
+                                              session.id,
+                                              item.id,
+                                              "brand",
+                                              selectedDevice.brand,
+                                            );
+                                          if (selectedDevice.model)
+                                            updateItem(
+                                              session.id,
+                                              item.id,
+                                              "model",
+                                              selectedDevice.model,
+                                            );
+                                          if (selectedDevice.specifications)
+                                            updateItem(
+                                              session.id,
+                                              item.id,
+                                              "specifications",
+                                              selectedDevice.specifications,
+                                            );
+                                          if (selectedDevice.device_detail)
+                                            updateItem(
+                                              session.id,
+                                              item.id,
+                                              "device_detail",
+                                              selectedDevice.device_detail,
+                                            );
                                         }
                                       }}
                                       className={selectCls}
                                     >
                                       <option value="">Select Device</option>
                                       {masterDevices.map((device) => (
-                                        <option key={device.id_device} value={device.device_name}>
+                                        <option
+                                          key={device.id_device}
+                                          value={device.device_name}
+                                        >
                                           {device.device_name}
                                         </option>
                                       ))}
@@ -1471,7 +1728,12 @@ export default function ScanningPreparationPage() {
                                     <textarea
                                       value={item.device_detail}
                                       onChange={(e) =>
-                                        updateItem(session.id, item.id, "device_detail", e.target.value)
+                                        updateItem(
+                                          session.id,
+                                          item.id,
+                                          "device_detail",
+                                          e.target.value,
+                                        )
                                       }
                                       className={inputCls}
                                       rows="2"
@@ -1485,7 +1747,12 @@ export default function ScanningPreparationPage() {
                                       type="text"
                                       value={item.brand}
                                       onChange={(e) =>
-                                        updateItem(session.id, item.id, "brand", e.target.value)
+                                        updateItem(
+                                          session.id,
+                                          item.id,
+                                          "brand",
+                                          e.target.value,
+                                        )
                                       }
                                       className={inputCls}
                                       placeholder="e.g. Dell, Samsung"
@@ -1498,7 +1765,12 @@ export default function ScanningPreparationPage() {
                                       type="text"
                                       value={item.vendor}
                                       onChange={(e) =>
-                                        updateItem(session.id, item.id, "vendor", e.target.value)
+                                        updateItem(
+                                          session.id,
+                                          item.id,
+                                          "vendor",
+                                          e.target.value,
+                                        )
                                       }
                                       className={inputCls}
                                       placeholder="e.g. PT DUTA"
@@ -1511,7 +1783,12 @@ export default function ScanningPreparationPage() {
                                       type="text"
                                       value={item.model}
                                       onChange={(e) =>
-                                        updateItem(session.id, item.id, "model", e.target.value)
+                                        updateItem(
+                                          session.id,
+                                          item.id,
+                                          "model",
+                                          e.target.value,
+                                        )
                                       }
                                       className={inputCls}
                                       placeholder="e.g. Latitude 3420"
@@ -1524,7 +1801,12 @@ export default function ScanningPreparationPage() {
                                       type="text"
                                       value={item.specifications}
                                       onChange={(e) =>
-                                        updateItem(session.id, item.id, "specifications", e.target.value)
+                                        updateItem(
+                                          session.id,
+                                          item.id,
+                                          "specifications",
+                                          e.target.value,
+                                        )
                                       }
                                       className={inputCls}
                                       placeholder="e.g. Intel i5, 8GB RAM"
@@ -1537,7 +1819,12 @@ export default function ScanningPreparationPage() {
                                       type="number"
                                       value={item.quantity}
                                       onChange={(e) =>
-                                        updateItem(session.id, item.id, "quantity", parseInt(e.target.value) || 1)
+                                        updateItem(
+                                          session.id,
+                                          item.id,
+                                          "quantity",
+                                          parseInt(e.target.value) || 1,
+                                        )
                                       }
                                       className={inputCls}
                                       min="1"
@@ -1549,13 +1836,21 @@ export default function ScanningPreparationPage() {
                                     <select
                                       value={item.project_id}
                                       onChange={(e) =>
-                                        updateItem(session.id, item.id, "project_id", e.target.value)
+                                        updateItem(
+                                          session.id,
+                                          item.id,
+                                          "project_id",
+                                          e.target.value,
+                                        )
                                       }
                                       className={selectCls}
                                     >
                                       <option value="">Select Project</option>
                                       {projects.map((project) => (
-                                        <option key={project.id_project} value={project.id_project}>
+                                        <option
+                                          key={project.id_project}
+                                          value={project.id_project}
+                                        >
                                           {project.project_name}
                                         </option>
                                       ))}
@@ -1568,11 +1863,19 @@ export default function ScanningPreparationPage() {
                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                           <Label>Department Distribution</Label>
                                           <button
-                                            onClick={() => toggleDepartmentSection(item.id)}
+                                            onClick={() =>
+                                              toggleDepartmentSection(item.id)
+                                            }
                                             className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition"
                                           >
-                                            {isExpanded ? "Close Distribution" : "Distribute Items"}
-                                            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                            {isExpanded
+                                              ? "Close Distribution"
+                                              : "Distribute Items"}
+                                            {isExpanded ? (
+                                              <ChevronUp className="w-3 h-3" />
+                                            ) : (
+                                              <ChevronDown className="w-3 h-3" />
+                                            )}
                                           </button>
                                         </div>
 
@@ -1580,13 +1883,24 @@ export default function ScanningPreparationPage() {
                                           <div className="mt-3 space-y-3">
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                               {departments.map((dept) => {
-                                                const assignedDept = item.departments.find(
-                                                  (d) => d.department_id === dept.id_department,
-                                                );
-                                                const assignedQty = assignedDept?.quantity || 0;
-                                                const isDisabled = isDepartmentInputDisabled(item, dept.id_department);
+                                                const assignedDept =
+                                                  item.departments.find(
+                                                    (d) =>
+                                                      d.department_id ===
+                                                      dept.id_department,
+                                                  );
+                                                const assignedQty =
+                                                  assignedDept?.quantity || 0;
+                                                const isDisabled =
+                                                  isDepartmentInputDisabled(
+                                                    item,
+                                                    dept.id_department,
+                                                  );
                                                 return (
-                                                  <div key={dept.id_department} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                                                  <div
+                                                    key={dept.id_department}
+                                                    className="flex items-center justify-between p-3 border border-gray-200 rounded-lg"
+                                                  >
                                                     <span className="text-sm font-medium text-gray-700 truncate">
                                                       {dept.department_name}
                                                     </span>
@@ -1596,11 +1910,19 @@ export default function ScanningPreparationPage() {
                                                       max={item.quantity}
                                                       value={assignedQty}
                                                       onChange={(e) =>
-                                                        updateDepartmentQuantity(session.id, item.id, dept.id_department, e.target.value)
+                                                        updateDepartmentQuantity(
+                                                          session.id,
+                                                          item.id,
+                                                          dept.id_department,
+                                                          e.target.value,
+                                                        )
                                                       }
                                                       disabled={isDisabled}
-                                                      className={`w-20 px-2 py-1.5 text-sm border rounded-md focus:ring-2 focus:ring-blue-500 ${isDisabled ? "bg-gray-50 text-gray-400" : "bg-white"
-                                                        }`}
+                                                      className={`w-20 px-2 py-1.5 text-sm border rounded-md focus:ring-2 focus:ring-blue-500 ${
+                                                        isDisabled
+                                                          ? "bg-gray-50 text-gray-400"
+                                                          : "bg-white"
+                                                      }`}
                                                       placeholder="Qty"
                                                     />
                                                   </div>
@@ -1609,74 +1931,142 @@ export default function ScanningPreparationPage() {
                                             </div>
                                             <div className="p-3 bg-gray-50 rounded-lg">
                                               <div className="flex justify-between items-center">
-                                                <span className="text-sm font-medium text-gray-700">Distribution Summary:</span>
-                                                <span className={`text-sm font-semibold ${totalDeptQty === item.quantity ? "text-green-600" : "text-blue-600"
-                                                  }`}>
-                                                  {totalDeptQty} of {item.quantity} assigned
+                                                <span className="text-sm font-medium text-gray-700">
+                                                  Distribution Summary:
+                                                </span>
+                                                <span
+                                                  className={`text-sm font-semibold ${
+                                                    totalDeptQty ===
+                                                    item.quantity
+                                                      ? "text-green-600"
+                                                      : "text-blue-600"
+                                                  }`}
+                                                >
+                                                  {totalDeptQty} of{" "}
+                                                  {item.quantity} assigned
                                                 </span>
                                               </div>
                                               {remainingQty > 0 && (
                                                 <p className="text-xs text-gray-500 mt-1">
-                                                  {remainingQty} unassigned items will stay at main location
+                                                  {remainingQty} unassigned
+                                                  items will stay at main
+                                                  location
                                                 </p>
                                               )}
                                             </div>
                                           </div>
                                         )}
 
-                                        {!isExpanded && item.departments.length > 0 && (
-                                          <div className="mt-2 flex flex-wrap gap-2">
-                                            {item.departments.map((dept) => (
-                                              <div key={dept.department_id} className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full">
-                                                <Users className="w-3 h-3 text-gray-500" />
-                                                <span className="text-xs text-gray-700">{dept.department_name}: {dept.quantity}</span>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        )}
+                                        {!isExpanded &&
+                                          item.departments.length > 0 && (
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                              {item.departments.map((dept) => (
+                                                <div
+                                                  key={dept.department_id}
+                                                  className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full"
+                                                >
+                                                  <Users className="w-3 h-3 text-gray-500" />
+                                                  <span className="text-xs text-gray-700">
+                                                    {dept.department_name}:{" "}
+                                                    {dept.quantity}
+                                                  </span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
                                       </div>
 
                                       {item.departments.length > 0 && (
                                         <div className="md:col-span-2 pt-2 border-t border-gray-100">
                                           <div className="flex items-center gap-2 mb-3">
                                             <User className="w-4 h-4 text-green-600" />
-                                            <h4 className="text-sm font-semibold text-gray-800">Receiver Assignment</h4>
+                                            <h4 className="text-sm font-semibold text-gray-800">
+                                              Receiver Assignment
+                                            </h4>
                                           </div>
                                           <div className="space-y-3">
                                             {item.departments.map((dept) => {
-                                              const deptInfo = departments.find(d => d.id_department === dept.department_id);
-                                              const availableReceivers = getReceiversForDepartment(dept.department_id);
+                                              const deptInfo = departments.find(
+                                                (d) =>
+                                                  d.id_department ===
+                                                  dept.department_id,
+                                              );
+                                              const availableReceivers =
+                                                getReceiversForDepartment(
+                                                  dept.department_id,
+                                                );
                                               return (
-                                                <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                                <div
+                                                  key={dept.department_id}
+                                                  className="border border-gray-200 rounded-lg overflow-hidden"
+                                                >
                                                   <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
                                                     <span className="text-sm font-semibold text-gray-800">
-                                                      {deptInfo?.department_name || `Department ${dept.department_id}`}
+                                                      {deptInfo?.department_name ||
+                                                        `Department ${dept.department_id}`}
                                                     </span>
                                                     <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                                                       {dept.quantity} item(s)
                                                     </span>
                                                   </div>
                                                   <div className="p-3 space-y-3">
-                                                    {[...Array(dept.quantity)].map((_, i) => {
-                                                      const receiver = item.receivers.find(
-                                                        (r) => r.department_id === dept.department_id && r.item_index === i
-                                                      );
+                                                    {[
+                                                      ...Array(dept.quantity),
+                                                    ].map((_, i) => {
+                                                      const receiver =
+                                                        item.receivers.find(
+                                                          (r) =>
+                                                            r.department_id ===
+                                                              dept.department_id &&
+                                                            r.item_index === i,
+                                                        );
                                                       return (
                                                         <div key={i}>
-                                                          <Label>Item #{i + 1} Receiver</Label>
+                                                          <Label>
+                                                            Item #{i + 1}{" "}
+                                                            Receiver
+                                                          </Label>
                                                           <select
-                                                            value={receiver?.receiver_id || ""}
-                                                            onChange={(e) =>
-                                                              updateReceiverAssignment(session.id, item.id, dept.department_id, e.target.value, i)
+                                                            value={
+                                                              receiver?.receiver_id ||
+                                                              ""
                                                             }
-                                                            className={selectCls}
+                                                            onChange={(e) =>
+                                                              updateReceiverAssignment(
+                                                                session.id,
+                                                                item.id,
+                                                                dept.department_id,
+                                                                e.target.value,
+                                                                i,
+                                                              )
+                                                            }
+                                                            className={
+                                                              selectCls
+                                                            }
                                                           >
-                                                            <option value="">Select Receiver</option>
-                                                            {availableReceivers.map((rec) => (
-                                                              <option key={rec.id_receiver} value={rec.id_receiver}>
-                                                                {rec.receiver_name} - {rec.receiver_title}
-                                                              </option>
-                                                            ))}
+                                                            <option value="">
+                                                              Select Receiver
+                                                            </option>
+                                                            {availableReceivers.map(
+                                                              (rec) => (
+                                                                <option
+                                                                  key={
+                                                                    rec.id_receiver
+                                                                  }
+                                                                  value={
+                                                                    rec.id_receiver
+                                                                  }
+                                                                >
+                                                                  {
+                                                                    rec.receiver_name
+                                                                  }{" "}
+                                                                  -{" "}
+                                                                  {
+                                                                    rec.receiver_title
+                                                                  }
+                                                                </option>
+                                                              ),
+                                                            )}
                                                           </select>
                                                         </div>
                                                       );
@@ -1716,7 +2106,11 @@ export default function ScanningPreparationPage() {
                         <textarea
                           value={session.formData.remarks}
                           onChange={(e) =>
-                            handleSessionInputChange(session.id, "remarks", e.target.value)
+                            handleSessionInputChange(
+                              session.id,
+                              "remarks",
+                              e.target.value,
+                            )
                           }
                           rows="3"
                           className={inputCls}

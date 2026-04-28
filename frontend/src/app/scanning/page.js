@@ -699,13 +699,13 @@ export default function SerialScanningPage() {
           const isDevicePrep = currentPreparation.type === "device";
           const endpoint = isDevicePrep
             ? API_ENDPOINTS.DEVICES_ITEMS_PREPARATION_AVAILABLE(
-              currentPreparation.id_preparation,
-              targetItem.id_item,
-            )
+                currentPreparation.id_preparation,
+                targetItem.id_item,
+              )
             : API_ENDPOINTS.MATERIALS_ITEMS_PREPARATION_AVAILABLE(
-              currentPreparation.id_preparation,
-              targetItem.id_item,
-            );
+                currentPreparation.id_preparation,
+                targetItem.id_item,
+              );
 
           const response = await fetch(endpoint);
 
@@ -950,13 +950,13 @@ export default function SerialScanningPage() {
               prev.map((item) =>
                 item.id === targetItem.id
                   ? {
-                    ...item,
-                    nomorSeri: serialData.detected_text,
-                    status: "serial_scanned",
-                    confidencePercent: Math.round(
-                      (serialData.confidence || 0.9) * 100,
-                    ),
-                  }
+                      ...item,
+                      nomorSeri: serialData.detected_text,
+                      status: "serial_scanned",
+                      confidencePercent: Math.round(
+                        (serialData.confidence || 0.9) * 100,
+                      ),
+                    }
                   : item,
               ),
             );
@@ -1033,13 +1033,13 @@ export default function SerialScanningPage() {
               prev.map((item) =>
                 item.id === targetItem.id
                   ? {
-                    ...item,
-                    nomorSeri: scanCodeData.detected_text,
-                    status: "serial_scanned",
-                    confidencePercent: Math.round(
-                      (scanCodeData.confidence || 0.9) * 100,
-                    ),
-                  }
+                      ...item,
+                      nomorSeri: scanCodeData.detected_text,
+                      status: "serial_scanned",
+                      confidencePercent: Math.round(
+                        (scanCodeData.confidence || 0.9) * 100,
+                      ),
+                    }
                   : item,
               ),
             );
@@ -1217,11 +1217,11 @@ export default function SerialScanningPage() {
               prev.map((i) =>
                 i.id === item.id
                   ? {
-                    ...i,
-                    nomorSeri: inputValue,
-                    status: "serial_scanned",
-                    confidencePercent: 100,
-                  }
+                      ...i,
+                      nomorSeri: inputValue,
+                      status: "serial_scanned",
+                      confidencePercent: 100,
+                    }
                   : i,
               ),
             );
@@ -1266,11 +1266,11 @@ export default function SerialScanningPage() {
               prev.map((i) =>
                 i.id === item.id
                   ? {
-                    ...i,
-                    nomorSeri: inputValue,
-                    status: "serial_scanned",
-                    confidencePercent: 100,
-                  }
+                      ...i,
+                      nomorSeri: inputValue,
+                      status: "serial_scanned",
+                      confidencePercent: 100,
+                    }
                   : i,
               ),
             );
@@ -1770,6 +1770,7 @@ export default function SerialScanningPage() {
     });
   };
 
+  // ==================== PERBAIKAN handleSubmitSingle ====================
   const handleSubmitSingle = async (item) => {
     // Cek apakah item sudah disubmit
     if (item.status === "Submitted" || item.submitted === true) {
@@ -1783,13 +1784,38 @@ export default function SerialScanningPage() {
       return;
     }
 
+    // PERBAIKAN: Ambil user_id dari user_data
+    const userDataStr = localStorage.getItem("user_data");
+    if (!userDataStr) {
+      Swal.fire({
+        title: "Error!",
+        text: "User not logged in. Please login again.",
+        icon: "error",
+      });
+      return;
+    }
+
+    const userData = JSON.parse(userDataStr);
+    const userId = userData.id;
+
+    if (!userId) {
+      Swal.fire({
+        title: "Error!",
+        text: "User ID not found. Please login again.",
+        icon: "error",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       let updateEndpoint;
       if (item.kategori === "Perangkat") {
         updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(item.scan_id);
       } else {
-        updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(item.scan_id);
+        updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(
+          item.scan_id,
+        );
       }
 
       await fetch(updateEndpoint, {
@@ -1798,7 +1824,7 @@ export default function SerialScanningPage() {
         body: JSON.stringify({ status: "submitted" }),
       });
 
-      // 2. Create validation record - PERBAIKAN UNTUK MATERIAL
+      // 2. Create validation record - PERBAIKAN user_id
       let validationData;
 
       if (item.kategori === "Perangkat") {
@@ -1807,7 +1833,7 @@ export default function SerialScanningPage() {
           scan_material_id: null,
           item_preparation_id: item.item_preparation_id,
           material_item_preparation_id: null,
-          user_id: 1,
+          user_id: userId, // ← PERBAIKAN: Gunakan userId yang sudah diambil
         };
       } else {
         // MATERIAL
@@ -1816,7 +1842,7 @@ export default function SerialScanningPage() {
           scan_material_id: item.scan_id,
           item_preparation_id: null,
           material_item_preparation_id: item.item_preparation_id,
-          user_id: 1,
+          user_id: userId, // ← PERBAIKAN: Gunakan userId yang sudah diambil
         };
       }
 
@@ -1834,11 +1860,11 @@ export default function SerialScanningPage() {
           prev.map((p) =>
             p.id === item.id
               ? {
-                ...p,
-                submitted: true,
-                status: "Submitted",
-                validation_id: validationResult.validation_id,
-              }
+                  ...p,
+                  submitted: true,
+                  status: "Submitted",
+                  validation_id: validationResult.validation_id,
+                }
               : p,
           ),
         );
@@ -1852,7 +1878,9 @@ export default function SerialScanningPage() {
           router.push("/validation_verification");
         });
       } else {
-        throw new Error(validationResult.error || "Failed to create validation");
+        throw new Error(
+          validationResult.error || "Failed to create validation",
+        );
       }
     } catch (error) {
       console.error("Submit error:", error);
@@ -1867,6 +1895,7 @@ export default function SerialScanningPage() {
     }
   };
 
+  // ==================== PERBAIKAN handleSubmitAll ====================
   const handleSubmitAll = async () => {
     const itemsToSubmit = checkHistory.filter(
       (item) =>
@@ -1884,20 +1913,46 @@ export default function SerialScanningPage() {
       return;
     }
 
+    // PERBAIKAN: Ambil user_id dari user_data
+    const userDataStr = localStorage.getItem("user_data");
+    if (!userDataStr) {
+      Swal.fire({
+        title: "Error!",
+        text: "User not logged in. Please login again.",
+        icon: "error",
+      });
+      return;
+    }
+
+    const userData = JSON.parse(userDataStr);
+    const userId = userData.id;
+
+    if (!userId) {
+      Swal.fire({
+        title: "Error!",
+        text: "User ID not found. Please login again.",
+        icon: "error",
+      });
+      return;
+    }
+
     setIsSubmittingAll(true);
     try {
       const submittedItems = [];
 
       for (const item of itemsToSubmit) {
-        // Skip jika sudah disubmit
         if (item.status === "Submitted" || item.submitted === true) continue;
 
         // 1. Update status scan result
         let updateEndpoint;
         if (item.kategori === "Perangkat") {
-          updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(item.scan_id);
+          updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_DEVICE(
+            item.scan_id,
+          );
         } else {
-          updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(item.scan_id);
+          updateEndpoint = API_ENDPOINTS.SCAN_RESULTS_UPDATE_MATERIAL(
+            item.scan_id,
+          );
         }
 
         await fetch(updateEndpoint, {
@@ -1906,7 +1961,7 @@ export default function SerialScanningPage() {
           body: JSON.stringify({ status: "submitted" }),
         });
 
-        // 2. Create validation record - PERBAIKAN UNTUK MATERIAL
+        // 2. Create validation record - PERBAIKAN user_id
         let validationData;
 
         if (item.kategori === "Perangkat") {
@@ -1915,30 +1970,33 @@ export default function SerialScanningPage() {
             scan_material_id: null,
             item_preparation_id: item.item_preparation_id,
             material_item_preparation_id: null,
-            user_id: 1,
+            user_id: userId, // ← PERBAIKAN
           };
         } else {
-          // MATERIAL - Perbaikan: scan_material_id diisi, scan_id null
           validationData = {
             scan_id: null,
             scan_material_id: item.scan_id,
             item_preparation_id: null,
             material_item_preparation_id: item.item_preparation_id,
-            user_id: 1,
+            user_id: userId, // ← PERBAIKAN
           };
         }
 
-        console.log("Submitting material:", {
+        console.log("Submitting item:", {
           scan_id: item.scan_id,
           item_kategori: item.kategori,
-          validationData: validationData
+          user_id: userId,
+          validationData: validationData,
         });
 
-        const validationResponse = await fetch(API_ENDPOINTS.VALIDATIONS_CREATE, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(validationData),
-        });
+        const validationResponse = await fetch(
+          API_ENDPOINTS.VALIDATIONS_CREATE,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(validationData),
+          },
+        );
 
         const validationResult = await validationResponse.json();
 
@@ -1948,16 +2006,15 @@ export default function SerialScanningPage() {
             validation_id: validationResult.validation_id,
           });
 
-          // Update local state
           setCheckHistory((prev) =>
             prev.map((p) =>
               p.id === item.id
                 ? {
-                  ...p,
-                  submitted: true,
-                  status: "Submitted",
-                  validation_id: validationResult.validation_id,
-                }
+                    ...p,
+                    submitted: true,
+                    status: "Submitted",
+                    validation_id: validationResult.validation_id,
+                  }
                 : p,
             ),
           );
@@ -2008,10 +2065,13 @@ export default function SerialScanningPage() {
 
     if (result.isConfirmed) {
       try {
-        const response = await fetch(API_ENDPOINTS.SCAN_RESULTS_RESET(item.scan_id), {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-        });
+        const response = await fetch(
+          API_ENDPOINTS.SCAN_RESULTS_RESET(item.scan_id),
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+          },
+        );
 
         const data = await response.json();
 
@@ -2344,10 +2404,11 @@ export default function SerialScanningPage() {
                               {session.checking_name}
                             </h3>
                             <span
-                              className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${session.type === "device"
-                                ? "bg-blue-100 text-blue-700"
-                                : "bg-green-100 text-green-700"
-                                }`}
+                              className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                                session.type === "device"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : "bg-green-100 text-green-700"
+                              }`}
                             >
                               {session.type === "device"
                                 ? "Device"
@@ -2360,10 +2421,11 @@ export default function SerialScanningPage() {
                           </p>
                         </div>
                         <span
-                          className={`px-2 py-1 text-xs font-semibold rounded-full self-start ${session.status === "pending"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-blue-100 text-blue-700"
-                            }`}
+                          className={`px-2 py-1 text-xs font-semibold rounded-full self-start ${
+                            session.status === "pending"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}
                         >
                           {session.status === "pending"
                             ? "Pending"
@@ -3468,16 +3530,19 @@ export default function SerialScanningPage() {
                                       <ScanLine className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                                     </button>
                                   )}
-                                {item.status !== "Submitted" && !item.submitted && !item.rejected && item.lokasi && (
-                                  <button
-                                    onClick={() => handleSubmitSingle(item)}
-                                    disabled={isSubmitting}
-                                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center bg-green-600 hover:bg-green-700 text-white transition disabled:opacity-50"
-                                    title="Submit"
-                                  >
-                                    <Send className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                                  </button>
-                                )}
+                                {item.status !== "Submitted" &&
+                                  !item.submitted &&
+                                  !item.rejected &&
+                                  item.lokasi && (
+                                    <button
+                                      onClick={() => handleSubmitSingle(item)}
+                                      disabled={isSubmitting}
+                                      className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center bg-green-600 hover:bg-green-700 text-white transition disabled:opacity-50"
+                                      title="Submit"
+                                    >
+                                      <Send className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                    </button>
+                                  )}
                                 {item.rejected && (
                                   <button
                                     onClick={() => handleRescanItem(item)}

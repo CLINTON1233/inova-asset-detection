@@ -47,7 +47,7 @@ export default function EditScanningPreparationPage() {
 
   const [sessionInfo, setSessionInfo] = useState({
     checking_name: "",
-    checking_number: ""
+    checking_number: "",
   });
 
   const uomOptions = [
@@ -127,7 +127,9 @@ export default function EditScanningPreparationPage() {
   const detectSessionType = async () => {
     setFetching(true);
     try {
-      let response = await fetch(API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId));
+      let response = await fetch(
+        API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId),
+      );
       let result = await response.json();
 
       if (result.success) {
@@ -135,7 +137,9 @@ export default function EditScanningPreparationPage() {
         return;
       }
 
-      response = await fetch(API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId));
+      response = await fetch(
+        API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId),
+      );
       result = await response.json();
 
       if (result.success) {
@@ -273,10 +277,14 @@ export default function EditScanningPreparationPage() {
       let result = null;
 
       if (sessionType === "device") {
-        const response = await fetch(API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId));
+        const response = await fetch(
+          API_ENDPOINTS.DEVICES_SCANNING_PREP_DETAIL(prepId),
+        );
         result = await response.json();
       } else if (sessionType === "material") {
-        const response = await fetch(API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId));
+        const response = await fetch(
+          API_ENDPOINTS.MATERIALS_SCANNING_PREP_DETAIL(prepId),
+        );
         result = await response.json();
       }
 
@@ -286,17 +294,17 @@ export default function EditScanningPreparationPage() {
         // Simpan info session
         setSessionInfo({
           checking_name: data.checking_name || "",
-          checking_number: data.checking_number || ""
+          checking_number: data.checking_number || "",
         });
 
         setFormData({
           checking_name: data.checking_name || "",
           category_id: sessionType === "device" ? "1" : "2",
           location_id: data.location_id ? String(data.location_id) : "",
-          checking_date: data.checking_date || new Date().toISOString().split("T")[0],
+          checking_date:
+            data.checking_date || new Date().toISOString().split("T")[0],
           remarks: data.remarks || "",
         });
-
 
         let formattedItems = [];
 
@@ -310,16 +318,16 @@ export default function EditScanningPreparationPage() {
             model: item.model || "",
             specifications: item.specifications || "",
             quantity: item.quantity || 1,
-            departments: (item.departments || []).map(d => ({
+            departments: (item.departments || []).map((d) => ({
               department_id: d.department_id,
               department_name: d.department_name,
-              quantity: d.quantity
+              quantity: d.quantity,
             })),
             receivers: (item.receivers || []).map((r, rIdx) => ({
               department_id: r.department_id,
               department_name: r.department_name,
               receiver_id: r.receiver_id,
-              item_index: r.item_index !== undefined ? r.item_index : rIdx
+              item_index: r.item_index !== undefined ? r.item_index : rIdx,
             })),
             project_id: item.project_id ? String(item.project_id) : "",
             uom: "PCS",
@@ -336,16 +344,16 @@ export default function EditScanningPreparationPage() {
             uom: item.uom || "PCS",
             vendor: item.vendor || "",
             project_id: item.project_id ? String(item.project_id) : "",
-            departments: (item.departments || []).map(d => ({
+            departments: (item.departments || []).map((d) => ({
               department_id: d.department_id,
               department_name: d.department_name,
-              quantity: d.quantity
+              quantity: d.quantity,
             })),
             receivers: (item.receivers || []).map((r, rIdx) => ({
               department_id: r.department_id,
               department_name: r.department_name,
               receiver_id: r.receiver_id,
-              item_index: r.item_index !== undefined ? r.item_index : rIdx
+              item_index: r.item_index !== undefined ? r.item_index : rIdx,
             })),
             device_name: "",
             device_detail: "",
@@ -455,12 +463,18 @@ export default function EditScanningPreparationPage() {
     return receiversByDepartment[departmentId] || [];
   };
 
-  const updateReceiverAssignment = (itemId, departmentId, receiverId, itemIndex) => {
+  const updateReceiverAssignment = (
+    itemId,
+    departmentId,
+    receiverId,
+    itemIndex,
+  ) => {
     setItems(
       items.map((item) => {
         if (item.id === itemId) {
           const existingIndex = item.receivers.findIndex(
-            (r) => r.department_id === departmentId && r.item_index === itemIndex
+            (r) =>
+              r.department_id === departmentId && r.item_index === itemIndex,
           );
 
           let newReceivers;
@@ -471,7 +485,9 @@ export default function EditScanningPreparationPage() {
               receiver_id: receiverId ? parseInt(receiverId) : null,
             };
           } else {
-            const deptInfo = departments.find(d => d.id_department === departmentId);
+            const deptInfo = departments.find(
+              (d) => d.id_department === departmentId,
+            );
             newReceivers = [
               ...item.receivers,
               {
@@ -490,8 +506,8 @@ export default function EditScanningPreparationPage() {
   };
 
   const toggleSaveToStock = (itemId) => {
-    setItems(prevItems =>
-      prevItems.map(item => {
+    setItems((prevItems) =>
+      prevItems.map((item) => {
         if (item.id === itemId) {
           const newSaveToStock = !item.saveToStock;
           return {
@@ -502,7 +518,7 @@ export default function EditScanningPreparationPage() {
           };
         }
         return item;
-      })
+      }),
     );
   };
 
@@ -511,8 +527,8 @@ export default function EditScanningPreparationPage() {
       (d) => d.id_department === parseInt(departmentId),
     );
 
-    setItems(prevItems =>
-      prevItems.map(item => {
+    setItems((prevItems) =>
+      prevItems.map((item) => {
         if (item.id !== itemId) return item;
 
         if (item.saveToStock) {
@@ -529,8 +545,9 @@ export default function EditScanningPreparationPage() {
         const newQuantity = parseFloat(quantity) || 0;
 
         const totalOtherDepts = item.departments.reduce(
-          (sum, d) => d.department_id === parseInt(departmentId) ? sum : sum + d.quantity,
-          0
+          (sum, d) =>
+            d.department_id === parseInt(departmentId) ? sum : sum + d.quantity,
+          0,
         );
 
         const availableQty = item.quantity - totalOtherDepts;
@@ -550,7 +567,7 @@ export default function EditScanningPreparationPage() {
         }
 
         const existingDeptIndex = item.departments.findIndex(
-          (d) => d.department_id === parseInt(departmentId)
+          (d) => d.department_id === parseInt(departmentId),
         );
 
         let newDepartments;
@@ -561,52 +578,57 @@ export default function EditScanningPreparationPage() {
             newDepartments = [...item.departments];
             newDepartments[existingDeptIndex] = {
               ...newDepartments[existingDeptIndex],
-              quantity: finalQuantity
+              quantity: finalQuantity,
             };
           } else {
             newDepartments = [
               ...item.departments,
               {
                 department_id: parseInt(departmentId),
-                department_name: department?.department_name || `Department ${departmentId}`,
-                quantity: finalQuantity
-              }
+                department_name:
+                  department?.department_name || `Department ${departmentId}`,
+                quantity: finalQuantity,
+              },
             ];
           }
 
           newReceivers = [...item.receivers];
-          newReceivers = newReceivers.filter(r => r.department_id !== parseInt(departmentId));
+          newReceivers = newReceivers.filter(
+            (r) => r.department_id !== parseInt(departmentId),
+          );
           for (let i = 0; i < finalQuantity; i++) {
             newReceivers.push({
               department_id: parseInt(departmentId),
-              department_name: department?.department_name || `Department ${departmentId}`,
+              department_name:
+                department?.department_name || `Department ${departmentId}`,
               receiver_id: null,
-              item_index: i
+              item_index: i,
             });
           }
         } else {
           newDepartments = item.departments.filter(
-            (d) => d.department_id !== parseInt(departmentId)
+            (d) => d.department_id !== parseInt(departmentId),
           );
           newReceivers = item.receivers.filter(
-            (r) => r.department_id !== parseInt(departmentId)
+            (r) => r.department_id !== parseInt(departmentId),
           );
         }
 
         return {
           ...item,
           departments: newDepartments,
-          receivers: newReceivers
+          receivers: newReceivers,
         };
-      })
+      }),
     );
   };
 
   const isDepartmentInputDisabled = (item, departmentId) => {
     if (item.saveToStock) return true;
     const totalAssigned = item.departments.reduce(
-      (sum, d) => sum + (d.department_id === parseInt(departmentId) ? 0 : d.quantity),
-      0
+      (sum, d) =>
+        sum + (d.department_id === parseInt(departmentId) ? 0 : d.quantity),
+      0,
     );
     return totalAssigned >= item.quantity;
   };
@@ -634,10 +656,13 @@ export default function EditScanningPreparationPage() {
         item.departments.forEach((dept) => {
           for (let i = 0; i < dept.quantity; i++) {
             const receiver = item.receivers.find(
-              (r) => r.department_id === dept.department_id && r.item_index === i
+              (r) =>
+                r.department_id === dept.department_id && r.item_index === i,
             );
             if (!receiver || !receiver.receiver_id) {
-              const deptName = departments.find(d => d.id_department === dept.department_id)?.department_name;
+              const deptName = departments.find(
+                (d) => d.id_department === dept.department_id,
+              )?.department_name;
               errors.push(
                 `Item #${index + 1}: Please select a receiver for department "${deptName}" item #${i + 1}`,
               );
@@ -670,12 +695,12 @@ export default function EditScanningPreparationPage() {
     const result = await Swal.fire({
       title: "Update Scanning Preparation?",
       html: `
-        <div class="text-left text-sm">
-          <p><strong>Session Type:</strong> ${sessionType === "device" ? "Device" : "Material"}</p>
-          <p><strong>Total Items:</strong> ${items.length}</p>
-          <p><strong>Total Quantity:</strong> ${totalQuantity}</p>
-        </div>
-      `,
+      <div class="text-left text-sm">
+        <p><strong>Session Type:</strong> ${sessionType === "device" ? "Device" : "Material"}</p>
+        <p><strong>Total Items:</strong> ${items.length}</p>
+        <p><strong>Total Quantity:</strong> ${totalQuantity}</p>
+      </div>
+    `,
       icon: "question",
       showCancelButton: true,
       confirmButtonText: "Yes, Update",
@@ -689,7 +714,34 @@ export default function EditScanningPreparationPage() {
     setLoading(true);
     try {
       const isMaterial = sessionType === "material";
-      const userId = localStorage.getItem("user_id") || 1;
+
+      // PERBAIKAN: Ambil dari user_data, bukan user_id langsung
+      const userDataStr = localStorage.getItem("user_data");
+      if (!userDataStr) {
+        Swal.fire({
+          title: "Error!",
+          text: "User not logged in. Please login again.",
+          icon: "error",
+        });
+        setLoading(false);
+        return;
+      }
+
+      const userData = JSON.parse(userDataStr);
+      const userId = userData.id; // Ambil dari object user_data
+      const userName = userData.username || userData.name;
+
+      if (!userId) {
+        Swal.fire({
+          title: "Error!",
+          text: "User ID not found. Please login again.",
+          icon: "error",
+        });
+        setLoading(false);
+        return;
+      }
+
+      console.log("Updating with user_id:", userId, "user_name:", userName);
 
       let payload;
 
@@ -701,15 +753,19 @@ export default function EditScanningPreparationPage() {
           uom: item.uom || "PCS",
           vendor: item.vendor || "",
           project_id: item.project_id ? parseInt(item.project_id) : null,
-          departments: item.saveToStock ? [] : item.departments.map((d) => ({
-            department_id: d.department_id,
-            quantity: parseFloat(d.quantity),
-          })),
-          receivers: item.saveToStock ? [] : item.receivers.map((r) => ({
-            department_id: r.department_id,
-            receiver_id: r.receiver_id,
-            item_index: r.item_index,
-          })),
+          departments: item.saveToStock
+            ? []
+            : item.departments.map((d) => ({
+                department_id: d.department_id,
+                quantity: parseFloat(d.quantity),
+              })),
+          receivers: item.saveToStock
+            ? []
+            : item.receivers.map((r) => ({
+                department_id: r.department_id,
+                receiver_id: r.receiver_id,
+                item_index: r.item_index,
+              })),
           is_stock: item.saveToStock || false,
         }));
 
@@ -720,7 +776,7 @@ export default function EditScanningPreparationPage() {
           checking_date: formData.checking_date,
           remarks: formData.remarks,
           items: formattedItems,
-          user_id: userId,
+          user_id: parseInt(userId),
         };
       } else {
         const formattedItems = items.map((item) => ({
@@ -732,15 +788,19 @@ export default function EditScanningPreparationPage() {
           specifications: item.specifications,
           quantity: parseInt(item.quantity),
           project_id: item.project_id ? parseInt(item.project_id) : null,
-          departments: item.saveToStock ? [] : item.departments.map((d) => ({
-            department_id: d.department_id,
-            quantity: parseInt(d.quantity),
-          })),
-          receivers: item.saveToStock ? [] : item.receivers.map((r) => ({
-            department_id: r.department_id,
-            receiver_id: r.receiver_id,
-            item_index: r.item_index,
-          })),
+          departments: item.saveToStock
+            ? []
+            : item.departments.map((d) => ({
+                department_id: d.department_id,
+                quantity: parseInt(d.quantity),
+              })),
+          receivers: item.saveToStock
+            ? []
+            : item.receivers.map((r) => ({
+                department_id: r.department_id,
+                receiver_id: r.receiver_id,
+                item_index: r.item_index,
+              })),
           is_stock: item.saveToStock || false,
         }));
 
@@ -751,7 +811,7 @@ export default function EditScanningPreparationPage() {
           checking_date: formData.checking_date,
           remarks: formData.remarks,
           items: formattedItems,
-          user_id: userId,
+          user_id: parseInt(userId),
         };
       }
 
@@ -826,16 +886,20 @@ export default function EditScanningPreparationPage() {
   return (
     <LayoutDashboard activeMenu={1}>
       <style jsx>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-        .sp-root { font-family: 'DM Sans', sans-serif; }
-        
+        @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap");
+        .sp-root {
+          font-family: "DM Sans", sans-serif;
+        }
+
         .card {
           background: #ffffff;
           border-radius: 16px;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          box-shadow:
+            0 4px 6px -1px rgba(0, 0, 0, 0.1),
+            0 2px 4px -1px rgba(0, 0, 0, 0.06);
           transition: box-shadow 0.2s ease;
         }
-        
+
         .session-card {
           background: #ffffff;
           border-radius: 16px;
@@ -843,7 +907,7 @@ export default function EditScanningPreparationPage() {
           transition: all 0.2s ease;
           margin-bottom: 1rem;
         }
-        
+
         .section-title {
           font-size: 13px;
           font-weight: 600;
@@ -852,9 +916,18 @@ export default function EditScanningPreparationPage() {
           letter-spacing: 0.05em;
           margin-bottom: 16px;
         }
-        
-        .animate-spin { animation: spin 1s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .animate-spin {
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
       `}</style>
 
       <div className="sp-root space-y-5">
@@ -888,7 +961,7 @@ export default function EditScanningPreparationPage() {
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
               <Layers className="w-3 h-3 inline mr-1" />
-              {items.length} Item{items.length !== 1 ? 's' : ''}
+              {items.length} Item{items.length !== 1 ? "s" : ""}
             </span>
           </div>
         </div>
@@ -925,7 +998,10 @@ export default function EditScanningPreparationPage() {
                       type="text"
                       value={formData.checking_name}
                       onChange={(e) =>
-                        setFormData({ ...formData, checking_name: e.target.value })
+                        setFormData({
+                          ...formData,
+                          checking_name: e.target.value,
+                        })
                       }
                       className={inputCls}
                       placeholder="e.g. IT Asset Inventory"
@@ -957,7 +1033,10 @@ export default function EditScanningPreparationPage() {
                     <select
                       value={formData.location_id}
                       onChange={(e) =>
-                        setFormData({ ...formData, location_id: e.target.value })
+                        setFormData({
+                          ...formData,
+                          location_id: e.target.value,
+                        })
                       }
                       className={selectCls}
                     >
@@ -975,7 +1054,10 @@ export default function EditScanningPreparationPage() {
                       type="date"
                       value={formData.checking_date}
                       onChange={(e) =>
-                        setFormData({ ...formData, checking_date: e.target.value })
+                        setFormData({
+                          ...formData,
+                          checking_date: e.target.value,
+                        })
                       }
                       className={inputCls}
                     />
@@ -1014,13 +1096,16 @@ export default function EditScanningPreparationPage() {
                             )}
                             <button
                               onClick={() => toggleSaveToStock(item.id)}
-                              className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full transition ${item.saveToStock
-                                ? "bg-yellow-100 text-yellow-700 border border-yellow-200"
-                                : "bg-gray-100 text-gray-600 border border-gray-200"
-                                }`}
+                              className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full transition ${
+                                item.saveToStock
+                                  ? "bg-yellow-100 text-yellow-700 border border-yellow-200"
+                                  : "bg-gray-100 text-gray-600 border border-gray-200"
+                              }`}
                             >
                               <Package className="w-3 h-3" />
-                              {item.saveToStock ? "Save to Stock" : "Will Distribute"}
+                              {item.saveToStock
+                                ? "Save to Stock"
+                                : "Will Distribute"}
                             </button>
                           </div>
                           {items.length > 1 && (
@@ -1038,7 +1123,8 @@ export default function EditScanningPreparationPage() {
                             <div className="flex items-start gap-2">
                               <Info className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
                               <p className="text-xs text-yellow-700">
-                                Save to Stock Mode Active - This item will be saved to stock and not distributed.
+                                Save to Stock Mode Active - This item will be
+                                saved to stock and not distributed.
                               </p>
                             </div>
                           </div>
@@ -1051,17 +1137,33 @@ export default function EditScanningPreparationPage() {
                               <select
                                 value={item.material_name}
                                 onChange={(e) => {
-                                  const selectedMaterial = masterMaterials.find(m => m.material_name === e.target.value);
-                                  updateItem(item.id, "material_name", e.target.value);
-                                  if (selectedMaterial && selectedMaterial.material_detail) {
-                                    updateItem(item.id, "material_detail", selectedMaterial.material_detail);
+                                  const selectedMaterial = masterMaterials.find(
+                                    (m) => m.material_name === e.target.value,
+                                  );
+                                  updateItem(
+                                    item.id,
+                                    "material_name",
+                                    e.target.value,
+                                  );
+                                  if (
+                                    selectedMaterial &&
+                                    selectedMaterial.material_detail
+                                  ) {
+                                    updateItem(
+                                      item.id,
+                                      "material_detail",
+                                      selectedMaterial.material_detail,
+                                    );
                                   }
                                 }}
                                 className={selectCls}
                               >
                                 <option value="">Select Material</option>
                                 {masterMaterials.map((material) => (
-                                  <option key={material.id_material} value={material.material_name}>
+                                  <option
+                                    key={material.id_material}
+                                    value={material.material_name}
+                                  >
                                     {material.material_name}
                                   </option>
                                 ))}
@@ -1073,7 +1175,11 @@ export default function EditScanningPreparationPage() {
                               <textarea
                                 value={item.material_detail}
                                 onChange={(e) =>
-                                  updateItem(item.id, "material_detail", e.target.value)
+                                  updateItem(
+                                    item.id,
+                                    "material_detail",
+                                    e.target.value,
+                                  )
                                 }
                                 className={inputCls}
                                 rows="2"
@@ -1087,7 +1193,11 @@ export default function EditScanningPreparationPage() {
                                 type="number"
                                 value={item.quantity}
                                 onChange={(e) =>
-                                  updateItem(item.id, "quantity", parseFloat(e.target.value) || 1)
+                                  updateItem(
+                                    item.id,
+                                    "quantity",
+                                    parseFloat(e.target.value) || 1,
+                                  )
                                 }
                                 className={inputCls}
                                 min="0.01"
@@ -1130,13 +1240,20 @@ export default function EditScanningPreparationPage() {
                               <select
                                 value={item.project_id || ""}
                                 onChange={(e) =>
-                                  updateItem(item.id, "project_id", e.target.value)
+                                  updateItem(
+                                    item.id,
+                                    "project_id",
+                                    e.target.value,
+                                  )
                                 }
                                 className={selectCls}
                               >
                                 <option value="">Select Project</option>
                                 {projects.map((project) => (
-                                  <option key={project.id_project} value={project.id_project}>
+                                  <option
+                                    key={project.id_project}
+                                    value={project.id_project}
+                                  >
                                     {project.project_name}
                                   </option>
                                 ))}
@@ -1149,11 +1266,19 @@ export default function EditScanningPreparationPage() {
                                   <div className="flex flex-wrap items-center justify-between gap-2">
                                     <Label>Department Distribution</Label>
                                     <button
-                                      onClick={() => toggleDepartmentSection(item.id)}
+                                      onClick={() =>
+                                        toggleDepartmentSection(item.id)
+                                      }
                                       className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition"
                                     >
-                                      {isExpanded ? "Close Distribution" : "Distribute Items"}
-                                      {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                      {isExpanded
+                                        ? "Close Distribution"
+                                        : "Distribute Items"}
+                                      {isExpanded ? (
+                                        <ChevronUp className="w-3 h-3" />
+                                      ) : (
+                                        <ChevronDown className="w-3 h-3" />
+                                      )}
                                     </button>
                                   </div>
 
@@ -1161,13 +1286,24 @@ export default function EditScanningPreparationPage() {
                                     <div className="mt-3 space-y-3">
                                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         {departments.map((dept) => {
-                                          const assignedDept = item.departments.find(
-                                            (d) => d.department_id === dept.id_department,
-                                          );
-                                          const assignedQty = assignedDept?.quantity || 0;
-                                          const isDisabled = isDepartmentInputDisabled(item, dept.id_department);
+                                          const assignedDept =
+                                            item.departments.find(
+                                              (d) =>
+                                                d.department_id ===
+                                                dept.id_department,
+                                            );
+                                          const assignedQty =
+                                            assignedDept?.quantity || 0;
+                                          const isDisabled =
+                                            isDepartmentInputDisabled(
+                                              item,
+                                              dept.id_department,
+                                            );
                                           return (
-                                            <div key={dept.id_department} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                                            <div
+                                              key={dept.id_department}
+                                              className="flex items-center justify-between p-3 border border-gray-200 rounded-lg"
+                                            >
                                               <span className="text-sm font-medium text-gray-700 truncate">
                                                 {dept.department_name}
                                               </span>
@@ -1177,7 +1313,11 @@ export default function EditScanningPreparationPage() {
                                                 max={item.quantity}
                                                 value={assignedQty}
                                                 onChange={(e) =>
-                                                  updateDepartmentQuantity(item.id, dept.id_department, e.target.value)
+                                                  updateDepartmentQuantity(
+                                                    item.id,
+                                                    dept.id_department,
+                                                    e.target.value,
+                                                  )
                                                 }
                                                 disabled={isDisabled}
                                                 className={`w-20 px-2 py-1.5 text-sm border rounded-md focus:ring-2 focus:ring-blue-500 ${isDisabled ? "bg-gray-50 text-gray-400" : "bg-white"}`}
@@ -1189,77 +1329,136 @@ export default function EditScanningPreparationPage() {
                                       </div>
                                       <div className="p-3 bg-gray-50 rounded-lg">
                                         <div className="flex justify-between items-center">
-                                          <span className="text-sm font-medium text-gray-700">Distribution Summary:</span>
-                                          <span className={`text-sm font-semibold ${totalDeptQty === item.quantity ? "text-green-600" : "text-blue-600"}`}>
-                                            {totalDeptQty} of {item.quantity} assigned
+                                          <span className="text-sm font-medium text-gray-700">
+                                            Distribution Summary:
+                                          </span>
+                                          <span
+                                            className={`text-sm font-semibold ${totalDeptQty === item.quantity ? "text-green-600" : "text-blue-600"}`}
+                                          >
+                                            {totalDeptQty} of {item.quantity}{" "}
+                                            assigned
                                           </span>
                                         </div>
                                         {remainingQty > 0 && (
                                           <p className="text-xs text-gray-500 mt-1">
-                                            {remainingQty} unassigned items will stay at main location
+                                            {remainingQty} unassigned items will
+                                            stay at main location
                                           </p>
                                         )}
                                       </div>
                                     </div>
                                   )}
 
-                                  {!isExpanded && item.departments.length > 0 && (
-                                    <div className="mt-2 flex flex-wrap gap-2">
-                                      {item.departments.map((dept) => (
-                                        <div key={dept.department_id} className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full">
-                                          <Users className="w-3 h-3 text-gray-500" />
-                                          <span className="text-xs text-gray-700">{dept.department_name}: {dept.quantity}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
+                                  {!isExpanded &&
+                                    item.departments.length > 0 && (
+                                      <div className="mt-2 flex flex-wrap gap-2">
+                                        {item.departments.map((dept) => (
+                                          <div
+                                            key={dept.department_id}
+                                            className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full"
+                                          >
+                                            <Users className="w-3 h-3 text-gray-500" />
+                                            <span className="text-xs text-gray-700">
+                                              {dept.department_name}:{" "}
+                                              {dept.quantity}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
                                 </div>
 
                                 {item.departments.length > 0 && (
                                   <div className="md:col-span-2 pt-2 border-t border-gray-100">
                                     <div className="flex items-center gap-2 mb-3">
                                       <User className="w-4 h-4 text-green-600" />
-                                      <h4 className="text-sm font-semibold text-gray-800">Receiver Assignment</h4>
+                                      <h4 className="text-sm font-semibold text-gray-800">
+                                        Receiver Assignment
+                                      </h4>
                                     </div>
                                     <div className="space-y-3">
                                       {item.departments.map((dept) => {
-                                        const deptInfo = departments.find(d => d.id_department === dept.department_id);
-                                        const availableReceivers = getReceiversForDepartment(dept.department_id);
+                                        const deptInfo = departments.find(
+                                          (d) =>
+                                            d.id_department ===
+                                            dept.department_id,
+                                        );
+                                        const availableReceivers =
+                                          getReceiversForDepartment(
+                                            dept.department_id,
+                                          );
                                         return (
-                                          <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                          <div
+                                            key={dept.department_id}
+                                            className="border border-gray-200 rounded-lg overflow-hidden"
+                                          >
                                             <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
                                               <span className="text-sm font-semibold text-gray-800">
-                                                {deptInfo?.department_name || `Department ${dept.department_id}`}
+                                                {deptInfo?.department_name ||
+                                                  `Department ${dept.department_id}`}
                                               </span>
                                               <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                                                 {dept.quantity} item(s)
                                               </span>
                                             </div>
                                             <div className="p-3 space-y-3">
-                                              {[...Array(dept.quantity)].map((_, i) => {
-                                                const receiver = item.receivers.find(
-                                                  (r) => r.department_id === dept.department_id && r.item_index === i
-                                                );
-                                                return (
-                                                  <div key={i}>
-                                                    <Label>Item #{i + 1} Receiver</Label>
-                                                    <select
-                                                      value={receiver?.receiver_id || ""}
-                                                      onChange={(e) =>
-                                                        updateReceiverAssignment(item.id, dept.department_id, e.target.value, i)
-                                                      }
-                                                      className={selectCls}
-                                                    >
-                                                      <option value="">Select Receiver</option>
-                                                      {availableReceivers.map((rec) => (
-                                                        <option key={rec.id_receiver} value={rec.id_receiver}>
-                                                          {rec.receiver_name} - {rec.receiver_title}
+                                              {[...Array(dept.quantity)].map(
+                                                (_, i) => {
+                                                  const receiver =
+                                                    item.receivers.find(
+                                                      (r) =>
+                                                        r.department_id ===
+                                                          dept.department_id &&
+                                                        r.item_index === i,
+                                                    );
+                                                  return (
+                                                    <div key={i}>
+                                                      <Label>
+                                                        Item #{i + 1} Receiver
+                                                      </Label>
+                                                      <select
+                                                        value={
+                                                          receiver?.receiver_id ||
+                                                          ""
+                                                        }
+                                                        onChange={(e) =>
+                                                          updateReceiverAssignment(
+                                                            item.id,
+                                                            dept.department_id,
+                                                            e.target.value,
+                                                            i,
+                                                          )
+                                                        }
+                                                        className={selectCls}
+                                                      >
+                                                        <option value="">
+                                                          Select Receiver
                                                         </option>
-                                                      ))}
-                                                    </select>
-                                                  </div>
-                                                );
-                                              })}
+                                                        {availableReceivers.map(
+                                                          (rec) => (
+                                                            <option
+                                                              key={
+                                                                rec.id_receiver
+                                                              }
+                                                              value={
+                                                                rec.id_receiver
+                                                              }
+                                                            >
+                                                              {
+                                                                rec.receiver_name
+                                                              }{" "}
+                                                              -{" "}
+                                                              {
+                                                                rec.receiver_title
+                                                              }
+                                                            </option>
+                                                          ),
+                                                        )}
+                                                      </select>
+                                                    </div>
+                                                  );
+                                                },
+                                              )}
                                             </div>
                                           </div>
                                         );
@@ -1277,20 +1476,49 @@ export default function EditScanningPreparationPage() {
                               <select
                                 value={item.device_name}
                                 onChange={(e) => {
-                                  const selectedDevice = masterDevices.find(d => d.device_name === e.target.value);
-                                  updateItem(item.id, "device_name", e.target.value);
+                                  const selectedDevice = masterDevices.find(
+                                    (d) => d.device_name === e.target.value,
+                                  );
+                                  updateItem(
+                                    item.id,
+                                    "device_name",
+                                    e.target.value,
+                                  );
                                   if (selectedDevice) {
-                                    if (selectedDevice.brand) updateItem(item.id, "brand", selectedDevice.brand);
-                                    if (selectedDevice.model) updateItem(item.id, "model", selectedDevice.model);
-                                    if (selectedDevice.specifications) updateItem(item.id, "specifications", selectedDevice.specifications);
-                                    if (selectedDevice.device_detail) updateItem(item.id, "device_detail", selectedDevice.device_detail);
+                                    if (selectedDevice.brand)
+                                      updateItem(
+                                        item.id,
+                                        "brand",
+                                        selectedDevice.brand,
+                                      );
+                                    if (selectedDevice.model)
+                                      updateItem(
+                                        item.id,
+                                        "model",
+                                        selectedDevice.model,
+                                      );
+                                    if (selectedDevice.specifications)
+                                      updateItem(
+                                        item.id,
+                                        "specifications",
+                                        selectedDevice.specifications,
+                                      );
+                                    if (selectedDevice.device_detail)
+                                      updateItem(
+                                        item.id,
+                                        "device_detail",
+                                        selectedDevice.device_detail,
+                                      );
                                   }
                                 }}
                                 className={selectCls}
                               >
                                 <option value="">Select Device</option>
                                 {masterDevices.map((device) => (
-                                  <option key={device.id_device} value={device.device_name}>
+                                  <option
+                                    key={device.id_device}
+                                    value={device.device_name}
+                                  >
                                     {device.device_name}
                                   </option>
                                 ))}
@@ -1302,7 +1530,11 @@ export default function EditScanningPreparationPage() {
                               <textarea
                                 value={item.device_detail}
                                 onChange={(e) =>
-                                  updateItem(item.id, "device_detail", e.target.value)
+                                  updateItem(
+                                    item.id,
+                                    "device_detail",
+                                    e.target.value,
+                                  )
                                 }
                                 className={inputCls}
                                 rows="2"
@@ -1355,7 +1587,11 @@ export default function EditScanningPreparationPage() {
                                 type="text"
                                 value={item.specifications}
                                 onChange={(e) =>
-                                  updateItem(item.id, "specifications", e.target.value)
+                                  updateItem(
+                                    item.id,
+                                    "specifications",
+                                    e.target.value,
+                                  )
                                 }
                                 className={inputCls}
                                 placeholder="e.g. Intel i5, 8GB RAM"
@@ -1368,7 +1604,11 @@ export default function EditScanningPreparationPage() {
                                 type="number"
                                 value={item.quantity}
                                 onChange={(e) =>
-                                  updateItem(item.id, "quantity", parseInt(e.target.value) || 1)
+                                  updateItem(
+                                    item.id,
+                                    "quantity",
+                                    parseInt(e.target.value) || 1,
+                                  )
                                 }
                                 className={inputCls}
                                 min="1"
@@ -1380,13 +1620,20 @@ export default function EditScanningPreparationPage() {
                               <select
                                 value={item.project_id || ""}
                                 onChange={(e) =>
-                                  updateItem(item.id, "project_id", e.target.value)
+                                  updateItem(
+                                    item.id,
+                                    "project_id",
+                                    e.target.value,
+                                  )
                                 }
                                 className={selectCls}
                               >
                                 <option value="">Select Project</option>
                                 {projects.map((project) => (
-                                  <option key={project.id_project} value={project.id_project}>
+                                  <option
+                                    key={project.id_project}
+                                    value={project.id_project}
+                                  >
                                     {project.project_name}
                                   </option>
                                 ))}
@@ -1399,11 +1646,19 @@ export default function EditScanningPreparationPage() {
                                   <div className="flex flex-wrap items-center justify-between gap-2">
                                     <Label>Department Distribution</Label>
                                     <button
-                                      onClick={() => toggleDepartmentSection(item.id)}
+                                      onClick={() =>
+                                        toggleDepartmentSection(item.id)
+                                      }
                                       className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition"
                                     >
-                                      {isExpanded ? "Close Distribution" : "Distribute Items"}
-                                      {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                      {isExpanded
+                                        ? "Close Distribution"
+                                        : "Distribute Items"}
+                                      {isExpanded ? (
+                                        <ChevronUp className="w-3 h-3" />
+                                      ) : (
+                                        <ChevronDown className="w-3 h-3" />
+                                      )}
                                     </button>
                                   </div>
 
@@ -1411,13 +1666,24 @@ export default function EditScanningPreparationPage() {
                                     <div className="mt-3 space-y-3">
                                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         {departments.map((dept) => {
-                                          const assignedDept = item.departments.find(
-                                            (d) => d.department_id === dept.id_department,
-                                          );
-                                          const assignedQty = assignedDept?.quantity || 0;
-                                          const isDisabled = isDepartmentInputDisabled(item, dept.id_department);
+                                          const assignedDept =
+                                            item.departments.find(
+                                              (d) =>
+                                                d.department_id ===
+                                                dept.id_department,
+                                            );
+                                          const assignedQty =
+                                            assignedDept?.quantity || 0;
+                                          const isDisabled =
+                                            isDepartmentInputDisabled(
+                                              item,
+                                              dept.id_department,
+                                            );
                                           return (
-                                            <div key={dept.id_department} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                                            <div
+                                              key={dept.id_department}
+                                              className="flex items-center justify-between p-3 border border-gray-200 rounded-lg"
+                                            >
                                               <span className="text-sm font-medium text-gray-700 truncate">
                                                 {dept.department_name}
                                               </span>
@@ -1427,7 +1693,11 @@ export default function EditScanningPreparationPage() {
                                                 max={item.quantity}
                                                 value={assignedQty}
                                                 onChange={(e) =>
-                                                  updateDepartmentQuantity(item.id, dept.id_department, e.target.value)
+                                                  updateDepartmentQuantity(
+                                                    item.id,
+                                                    dept.id_department,
+                                                    e.target.value,
+                                                  )
                                                 }
                                                 disabled={isDisabled}
                                                 className={`w-20 px-2 py-1.5 text-sm border rounded-md focus:ring-2 focus:ring-blue-500 ${isDisabled ? "bg-gray-50 text-gray-400" : "bg-white"}`}
@@ -1439,77 +1709,136 @@ export default function EditScanningPreparationPage() {
                                       </div>
                                       <div className="p-3 bg-gray-50 rounded-lg">
                                         <div className="flex justify-between items-center">
-                                          <span className="text-sm font-medium text-gray-700">Distribution Summary:</span>
-                                          <span className={`text-sm font-semibold ${totalDeptQty === item.quantity ? "text-green-600" : "text-blue-600"}`}>
-                                            {totalDeptQty} of {item.quantity} assigned
+                                          <span className="text-sm font-medium text-gray-700">
+                                            Distribution Summary:
+                                          </span>
+                                          <span
+                                            className={`text-sm font-semibold ${totalDeptQty === item.quantity ? "text-green-600" : "text-blue-600"}`}
+                                          >
+                                            {totalDeptQty} of {item.quantity}{" "}
+                                            assigned
                                           </span>
                                         </div>
                                         {remainingQty > 0 && (
                                           <p className="text-xs text-gray-500 mt-1">
-                                            {remainingQty} unassigned items will stay at main location
+                                            {remainingQty} unassigned items will
+                                            stay at main location
                                           </p>
                                         )}
                                       </div>
                                     </div>
                                   )}
 
-                                  {!isExpanded && item.departments.length > 0 && (
-                                    <div className="mt-2 flex flex-wrap gap-2">
-                                      {item.departments.map((dept) => (
-                                        <div key={dept.department_id} className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full">
-                                          <Users className="w-3 h-3 text-gray-500" />
-                                          <span className="text-xs text-gray-700">{dept.department_name}: {dept.quantity}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
+                                  {!isExpanded &&
+                                    item.departments.length > 0 && (
+                                      <div className="mt-2 flex flex-wrap gap-2">
+                                        {item.departments.map((dept) => (
+                                          <div
+                                            key={dept.department_id}
+                                            className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-full"
+                                          >
+                                            <Users className="w-3 h-3 text-gray-500" />
+                                            <span className="text-xs text-gray-700">
+                                              {dept.department_name}:{" "}
+                                              {dept.quantity}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
                                 </div>
 
                                 {item.departments.length > 0 && (
                                   <div className="md:col-span-2 pt-2 border-t border-gray-100">
                                     <div className="flex items-center gap-2 mb-3">
                                       <User className="w-4 h-4 text-green-600" />
-                                      <h4 className="text-sm font-semibold text-gray-800">Receiver Assignment</h4>
+                                      <h4 className="text-sm font-semibold text-gray-800">
+                                        Receiver Assignment
+                                      </h4>
                                     </div>
                                     <div className="space-y-3">
                                       {item.departments.map((dept) => {
-                                        const deptInfo = departments.find(d => d.id_department === dept.department_id);
-                                        const availableReceivers = getReceiversForDepartment(dept.department_id);
+                                        const deptInfo = departments.find(
+                                          (d) =>
+                                            d.id_department ===
+                                            dept.department_id,
+                                        );
+                                        const availableReceivers =
+                                          getReceiversForDepartment(
+                                            dept.department_id,
+                                          );
                                         return (
-                                          <div key={dept.department_id} className="border border-gray-200 rounded-lg overflow-hidden">
+                                          <div
+                                            key={dept.department_id}
+                                            className="border border-gray-200 rounded-lg overflow-hidden"
+                                          >
                                             <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
                                               <span className="text-sm font-semibold text-gray-800">
-                                                {deptInfo?.department_name || `Department ${dept.department_id}`}
+                                                {deptInfo?.department_name ||
+                                                  `Department ${dept.department_id}`}
                                               </span>
                                               <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                                                 {dept.quantity} item(s)
                                               </span>
                                             </div>
                                             <div className="p-3 space-y-3">
-                                              {[...Array(dept.quantity)].map((_, i) => {
-                                                const receiver = item.receivers.find(
-                                                  (r) => r.department_id === dept.department_id && r.item_index === i
-                                                );
-                                                return (
-                                                  <div key={i}>
-                                                    <Label>Item #{i + 1} Receiver</Label>
-                                                    <select
-                                                      value={receiver?.receiver_id || ""}
-                                                      onChange={(e) =>
-                                                        updateReceiverAssignment(item.id, dept.department_id, e.target.value, i)
-                                                      }
-                                                      className={selectCls}
-                                                    >
-                                                      <option value="">Select Receiver</option>
-                                                      {availableReceivers.map((rec) => (
-                                                        <option key={rec.id_receiver} value={rec.id_receiver}>
-                                                          {rec.receiver_name} - {rec.receiver_title}
+                                              {[...Array(dept.quantity)].map(
+                                                (_, i) => {
+                                                  const receiver =
+                                                    item.receivers.find(
+                                                      (r) =>
+                                                        r.department_id ===
+                                                          dept.department_id &&
+                                                        r.item_index === i,
+                                                    );
+                                                  return (
+                                                    <div key={i}>
+                                                      <Label>
+                                                        Item #{i + 1} Receiver
+                                                      </Label>
+                                                      <select
+                                                        value={
+                                                          receiver?.receiver_id ||
+                                                          ""
+                                                        }
+                                                        onChange={(e) =>
+                                                          updateReceiverAssignment(
+                                                            item.id,
+                                                            dept.department_id,
+                                                            e.target.value,
+                                                            i,
+                                                          )
+                                                        }
+                                                        className={selectCls}
+                                                      >
+                                                        <option value="">
+                                                          Select Receiver
                                                         </option>
-                                                      ))}
-                                                    </select>
-                                                  </div>
-                                                );
-                                              })}
+                                                        {availableReceivers.map(
+                                                          (rec) => (
+                                                            <option
+                                                              key={
+                                                                rec.id_receiver
+                                                              }
+                                                              value={
+                                                                rec.id_receiver
+                                                              }
+                                                            >
+                                                              {
+                                                                rec.receiver_name
+                                                              }{" "}
+                                                              -{" "}
+                                                              {
+                                                                rec.receiver_title
+                                                              }
+                                                            </option>
+                                                          ),
+                                                        )}
+                                                      </select>
+                                                    </div>
+                                                  );
+                                                },
+                                              )}
                                             </div>
                                           </div>
                                         );
