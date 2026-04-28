@@ -1387,13 +1387,11 @@ export default function AssetsInventoryPage() {
                               </td>
                               <td className="py-3 px-4 hidden md:table-cell">
                                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
-                                  <Laptop className="w-3 h-3 mr-1 text-blue-500" />{" "}
                                   Device
                                 </span>
                               </td>
                               <td className="py-3 px-4 hidden lg:table-cell">
                                 <div className="flex items-center gap-1.5">
-                                  <MapPin className="w-3.5 h-3.5 text-gray-400" />
                                   <span className="text-sm text-gray-600 truncate max-w-[150px]">
                                     {session.location_name || "—"}
                                   </span>
@@ -1401,7 +1399,6 @@ export default function AssetsInventoryPage() {
                               </td>
                               <td className="py-3 px-4 hidden xl:table-cell">
                                 <div className="flex items-center gap-1.5">
-                                  <Building2 className="w-3.5 h-3.5 text-gray-400" />
                                   <span className="text-sm text-gray-600 truncate max-w-[120px]">
                                     {session.project_name || "—"}
                                   </span>
@@ -1508,13 +1505,11 @@ export default function AssetsInventoryPage() {
                               </td>
                               <td className="py-3 px-4 hidden md:table-cell">
                                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
-                                  <Package className="w-3 h-3 mr-1 text-emerald-500" />{" "}
                                   Material
                                 </span>
                               </td>
                               <td className="py-3 px-4 hidden lg:table-cell">
                                 <div className="flex items-center gap-1.5">
-                                  <MapPin className="w-3.5 h-3.5 text-gray-400" />
                                   <span className="text-sm text-gray-600 truncate max-w-[150px]">
                                     {session.location_name || "—"}
                                   </span>
@@ -1522,7 +1517,6 @@ export default function AssetsInventoryPage() {
                               </td>
                               <td className="py-3 px-4 hidden xl:table-cell">
                                 <div className="flex items-center gap-1.5">
-                                  <Building2 className="w-3.5 h-3.5 text-gray-400" />
                                   <span className="text-sm text-gray-600 truncate max-w-[120px]">
                                     {session.project_name || "—"}
                                   </span>

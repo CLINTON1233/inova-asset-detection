@@ -333,6 +333,8 @@ def create_asset_from_validation_id(validation_id, validated_by, existing_conn=N
             print(f"Validation {validation_id} not found or not approved")
             return False
         
+        user_id = validated_by  
+        
         # Ambil data department, receiver, project, brand, vendor dari item preparation
         if validation['validation_type'] == 'device':
             item_prep_id = validation.get('item_preparation_id')
@@ -449,7 +451,7 @@ def create_asset_from_validation_id(validation_id, validated_by, existing_conn=N
         random_chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
         asset_code = f"AST-{date_str}-{random_chars}"
         
-        # Insert ke assets
+        # PERBAIKAN: Insert ke assets dengan user_id dari validated_by
         cur.execute("""
             INSERT INTO assets (
                 user_id, validation_id, asset_code, asset_name, asset_type, category,
@@ -459,7 +461,7 @@ def create_asset_from_validation_id(validation_id, validated_by, existing_conn=N
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id_assets
         """, (
-            1,
+            user_id,  
             validation_id,
             asset_code,
             asset_name,
@@ -480,7 +482,7 @@ def create_asset_from_validation_id(validation_id, validated_by, existing_conn=N
             uom,
             'active',
             photo_url,
-            validated_by,
+            validated_by,  # validated_by sudah benar
             datetime.now()
         ))
         
@@ -496,7 +498,7 @@ def create_asset_from_validation_id(validation_id, validated_by, existing_conn=N
         if not existing_conn:
             conn.commit()
         
-        print(f"✅ Asset created: {asset_code} for validation {validation_id}")
+        print(f"✅ Asset created: {asset_code} for validation {validation_id} by user {user_id}")
         return True
         
     except Exception as e:

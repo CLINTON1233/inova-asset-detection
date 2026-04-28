@@ -598,9 +598,15 @@ def create_asset_from_validation():
                 'error': 'Validation not found or not approved'
             }), 404
         
+        final_user_id = validated_by if validated_by != 1 else user_id
+        
+        print(f"Creating asset for validation {validation_id}, type: {validation['validation_type']}")
+        print(f"validation data: {dict(validation)}")
+        
         # Ambil data department, receiver, project, brand, vendor dari item preparation
         if validation['validation_type'] == 'device':
             item_prep_id = validation.get('item_preparation_id')
+            print(f"Device item_prep_id: {item_prep_id}")
             if item_prep_id:
                 cur.execute("""
                     SELECT 
@@ -622,6 +628,7 @@ def create_asset_from_validation():
                     WHERE dip.id_item_preparation = %s
                 """, (item_prep_id,))
                 item_data = cur.fetchone()
+                print(f"Device item_data: {item_data}")
                 
                 asset_name = validation.get('device_name') or (item_data.get('device_name') if item_data else None)
                 serial_number = validation.get('serial_number')
@@ -630,20 +637,44 @@ def create_asset_from_validation():
                 model = item_data.get('model') if item_data else None
                 specifications = item_data.get('specifications') if item_data else None
                 photo_url = validation.get('device_photo')
-                detection_data = validation.get('device_detection')
                 
+                department_name = item_data.get('department_name') if item_data else None
+                receiver_name = item_data.get('receiver_name') if item_data else None
+                project_name = item_data.get('project_name') if item_data else None
+                
+                location_id = validation.get('device_location_id')
+                location_name = validation.get('location_name')
+                asset_type = 'device'
+                category = 'Device'
+                scan_code = None
+                uom = None
+                quantity = 1
             else:
-                asset_name = validation.get('device_name')
-                serial_number = validation.get('serial_number')
-                brand = None
-                vendor = None
-                model = None
-                specifications = None
-                photo_url = validation.get('device_photo')
-                detection_data = validation.get('device_detection')
-                item_data = None
-        else:
+                print("No item_prep_id for device")
+                return jsonify({
+                    'success': False,
+                    'error': 'Item preparation not found for device validation'
+                }), 404
+                
+        else:  # material
             item_prep_id = validation.get('material_item_preparation_id')
+            print(f"Material item_prep_id: {item_prep_id}")
+            
+            if not item_prep_id:
+                print("No material_item_preparation_id found, trying alternative method...")
+                # Alternatif: coba ambil dari scan_material_id
+                scan_material_id = validation.get('scan_material_id')
+                if scan_material_id:
+                    cur.execute("""
+                        SELECT item_preparation_id 
+                        FROM scan_results_materials 
+                        WHERE id_scan = %s
+                    """, (scan_material_id,))
+                    scan_result = cur.fetchone()
+                    if scan_result:
+                        item_prep_id = scan_result['item_preparation_id']
+                        print(f"Found item_prep_id from scan_material_id: {item_prep_id}")
+            
             if item_prep_id:
                 cur.execute("""
                     SELECT 
@@ -664,6 +695,7 @@ def create_asset_from_validation():
                     WHERE mip.id_item_preparation = %s
                 """, (item_prep_id,))
                 item_data = cur.fetchone()
+                print(f"Material item_data: {item_data}")
                 
                 asset_name = validation.get('material_name') or (item_data.get('material_name') if item_data else None)
                 scan_code = validation.get('scan_code')
@@ -671,24 +703,25 @@ def create_asset_from_validation():
                 uom = item_data.get('uom') if item_data else 'PCS'
                 specifications = item_data.get('specifications') if item_data else None
                 photo_url = validation.get('material_photo')
-                detection_data = validation.get('material_detection')
                 
+                department_name = item_data.get('department_name') if item_data else None
+                receiver_name = item_data.get('receiver_name') if item_data else None
+                project_name = item_data.get('project_name') if item_data else None
+                
+                location_id = validation.get('material_location_id')
+                location_name = validation.get('location_name')
+                asset_type = 'material'
+                category = 'Material'
+                serial_number = None
+                brand = None
+                model = None
+                quantity = 1.0
             else:
-                asset_name = validation.get('material_name')
-                scan_code = validation.get('scan_code')
-                vendor = None
-                uom = 'PCS'
-                specifications = None
-                photo_url = validation.get('material_photo')
-                detection_data = validation.get('material_detection')
-                item_data = None
-        
-        # Ambil data dari item_data
-        department_name = item_data.get('department_name') if item_data else None
-        receiver_name = item_data.get('receiver_name') if item_data else None
-        project_name = item_data.get('project_name') if item_data else None
-        location_id = validation.get('device_location_id') or validation.get('material_location_id')
-        location_name = validation.get('location_name')
+                print("No item_prep_id for material")
+                return jsonify({
+                    'success': False,
+                    'error': 'Item preparation not found for material validation'
+                }), 404
         
         # Generate asset code
         asset_code = generate_asset_code()
@@ -703,14 +736,14 @@ def create_asset_from_validation():
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id_assets
         """, (
-            user_id,
+            final_user_id,
             validation_id,
             asset_code,
             asset_name,
-            validation.get('validation_type'),
-            'Device' if validation['validation_type'] == 'device' else 'Material',
+            asset_type,
+            category,
             serial_number,
-            scan_code if validation['validation_type'] == 'material' else None,
+            scan_code,
             project_name,
             department_name,
             receiver_name,
@@ -720,8 +753,8 @@ def create_asset_from_validation():
             vendor,
             model,
             specifications,
-            1.0 if validation['validation_type'] == 'material' else 1,
-            uom if validation['validation_type'] == 'material' else None,
+            quantity,
+            uom,
             'active',
             photo_url,
             validated_by,
@@ -739,11 +772,14 @@ def create_asset_from_validation():
         
         conn.commit()
         
+        print(f"✅ Asset created for {validation['validation_type']}: {asset_code}")
+        
         return jsonify({
             'success': True,
             'asset_id': asset_id,
             'asset_code': asset_code,
-            'message': 'Asset created successfully'
+            'user_id': final_user_id,
+            'message': f'Asset created successfully for {validation["validation_type"]}'
         })
         
     except Exception as e:

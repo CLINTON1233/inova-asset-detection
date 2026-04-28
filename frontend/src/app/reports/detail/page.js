@@ -732,7 +732,6 @@ export default function ReportDetailPage() {
                         </td>
                         <td className="py-3 px-4 hidden md:table-cell">
                           <div className="flex items-center gap-1.5">
-                            <MapPin className="w-3.5 h-3.5 text-gray-400" />
                             <span className="text-sm text-gray-600 truncate max-w-[150px]">
                               {session.location_name || "—"}
                             </span>
@@ -740,7 +739,6 @@ export default function ReportDetailPage() {
                         </td>
                         <td className="py-3 px-4 hidden lg:table-cell">
                           <div className="flex items-center gap-1.5">
-                            <Building2 className="w-3.5 h-3.5 text-gray-400" />
                             <span className="text-sm text-gray-600 truncate max-w-[120px]">
                               {session.project_name || "—"}
                             </span>
@@ -749,7 +747,8 @@ export default function ReportDetailPage() {
                         <td className="py-3 px-4 text-center">
                           <span className="text-sm font-bold text-gray-900">
                             {Math.floor(session.total_items || 0)}
-                          </span>
+                          </span>{" "}
+                          Items
                         </td>
                         <td className="py-3 px-4 text-center">
                           <button

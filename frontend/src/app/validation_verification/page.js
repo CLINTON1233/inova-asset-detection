@@ -1752,7 +1752,7 @@ export default function ValidationVerificationPage() {
                                   </span>
                                 </div>
                                 <div className="bg-gray-50 rounded-lg p-2">
-                                  <span className="text-gray-400 block text-[10px]">
+                                  <span className="text-gray-400 block text-[5px]">
                                     Project
                                   </span>
                                   <span className="text-xs font-medium text-gray-700 truncate block">
@@ -2357,14 +2357,14 @@ export default function ValidationVerificationPage() {
                                   </td>
                                   <td className="vv-td hidden lg:table-cell">
                                     <span
-                                      className="text-xs text-gray-600 truncate max-w-[100px] block"
+                                      className="text-xs text-gray-600 truncate max-w-[70px] block"
                                       title={validation.project_name || "-"}
                                     >
                                       {validation.project_name || "-"}
                                     </span>
                                   </td>
                                   <td className="vv-td hidden xl:table-cell text-center">
-                                    <span className="text-xs text-gray-600 truncate max-w-[100px] block">
+                                    <span className="text-xs text-gray-600 truncate max-w-[80px] block">
                                       {validation.departments
                                         ?.map((d) => d.department_name)
                                         .join(", ") || "-"}
@@ -2372,7 +2372,7 @@ export default function ValidationVerificationPage() {
                                   </td>
                                   <td className="vv-td">
                                     <span
-                                      className="text-xs text-gray-600 truncate max-w-[100px] block"
+                                      className="text-xs text-gray-600 truncate max-w-[80px] block"
                                       title={
                                         validation.receivers
                                           ?.map((r) => r.receiver_name)
@@ -2610,7 +2610,7 @@ export default function ValidationVerificationPage() {
                                   </td>
                                   <td className="vv-td">
                                     <span
-                                      className="text-xs text-gray-600 truncate max-w-[100px] block"
+                                      className="text-xs text-gray-600 truncate max-w-[80px] block"
                                       title={
                                         validation.receivers
                                           ?.map((r) => r.receiver_name)

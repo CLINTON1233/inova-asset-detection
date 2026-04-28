@@ -754,7 +754,7 @@ export default function AssetDetailPage() {
                       <th className="hidden 2xl:table-cell">Department</th>
                       <th className="hidden lg:table-cell">Receiver</th>
                       <th>Status</th>
-                      <th className="hidden xl:table-cell">Validated</th>
+                      <th className="hidden xl:table-cell">Validated By</th>
                       <th style={{ textAlign: "center" }}>Actions</th>
                     </tr>
                   </thead>
@@ -854,7 +854,7 @@ export default function AssetDetailPage() {
                         </td>
 
                         {/* Validated */}
-                        <td className="hidden xl:table-cell">
+                        <td className="hidden xl:table-cell text-center">
                           <div className="text-xs text-gray-600">
                             {formatDateTime(asset.validated_at)}
                           </div>
