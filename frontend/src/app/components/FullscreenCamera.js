@@ -457,7 +457,9 @@ export default function FullscreenCamera({
             ? "Scan Device"
             : mode === "material"
               ? "Scan Material"
-              : "Scan Code"}
+              : mode === "serial"
+                ? "Scan Serial Number"
+                : "Scan Code"}
         </div>
 
         {availableCameras.length > 1 && (
@@ -606,7 +608,9 @@ export default function FullscreenCamera({
             ? "Point camera at the device to scan"
             : mode === "material"
               ? "Point camera at the material to scan"
-              : "Point camera at the serial number or scan code"}
+              : mode === "serial"
+                ? "Point camera at the serial number"
+                : "Point camera at the scan code"}
         </p>
       </div>
 
