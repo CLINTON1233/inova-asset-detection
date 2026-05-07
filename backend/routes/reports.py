@@ -17,6 +17,189 @@ def generate_report_code():
     random_chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
     return f"RPT-{date_str}-{random_chars}"
 
+# ==================== ENSURE REPORT EXISTS ====================
+@reports_bp.route('/api/reports/ensure', methods=['POST'])
+def ensure_report():
+    """Memastikan report untuk periode tertentu sudah ada di database"""
+    conn = None
+    try:
+        data = request.get_json()
+        period_type = data.get('period_type', 'monthly')
+        period_key = data.get('period_key', '')
+        year = data.get('year')
+        month = data.get('month')
+        
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        # Cek apakah report sudah ada
+        cur.execute("""
+            SELECT id_report, report_code, verification_status
+            FROM reports
+            WHERE period_key = %s AND report_type = %s
+        """, (period_key, period_type))
+        
+        existing = cur.fetchone()
+        
+        if existing:
+            return jsonify({
+                'success': True,
+                'data': {
+                    'id_report': existing['id_report'],
+                    'report_code': existing['report_code'],
+                    'verification_status': existing['verification_status']
+                },
+                'exists': True
+            })
+        
+        # Buat report baru jika belum ada
+        report_code = generate_report_code()
+        report_name = f"{period_type.capitalize()} Report - {period_key}"
+        
+        # Tentukan tanggal berdasarkan periode
+        start_date = None
+        end_date = None
+        
+        if period_type == 'weekly' and period_key:
+            import re
+            match = re.match(r'(\d+)-W(\d+)', period_key)
+            if match:
+                year = int(match.group(1))
+                week_num = int(match.group(2))
+                from datetime import datetime, timedelta
+                first_day_of_year = datetime(year, 1, 1)
+                days_to_first_week = (7 - first_day_of_year.weekday()) % 7
+                first_week_start = first_day_of_year + timedelta(days=days_to_first_week)
+                start_date = first_week_start + timedelta(weeks=week_num - 1)
+                end_date = start_date + timedelta(days=6)
+        elif period_type == 'monthly' and year and month:
+            start_date = datetime(int(year), int(month), 1)
+            if int(month) == 12:
+                end_date = datetime(int(year) + 1, 1, 1) - timedelta(days=1)
+            else:
+                end_date = datetime(int(year), int(month) + 1, 1) - timedelta(days=1)
+        
+        cur.execute("""
+            INSERT INTO reports (
+                report_code, report_name, report_type, period_key, period_label,
+                year, month, start_date, end_date, verification_status, created_at, updated_at
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            RETURNING id_report, report_code
+        """, (
+            report_code, report_name, period_type, period_key, period_key,
+            int(year) if year else None,
+            int(month) if month else None,
+            start_date, end_date, 'pending_review'
+        ))
+        
+        result = cur.fetchone()
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'id_report': result[0],
+                'report_code': result[1],
+                'verification_status': 'pending_review'
+            },
+            'exists': False
+        })
+        
+    except Exception as e:
+        print(f"Error ensuring report: {e}")
+        print(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+# ==================== BULK VERIFY SESSIONS ====================
+@reports_bp.route('/api/reports/bulk-verify-sessions', methods=['POST'])
+def bulk_verify_sessions():
+    """Bulk verification untuk multiple sessions dalam satu report"""
+    conn = None
+    try:
+        data = request.get_json()
+        session_ids = data.get('session_ids', [])
+        report_id = data.get('report_id')
+        verification_status = data.get('verification_status')  # 'approved', 'rejected', 'on_review'
+        verification_notes = data.get('verification_notes', '')
+        verified_by = data.get('verified_by')
+        
+        if verification_status not in ['approved', 'rejected', 'on_review']:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid verification status'
+            }), 400
+        
+        if not session_ids:
+            return jsonify({
+                'success': False,
+                'error': 'No sessions selected'
+            }), 400
+        
+        conn = get_conn()
+        cur = conn.cursor()
+        
+        # Untuk setiap session, update atau insert ke report_items dengan status
+        for session_id in session_ids:
+            # Cek apakah session sudah ada di report_items
+            cur.execute("""
+                SELECT id_report_item FROM report_items 
+                WHERE report_id = %s AND session_id = %s
+            """, (report_id, session_id))
+            
+            existing = cur.fetchone()
+            
+            if existing:
+                cur.execute("""
+                    UPDATE report_items 
+                    SET verification_status = %s,
+                        verification_notes = %s,
+                        verified_by = %s,
+                        verified_at = CURRENT_TIMESTAMP
+                    WHERE id_report_item = %s
+                """, (verification_status, verification_notes, verified_by, existing[0]))
+            else:
+                # Insert new report item with verification status
+                cur.execute("""
+                    INSERT INTO report_items (
+                        report_id, session_type, session_id, session_name, session_number,
+                        session_date, location_name, project_name, total_items,
+                        verification_status, verification_notes, verified_by, verified_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                """, (report_id, 'device', session_id, None, None, None, None, None, 0,
+                      verification_status, verification_notes, verified_by))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'{len(session_ids)} sessions have been updated',
+            'data': {
+                'updated_count': len(session_ids),
+                'verification_status': verification_status
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error bulk verifying sessions: {e}")
+        print(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
 # ==================== GET REPORTS LIST (GROUPED BY PERIOD) ====================
 @reports_bp.route('/api/reports', methods=['GET'])
 def get_reports():
@@ -30,7 +213,6 @@ def get_reports():
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         
-        # Ambil semua sessions yang memiliki assets
         # Device sessions
         cur.execute("""
             SELECT 
@@ -195,9 +377,39 @@ def get_reports():
                 reports_grouped[month_key]['total_devices'] += session.get('device_count', 0)
                 reports_grouped[month_key]['total_materials'] += session.get('material_count', 0)
         
-        # Konversi ke list dan urutkan berdasarkan periode (descending)
         reports_list = list(reports_grouped.values())
         reports_list.sort(key=lambda x: x['period_key'], reverse=True)
+        
+        for report in reports_list:
+            try:
+                cur.execute("""
+                    SELECT verification_status, verification_notes, verified_at, verified_by, id_report
+                    FROM reports
+                    WHERE period_key = %s AND report_type = %s
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """, (report['period_key'], period))
+                existing = cur.fetchone()
+                
+                if existing:
+                    report['verification_status'] = existing['verification_status']
+                    report['verification_notes'] = existing['verification_notes']
+                    report['verified_at'] = existing['verified_at']
+                    report['verified_by'] = existing['verified_by']
+                    report['id_report'] = existing['id_report']
+                else:
+                    report['verification_status'] = 'pending_review'
+                    report['verification_notes'] = None
+                    report['verified_at'] = None
+                    report['verified_by'] = None
+                    report['id_report'] = None
+            except Exception as e:
+                print(f"Error getting verification status for report {report['period_key']}: {e}")
+                report['verification_status'] = 'pending_review'
+                report['verification_notes'] = None
+                report['verified_at'] = None
+                report['verified_by'] = None
+                report['id_report'] = None
         
         return jsonify({
             'success': True,
@@ -526,6 +738,116 @@ def get_available_years():
         
     except Exception as e:
         print(f"Error getting available years: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+            
+# ==================== VERIFY/APPROVE REPORT ====================
+@reports_bp.route('/api/reports/verify/<int:report_id>', methods=['PUT'])
+def verify_report(report_id):
+    """Verifikasi report (Approve/Reject) oleh Super Admin"""
+    conn = None
+    try:
+        data = request.get_json()
+        verification_status = data.get('verification_status')  # 'approved' or 'rejected'
+        verification_notes = data.get('verification_notes', '')
+        verified_by = data.get('verified_by')
+        
+        if verification_status not in ['approved', 'rejected', 'on_review']:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid verification status. Must be approved, rejected, or on_review'
+            }), 400
+        
+        conn = get_conn()
+        cur = conn.cursor()
+        
+        # Update report
+        cur.execute("""
+            UPDATE reports 
+            SET verification_status = %s,
+                verification_notes = %s,
+                verified_by = %s,
+                verified_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id_report = %s
+            RETURNING id_report, verification_status
+        """, (verification_status, verification_notes, verified_by, report_id))
+        
+        result = cur.fetchone()
+        
+        if not result:
+            return jsonify({
+                'success': False,
+                'error': 'Report not found'
+            }), 404
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Report has been {verification_status}',
+            'data': {
+                'id_report': result[0],
+                'verification_status': result[1]
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error verifying report: {e}")
+        print(traceback.format_exc())
+        if conn:
+            conn.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+# ==================== GET REPORT VERIFICATION STATUS ====================
+@reports_bp.route('/api/reports/verification/<int:report_id>', methods=['GET'])
+def get_report_verification(report_id):
+    """Mendapatkan status verifikasi report"""
+    conn = None
+    try:
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        cur.execute("""
+            SELECT 
+                r.id_report,
+                r.report_code,
+                r.verification_status,
+                r.verification_notes,
+                r.verified_at,
+                u.id_user as verified_by_id,
+                u.username as verified_by_name
+            FROM reports r
+            LEFT JOIN users u ON r.verified_by = u.id_user
+            WHERE r.id_report = %s
+        """, (report_id,))
+        
+        result = cur.fetchone()
+        
+        if not result:
+            return jsonify({
+                'success': False,
+                'error': 'Report not found'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'data': dict(result)
+        })
+        
+    except Exception as e:
+        print(f"Error getting report verification: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

@@ -30,21 +30,31 @@ import {
   Printer,
   Download,
   ArrowLeft,
+  CheckSquare,
+  XCircle,
+  Clock as ClockIcon,
+  AlertCircle,
+  UserCheck,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import Swal from "sweetalert2";
 import LayoutDashboard from "../../components/LayoutDashboard";
 import ProtectedPage from "../../components/ProtectedPage";
 import API_BASE_URL from "../../../config/api";
+import { useAuth } from "../../context/AuthContext";
 
 export default function ReportDetailPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
 
   const periodType = searchParams.get("period_type") || "monthly";
   const periodKey = searchParams.get("period_key") || "";
   const year = searchParams.get("year");
   const month = searchParams.get("month");
+  const reportId = searchParams.get("report_id");
 
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -55,11 +65,72 @@ export default function ReportDetailPage() {
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState(null);
+  const [verificationNotes, setVerificationNotes] = useState("");
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [verificationAction, setVerificationAction] = useState(null);
+  const [updatingVerification, setUpdatingVerification] = useState(false);
+  const [selectedSessions, setSelectedSessions] = useState([]);
+  const [showCheckboxes, setShowCheckboxes] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+  const [currentReportId, setCurrentReportId] = useState(reportId);
 
   useEffect(() => {
     setMounted(true);
+    const userData = localStorage.getItem("user_data");
+    if (userData) {
+      try {
+        const parsed = JSON.parse(userData);
+        setUserRole(parsed.role);
+      } catch (e) {
+        console.error("Error parsing user data:", e);
+      }
+    }
     fetchReportDetail();
+    if (reportId) {
+      fetchVerificationStatus(reportId);
+    }
   }, [periodType, periodKey, year, month]);
+
+  useEffect(() => {
+    ensureAndFetchVerification();
+  }, [periodType, periodKey, year, month, reportId]);
+
+  const ensureAndFetchVerification = async () => {
+    try {
+      if (reportId) {
+        fetchVerificationStatus(reportId);
+        return;
+      }
+
+      // Create report if doesn't exist
+      const res = await fetch(`${API_BASE_URL}/api/reports/ensure`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period_key: periodKey, period_type: periodType, year, month })
+      });
+      const result = await res.json();
+      if (result.success) {
+        setCurrentReportId(result.data.id_report);
+        fetchVerificationStatus(result.data.id_report);
+      }
+    } catch (err) {
+      console.error('Error ensuring report:', err);
+    }
+  };
+
+  const fetchVerificationStatus = async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/reports/verification/${id}`);
+      const result = await response.json();
+      if (result.success) {
+        setVerificationStatus(result.data);
+        setVerificationNotes(result.data.verification_notes || '');
+      }
+    } catch (error) {
+      console.error('Error fetching verification status:', error);
+    }
+  };
 
   const fetchReportDetail = async () => {
     setLoading(true);
@@ -85,6 +156,236 @@ export default function ReportDetailPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleVerification = async (status) => {
+    if (!currentReportId) {
+      Swal.fire({ title: 'Error!', text: 'Report ID not found', icon: 'error' });
+      return;
+    }
+
+    let notes = verificationNotes;
+
+    if (status === "rejected") {
+      const result = await Swal.fire({
+        title: "Alasan Penolakan",
+        text: "Silakan masukkan alasan mengapa laporan ini ditolak:",
+        input: "textarea",
+        inputPlaceholder: "Contoh: Pengecekan laptop masih kurang 5 unit, silakan lengkapi...",
+        showCancelButton: true,
+        confirmButtonText: "Kirim",
+        cancelButtonText: "Batal",
+      });
+
+      if (!result.isConfirmed) return;
+      notes = result.value;
+      if (!notes || notes.trim() === "") {
+        Swal.fire({
+          title: "Error!",
+          text: "Alasan penolakan harus diisi",
+          icon: "error",
+        });
+        return;
+      }
+      setVerificationNotes(notes);
+    } else if (status === "approved") {
+      const result = await Swal.fire({
+        title: "Konfirmasi Persetujuan",
+        text: "Apakah Anda yakin ingin menyetujui laporan ini?",
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonText: "Ya, Setujui",
+        cancelButtonText: "Batal",
+      });
+
+      if (!result.isConfirmed) return;
+    } else if (status === "on_review") {
+      const result = await Swal.fire({
+        title: "Mulai Review",
+        text: "Laporan akan ditandai sebagai sedang direview",
+        icon: "info",
+        showCancelButton: true,
+        confirmButtonText: "Ya, Mulai Review",
+        cancelButtonText: "Batal",
+      });
+
+      if (!result.isConfirmed) return;
+    }
+
+    setUpdatingVerification(true);
+
+    try {
+      const userId = user?.id_user;
+      if (!userId) {
+        const userData = localStorage.getItem("user_data");
+        if (userData) {
+          const parsed = JSON.parse(userData);
+          var verifiedById = parsed.id;
+        }
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/reports/verify/${currentReportId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            verification_status: status,
+            verification_notes: notes,
+            verified_by: user?.id_user || verifiedById,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (result.success) {
+        Swal.fire({
+          title: "Berhasil!",
+          text:
+            status === "approved"
+              ? "Laporan telah disetujui"
+              : status === "rejected"
+                ? "Laporan telah ditolak"
+                : "Laporan sedang dalam review",
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+
+        fetchVerificationStatus(currentReportId);
+        setShowVerificationModal(false);
+        setVerificationAction(null);
+      } else {
+        throw new Error(result.error || "Failed to update verification");
+      }
+    } catch (error) {
+      console.error("Error updating verification:", error);
+      Swal.fire({
+        title: "Error!",
+        text: error.message || "Failed to update verification",
+        icon: "error",
+      });
+    } finally {
+      setUpdatingVerification(false);
+    }
+  };
+
+  // Bulk verification for multiple sessions
+  const handleBulkVerification = async (status) => {
+    if (selectedSessions.length === 0) {
+      Swal.fire({
+        title: "No Items Selected",
+        text: "Please select at least one session to process.",
+        icon: "info",
+      });
+      return;
+    }
+
+    let notes = "";
+
+    if (status === "rejected") {
+      const result = await Swal.fire({
+        title: "Alasan Penolakan",
+        text: "Silakan masukkan alasan mengapa sesi-sesi ini ditolak:",
+        input: "textarea",
+        inputPlaceholder: "Contoh: Pengecekan laptop masih kurang 5 unit, silakan lengkapi...",
+        showCancelButton: true,
+        confirmButtonText: "Kirim",
+        cancelButtonText: "Batal",
+      });
+
+      if (!result.isConfirmed) return;
+      notes = result.value;
+      if (!notes || notes.trim() === "") {
+        Swal.fire({
+          title: "Error!",
+          text: "Alasan penolakan harus diisi",
+          icon: "error",
+        });
+        return;
+      }
+    } else if (status === "approved") {
+      const result = await Swal.fire({
+        title: "Konfirmasi Persetujuan",
+        text: `Apakah Anda yakin ingin menyetujui ${selectedSessions.length} sesi laporan?`,
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonText: "Ya, Setujui",
+        cancelButtonText: "Batal",
+      });
+
+      if (!result.isConfirmed) return;
+    } else if (status === "on_review") {
+      const result = await Swal.fire({
+        title: "Mulai Review",
+        text: `Apakah Anda yakin ingin mereview ${selectedSessions.length} sesi laporan?`,
+        icon: "info",
+        showCancelButton: true,
+        confirmButtonText: "Ya, Mulai Review",
+        cancelButtonText: "Batal",
+      });
+
+      if (!result.isConfirmed) return;
+    }
+
+    setUpdatingVerification(true);
+
+    try {
+      const userId = user?.id_user;
+      let verifiedById = userId;
+      if (!verifiedById) {
+        const userData = localStorage.getItem("user_data");
+        if (userData) {
+          const parsed = JSON.parse(userData);
+          verifiedById = parsed.id;
+        }
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/reports/bulk-verify-sessions`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            session_ids: selectedSessions,
+            report_id: currentReportId,
+            verification_status: status,
+            verification_notes: notes,
+            verified_by: verifiedById,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (result.success) {
+        Swal.fire({
+          title: "Berhasil!",
+          text: `${selectedSessions.length} sesi laporan telah ${status === "approved" ? "disetujui" : status === "rejected" ? "ditolak" : "direview"}`,
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+        setSelectedSessions([]);
+        fetchReportDetail();
+      } else {
+        throw new Error(result.error || "Failed to update verification");
+      }
+    } catch (error) {
+      console.error("Error updating verification:", error);
+      Swal.fire({
+        title: "Error!",
+        text: error.message || "Failed to update verification",
+        icon: "error",
+      });
+    } finally {
+      setUpdatingVerification(false);
     }
   };
 
@@ -214,6 +515,81 @@ export default function ReportDetailPage() {
     });
   };
 
+  const getVerificationBadge = () => {
+    if (!verificationStatus) {
+      return (
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100">
+          <ClockIcon className="w-4 h-4 text-gray-500" />
+          <span className="text-xs font-medium text-gray-600">Pending Review</span>
+        </div>
+      );
+    }
+
+    const status = verificationStatus.verification_status;
+    const config = {
+      pending_review: {
+        icon: <ClockIcon className="w-4 h-4" />,
+        text: "Belum Direview",
+        bgClass: "bg-gray-100",
+        textClass: "text-gray-600",
+        iconClass: "text-gray-500",
+      },
+      on_review: {
+        icon: <AlertCircle className="w-4 h-4" />,
+        text: "On Review",
+        bgClass: "bg-yellow-100",
+        textClass: "text-yellow-700",
+        iconClass: "text-yellow-500",
+      },
+      approved: {
+        icon: <CheckCircle className="w-4 h-4" />,
+        text: "Disetujui",
+        bgClass: "bg-green-100",
+        textClass: "text-green-700",
+        iconClass: "text-green-500",
+      },
+      rejected: {
+        icon: <XCircle className="w-4 h-4" />,
+        text: "Ditolak",
+        bgClass: "bg-red-100",
+        textClass: "text-red-700",
+        iconClass: "text-red-500",
+      },
+    };
+
+    const current = config[status] || config.pending_review;
+
+    return (
+      <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${current.bgClass}`}>
+        <span className={current.iconClass}>{current.icon}</span>
+        <span className={`text-xs font-medium ${current.textClass}`}>{current.text}</span>
+      </div>
+    );
+  };
+
+  const toggleCheckboxMode = () => {
+    setShowCheckboxes(!showCheckboxes);
+    if (showCheckboxes) {
+      setSelectedSessions([]);
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectedSessions.length === filteredSessions.length) {
+      setSelectedSessions([]);
+    } else {
+      setSelectedSessions(filteredSessions.map((s) => s.id_preparation));
+    }
+  };
+
+  const handleSelectSession = (id) => {
+    if (selectedSessions.includes(id)) {
+      setSelectedSessions(selectedSessions.filter((i) => i !== id));
+    } else {
+      setSelectedSessions([...selectedSessions, id]);
+    }
+  };
+
   // Filter and sort sessions
   let filteredSessions = reportData?.sessions || [];
 
@@ -253,6 +629,9 @@ export default function ReportDetailPage() {
     totalDevices: reportData?.total_devices || 0,
     totalMaterials: reportData?.total_materials || 0,
   };
+
+  // Check if user is superadmin
+  const isSuperAdmin = userRole === "superadmin";
 
   if (!mounted) {
     return (
@@ -349,6 +728,20 @@ export default function ReportDetailPage() {
             min-width: 220px;
             overflow: hidden;
           }
+          
+          .rd-bulk-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #1e293b;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 40;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+          }
         `}</style>
 
         <div className="rd-root space-y-5">
@@ -367,7 +760,7 @@ export default function ReportDetailPage() {
           <div className="rd-section">
             <div className="p-5 border-b border-gray-200">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
+                <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     {periodType === "weekly" ? (
                       <Calendar className="w-5 h-5 text-blue-600" />
@@ -390,50 +783,143 @@ export default function ReportDetailPage() {
                   )}
                 </div>
 
-                {/* Export Button */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowExportDropdown(!showExportDropdown)}
-                    disabled={exporting}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-all"
-                    style={{
-                      background: "linear-gradient(135deg,#059669,#10b981)",
-                    }}
-                  >
-                    <FileSpreadsheet className="w-4 h-4" />
-                    {exporting ? "Exporting..." : "Export to Excel"}
-                    <ChevronDown className="w-4 h-4" />
-                  </button>
+                {/* Verification Badge & Actions for Super Admin */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  {getVerificationBadge()}
 
-                  {showExportDropdown && (
+                  {isSuperAdmin && currentReportId && (
                     <>
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setShowExportDropdown(false)}
-                      />
-                      <div className="rd-export-drop">
-                        <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase border-b">
-                          Export Options
-                        </div>
+                      {verificationStatus?.verification_status !== "approved" && (
                         <button
-                          onClick={handleExport}
-                          className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left hover:bg-gray-50 transition"
+                          onClick={() => handleVerification("approved")}
+                          disabled={updatingVerification}
+                          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition disabled:opacity-50"
                         >
-                          <FileSpreadsheet className="w-4 h-4 text-green-600" />
-                          <div>
-                            <div className="font-medium text-gray-800">
-                              Export Full Report
-                            </div>
-                            <div className="text-xs text-gray-400">
-                              All assets in this period
-                            </div>
-                          </div>
+                          <ThumbsUp className="w-4 h-4" />
+                          Approve
                         </button>
-                      </div>
+                      )}
+
+                      {verificationStatus?.verification_status !== "rejected" && (
+                        <button
+                          onClick={() => handleVerification("rejected")}
+                          disabled={updatingVerification}
+                          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition disabled:opacity-50"
+                        >
+                          <ThumbsDown className="w-4 h-4" />
+                          Reject
+                        </button>
+                      )}
+
+                      {verificationStatus?.verification_status === "pending_review" && (
+                        <button
+                          onClick={() => handleVerification("on_review")}
+                          disabled={updatingVerification}
+                          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-yellow-600 rounded-lg hover:bg-yellow-700 transition disabled:opacity-50"
+                        >
+                          <ClockIcon className="w-4 h-4" />
+                          Start Review
+                        </button>
+                      )}
                     </>
                   )}
+
+                  {/* Export Button */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowExportDropdown(!showExportDropdown)}
+                      disabled={exporting}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-all"
+                      style={{
+                        background: "linear-gradient(135deg,#059669,#10b981)",
+                      }}
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      {exporting ? "Exporting..." : "Export to Excel"}
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+
+                    {showExportDropdown && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setShowExportDropdown(false)}
+                        />
+                        <div className="rd-export-drop">
+                          <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase border-b">
+                            Export Options
+                          </div>
+                          <button
+                            onClick={handleExport}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left hover:bg-gray-50 transition"
+                          >
+                            <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                            <div>
+                              <div className="font-medium text-gray-800">
+                                Export Full Report
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                All assets in this period
+                              </div>
+                            </div>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
+
+              {/* Verification Notes for Rejected/On Review */}
+              {verificationStatus?.verification_status === "rejected" && verificationStatus?.verification_notes && (
+                <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-200">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-500 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-semibold text-red-700">Alasan Penolakan:</p>
+                      <p className="text-sm text-red-600">{verificationStatus.verification_notes}</p>
+                      {verificationStatus.verified_by_name && (
+                        <p className="text-xs text-red-400 mt-1">
+                          Diverifikasi oleh: {verificationStatus.verified_by_name} pada {formatDate(verificationStatus.verified_at)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {verificationStatus?.verification_status === "on_review" && verificationStatus?.verification_notes && (
+                <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-yellow-500 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-semibold text-yellow-700">Catatan Review:</p>
+                      <p className="text-sm text-yellow-600">{verificationStatus.verification_notes}</p>
+                      {verificationStatus.verified_by_name && (
+                        <p className="text-xs text-yellow-400 mt-1">
+                          Direview oleh: {verificationStatus.verified_by_name} pada {formatDate(verificationStatus.verified_at)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {verificationStatus?.verification_status === "approved" && verificationStatus?.verified_by_name && (
+                <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-start gap-2">
+                    <UserCheck className="w-4 h-4 text-green-500 mt-0.5" />
+                    <div>
+                      <p className="text-sm text-green-600">
+                        Disetujui oleh: <span className="font-semibold">{verificationStatus.verified_by_name}</span>
+                      </p>
+                      <p className="text-xs text-green-500">
+                        Pada tanggal: {formatDate(verificationStatus.verified_at)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Stat Cards */}
@@ -503,22 +989,77 @@ export default function ReportDetailPage() {
                   </p>
                 </div>
 
-                {/* View Toggle */}
-                <div className="rd-view-tog">
-                  <button
-                    className={viewMode === "list" ? "active" : ""}
-                    onClick={() => setViewMode("list")}
-                  >
-                    <List className="w-4 h-4" />
-                  </button>
-                  <button
-                    className={viewMode === "grid" ? "active" : ""}
-                    onClick={() => setViewMode("grid")}
-                  >
-                    <LayoutGrid className="w-4 h-4" />
-                  </button>
+                <div className="flex items-center gap-2">
+                  {/* Multi Select Toggle - Only for Superadmin */}
+                  {isSuperAdmin && (
+                    <button
+                      onClick={toggleCheckboxMode}
+                      className={`flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all ${showCheckboxes
+                        ? "bg-gray-500 text-white hover:bg-gray-600"
+                        : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                        }`}
+                    >
+                      {showCheckboxes ? (
+                        <>
+                          <X className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Cancel</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>☑</span>
+                          <span className="hidden sm:inline">Multi Select</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {/* View Toggle */}
+                  <div className="rd-view-tog">
+                    <button
+                      className={viewMode === "list" ? "active" : ""}
+                      onClick={() => setViewMode("list")}
+                    >
+                      <List className="w-4 h-4" />
+                    </button>
+                    <button
+                      className={viewMode === "grid" ? "active" : ""}
+                      onClick={() => setViewMode("grid")}
+                    >
+                      <LayoutGrid className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
+
+              {/* Bulk Action Buttons for Superadmin */}
+              {isSuperAdmin && showCheckboxes && selectedSessions.length > 0 && (
+                <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-100">
+                  <button
+                    onClick={() => handleBulkVerification("approved")}
+                    disabled={updatingVerification}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 transition disabled:opacity-50 rounded-lg"
+                  >
+                    <ThumbsUp className="w-3 h-3" /> Approve ({selectedSessions.length})
+                  </button>
+                  <button
+                    onClick={() => handleBulkVerification("rejected")}
+                    disabled={updatingVerification}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-50 rounded-lg"
+                  >
+                    <ThumbsDown className="w-3 h-3" /> Reject ({selectedSessions.length})
+                  </button>
+                  <button
+                    onClick={() => handleBulkVerification("on_review")}
+                    disabled={updatingVerification}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-yellow-600 hover:bg-yellow-700 transition disabled:opacity-50 rounded-lg"
+                  >
+                    <ClockIcon className="w-3 h-3" /> Review ({selectedSessions.length})
+                  </button>
+                  <span className="text-xs font-medium text-gray-500 ml-2">
+                    {selectedSessions.length} selected
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Search & Filter */}
@@ -586,12 +1127,25 @@ export default function ReportDetailPage() {
                       }
                     >
                       <div className="flex items-start justify-between mb-3">
+                        {showCheckboxes && isSuperAdmin && (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedSessions.includes(session.id_preparation)}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                handleSelectSession(session.id_preparation);
+                              }}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              style={{ width: 18, height: 18 }}
+                            />
+                          </div>
+                        )}
                         <div
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                            session.type === "device"
-                              ? "bg-blue-100"
-                              : "bg-emerald-100"
-                          }`}
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center ${session.type === "device"
+                            ? "bg-blue-100"
+                            : "bg-emerald-100"
+                            }`}
                         >
                           {session.type === "device" ? (
                             <Laptop className="w-5 h-5 text-blue-600" />
@@ -600,11 +1154,10 @@ export default function ReportDetailPage() {
                           )}
                         </div>
                         <span
-                          className={`px-2 py-0.5 text-[10px] font-semibold rounded-full ${
-                            session.type === "device"
-                              ? "badge-device"
-                              : "badge-material"
-                          }`}
+                          className={`px-2 py-0.5 text-[10px] font-semibold rounded-full ${session.type === "device"
+                            ? "badge-device"
+                            : "badge-material"
+                            }`}
                         >
                           {session.type === "device" ? "Device" : "Material"}
                         </span>
@@ -651,6 +1204,16 @@ export default function ReportDetailPage() {
                 <table className="min-w-full">
                   <thead className="bg-gray-50">
                     <tr>
+                      {showCheckboxes && isSuperAdmin && (
+                        <th className="py-3 px-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-10">
+                          <input
+                            type="checkbox"
+                            checked={selectedSessions.length === filteredSessions.length && filteredSessions.length > 0}
+                            onChange={handleSelectAll}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                        </th>
+                      )}
                       <th className="py-3 px-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                         Session
                       </th>
@@ -686,14 +1249,26 @@ export default function ReportDetailPage() {
                           )
                         }
                       >
+                        {showCheckboxes && isSuperAdmin && (
+                          <td className="py-3 px-4 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedSessions.includes(session.id_preparation)}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                handleSelectSession(session.id_preparation);
+                              }}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                          </td>
+                        )}
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
                             <div
-                              className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                                session.type === "device"
-                                  ? "bg-blue-100"
-                                  : "bg-emerald-100"
-                              }`}
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center ${session.type === "device"
+                                ? "bg-blue-100"
+                                : "bg-emerald-100"
+                                }`}
                             >
                               {session.type === "device" ? (
                                 <Laptop className="w-4 h-4 text-blue-600" />
@@ -721,11 +1296,10 @@ export default function ReportDetailPage() {
                         </td>
                         <td className="py-3 px-4">
                           <span
-                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              session.type === "device"
-                                ? "bg-blue-100 text-blue-700"
-                                : "bg-emerald-100 text-emerald-700"
-                            }`}
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${session.type === "device"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-emerald-100 text-emerald-700"
+                              }`}
                           >
                             {session.type === "device" ? "Device" : "Material"}
                           </span>
@@ -793,6 +1367,43 @@ export default function ReportDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Mobile Bulk Action Bar */}
+        {isSuperAdmin && showCheckboxes && selectedSessions.length > 0 && (
+          <div className="rd-bulk-bar">
+            <span className="text-xs font-semibold text-white opacity-70">
+              {selectedSessions.length} selected
+            </span>
+            <div className="flex items-center gap-2 ml-auto">
+              <button
+                onClick={() => handleBulkVerification("approved")}
+                disabled={updatingVerification}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 transition disabled:opacity-50 rounded-lg"
+              >
+                <ThumbsUp className="w-3.5 h-3.5" /> Approve
+              </button>
+              <button
+                onClick={() => handleBulkVerification("rejected")}
+                disabled={updatingVerification}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-50 rounded-lg"
+              >
+                <ThumbsDown className="w-3.5 h-3.5" /> Reject
+              </button>
+              <button
+                onClick={() => handleBulkVerification("on_review")}
+                disabled={updatingVerification}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-yellow-600 hover:bg-yellow-700 transition disabled:opacity-50 rounded-lg"
+              >
+                <ClockIcon className="w-3.5 h-3.5" /> Review
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Extra padding for mobile bulk bar */}
+        {isSuperAdmin && showCheckboxes && selectedSessions.length > 0 && (
+          <div className="h-16" />
+        )}
       </LayoutDashboard>
     </ProtectedPage>
   );

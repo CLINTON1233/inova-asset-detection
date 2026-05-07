@@ -30,6 +30,8 @@ import {
   FileBarChart,
   CalendarRange,
   ChevronLeft,
+  AlertCircle,
+  UserCheck,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import Swal from "sweetalert2";
@@ -47,9 +49,20 @@ export default function ReportsPage() {
   const [availableYears, setAvailableYears] = useState([]);
   const [mounted, setMounted] = useState(false);
   const [viewMode, setViewMode] = useState("list");
+  const [userRole, setUserRole] = useState(null);
 
   useEffect(() => {
     setMounted(true);
+    // Get user role from localStorage
+    const userData = localStorage.getItem("user_data");
+    if (userData) {
+      try {
+        const parsed = JSON.parse(userData);
+        setUserRole(parsed.role);
+      } catch (e) {
+        console.error("Error parsing user data:", e);
+      }
+    }
     fetchAvailableYears();
   }, []);
 
@@ -109,7 +122,7 @@ export default function ReportsPage() {
     const periodType = report.period_type || periodType;
 
     router.push(
-      `/reports/detail?period_type=${periodType}&period_key=${encodeURIComponent(report.period_key)}&year=${year}&month=${month}`,
+      `/reports/detail?period_type=${periodType}&period_key=${encodeURIComponent(report.period_key)}&year=${year}&month=${month}&report_id=${report.id_report || ''}`,
     );
   };
 
@@ -118,6 +131,44 @@ export default function ReportsPage() {
       return `${report.start_date} - ${report.end_date}`;
     }
     return report.period_label;
+  };
+
+  // Get verification badge configuration
+  const getVerificationBadge = (status) => {
+    switch (status) {
+      case "approved":
+        return {
+          icon: <CheckCircle className="w-3.5 h-3.5" />,
+          text: "Approved",
+          bgClass: "bg-green-100",
+          textClass: "text-green-700",
+          iconClass: "text-green-500",
+        };
+      case "rejected":
+        return {
+          icon: <XCircle className="w-3.5 h-3.5" />,
+          text: "Rejected",
+          bgClass: "bg-red-100",
+          textClass: "text-red-700",
+          iconClass: "text-red-500",
+        };
+      case "on_review":
+        return {
+          icon: <AlertCircle className="w-3.5 h-3.5" />,
+          text: "On Review",
+          bgClass: "bg-yellow-100",
+          textClass: "text-yellow-700",
+          iconClass: "text-yellow-500",
+        };
+      default:
+        return {
+          icon: <Clock className="w-3.5 h-3.5" />,
+          text: "Pending Review",
+          bgClass: "bg-gray-100",
+          textClass: "text-gray-600",
+          iconClass: "text-gray-500",
+        };
+    }
   };
 
   const months = [
@@ -264,21 +315,19 @@ export default function ReportsPage() {
                 <div className="flex rounded-lg overflow-hidden border border-gray-300">
                   <button
                     onClick={() => setPeriodType("weekly")}
-                    className={`px-4 py-2 text-sm font-medium transition ${
-                      periodType === "weekly"
-                        ? "bg-blue-600 text-white"
-                        : "bg-white text-gray-700 hover:bg-gray-50"
-                    }`}
+                    className={`px-4 py-2 text-sm font-medium transition ${periodType === "weekly"
+                      ? "bg-blue-600 text-white"
+                      : "bg-white text-gray-700 hover:bg-gray-50"
+                      }`}
                   >
                     Weekly
                   </button>
                   <button
                     onClick={() => setPeriodType("monthly")}
-                    className={`px-4 py-2 text-sm font-medium transition ${
-                      periodType === "monthly"
-                        ? "bg-blue-600 text-white"
-                        : "bg-white text-gray-700 hover:bg-gray-50"
-                    }`}
+                    className={`px-4 py-2 text-sm font-medium transition ${periodType === "monthly"
+                      ? "bg-blue-600 text-white"
+                      : "bg-white text-gray-700 hover:bg-gray-50"
+                      }`}
                   >
                     Monthly
                   </button>
@@ -378,7 +427,6 @@ export default function ReportsPage() {
                     className="rp-stat-val text-3xl sm:text-4xl font-bold"
                     style={{ color: d.accent }}
                   >
-                    {/* PERUBAHAN ADA DI SINI - Gunakan Math.floor() untuk membulatkan ke bawah */}
                     {Math.floor(d.value)}
                   </span>
                   <p className="text-xs text-gray-400 mt-1.5">{d.sub}</p>
@@ -386,6 +434,7 @@ export default function ReportsPage() {
               ))}
             </div>
           </div>
+
           {/* Main Section */}
           <div className="rp-section">
             {/* Header */}
@@ -456,70 +505,80 @@ export default function ReportsPage() {
               /* Grid View */
               <div className="p-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {reports.map((report, idx) => (
-                    <div
-                      key={idx}
-                      className="rp-grid-card"
-                      onClick={() => handleViewReportDetail(report)}
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                          {report.period_type === "weekly" ? (
-                            <Calendar className="w-5 h-5 text-blue-600" />
-                          ) : (
-                            <CalendarRange className="w-5 h-5 text-blue-600" />
-                          )}
+                  {reports.map((report, idx) => {
+                    const verificationBadge = getVerificationBadge(report.verification_status);
+                    return (
+                      <div
+                        key={idx}
+                        className="rp-grid-card"
+                        onClick={() => handleViewReportDetail(report)}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                            {report.period_type === "weekly" ? (
+                              <Calendar className="w-5 h-5 text-blue-600" />
+                            ) : (
+                              <CalendarRange className="w-5 h-5 text-blue-600" />
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-blue-100 text-blue-700">
+                              {report.period_type === "weekly"
+                                ? "Weekly"
+                                : "Monthly"}
+                            </span>
+                            {/* Verification Badge in Grid */}
+                            <span className={`flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full ${verificationBadge.bgClass} ${verificationBadge.textClass}`}>
+                              {verificationBadge.icon}
+                              {verificationBadge.text}
+                            </span>
+                          </div>
                         </div>
-                        <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-blue-100 text-blue-700">
-                          {report.period_type === "weekly"
-                            ? "Weekly"
-                            : "Monthly"}
-                        </span>
-                      </div>
 
-                      <h3 className="font-semibold text-gray-900 text-base mb-1">
-                        {report.period_label}
-                      </h3>
-                      {report.period_type === "weekly" && report.start_date && (
-                        <p className="text-xs text-gray-500 mb-3">
-                          {report.start_date} - {report.end_date}
-                        </p>
-                      )}
+                        <h3 className="font-semibold text-gray-900 text-base mb-1">
+                          {report.period_label}
+                        </h3>
+                        {report.period_type === "weekly" && report.start_date && (
+                          <p className="text-xs text-gray-500 mb-3">
+                            {report.start_date} - {report.end_date}
+                          </p>
+                        )}
 
-                      <div className="grid grid-cols-2 gap-3 mb-4">
-                        <div className="bg-white rounded-lg p-2 text-center border border-gray-100">
-                          <span className="text-xl font-bold text-gray-800">
-                            {report.session_count || 0}
-                          </span>
-                          <span className="text-[10px] text-gray-400 block">
-                            Sessions
-                          </span>
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                          <div className="bg-white rounded-lg p-2 text-center border border-gray-100">
+                            <span className="text-xl font-bold text-gray-800">
+                              {report.session_count || 0}
+                            </span>
+                            <span className="text-[10px] text-gray-400 block">
+                              Sessions
+                            </span>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 text-center border border-gray-100">
+                            <span className="text-xl font-bold text-gray-800">
+                              {report.total_items || 0}
+                            </span>
+                            <span className="text-[10px] text-gray-400 block">
+                              Total Items
+                            </span>
+                          </div>
                         </div>
-                        <div className="bg-white rounded-lg p-2 text-center border border-gray-100">
-                          <span className="text-xl font-bold text-gray-800">
-                            {report.total_items || 0}
-                          </span>
-                          <span className="text-[10px] text-gray-400 block">
-                            Total Items
-                          </span>
+
+                        <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                          <div className="flex gap-2">
+                            <span className="text-[10px] px-2 py-1 rounded-full bg-blue-50 text-blue-600 font-medium">
+                              🔵 {report.total_devices || 0} Devices
+                            </span>
+                            <span className="text-[10px] px-2 py-1 rounded-full bg-green-50 text-green-600 font-medium">
+                              🟢 {report.total_materials || 0} Materials
+                            </span>
+                          </div>
+                          <button className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700">
+                            {userRole === "superadmin" ? "Review" : "View Details"} <ChevronRight className="w-3 h-3" />
+                          </button>
                         </div>
                       </div>
-
-                      <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                        <div className="flex gap-2">
-                          <span className="text-[10px] px-2 py-1 rounded-full bg-blue-50 text-blue-600 font-medium">
-                            🔵 {report.total_devices || 0} Devices
-                          </span>
-                          <span className="text-[10px] px-2 py-1 rounded-full bg-green-50 text-green-600 font-medium">
-                            🟢 {report.total_materials || 0} Materials
-                          </span>
-                        </div>
-                        <button className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700">
-                          View Details <ChevronRight className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : (
@@ -547,89 +606,106 @@ export default function ReportsPage() {
                         Total Items
                       </th>
                       <th className="py-3 px-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="py-3 px-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {reports.map((report, idx) => (
-                      <tr
-                        key={idx}
-                        className="hover:bg-gray-50 transition-colors"
-                      >
-                        <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-1.5">
-                            {report.period_type === "weekly" ? (
-                              <Calendar className="w-4 h-4 text-gray-400" />
-                            ) : (
-                              <CalendarRange className="w-4 h-4 text-gray-400" />
-                            )}
-                            <span className="font-medium text-gray-700 text-sm">
-                              {report.period_label}
+                    {reports.map((report, idx) => {
+                      const verificationBadge = getVerificationBadge(report.verification_status);
+                      return (
+                        <tr
+                          key={idx}
+                          className="hover:bg-gray-50 transition-colors"
+                        >
+                          <td className="py-2.5 px-3">
+                            <div className="flex items-center gap-1.5">
+                              {report.period_type === "weekly" ? (
+                                <Calendar className="w-4 h-4 text-gray-400" />
+                              ) : (
+                                <CalendarRange className="w-4 h-4 text-gray-400" />
+                              )}
+                              <span className="font-medium text-gray-700 text-sm">
+                                {report.period_label}
+                              </span>
+                            </div>
+                            {report.period_type === "weekly" &&
+                              report.start_date && (
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                  {report.start_date} - {report.end_date}
+                                </p>
+                              )}
+                          </td>
+
+                          <td className="py-2.5 px-3 text-center">
+                            <span className="inline-flex px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600">
+                              {report.period_type === "weekly"
+                                ? "Weekly"
+                                : "Monthly"}
                             </span>
-                          </div>
-                          {report.period_type === "weekly" &&
-                            report.start_date && (
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                {report.start_date} - {report.end_date}
-                              </p>
-                            )}
-                        </td>
+                          </td>
 
-                        <td className="py-2.5 px-3 text-center">
-                          <span className="inline-flex px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600">
-                            {report.period_type === "weekly"
-                              ? "Weekly"
-                              : "Monthly"}
-                          </span>
-                        </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className="text-sm font-medium text-gray-700">
+                              {Math.floor(report.session_count || 0)} session
+                              {Math.floor(report.session_count || 0) !== 1
+                                ? "s"
+                                : ""}
+                            </span>
+                          </td>
 
-                        <td className="py-2.5 px-3 text-center">
-                          <span className="text-sm font-medium text-gray-700">
-                            {Math.floor(report.session_count || 0)} session
-                            {Math.floor(report.session_count || 0) !== 1
-                              ? "s"
-                              : ""}
-                          </span>
-                        </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className="text-sm text-gray-600">
+                              {Math.floor(report.total_devices || 0)} device
+                              {Math.floor(report.total_devices || 0) !== 1
+                                ? "s"
+                                : ""}
+                            </span>
+                          </td>
 
-                        <td className="py-2.5 px-3 text-center">
-                          <span className="text-sm text-gray-600">
-                            {Math.floor(report.total_devices || 0)} device
-                            {Math.floor(report.total_devices || 0) !== 1
-                              ? "s"
-                              : ""}
-                          </span>
-                        </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className="text-sm text-gray-600">
+                              {Math.floor(report.total_materials || 0)} material
+                              {Math.floor(report.total_materials || 0) !== 1
+                                ? "s"
+                                : ""}
+                            </span>
+                          </td>
 
-                        <td className="py-2.5 px-3 text-center">
-                          <span className="text-sm text-gray-600">
-                            {Math.floor(report.total_materials || 0)} material
-                            {Math.floor(report.total_materials || 0) !== 1
-                              ? "s"
-                              : ""}
-                          </span>
-                        </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className="text-sm font-bold text-gray-800">
+                              {Math.floor(report.total_items || 0)} item
+                              {Math.floor(report.total_items || 0) !== 1
+                                ? "s"
+                                : ""}
+                            </span>
+                          </td>
 
-                        <td className="py-2.5 px-3 text-center">
-                          <span className="text-sm font-bold text-gray-800">
-                            {Math.floor(report.total_items || 0)} item
-                            {Math.floor(report.total_items || 0) !== 1
-                              ? "s"
-                              : ""}
-                          </span>
-                        </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full ${verificationBadge.bgClass} ${verificationBadge.textClass}`}>
+                              {verificationBadge.icon}
+                              {verificationBadge.text}
+                            </span>
+                          </td>
 
-                        <td className="py-2.5 px-3 text-center">
-                          <button
-                            onClick={() => handleViewReportDetail(report)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-gray-500 hover:bg-gray-600 rounded-lg transition"
-                          >
-                            <Eye className="w-3.5 h-3.5" /> View Details
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                          <td className="py-2.5 px-3 text-center">
+                            <button
+                              onClick={() => handleViewReportDetail(report)}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition ${userRole === "superadmin"
+                                ? "bg-yellow-600 hover:bg-yellow-700 text-white"
+                                : "bg-gray-500 hover:bg-gray-600 text-white"
+                                }`}
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              {userRole === "superadmin" ? "Review" : "View Details"}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -788,7 +788,12 @@ def create_reports_table(conn):
                 status VARCHAR(50) DEFAULT 'active',
                 created_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                -- KOLOM VERIFIKASI --
+                verification_status VARCHAR(50) DEFAULT 'pending_review',
+                verification_notes TEXT,
+                verified_by INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
+                verified_at TIMESTAMP
             )
         """)
         
@@ -798,6 +803,11 @@ def create_reports_table(conn):
         cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_period ON reports(period_key)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_year ON reports(year)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_date ON reports(start_date, end_date)")
+        
+        # Index untuk kolom verifikasi
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_verification_status ON reports(verification_status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_verified_by ON reports(verified_by)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_reports_verified_at ON reports(verified_at)")
         
         conn.commit()
         print("✓ Tabel reports berhasil dibuat")
