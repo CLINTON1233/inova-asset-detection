@@ -169,13 +169,13 @@ export default function ReportDetailPage() {
 
     if (status === "rejected") {
       const result = await Swal.fire({
-        title: "Alasan Penolakan",
-        text: "Silakan masukkan alasan mengapa laporan ini ditolak:",
+        title: "Rejection Reason",
+        text: "Please provide a reason why this report is rejected:",
         input: "textarea",
-        inputPlaceholder: "Contoh: Pengecekan laptop masih kurang 5 unit, silakan lengkapi...",
+        inputPlaceholder: "Example: Laptop check still missing 5 units, please complete...",
         showCancelButton: true,
-        confirmButtonText: "Kirim",
-        cancelButtonText: "Batal",
+        confirmButtonText: "Submit",
+        cancelButtonText: "Cancel",
       });
 
       if (!result.isConfirmed) return;
@@ -183,7 +183,7 @@ export default function ReportDetailPage() {
       if (!notes || notes.trim() === "") {
         Swal.fire({
           title: "Error!",
-          text: "Alasan penolakan harus diisi",
+          text: "Rejection reason is required",
           icon: "error",
         });
         return;
@@ -191,23 +191,23 @@ export default function ReportDetailPage() {
       setVerificationNotes(notes);
     } else if (status === "approved") {
       const result = await Swal.fire({
-        title: "Konfirmasi Persetujuan",
-        text: "Apakah Anda yakin ingin menyetujui laporan ini?",
+        title: "Confirm Approval",
+        text: "Are you sure you want to approve this report?",
         icon: "question",
         showCancelButton: true,
-        confirmButtonText: "Ya, Setujui",
-        cancelButtonText: "Batal",
+        confirmButtonText: "Yes, Approve",
+        cancelButtonText: "Cancel",
       });
 
       if (!result.isConfirmed) return;
     } else if (status === "on_review") {
       const result = await Swal.fire({
-        title: "Mulai Review",
-        text: "Laporan akan ditandai sebagai sedang direview",
+        title: "Start Review",
+        text: "The report will be marked as under review",
         icon: "info",
         showCancelButton: true,
-        confirmButtonText: "Ya, Mulai Review",
-        cancelButtonText: "Batal",
+        confirmButtonText: "Yes, Start Review",
+        cancelButtonText: "Cancel",
       });
 
       if (!result.isConfirmed) return;
@@ -244,13 +244,13 @@ export default function ReportDetailPage() {
 
       if (result.success) {
         Swal.fire({
-          title: "Berhasil!",
+          title: "Success!",
           text:
             status === "approved"
-              ? "Laporan telah disetujui"
+              ? "Report has been approved"
               : status === "rejected"
-                ? "Laporan telah ditolak"
-                : "Laporan sedang dalam review",
+                ? "Report has been rejected"
+                : "Report is under review",
           icon: "success",
           timer: 2000,
           showConfirmButton: false,
@@ -289,13 +289,13 @@ export default function ReportDetailPage() {
 
     if (status === "rejected") {
       const result = await Swal.fire({
-        title: "Alasan Penolakan",
-        text: "Silakan masukkan alasan mengapa sesi-sesi ini ditolak:",
+        title: "Rejection Reason",
+        text: "Please provide a reason why these sessions are rejected:",
         input: "textarea",
-        inputPlaceholder: "Contoh: Pengecekan laptop masih kurang 5 unit, silakan lengkapi...",
+        inputPlaceholder: "Example: Laptop check still missing 5 units, please complete...",
         showCancelButton: true,
-        confirmButtonText: "Kirim",
-        cancelButtonText: "Batal",
+        confirmButtonText: "Submit",
+        cancelButtonText: "Cancel",
       });
 
       if (!result.isConfirmed) return;
@@ -303,30 +303,30 @@ export default function ReportDetailPage() {
       if (!notes || notes.trim() === "") {
         Swal.fire({
           title: "Error!",
-          text: "Alasan penolakan harus diisi",
+          text: "Rejection reason is required",
           icon: "error",
         });
         return;
       }
     } else if (status === "approved") {
       const result = await Swal.fire({
-        title: "Konfirmasi Persetujuan",
-        text: `Apakah Anda yakin ingin menyetujui ${selectedSessions.length} sesi laporan?`,
+        title: "Confirm Approval",
+        text: `Are you sure you want to approve ${selectedSessions.length} report session(s)?`,
         icon: "question",
         showCancelButton: true,
-        confirmButtonText: "Ya, Setujui",
-        cancelButtonText: "Batal",
+        confirmButtonText: "Yes, Approve",
+        cancelButtonText: "Cancel",
       });
 
       if (!result.isConfirmed) return;
     } else if (status === "on_review") {
       const result = await Swal.fire({
-        title: "Mulai Review",
-        text: `Apakah Anda yakin ingin mereview ${selectedSessions.length} sesi laporan?`,
+        title: "Start Review",
+        text: `Are you sure you want to review ${selectedSessions.length} report session(s)?`,
         icon: "info",
         showCancelButton: true,
-        confirmButtonText: "Ya, Mulai Review",
-        cancelButtonText: "Batal",
+        confirmButtonText: "Yes, Start Review",
+        cancelButtonText: "Cancel",
       });
 
       if (!result.isConfirmed) return;
@@ -366,8 +366,8 @@ export default function ReportDetailPage() {
 
       if (result.success) {
         Swal.fire({
-          title: "Berhasil!",
-          text: `${selectedSessions.length} sesi laporan telah ${status === "approved" ? "disetujui" : status === "rejected" ? "ditolak" : "direview"}`,
+          title: "Success!",
+          text: `${selectedSessions.length} report session(s) have been ${status === "approved" ? "approved" : status === "rejected" ? "rejected" : "reviewed"}`,
           icon: "success",
           timer: 2000,
           showConfirmButton: false,
@@ -424,7 +424,7 @@ export default function ReportDetailPage() {
           Session: asset.session_name || "-",
           "Session Number": asset.session_number || "-",
           "Validated Date": asset.validated_at
-            ? new Date(asset.validated_at).toLocaleDateString("id-ID")
+            ? new Date(asset.validated_at).toLocaleDateString("en-US")
             : "-",
         }));
 
@@ -508,7 +508,7 @@ export default function ReportDetailPage() {
 
   const formatDate = (dateString) => {
     if (!dateString) return "—";
-    return new Date(dateString).toLocaleDateString("id-ID", {
+    return new Date(dateString).toLocaleDateString("en-US", {
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -529,7 +529,7 @@ export default function ReportDetailPage() {
     const config = {
       pending_review: {
         icon: <ClockIcon className="w-4 h-4" />,
-        text: "Belum Direview",
+        text: "Pending Review",
         bgClass: "bg-gray-100",
         textClass: "text-gray-600",
         iconClass: "text-gray-500",
@@ -543,14 +543,14 @@ export default function ReportDetailPage() {
       },
       approved: {
         icon: <CheckCircle className="w-4 h-4" />,
-        text: "Disetujui",
+        text: "Approved",
         bgClass: "bg-green-100",
         textClass: "text-green-700",
         iconClass: "text-green-500",
       },
       rejected: {
         icon: <XCircle className="w-4 h-4" />,
-        text: "Ditolak",
+        text: "Rejected",
         bgClass: "bg-red-100",
         textClass: "text-red-700",
         iconClass: "text-red-500",
@@ -876,11 +876,11 @@ export default function ReportDetailPage() {
                   <div className="flex items-start gap-2">
                     <AlertCircle className="w-4 h-4 text-red-500 mt-0.5" />
                     <div>
-                      <p className="text-xs font-semibold text-red-700">Alasan Penolakan:</p>
+                      <p className="text-xs font-semibold text-red-700">Rejection Reason:</p>
                       <p className="text-sm text-red-600">{verificationStatus.verification_notes}</p>
                       {verificationStatus.verified_by_name && (
                         <p className="text-xs text-red-400 mt-1">
-                          Diverifikasi oleh: {verificationStatus.verified_by_name} pada {formatDate(verificationStatus.verified_at)}
+                          Verified by: {verificationStatus.verified_by_name} on {formatDate(verificationStatus.verified_at)}
                         </p>
                       )}
                     </div>
@@ -893,11 +893,11 @@ export default function ReportDetailPage() {
                   <div className="flex items-start gap-2">
                     <AlertCircle className="w-4 h-4 text-yellow-500 mt-0.5" />
                     <div>
-                      <p className="text-xs font-semibold text-yellow-700">Catatan Review:</p>
+                      <p className="text-xs font-semibold text-yellow-700">Review Notes:</p>
                       <p className="text-sm text-yellow-600">{verificationStatus.verification_notes}</p>
                       {verificationStatus.verified_by_name && (
                         <p className="text-xs text-yellow-400 mt-1">
-                          Direview oleh: {verificationStatus.verified_by_name} pada {formatDate(verificationStatus.verified_at)}
+                          Reviewed by: {verificationStatus.verified_by_name} on {formatDate(verificationStatus.verified_at)}
                         </p>
                       )}
                     </div>
@@ -911,10 +911,10 @@ export default function ReportDetailPage() {
                     <UserCheck className="w-4 h-4 text-green-500 mt-0.5" />
                     <div>
                       <p className="text-sm text-green-600">
-                        Disetujui oleh: <span className="font-semibold">{verificationStatus.verified_by_name}</span>
+                        Approved by: <span className="font-semibold">{verificationStatus.verified_by_name}</span>
                       </p>
                       <p className="text-xs text-green-500">
-                        Pada tanggal: {formatDate(verificationStatus.verified_at)}
+                        On: {formatDate(verificationStatus.verified_at)}
                       </p>
                     </div>
                   </div>
@@ -985,7 +985,7 @@ export default function ReportDetailPage() {
                     Reports in this Period
                   </h2>
                   <p className="text-sm text-gray-500 mt-0.5">
-                    {filteredSessions.length} Session Found
+                    {filteredSessions.length} Session(s) Found
                   </p>
                 </div>
 

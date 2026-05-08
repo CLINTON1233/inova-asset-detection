@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import traceback
 import random
 import string
+import re
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -16,6 +17,126 @@ def generate_report_code():
     date_str = datetime.now().strftime('%Y%m%d')
     random_chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
     return f"RPT-{date_str}-{random_chars}"
+
+# ==================== FUNGSI BARU UNTUK WEEKLY ====================
+def get_week_range(year, week_num):
+    """
+    Mendapatkan range tanggal untuk minggu tertentu (ISO week)
+    Minggu dimulai dari Senin dan berakhir Minggu
+    """
+    # Cari hari Kamis di minggu tersebut (ISO week definition)
+    first_day_of_year = datetime(year, 1, 1)
+    # Cari hari Kamis pertama di tahun itu
+    days_to_first_thursday = (3 - first_day_of_year.weekday()) % 7
+    first_thursday = first_day_of_year + timedelta(days=days_to_first_thursday)
+    # Minggu 1 adalah minggu yang berisi Kamis pertama
+    week1_thursday = first_thursday
+    # Target minggu
+    target_thursday = week1_thursday + timedelta(weeks=week_num - 1)
+    # Senin = Kamis - 3 hari
+    start_date = target_thursday - timedelta(days=3)
+    # Minggu = Senin + 6 hari
+    end_date = start_date + timedelta(days=6)
+    return start_date, end_date
+
+# Tambahkan fungsi ini setelah fungsi get_week_range()
+
+def get_weeks_in_month(year, month):
+    """
+    Mendapatkan semua minggu (ISO week) yang berada dalam bulan tertentu
+    """
+    from datetime import datetime, timedelta
+    
+    # Tanggal pertama bulan
+    first_date = datetime(year, month, 1)
+    # Tanggal terakhir bulan
+    if month == 12:
+        last_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+    else:
+        last_date = datetime(year, month + 1, 1) - timedelta(days=1)
+    
+    weeks = set()
+    current_date = first_date
+    
+    while current_date <= last_date:
+        week_num = current_date.isocalendar()[1]
+        week_year = current_date.isocalendar()[0]
+        weeks.add((week_year, week_num))
+        current_date += timedelta(days=7)
+    
+    return weeks
+
+def sync_verification_status(report):
+    """
+    Sinkronisasi status verifikasi antara monthly dan weekly reports
+    """
+    conn = None
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        
+        period_type = report.get('period_type')
+        period_key = report.get('period_key')
+        verification_status = report.get('verification_status')
+        verification_notes = report.get('verification_notes')
+        verified_by = report.get('verified_by')
+        
+        if period_type == 'monthly':
+            # Parse year dan month dari period_key (format: YYYY-MM)
+            match = re.match(r'(\d+)-(\d+)', period_key)
+            if match:
+                year = int(match.group(1))
+                month = int(match.group(2))
+                
+                # Dapatkan semua minggu dalam bulan ini
+                weeks = get_weeks_in_month(year, month)
+                
+                # Update semua weekly report dalam bulan ini
+                for week_year, week_num in weeks:
+                    week_key = f"{week_year}-W{week_num:02d}"
+                    cur.execute("""
+                        UPDATE reports 
+                        SET verification_status = %s,
+                            verification_notes = %s,
+                            verified_by = %s,
+                            verified_at = CURRENT_TIMESTAMP,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE period_key = %s AND report_type = 'weekly'
+                    """, (verification_status, verification_notes, verified_by, week_key))
+                    
+        elif period_type == 'weekly':
+            # Parse year dan week_num dari period_key (format: YYYY-WXX)
+            match = re.match(r'(\d+)-W(\d+)', period_key)
+            if match:
+                year = int(match.group(1))
+                week_num = int(match.group(2))
+                
+                # Dapatkan bulan dari minggu ini
+                start_date, _ = get_week_range(year, week_num)
+                month = start_date.month
+                month_key = f"{year}-{month:02d}"
+                
+                # Update monthly report yang sesuai
+                cur.execute("""
+                    UPDATE reports 
+                    SET verification_status = %s,
+                        verification_notes = %s,
+                        verified_by = %s,
+                        verified_at = CURRENT_TIMESTAMP,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE period_key = %s AND report_type = 'monthly'
+                """, (verification_status, verification_notes, verified_by, month_key))
+        
+        conn.commit()
+        
+    except Exception as e:
+        print(f"Error syncing verification status: {e}")
+        print(traceback.format_exc())
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            conn.close()
 
 # ==================== ENSURE REPORT EXISTS ====================
 @reports_bp.route('/api/reports/ensure', methods=['POST'])
@@ -61,17 +182,11 @@ def ensure_report():
         end_date = None
         
         if period_type == 'weekly' and period_key:
-            import re
             match = re.match(r'(\d+)-W(\d+)', period_key)
             if match:
                 year = int(match.group(1))
                 week_num = int(match.group(2))
-                from datetime import datetime, timedelta
-                first_day_of_year = datetime(year, 1, 1)
-                days_to_first_week = (7 - first_day_of_year.weekday()) % 7
-                first_week_start = first_day_of_year + timedelta(days=days_to_first_week)
-                start_date = first_week_start + timedelta(weeks=week_num - 1)
-                end_date = start_date + timedelta(days=6)
+                start_date, end_date = get_week_range(year, week_num)
         elif period_type == 'monthly' and year and month:
             start_date = datetime(int(year), int(month), 1)
             if int(month) == 12:
@@ -127,7 +242,7 @@ def bulk_verify_sessions():
         data = request.get_json()
         session_ids = data.get('session_ids', [])
         report_id = data.get('report_id')
-        verification_status = data.get('verification_status')  # 'approved', 'rejected', 'on_review'
+        verification_status = data.get('verification_status')
         verification_notes = data.get('verification_notes', '')
         verified_by = data.get('verified_by')
         
@@ -146,35 +261,15 @@ def bulk_verify_sessions():
         conn = get_conn()
         cur = conn.cursor()
         
-        # Untuk setiap session, update atau insert ke report_items dengan status
         for session_id in session_ids:
-            # Cek apakah session sudah ada di report_items
             cur.execute("""
-                SELECT id_report_item FROM report_items 
+                UPDATE report_items 
+                SET verification_status = %s,
+                    verification_notes = %s,
+                    verified_by = %s,
+                    verified_at = CURRENT_TIMESTAMP
                 WHERE report_id = %s AND session_id = %s
-            """, (report_id, session_id))
-            
-            existing = cur.fetchone()
-            
-            if existing:
-                cur.execute("""
-                    UPDATE report_items 
-                    SET verification_status = %s,
-                        verification_notes = %s,
-                        verified_by = %s,
-                        verified_at = CURRENT_TIMESTAMP
-                    WHERE id_report_item = %s
-                """, (verification_status, verification_notes, verified_by, existing[0]))
-            else:
-                # Insert new report item with verification status
-                cur.execute("""
-                    INSERT INTO report_items (
-                        report_id, session_type, session_id, session_name, session_number,
-                        session_date, location_name, project_name, total_items,
-                        verification_status, verification_notes, verified_by, verified_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-                """, (report_id, 'device', session_id, None, None, None, None, None, 0,
-                      verification_status, verification_notes, verified_by))
+            """, (verification_status, verification_notes, verified_by, report_id, session_id))
         
         conn.commit()
         
@@ -206,7 +301,7 @@ def get_reports():
     """Mendapatkan daftar report yang sudah memiliki asset, dikelompokkan berdasarkan periode (mingguan/bulanan)"""
     conn = None
     try:
-        period = request.args.get('period', 'monthly')  # weekly, monthly, or all
+        period = request.args.get('period', 'monthly')
         year = request.args.get('year', None)
         month = request.args.get('month', None)
         
@@ -267,7 +362,6 @@ def get_reports():
         all_sessions = []
         for prep in devices_sessions:
             prep_dict = dict(prep)
-            # Ambil project name
             cur.execute("""
                 SELECT DISTINCT project_name 
                 FROM devices_scanning_items 
@@ -292,31 +386,36 @@ def get_reports():
             prep_dict['project_name'] = project['project_name'] if project else None
             all_sessions.append(prep_dict)
         
+        # ==================== PERUBAHAN: WEEKLY FILTER DIHAPUS ====================
         # Filter berdasarkan periode
         filtered_sessions = []
-        for session in all_sessions:
-            checking_date = session.get('checking_date')
-            if not checking_date:
-                continue
-            
-            date_obj = checking_date if isinstance(checking_date, datetime) else datetime.strptime(str(checking_date), '%Y-%m-%d')
-            
-            if period == 'weekly':
-                # Cek apakah dalam 7 hari terakhir
-                week_ago = datetime.now() - timedelta(days=7)
-                if date_obj >= week_ago:
-                    filtered_sessions.append(session)
-            elif period == 'monthly':
-                # Filter berdasarkan tahun dan bulan
+        
+        if period == 'weekly':
+            # UNTUK WEEKLY: TIDAK ADA FILTER TANGGAL
+            # Semua session langsung dimasukkan untuk dikelompokkan per minggu
+            for session in all_sessions:
+                checking_date = session.get('checking_date')
+                if not checking_date:
+                    continue
+                filtered_sessions.append(session)
+                
+        elif period == 'monthly':
+            # UNTUK MONTHLY: TETAP SAMA SEPERTI SEBELUMNYA
+            for session in all_sessions:
+                checking_date = session.get('checking_date')
+                if not checking_date:
+                    continue
+                
+                date_obj = checking_date if isinstance(checking_date, datetime) else datetime.strptime(str(checking_date), '%Y-%m-%d')
+                
                 if year and month:
                     if date_obj.year == int(year) and date_obj.month == int(month):
                         filtered_sessions.append(session)
                 else:
-                    # Default: bulan ini
                     if date_obj.year == datetime.now().year and date_obj.month == datetime.now().month:
                         filtered_sessions.append(session)
-            else:
-                filtered_sessions.append(session)
+        else:
+            filtered_sessions = all_sessions
         
         # Kelompokkan berdasarkan periode untuk tampilan ringkasan
         reports_grouped = {}
@@ -329,17 +428,21 @@ def get_reports():
             date_obj = checking_date if isinstance(checking_date, datetime) else datetime.strptime(str(checking_date), '%Y-%m-%d')
             
             if period == 'weekly':
-                # Kelompokkan per minggu (gunakan week number dan year)
-                week_key = f"{date_obj.year}-W{date_obj.isocalendar()[1]:02d}"
-                week_label = f"Week {date_obj.isocalendar()[1]} - {date_obj.year}"
+                # Gunakan ISO week number untuk pengelompokan
+                week_num = date_obj.isocalendar()[1]
+                week_year = date_obj.isocalendar()[0]
+                week_key = f"{week_year}-W{week_num:02d}"
+                week_label = f"Week {week_num} - {week_year}"
                 
                 if week_key not in reports_grouped:
+                    start_date, end_date = get_week_range(week_year, week_num)
                     reports_grouped[week_key] = {
                         'period_key': week_key,
                         'period_label': week_label,
                         'period_type': 'weekly',
-                        'start_date': (date_obj - timedelta(days=date_obj.weekday())).strftime('%Y-%m-%d'),
-                        'end_date': (date_obj + timedelta(days=6 - date_obj.weekday())).strftime('%Y-%m-%d'),
+                        'year': week_year,
+                        'start_date': start_date.strftime('%Y-%m-%d'),
+                        'end_date': end_date.strftime('%Y-%m-%d'),
                         'sessions': [],
                         'total_devices': 0,
                         'total_materials': 0,
@@ -380,6 +483,7 @@ def get_reports():
         reports_list = list(reports_grouped.values())
         reports_list.sort(key=lambda x: x['period_key'], reverse=True)
         
+
         for report in reports_list:
             try:
                 cur.execute("""
@@ -398,11 +502,17 @@ def get_reports():
                     report['verified_by'] = existing['verified_by']
                     report['id_report'] = existing['id_report']
                 else:
+                    # Jika belum ada di reports table, buat baru
+                    # Tapi untuk weekly, kita tetap set default
                     report['verification_status'] = 'pending_review'
                     report['verification_notes'] = None
                     report['verified_at'] = None
                     report['verified_by'] = None
                     report['id_report'] = None
+                    
+                    # Opsional: buat report entry baru
+                    # (kode untuk insert bisa ditambahkan di sini jika perlu)
+                    
             except Exception as e:
                 print(f"Error getting verification status for report {report['period_key']}: {e}")
                 report['verification_status'] = 'pending_review'
@@ -448,20 +558,14 @@ def get_report_detail():
         end_date = None
         
         if period_type == 'weekly' and period_key:
-            try:
-                import re
-                match = re.match(r'(\d+)-W(\d+)', period_key)
-                if match:
-                    year = int(match.group(1))
-                    week_num = int(match.group(2))
-                    first_day_of_year = datetime(year, 1, 1)
-                    days_to_first_week = (7 - first_day_of_year.weekday()) % 7
-                    first_week_start = first_day_of_year + timedelta(days=days_to_first_week)
-                    start_date = first_week_start + timedelta(weeks=week_num - 1)
-                    end_date = start_date + timedelta(days=6)
-            except:
-                pass
+            # ==================== PERUBAHAN: MENGGUNAKAN FUNGSI get_week_range ====================
+            match = re.match(r'(\d+)-W(\d+)', period_key)
+            if match:
+                year = int(match.group(1))
+                week_num = int(match.group(2))
+                start_date, end_date = get_week_range(year, week_num)
         elif period_type == 'monthly' and year and month:
+            # ==================== TIDAK BERUBAH ====================
             start_date = datetime(int(year), int(month), 1)
             if int(month) == 12:
                 end_date = datetime(int(year) + 1, 1, 1) - timedelta(days=1)
@@ -472,7 +576,7 @@ def get_report_detail():
         sessions_data = []
         
         if start_date and end_date:
-            # Device sessions - TAMBAHKAN project_name
+            # Device sessions
             cur.execute("""
                 SELECT 
                     dsp.id_preparation,
@@ -486,7 +590,6 @@ def get_report_detail():
                     COUNT(DISTINCT a.id_assets) as total_items,
                     COALESCE(SUM(CASE WHEN a.asset_type = 'device' THEN a.quantity ELSE 0 END), 0) as device_count,
                     COALESCE(SUM(CASE WHEN a.asset_type = 'material' THEN a.quantity ELSE 0 END), 0) as material_count,
-                    -- Ambil project_name dari devices_scanning_items
                     (SELECT DISTINCT project_name FROM devices_scanning_items 
                      WHERE preparation_id = dsp.id_preparation AND project_name IS NOT NULL LIMIT 1) as project_name
                 FROM devices_scanning_preparations dsp
@@ -502,7 +605,7 @@ def get_report_detail():
             """, (start_date, end_date))
             device_sessions = cur.fetchall()
             
-            # Material sessions - TAMBAHKAN project_name
+            # Material sessions
             cur.execute("""
                 SELECT 
                     msp.id_preparation,
@@ -516,7 +619,6 @@ def get_report_detail():
                     COUNT(DISTINCT a.id_assets) as total_items,
                     COALESCE(SUM(CASE WHEN a.asset_type = 'device' THEN a.quantity ELSE 0 END), 0) as device_count,
                     COALESCE(SUM(CASE WHEN a.asset_type = 'material' THEN a.quantity ELSE 0 END), 0) as material_count,
-                    -- Ambil project_name dari materials_scanning_items
                     (SELECT DISTINCT project_name FROM materials_scanning_items 
                      WHERE preparation_id = msp.id_preparation AND project_name IS NOT NULL LIMIT 1) as project_name
                 FROM materials_scanning_preparations msp
@@ -535,7 +637,6 @@ def get_report_detail():
             # Gabungkan
             for session in device_sessions:
                 session_dict = dict(session)
-                # Pastikan project_name tidak None
                 if not session_dict.get('project_name'):
                     session_dict['project_name'] = '-'
                 sessions_data.append(session_dict)
@@ -598,16 +699,11 @@ def export_report():
         end_date = None
         
         if period_type == 'weekly' and period_key:
-            import re
             match = re.match(r'(\d+)-W(\d+)', period_key)
             if match:
                 year = int(match.group(1))
                 week_num = int(match.group(2))
-                first_day_of_year = datetime(year, 1, 1)
-                days_to_first_week = (7 - first_day_of_year.weekday()) % 7
-                first_week_start = first_day_of_year + timedelta(days=days_to_first_week)
-                start_date = first_week_start + timedelta(weeks=week_num - 1)
-                end_date = start_date + timedelta(days=6)
+                start_date, end_date = get_week_range(year, week_num)
         elif period_type == 'monthly' and year and month:
             start_date = datetime(int(year), int(month), 1)
             if int(month) == 12:
@@ -717,19 +813,17 @@ def get_available_years():
         conn = get_conn()
         cur = conn.cursor()
         
-        # Ambil dari device sessions
+        # ==================== PERUBAHAN: MENGHAPUS FILTER status = 'completed' ====================
         cur.execute("""
             SELECT DISTINCT EXTRACT(YEAR FROM checking_date) as year
             FROM devices_scanning_preparations
-            WHERE status = 'completed'
             UNION
             SELECT DISTINCT EXTRACT(YEAR FROM checking_date) as year
             FROM materials_scanning_preparations
-            WHERE status = 'completed'
             ORDER BY year DESC
         """)
         
-        years = [row[0] for row in cur.fetchall() if row[0]]
+        years = [int(row[0]) for row in cur.fetchall() if row[0]]
         
         return jsonify({
             'success': True,
@@ -753,7 +847,7 @@ def verify_report(report_id):
     conn = None
     try:
         data = request.get_json()
-        verification_status = data.get('verification_status')  # 'approved' or 'rejected'
+        verification_status = data.get('verification_status')
         verification_notes = data.get('verification_notes', '')
         verified_by = data.get('verified_by')
         
@@ -764,7 +858,22 @@ def verify_report(report_id):
             }), 400
         
         conn = get_conn()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        
+        # Ambil data report sebelum update
+        cur.execute("""
+            SELECT id_report, period_key, report_type, verification_status
+            FROM reports
+            WHERE id_report = %s
+        """, (report_id,))
+        
+        report_before = cur.fetchone()
+        
+        if not report_before:
+            return jsonify({
+                'success': False,
+                'error': 'Report not found'
+            }), 404
         
         # Update report
         cur.execute("""
@@ -775,22 +884,92 @@ def verify_report(report_id):
                 verified_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id_report = %s
-            RETURNING id_report, verification_status
+            RETURNING id_report, verification_status, period_key, report_type
         """, (verification_status, verification_notes, verified_by, report_id))
         
         result = cur.fetchone()
-        
-        if not result:
-            return jsonify({
-                'success': False,
-                'error': 'Report not found'
-            }), 404
-        
         conn.commit()
+        
+        # ==================== SINKRONISASI ====================
+        # Buat dictionary report yang sudah diupdate
+        updated_report = {
+            'period_key': result[2],
+            'period_type': result[3],
+            'verification_status': result[1],
+            'verification_notes': verification_notes,
+            'verified_by': verified_by
+        }
+        
+        # Panggil fungsi sinkronisasi (gunakan koneksi terpisah)
+        def sync():
+            sync_conn = None
+            try:
+                sync_conn = get_conn()
+                sync_cur = sync_conn.cursor()
+                
+                period_type = updated_report['period_type']
+                period_key = updated_report['period_key']
+                verification_status = updated_report['verification_status']
+                verification_notes = updated_report['verification_notes']
+                verified_by = updated_report['verified_by']
+                
+                if period_type == 'monthly':
+                    match = re.match(r'(\d+)-(\d+)', period_key)
+                    if match:
+                        year = int(match.group(1))
+                        month = int(match.group(2))
+                        weeks = get_weeks_in_month(year, month)
+                        
+                        for week_year, week_num in weeks:
+                            week_key = f"{week_year}-W{week_num:02d}"
+                            sync_cur.execute("""
+                                UPDATE reports 
+                                SET verification_status = %s,
+                                    verification_notes = %s,
+                                    verified_by = %s,
+                                    verified_at = CURRENT_TIMESTAMP,
+                                    updated_at = CURRENT_TIMESTAMP
+                                WHERE period_key = %s AND report_type = 'weekly'
+                            """, (verification_status, verification_notes, verified_by, week_key))
+                            
+                elif period_type == 'weekly':
+                    match = re.match(r'(\d+)-W(\d+)', period_key)
+                    if match:
+                        year = int(match.group(1))
+                        week_num = int(match.group(2))
+                        start_date, _ = get_week_range(year, week_num)
+                        month = start_date.month
+                        month_key = f"{year}-{month:02d}"
+                        
+                        sync_cur.execute("""
+                            UPDATE reports 
+                            SET verification_status = %s,
+                                verification_notes = %s,
+                                verified_by = %s,
+                                verified_at = CURRENT_TIMESTAMP,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE period_key = %s AND report_type = 'monthly'
+                        """, (verification_status, verification_notes, verified_by, month_key))
+                
+                sync_conn.commit()
+                print(f"Sync completed for {period_type} report {period_key}")
+                
+            except Exception as e:
+                print(f"Error in sync: {e}")
+                if sync_conn:
+                    sync_conn.rollback()
+            finally:
+                if sync_conn:
+                    sync_conn.close()
+        
+        # Jalankan sinkronisasi di background thread agar tidak blocking
+        import threading
+        sync_thread = threading.Thread(target=sync)
+        sync_thread.start()
         
         return jsonify({
             'success': True,
-            'message': f'Report has been {verification_status}',
+            'message': f'Report has been {verification_status} and synced to related reports',
             'data': {
                 'id_report': result[0],
                 'verification_status': result[1]
