@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
@@ -43,13 +43,18 @@ export default function ReportsPage() {
   const router = useRouter();
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [periodType, setPeriodType] = useState("monthly");
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [periodType, setPeriodType] = useState("weekly");
+  const [selectedYear, setSelectedYear] = useState(null); // Mulai dengan null
+  const [selectedMonth, setSelectedMonth] = useState(null); // Mulai dengan null
   const [availableYears, setAvailableYears] = useState([]);
   const [mounted, setMounted] = useState(false);
   const [viewMode, setViewMode] = useState("list");
   const [userRole, setUserRole] = useState(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // Gunakan ref untuk mencegah infinite loop
+  const isFetchingRef = useRef(false);
+  const lastFetchParamsRef = useRef({ periodType: null, year: null, month: null });
 
   useEffect(() => {
     setMounted(true);
@@ -66,11 +71,42 @@ export default function ReportsPage() {
     fetchAvailableYears();
   }, []);
 
+  // Effect untuk mengatur nilai default setelah years tersedia
   useEffect(() => {
-    if (mounted) {
-      fetchReports();
+    if (availableYears.length > 0 && selectedYear === null) {
+      setSelectedYear(availableYears[0]);
+      setSelectedMonth(new Date().getMonth() + 1);
     }
-  }, [periodType, selectedYear, selectedMonth]);
+  }, [availableYears, selectedYear]);
+
+  // Effect untuk fetch reports - dengan guard untuk mencegah duplicate fetch
+  useEffect(() => {
+    if (mounted && selectedYear !== null && selectedMonth !== null) {
+      // Cek apakah parameter berubah
+      const currentParams = {
+        periodType,
+        year: selectedYear,
+        month: selectedMonth
+      };
+
+      const lastParams = lastFetchParamsRef.current;
+
+      if (lastParams.periodType === currentParams.periodType &&
+        lastParams.year === currentParams.year &&
+        lastParams.month === currentParams.month &&
+        !isInitialLoad) {
+        // Parameter sama, skip fetch
+        return;
+      }
+
+      // Update last params
+      lastFetchParamsRef.current = currentParams;
+
+      // Fetch reports
+      fetchReports();
+      setIsInitialLoad(false);
+    }
+  }, [mounted, periodType, selectedYear, selectedMonth]);
 
   const fetchAvailableYears = async () => {
     try {
@@ -78,7 +114,6 @@ export default function ReportsPage() {
       const result = await response.json();
       if (result.success && result.data.length > 0) {
         setAvailableYears(result.data);
-        setSelectedYear(result.data[0]);
       } else {
         setAvailableYears([new Date().getFullYear()]);
       }
@@ -88,13 +123,20 @@ export default function ReportsPage() {
     }
   };
 
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
+    // Cegah multiple fetch bersamaan
+    if (isFetchingRef.current) return;
+
+    isFetchingRef.current = true;
     setLoading(true);
+
     try {
       let url = `${API_BASE_URL}/api/reports?period=${periodType}`;
-      if (periodType === "monthly") {
+      if (periodType === "monthly" && selectedYear && selectedMonth) {
         url += `&year=${selectedYear}&month=${selectedMonth}`;
       }
+
+      console.log("Fetching reports:", url); // Debug
 
       const response = await fetch(url);
       const result = await response.json();
@@ -113,24 +155,41 @@ export default function ReportsPage() {
       });
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
+  }, [periodType, selectedYear, selectedMonth]);
+
+  const handlePeriodTypeChange = (newType) => {
+    if (newType === periodType) return; // Jika sama, skip
+    setPeriodType(newType);
+    // Reset loading state
+    setReports([]);
+  };
+
+  const handleYearChange = (year) => {
+    setSelectedYear(parseInt(year));
+    setReports([]); // Clear old data
+  };
+
+  const handleMonthChange = (month) => {
+    setSelectedMonth(parseInt(month));
+    setReports([]); // Clear old data
+  };
+
+  const handleRefresh = () => {
+    // Reset last params untuk memaksa fetch
+    lastFetchParamsRef.current = { periodType: null, year: null, month: null };
+    fetchReports();
   };
 
   const handleViewReportDetail = (report) => {
     const year = report.year || selectedYear;
     const month = report.month || selectedMonth;
-    const periodType = report.period_type || periodType;
+    const periodTypeParam = report.period_type || periodType;
 
     router.push(
-      `/reports/detail?period_type=${periodType}&period_key=${encodeURIComponent(report.period_key)}&year=${year}&month=${month}&report_id=${report.id_report || ''}`,
+      `/reports/detail?period_type=${periodTypeParam}&period_key=${encodeURIComponent(report.period_key)}&year=${year}&month=${month}&report_id=${report.id_report || ''}`,
     );
-  };
-
-  const formatDateRange = (report) => {
-    if (report.period_type === "weekly") {
-      return `${report.start_date} - ${report.end_date}`;
-    }
-    return report.period_label;
   };
 
   // Get verification badge configuration
@@ -172,31 +231,19 @@ export default function ReportsPage() {
   };
 
   const months = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
   ];
 
   const stats = {
     total: reports.length,
     totalItems: reports.reduce((sum, r) => sum + (r.total_items || 0), 0),
     totalDevices: reports.reduce((sum, r) => sum + (r.total_devices || 0), 0),
-    totalMaterials: reports.reduce(
-      (sum, r) => sum + (r.total_materials || 0),
-      0,
-    ),
+    totalMaterials: reports.reduce((sum, r) => sum + (r.total_materials || 0), 0),
   };
 
-  if (!mounted) {
+  // Loading state untuk initial load atau saat data belum siap
+  if (!mounted || selectedYear === null || selectedMonth === null) {
     return (
       <ProtectedPage>
         <LayoutDashboard activeMenu={3}>
@@ -314,7 +361,7 @@ export default function ReportsPage() {
                 </span>
                 <div className="flex rounded-lg overflow-hidden border border-gray-300">
                   <button
-                    onClick={() => setPeriodType("weekly")}
+                    onClick={() => handlePeriodTypeChange("weekly")}
                     className={`px-4 py-2 text-sm font-medium transition ${periodType === "weekly"
                       ? "bg-blue-600 text-white"
                       : "bg-white text-gray-700 hover:bg-gray-50"
@@ -323,7 +370,7 @@ export default function ReportsPage() {
                     Weekly
                   </button>
                   <button
-                    onClick={() => setPeriodType("monthly")}
+                    onClick={() => handlePeriodTypeChange("monthly")}
                     className={`px-4 py-2 text-sm font-medium transition ${periodType === "monthly"
                       ? "bg-blue-600 text-white"
                       : "bg-white text-gray-700 hover:bg-gray-50"
@@ -338,7 +385,7 @@ export default function ReportsPage() {
                 <div className="flex items-center gap-3">
                   <select
                     value={selectedYear}
-                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                    onChange={(e) => handleYearChange(e.target.value)}
                     className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     {availableYears.map((year) => (
@@ -350,7 +397,7 @@ export default function ReportsPage() {
 
                   <select
                     value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                    onChange={(e) => handleMonthChange(e.target.value)}
                     className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     {months.map((month, idx) => (
@@ -363,7 +410,7 @@ export default function ReportsPage() {
               )}
 
               <button
-                onClick={fetchReports}
+                onClick={handleRefresh}
                 disabled={loading}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
               >
@@ -502,7 +549,7 @@ export default function ReportsPage() {
                 </button>
               </div>
             ) : viewMode === "grid" ? (
-              /* Grid View */
+              /* Grid View - same as before */
               <div className="p-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {reports.map((report, idx) => {
@@ -527,7 +574,6 @@ export default function ReportsPage() {
                                 ? "Weekly"
                                 : "Monthly"}
                             </span>
-                            {/* Verification Badge in Grid */}
                             <span className={`flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full ${verificationBadge.bgClass} ${verificationBadge.textClass}`}>
                               {verificationBadge.icon}
                               {verificationBadge.text}
@@ -582,7 +628,7 @@ export default function ReportsPage() {
                 </div>
               </div>
             ) : (
-              /* List View Table */
+              /* List View Table - same as before */
               <div className="overflow-x-auto">
                 <table className="min-w-full">
                   <thead className="bg-gray-50">
@@ -639,7 +685,6 @@ export default function ReportsPage() {
                                 </p>
                               )}
                           </td>
-
                           <td className="py-2.5 px-3 text-center">
                             <span className="inline-flex px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600">
                               {report.period_type === "weekly"
@@ -647,50 +692,36 @@ export default function ReportsPage() {
                                 : "Monthly"}
                             </span>
                           </td>
-
                           <td className="py-2.5 px-3 text-center">
                             <span className="text-sm font-medium text-gray-700">
                               {Math.floor(report.session_count || 0)} session
-                              {Math.floor(report.session_count || 0) !== 1
-                                ? "s"
-                                : ""}
+                              {Math.floor(report.session_count || 0) !== 1 ? "s" : ""}
                             </span>
                           </td>
-
                           <td className="py-2.5 px-3 text-center">
                             <span className="text-sm text-gray-600">
                               {Math.floor(report.total_devices || 0)} device
-                              {Math.floor(report.total_devices || 0) !== 1
-                                ? "s"
-                                : ""}
+                              {Math.floor(report.total_devices || 0) !== 1 ? "s" : ""}
                             </span>
                           </td>
-
                           <td className="py-2.5 px-3 text-center">
                             <span className="text-sm text-gray-600">
                               {Math.floor(report.total_materials || 0)} material
-                              {Math.floor(report.total_materials || 0) !== 1
-                                ? "s"
-                                : ""}
+                              {Math.floor(report.total_materials || 0) !== 1 ? "s" : ""}
                             </span>
                           </td>
-
                           <td className="py-2.5 px-3 text-center">
                             <span className="text-sm font-bold text-gray-800">
                               {Math.floor(report.total_items || 0)} item
-                              {Math.floor(report.total_items || 0) !== 1
-                                ? "s"
-                                : ""}
+                              {Math.floor(report.total_items || 0) !== 1 ? "s" : ""}
                             </span>
                           </td>
-
                           <td className="py-2.5 px-3 text-center">
                             <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full ${verificationBadge.bgClass} ${verificationBadge.textClass}`}>
                               {verificationBadge.icon}
                               {verificationBadge.text}
                             </span>
                           </td>
-
                           <td className="py-2.5 px-3 text-center">
                             <button
                               onClick={() => handleViewReportDetail(report)}
