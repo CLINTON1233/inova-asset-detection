@@ -64,19 +64,15 @@ export default function LayoutDashboard({ children, activeMenu }) {
     return () => clearInterval(interval);
   }, []);
 
-  // PERBAIKAN: Cek apakah welcome sudah pernah ditampilkan untuk user ini
   useEffect(() => {
     if (user) {
-      // Buat key unik berdasarkan user id
       const welcomeShownKey = `welcome_shown_${user.id}`;
       const alreadyShown = localStorage.getItem(welcomeShownKey);
 
       if (!alreadyShown) {
-        // Belum pernah ditampilkan, tampilkan sekarang
         const timer = setTimeout(() => {
           setShowWelcome(true);
           setHasShownWelcome(true);
-          // Simpan ke localStorage bahwa welcome sudah ditampilkan
           localStorage.setItem(welcomeShownKey, "true");
 
           const hideTimer = setTimeout(() => {
@@ -91,9 +87,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
     }
   }, [user]);
 
-  // ==================== MENU ITEMS BASED ON ROLE ====================
-
-  // Menu untuk ADMIN (bisa scan, create preparation, dll)
   const adminMenuItems = [
     {
       icon: Home,
@@ -158,7 +151,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
     },
   ];
 
-  // Menu untuk SUPERADMIN (hanya monitoring, tidak bisa scanning)
   const superadminMenuItems = [
     {
       icon: Home,
@@ -183,7 +175,7 @@ export default function LayoutDashboard({ children, activeMenu }) {
     },
     {
       icon: Settings,
-      label: "Reports & Analytics",
+      label: "Verify Reports & Analytics",
       hasDropdown: false,
       href: "/reports",
       menuId: "reports",
@@ -197,41 +189,30 @@ export default function LayoutDashboard({ children, activeMenu }) {
     },
   ];
 
-  // Pilih menu berdasarkan role user
   const getMenuItems = () => {
     if (!user) return adminMenuItems;
 
-    // Superadmin hanya mendapat menu monitoring
     if (user.role === "superadmin") {
       return superadminMenuItems;
     }
 
-    // Admin dan role lainnya mendapat full akses
     return adminMenuItems;
   };
 
   const menuItems = getMenuItems();
 
-  // ==================== FUNGSI UNTUK MENDAPATKAN INDEX MENU BERDASARKAN MENU ID ====================
   const getActiveMenuIndex = () => {
     if (activeMenu === undefined || activeMenu === null) return null;
 
-    // Cari index menu berdasarkan menuId yang sesuai dengan activeMenu
     const index = menuItems.findIndex((item) => item.menuId === activeMenu);
-
-    // Jika ditemukan, return index tersebut
     if (index !== -1) return index;
-
-    // Fallback: jika activeMenu adalah angka, gunakan langsung
     if (typeof activeMenu === "number") return activeMenu;
 
     return null;
   };
 
-  // Hitung active menu index berdasarkan activeMenu prop
   const computedActiveMenuIndex = getActiveMenuIndex();
 
-  // Handle click outside untuk menutup dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
@@ -274,11 +255,11 @@ export default function LayoutDashboard({ children, activeMenu }) {
       text: "Are you sure you want to log out of the system?",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonColor: "#dc2626", // Warna merah seperti tombol delete
-      cancelButtonColor: "#6b7280", // Warna abu-abu seperti cancel
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
       confirmButtonText: "Yes, Log Out!",
       cancelButtonText: "Cancel",
-      reverseButtons: true, // Tombol Cancel di kiri, Confirm di kanan
+      reverseButtons: true,
     }).then((result) => {
       if (result.isConfirmed) {
         Swal.fire({
@@ -312,7 +293,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
     router.push(href);
   };
 
-  // Jika user belum loaded, tampilkan loading
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -326,7 +306,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* 🔹 Role Badge di Welcome Notification */}
       {showWelcome && (
         <div className="fixed top-4 right-4 z-50 animate-fade-in">
           <div className="w-80 bg-white rounded-lg shadow-md border border-gray-200">
@@ -374,13 +353,23 @@ export default function LayoutDashboard({ children, activeMenu }) {
         </div>
       )}
 
-      {/* 🔹 Top Navbar - Mobile & Desktop */}
       <nav className="bg-white shadow-sm sticky top-0 z-40">
         <div className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
+          {/* <div className="flex items-center space-x-2">
             <Image
               src="/logo_inovaa.png"
               alt="Inova Logo"
+              width={220}
+              height={200}
+              className="object-contain"
+              priority
+            />
+          </div> */}
+
+          <div className="flex items-center space-x-2">
+            <Image
+              src="/seatrium.png"
+              alt="Seatrium Logo"
               width={220}
               height={200}
               className="object-contain"
@@ -394,7 +383,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
               <span className="absolute top-2 right-2 block h-2 w-2 rounded-full ring-2 ring-white bg-red-500"></span>
             </button>
 
-            {/* User Dropdown - Desktop */}
             <div className="hidden md:block relative" ref={userDropdownRef}>
               <button
                 className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition"
@@ -403,9 +391,8 @@ export default function LayoutDashboard({ children, activeMenu }) {
                 <User className="w-4 h-4" />
                 <span>{user.username}</span>
                 <ChevronDown
-                  className={`w-4 h-4 transition-transform ${
-                    userDropdownOpen ? "rotate-180" : ""
-                  }`}
+                  className={`w-4 h-4 transition-transform ${userDropdownOpen ? "rotate-180" : ""
+                    }`}
                 />
               </button>
 
@@ -473,14 +460,11 @@ export default function LayoutDashboard({ children, activeMenu }) {
           </div>
         </div>
 
-        {/* Desktop Menu - Hanya untuk role yang sesuai */}
         <div className="hidden md:block bg-blue-600 px-4">
           <div className="flex flex-wrap items-center gap-1 py-2">
             {menuItems.map((item, index) => {
-              // Gunakan computedActiveMenuIndex untuk menentukan apakah menu aktif
               const isActive = computedActiveMenuIndex === index;
 
-              // Untuk Superadmin, Assets Scanning tidak ditampilkan
               if (
                 user.role === "superadmin" &&
                 item.label === "Assets Scanning"
@@ -492,17 +476,15 @@ export default function LayoutDashboard({ children, activeMenu }) {
                 return (
                   <div key={index} className="relative" ref={scanDropdownRef}>
                     <button
-                      className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition ${
-                        isActive ? "bg-blue-700" : ""
-                      }`}
+                      className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition ${isActive ? "bg-blue-700" : ""
+                        }`}
                       onClick={() => setScanDropdownOpen(!scanDropdownOpen)}
                     >
                       <item.icon className="w-4 h-4" />
                       <span>{item.label}</span>
                       <ChevronDown
-                        className={`w-3 h-3 transition-transform ${
-                          scanDropdownOpen ? "rotate-180" : ""
-                        }`}
+                        className={`w-3 h-3 transition-transform ${scanDropdownOpen ? "rotate-180" : ""
+                          }`}
                       />
                     </button>
 
@@ -527,9 +509,8 @@ export default function LayoutDashboard({ children, activeMenu }) {
               return (
                 <button
                   key={index}
-                  className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition ${
-                    isActive ? "bg-blue-700" : ""
-                  }`}
+                  className={`flex items-center space-x-1 px-3 py-2 text-white hover:bg-blue-700 whitespace-nowrap text-sm transition ${isActive ? "bg-blue-700" : ""
+                    }`}
                   onClick={() => {
                     if (item.href) {
                       router.push(item.href);
@@ -554,7 +535,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
         </div>
       </nav>
 
-      {/* 🔹 Mobile Sidebar Menu */}
       {mobileMenuOpen && (
         <>
           <div
@@ -581,7 +561,6 @@ export default function LayoutDashboard({ children, activeMenu }) {
               </button>
             </div>
 
-            {/* User Section */}
             <div className="bg-blue-500 px-4 py-3">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-blue-400 rounded-full flex items-center justify-center text-white">
@@ -608,9 +587,8 @@ export default function LayoutDashboard({ children, activeMenu }) {
                   >
                     <span>Account Settings</span>
                     <ChevronDown
-                      className={`w-3 h-3 ml-1 transition-transform ${
-                        userDropdownOpen ? "rotate-180" : ""
-                      }`}
+                      className={`w-3 h-3 ml-1 transition-transform ${userDropdownOpen ? "rotate-180" : ""
+                        }`}
                     />
                   </button>
                 </div>
@@ -656,12 +634,10 @@ export default function LayoutDashboard({ children, activeMenu }) {
               )}
             </div>
 
-            {/* Menu Items - Mobile */}
             <div className="py-2">
               {menuItems.map((item, index) => {
                 const isActive = computedActiveMenuIndex === index;
 
-                // Superadmin tidak dapat mengakses menu Assets Scanning
                 if (
                   user.role === "superadmin" &&
                   item.label === "Assets Scanning"
@@ -672,9 +648,8 @@ export default function LayoutDashboard({ children, activeMenu }) {
                 return (
                   <div key={index}>
                     <button
-                      className={`flex items-center space-x-3 px-4 py-3 text-white hover:bg-blue-700 text-sm transition w-full text-left ${
-                        isActive ? "bg-blue-700" : ""
-                      }`}
+                      className={`flex items-center space-x-3 px-4 py-3 text-white hover:bg-blue-700 text-sm transition w-full text-left ${isActive ? "bg-blue-700" : ""
+                        }`}
                       onClick={(e) => {
                         e.stopPropagation();
                         if (item.label === "Assets Scanning") {
@@ -693,17 +668,15 @@ export default function LayoutDashboard({ children, activeMenu }) {
                       <span className="flex-1 text-left">{item.label}</span>
                       {item.hasDropdown && (
                         <ChevronDown
-                          className={`w-4 h-4 transition-transform ${
-                            mobileScanDropdownOpen &&
+                          className={`w-4 h-4 transition-transform ${mobileScanDropdownOpen &&
                             item.label === "Assets Scanning"
-                              ? "rotate-180"
-                              : ""
-                          }`}
+                            ? "rotate-180"
+                            : ""
+                            }`}
                         />
                       )}
                     </button>
 
-                    {/* Submenu untuk mobile - Assets Scanning */}
                     {item.label === "Assets Scanning" &&
                       mobileScanDropdownOpen && (
                         <div className="bg-blue-500 py-1">

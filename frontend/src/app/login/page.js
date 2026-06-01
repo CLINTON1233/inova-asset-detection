@@ -18,9 +18,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { login } = useAuth();
-
-  // Carousel images
-  const images = ["/bg_seatrium 3.png", "/offshoree.jpg", "/offshore.jpg"];
+  const images = ["/bg_seatrium 3.png", "/seatrium_offshore.jpg", "/offshore.jpg"];
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -29,13 +27,11 @@ export default function LoginPage() {
     return () => clearInterval(interval);
   }, [images.length]);
 
-  // Cek remember me pada mount
   useEffect(() => {
     const savedRemember = localStorage.getItem("remember_me");
     if (savedRemember === "true") {
       setRememberMe(true);
 
-      // Coba ambil credential dari localStorage jika ada
       const savedEmail = localStorage.getItem("saved_email");
       if (savedEmail) {
         setFormData((prev) => ({
@@ -59,7 +55,6 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Validasi form
       if (!formData.email || !formData.password) {
         Swal.fire({
           title: "Validation Error",
@@ -77,7 +72,6 @@ export default function LoginPage() {
         return;
       }
 
-      // Show loading
       Swal.fire({
         title: "Authenticating...",
         text: "Please wait while we verify your credentials.",
@@ -94,7 +88,6 @@ export default function LoginPage() {
         },
       });
 
-      // Kirim request login ke backend
       const response = await fetch(API_ENDPOINTS.LOGIN, {
         method: "POST",
         headers: {
@@ -106,7 +99,6 @@ export default function LoginPage() {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        // Simpan email jika remember me di-check
         if (rememberMe) {
           localStorage.setItem("saved_email", formData.email);
           localStorage.setItem("remember_me", "true");
@@ -115,24 +107,20 @@ export default function LoginPage() {
           localStorage.removeItem("remember_me");
         }
 
-        // Simpan token dan user data
         if (result.token) {
           localStorage.setItem("auth_token", result.token);
           localStorage.setItem("user_data", JSON.stringify(result.user));
-          document.cookie = `auth_token=${result.token}; path=/; max-age=86400`; // 1 hari
+          document.cookie = `auth_token=${result.token}; path=/; max-age=86400`;
 
-          // Tambahkan role ke user data jika belum ada (untuk backward compatibility)
           if (!result.user.role) {
-            result.user.role = "admin"; // Default role
+            result.user.role = "admin";
           }
 
           login(result.user, result.token);
         }
 
-        // Tutup loading SweetAlert
         Swal.close();
 
-        // Success Notification dengan role info
         const userRole =
           result.user.role === "superadmin" ? "superadmin" : "admin";
         const greeting =
@@ -160,16 +148,12 @@ export default function LoginPage() {
           showConfirmButton: false,
         });
 
-        // Redirect berdasarkan role
         if (result.user.role === "superadmin") {
-          // Bisa redirect ke dashboard khusus superadmin
           router.push("/dashboard");
         } else {
-          // Redirect ke dashboard admin
           router.push("/dashboard");
         }
       } else {
-        // Error dari backend
         throw new Error(result.message || "Login failed");
       }
     } catch (error) {
@@ -198,7 +182,6 @@ export default function LoginPage() {
         errorMessage = error.message;
       }
 
-      // Error Notification
       Swal.fire({
         title: "Error",
         text: errorMessage,
@@ -218,8 +201,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row relative bg-white">
-      {/* Logo top-left */}
-      {/* <div className="absolute top-4 left-4 z-20 flex items-center space-x-2">
+      <div className="absolute top-4 left-4 z-20 flex items-center space-x-2">
         <Image
           src="/seatrium.png"
           alt="Seatrium Logo"
@@ -227,9 +209,9 @@ export default function LoginPage() {
           height={150}
           className="object-contain"
         />
-      </div> */}
+      </div>
 
-      <div className="absolute top-4 left-4 z-20 flex items-center space-x-2">
+      {/* <div className="absolute top-4 left-4 z-20 flex items-center space-x-2">
         <Image
           src="/Logo_Inovaa.png"
           alt="Inova Logo"
@@ -237,9 +219,8 @@ export default function LoginPage() {
           height={150}
           className="object-contain"
         />
-      </div>
+      </div> */}
 
-      {/* Image Carousel */}
       <div className="relative w-full h-56 sm:h-64 lg:h-auto lg:flex-1 overflow-hidden order-1 lg:order-2">
         {images.map((img, index) => (
           <Image
@@ -253,10 +234,8 @@ export default function LoginPage() {
           />
         ))}
 
-        {/* Overlay gradient for mobile */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-transparent lg:hidden" />
 
-        {/* Indicator dots */}
         <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex space-x-2 z-10">
           {images.map((_, index) => (
             <div
@@ -268,11 +247,9 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Login Form */}
       <div className="flex-1 flex flex-col justify-between bg-white order-2 lg:order-1">
         <div className="flex items-start lg:items-center justify-center px-10 sm:px-12 lg:px-8 pt-6 pb-8 lg:py-0 flex-grow">
           <div className="max-w-md w-full space-y-4 lg:space-y-8">
-            {/* Title */}
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
                 Welcome Back!
@@ -282,13 +259,11 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* Form */}
             <form
               className="space-y-4 sm:space-y-5 lg:space-y-6"
               onSubmit={handleSubmit}
             >
               <div className="space-y-3 sm:space-y-4">
-                {/* Email/Username */}
                 <div>
                   <label
                     htmlFor="email"
@@ -309,7 +284,6 @@ export default function LoginPage() {
                   />
                 </div>
 
-                {/* Password */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label
@@ -339,7 +313,6 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Remember Me */}
               <div className="flex items-start sm:items-center">
                 <input
                   id="remember-me"
@@ -357,7 +330,6 @@ export default function LoginPage() {
                 </label>
               </div>
 
-              {/* Login Button */}
               <div>
                 <button
                   type="submit"
@@ -371,7 +343,6 @@ export default function LoginPage() {
                 </button>
               </div>
 
-              {/* Register Link */}
               <div className="text-center pt-2">
                 <p className="text-gray-600 text-xs sm:text-sm mb-2">
                   Don't have an account?{" "}

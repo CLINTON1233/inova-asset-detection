@@ -13,10 +13,8 @@ export default function LandingPage() {
 
   return (
     <div className="relative min-h-screen flex flex-col font-poppins">
-      {/* NAVBAR */}
       <nav className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 md:px-10 py-5">
-        {/* Logo */}
-        {/* <Link href="/" className="flex items-center space-x-3">
+        <Link href="/" className="flex items-center space-x-3">
           <Image
             src="/seatrium.png"
             alt="Seatrium Logo"
@@ -25,9 +23,9 @@ export default function LandingPage() {
             className="object-contain cursor-pointer"
             priority
           />
-        </Link> */}
+        </Link>
 
-        <Link href="/" className="flex items-center space-x-3">
+        {/* <Link href="/" className="flex items-center space-x-3">
           <Image
             src="/Logo_Inovaa.png"
             alt="Inova Logo"
@@ -36,9 +34,8 @@ export default function LandingPage() {
             className="object-contain cursor-pointer"
             priority
           />
-        </Link>
+        </Link> */}
 
-        {/* Right Menu */}
         <div className="hidden md:flex items-center space-x-5">
           <Link
             href="/register"
@@ -54,7 +51,6 @@ export default function LandingPage() {
           </Link>
         </div>
 
-        {/* Mobile Menu Button */}
         <button
           onClick={() => setMenuOpen(!menuOpen)}
           className="md:hidden text-white focus:outline-none"
@@ -63,7 +59,6 @@ export default function LandingPage() {
         </button>
       </nav>
 
-      {/* MOBILE MENU OVERLAY */}
       {menuOpen && (
         <div className="fixed inset-0 bg-blue-800/95 text-white flex flex-col items2-center justify-center space-y-6 z-30 md:hidden">
 
@@ -84,7 +79,6 @@ export default function LandingPage() {
         </div>
       )}
 
-      {/* HERO SECTION */}
       <div className="relative flex flex-1 items-center justify-center overflow-hidden">
         {/* Background */}
         {/* <div className="absolute inset-0 -z-10">
@@ -108,7 +102,6 @@ export default function LandingPage() {
           <div className="absolute inset-0 bg-gradient-to-br from-blue-400/50 via-blue-400/30 to-gray-700/40" />
         </div>
 
-        {/* Content */}
         <div className="absolute left-6 md:left-16 top-1/2 transform -translate-y-1/2 text-white text-left max-w-xl">
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-semibold mb-4 md:mb-6 leading-tight">
             IT Inventory Assets Management

@@ -21,7 +21,7 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  const images = ["/bg_seatrium 3.png", "/offshoree.jpg", "/offshore.jpg"];
+  const images = ["/bg_seatrium 3.png", "/seatrium_offshore.jpg", "/offshore.jpg"];
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -57,7 +57,6 @@ export default function RegisterPage() {
       return;
     }
 
-    // Validasi form
     if (
       !formData.no_badge ||
       !formData.department ||
@@ -82,7 +81,6 @@ export default function RegisterPage() {
 
     setIsLoading(true);
 
-    // Show loading
     Swal.fire({
       title: "Registering...",
       text: "Please wait while we create your account.",
@@ -129,10 +127,8 @@ export default function RegisterPage() {
       const data = await response.json();
       console.log("Response data:", data);
 
-      // Tutup loading SweetAlert
       Swal.close();
 
-      // Success Notification (tanpa progress bar)
       await Swal.fire({
         title: "Registration Successful!",
         html: `
@@ -153,15 +149,12 @@ export default function RegisterPage() {
         showConfirmButton: false,
       });
 
-      // Redirect ke login setelah sukses
       router.push("/login");
     } catch (error) {
       console.error("Registration error:", error);
 
-      // Tutup loading SweetAlert
       Swal.close();
 
-      // Periksa jika error karena backend tidak terhubung
       if (
         error.message.includes("Failed to fetch") ||
         error.message.includes("NetworkError")
@@ -199,8 +192,7 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row relative overflow-hidden">
-      {/* Logo pojok kiri atas */}
-      <div className="absolute top-4 left-4 z-20 flex items-center space-x-2">
+      {/* <div className="absolute top-4 left-4 z-20 flex items-center space-x-2">
         <Image
           src="/Logo_Inovaa.png"
           alt="Inova Logo"
@@ -209,9 +201,19 @@ export default function RegisterPage() {
           className="object-contain"
           priority
         />
+      </div> */}
+
+      <div className="absolute top-4 left-4 z-20 flex items-center space-x-2">
+        <Image
+          src="/seatrium.png"
+          alt="Seatrium Logo"
+          width={150}
+          height={150}
+          className="object-contain"
+          priority
+        />
       </div>
 
-      {/* Carousel - mobile (atas) & desktop (kanan) */}
       <div className="relative w-full h-48 lg:h-auto lg:flex-1 overflow-hidden order-1 lg:order-2">
         {images.map((img, index) => (
           <Image
@@ -225,10 +227,7 @@ export default function RegisterPage() {
           />
         ))}
 
-        {/* Overlay gradient mobile */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-transparent lg:hidden" />
-
-        {/* Indicator dots */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-2 z-10">
           {images.map((_, index) => (
             <div
@@ -240,11 +239,9 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      {/* Register Form */}
       <div className="flex-1 flex flex-col justify-between bg-white order-2 lg:order-1">
         <div className="flex items-start lg:items-center justify-center px-6 sm:px-8 lg:px-8 pt-4 pb-4 lg:py-0 flex-grow">
           <div className="w-full max-w-md space-y-3">
-            {/* Title */}
             <div>
               <h1 className="text-xl sm:text-1xl font-bold text-gray-900">
                 Get Started Now!
@@ -254,10 +251,8 @@ export default function RegisterPage() {
               </p>
             </div>
 
-            {/* Form */}
             <form className="mt-2 space-y-3 sm:mt-3 sm:space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-2 sm:space-y-3">
-                {/* Username */}
                 <div>
                   <label
                     htmlFor="username"
@@ -277,7 +272,6 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                {/* Email */}
                 <div>
                   <label
                     htmlFor="email"
@@ -298,7 +292,6 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                {/* Password */}
                 <div>
                   <label
                     htmlFor="password"
@@ -319,7 +312,6 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                {/* Badge Number */}
                 <div>
                   <label
                     htmlFor="no_badge"
@@ -339,7 +331,6 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                {/* Department */}
                 <div>
                   <label
                     htmlFor="department"
@@ -359,7 +350,6 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                {/* Role Selection */}
                 <div>
                   <label
                     htmlFor="role"
@@ -381,7 +371,6 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              {/* Terms & Policy */}
               <div className="flex items-center">
                 <input
                   id="agree"
@@ -402,21 +391,19 @@ export default function RegisterPage() {
                 </label>
               </div>
 
-              {/* Signup Button */}
               <div>
                 <button
                   type="submit"
                   disabled={isLoading}
                   className={`w-full flex justify-center py-2.5 px-3 text-sm font-medium rounded-md text-white transition ${isLoading
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     }`}
                 >
                   {isLoading ? "Registering..." : "Signup"}
                 </button>
               </div>
 
-              {/* Already have account */}
               <div className="text-center">
                 <span className="text-gray-600 text-xs sm:text-sm mb-2">
                   Have an account?{" "}
@@ -432,7 +419,6 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        {/* Footer */}
         <footer className="text-center py-3 sm:py-4 text-xs sm:text-sm text-gray-500 border-t">
           <div>© 2026 IT Asset Management System</div>
           <div>
