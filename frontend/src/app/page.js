@@ -81,17 +81,17 @@ export default function LandingPage() {
 
       <div className="relative flex flex-1 items-center justify-center overflow-hidden">
         {/* Background */}
-        {/* <div className="absolute inset-0 -z-10">
+        <div className="absolute inset-0 -z-10">
           <Image
-            src="/bg_seatrium 3.png"
+            src="/banner.png"
             alt="Background"
             fill
             className="object-cover"
             priority
           />
           <div className="absolute inset-0 bg-gradient-to-br from-blue-700/50 via-blue-500/30 to-gray-700/40" />
-        </div> */}
-        <div className="absolute inset-0 -z-10">
+        </div>
+        {/* <div className="absolute inset-0 -z-10">
           <Image
             src="/offshoree.jpg"
             alt="Background"
@@ -100,7 +100,7 @@ export default function LandingPage() {
             priority
           />
           <div className="absolute inset-0 bg-gradient-to-br from-blue-400/50 via-blue-400/30 to-gray-700/40" />
-        </div>
+        </div> */}
 
         <div className="absolute left-6 md:left-16 top-1/2 transform -translate-y-1/2 text-white text-left max-w-xl">
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-semibold mb-4 md:mb-6 leading-tight">
