@@ -214,5 +214,5 @@ npm run dev
 - Ensure the connection between frontend (`http://localhost:3004`) and backend (`http://localhost:5001`) is not blocked by firewall rules.
 - Use the admin account or any registered user account to log in.
 
-Congratulations! Once the backend and frontend are running, you can use the system to detect assets and generate asset data.
+Once the backend and frontend are running, you can use the system to detect assets and generate asset data.
 "
